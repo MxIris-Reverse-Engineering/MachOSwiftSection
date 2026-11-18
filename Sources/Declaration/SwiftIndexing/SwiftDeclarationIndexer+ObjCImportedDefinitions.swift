@@ -60,6 +60,21 @@ extension SwiftDeclarationIndexer {
         return ObjCImportedCategoryDefinition(record: record, categoryName: categoryName, swiftExtensions: swiftExtensions(ofObjCClassNamed: record.classRuntimeName), in: machO)
     }
 
+    /// The runtime names of the classes declared in Objective-C that the
+    /// image's Swift code extends — its `@objc @implementation` classes
+    /// among them, whose bodies are extensions too. These are the classes a
+    /// Swift definition of the image can answer for, and the only ones
+    /// `SwiftDeclarationPrinter.objcMembersRefinedForSwift(in:)` can find a
+    /// refined member of (evolution proposal
+    /// `swift-first-imported-declarations`): a host asking for every class of
+    /// an image asks for these, not for thousands. One pass over the image's
+    /// extensions.
+    public var objcClassRuntimeNamesExtendedInSwift: Set<String> {
+        Set(typeExtensionDefinitions.values.lazy.flatMap { $0 }.compactMap { extensionDefinition in
+            ObjCImplementationClasses.cImportedClassName(of: extensionDefinition.extensionName.node)
+        })
+    }
+
     /// The image's Swift extensions of the class declared in Objective-C as
     /// `className` (`extension __C.NSView`).
     private func swiftExtensions(ofObjCClassNamed className: String) -> [ExtensionDefinition] {

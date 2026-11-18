@@ -16,6 +16,10 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 13: a property's SE-0400 init accessor is one of its accessors, so
+    ///   the `|acc:` tag of a property with one gains `init` (evolution
+    ///   proposal `init-accessor-recovery`). An older baseline, which never
+    ///   saw the accessor, would report every such property as changed.
     /// - 12: a constrained existential in a field record (`any Boxed<Int>`) is
     ///   recorded as the existential type it stands for — the shape with its
     ///   generalization arguments substituted — instead of the symbolic
@@ -87,7 +91,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 12
+    public static let currentFormatVersion = 13
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

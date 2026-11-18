@@ -50,11 +50,11 @@ extension ObjCCategoryProtocolAdoption: NamedDumpable {
         }
     }
 
-    /// The extended class: a Swift class by its mangled runtime name, any
-    /// other in `__C`.
+    /// The extended class: a Swift class by its mangled runtime name, or by
+    /// the class metadata symbol a file's category is bound to; any other in
+    /// `__C`.
     private func classNode() -> Node {
-        if classRuntimeName.hasPrefix("_Tt") || classRuntimeName.hasPrefix("$s"),
-           let classNode = (try? demangleAsNodeTransient(classRuntimeName))?.first(of: .class) {
+        if let classNode = NodeTypeNaming.swiftClassNode(fromRuntimeName: classRuntimeName) {
             return classNode
         }
         return Node.createTransient(kind: .class, children: [

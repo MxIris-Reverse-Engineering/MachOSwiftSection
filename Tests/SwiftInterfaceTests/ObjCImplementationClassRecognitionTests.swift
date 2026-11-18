@@ -180,9 +180,10 @@ struct ObjCImplementationClassRecognitionTests {
         #expect(facts.properties.map(\.name).sorted() == ["count", "title"])
 
         #expect(ObjCImplementationClasses.facts(forClassNamed: "ClangWidget", in: machOFile) == nil)
-        // Two `@implementation` bodies: `Widget` and the override-recovery
-        // fixture's `DerivedImplementationWidget`.
-        #expect(Set(ObjCImplementationClasses.all(in: machOFile).map(\.className)) == ["Widget", "DerivedImplementationWidget"])
+        // Three `@implementation` bodies: `Widget`, the override-recovery
+        // fixture's `DerivedImplementationWidget` and the imported
+        // declarations' `ScenePresentationWidget`.
+        #expect(Set(ObjCImplementationClasses.all(in: machOFile).map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget"])
     }
 
     /// An imported ObjC class has `PublicNonUnique` linkage, so any module
@@ -219,7 +220,7 @@ struct ObjCImplementationClassRecognitionTests {
             guard case .objcImplementationClassRecognized(let context) = event else { return nil }
             return context
         }
-        #expect(Set(recognized.map(\.className)) == ["Widget", "DerivedImplementationWidget"])
+        #expect(Set(recognized.map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget"])
         let widget = try #require(recognized.first { $0.className == "Widget" })
         #expect(widget.isInferred == false)
         #expect(widget.instanceVariableCount == 5)

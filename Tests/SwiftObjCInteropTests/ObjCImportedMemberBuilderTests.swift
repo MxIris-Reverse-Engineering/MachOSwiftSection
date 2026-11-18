@@ -137,4 +137,38 @@ struct ObjCImportedMemberBuilderTests {
         // A non-object property has none.
         #expect(try property("level").ownership == nil)
     }
+
+    /// `const char *` — `r*` in an encoding — imports as `UnsafePointer`, as
+    /// the importer has it: `NSString.utf8String`, whose getter's encoding is
+    /// `r*16@0:8`.
+    @Test func aConstantCStringImportsAsAnImmutablePointer() throws {
+        _ = dlopen("/System/Library/Frameworks/Foundation.framework/Foundation", RTLD_NOW)
+        let foundation = try #require(MachOImage(named: .Foundation))
+        let members = try Self.members(ofClassNamed: "NSString", in: foundation)
+        let utf8String = try #require(members.first { $0.selector == "UTF8String" }, "NSString has no UTF8String")
+        #expect(utf8String.typeEncoding.contains("r*"), "\(utf8String.typeEncoding)")
+        let printed = Self.printed(utf8String)
+        #expect(printed.contains("UnsafePointer<Swift.Int8>"), "\(printed)")
+        #expect(!printed.contains("UnsafeMutablePointer"), "\(printed)")
+    }
+
+    /// C arrays import the way ClangImporter imports them
+    /// (`VisitConstantArrayType`): a tuple of their elements, a single
+    /// element as the element itself, and nothing past 4,096 elements — a
+    /// pointer to such an array is an `OpaquePointer`. Nested arrays stop at
+    /// 65,536 elements in all, so no encoding makes the importer build or
+    /// print a tuple without end.
+    @Test(arguments: [
+        ("^[4c]", "Swift.UnsafeMutablePointer<(Swift.Int8, Swift.Int8, Swift.Int8, Swift.Int8)>"),
+        ("^[1c]", "Swift.UnsafeMutablePointer<Swift.Int8>"),
+        ("^[5000c]", "Swift.OpaquePointer"),
+        ("^[300[300c]]", "Swift.OpaquePointer"),
+    ])
+    func aCArrayImportsAsClangImporterImportsIt(encoding: String, expectedType: String) throws {
+        _ = dlopen("/System/Library/Frameworks/Foundation.framework/Foundation", RTLD_NOW)
+        let foundation = try #require(MachOImage(named: .Foundation))
+        let type = try #require(ObjCTypeEncodingParser.type(from: encoding), "\(encoding)")
+        let printed = ObjCImportedTypes(machO: foundation).typeNode(type, position: .nonOptional).print(using: .interface)
+        #expect(printed == expectedType)
+    }
 }

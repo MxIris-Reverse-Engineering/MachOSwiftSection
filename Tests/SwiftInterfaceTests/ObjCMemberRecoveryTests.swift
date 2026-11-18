@@ -644,6 +644,30 @@ struct ObjCMemberRecoveryTests {
         #expect(methodThunk == method)
     }
 
+    /// `NS_REFINED_FOR_SWIFT` puts `__` in front of a member's Swift name;
+    /// an `@objc @implementation` body implements it under that name
+    /// (evolution proposal `swift-first-imported-declarations`). The symbols
+    /// are SceneHosting's on macOS 27.2.
+    @Test func refinedForSwiftShapesAnswerTheUnprefixedSelector() throws {
+        let getter = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo19SHScenePresentationC12SceneHostingE13__layerFilterSo0a5LayerF0Cvg")))
+        #expect(!getter.isConsistent(withSelector: "layerFilter", isClassMethod: false))
+        let unprefixedGetter = try #require(getter.removingRefinedForSwiftPrefix)
+        #expect(unprefixedGetter.kind == .getter(propertyName: "layerFilter"))
+        #expect(unprefixedGetter.isConsistent(withSelector: "layerFilter", isClassMethod: false))
+
+        let setter = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo19SHScenePresentationC12SceneHostingE13__layerFilterSo0a5LayerF0Cvs")))
+        #expect(try #require(setter.removingRefinedForSwiftPrefix).isConsistent(withSelector: "setLayerFilter:", isClassMethod: false))
+
+        let initializer = ObjCMemberShape(kind: .initializer(labels: ["__swiftScene", "registerPresenter"], arity: 2), isStatic: false, ownerQualifiedName: nil)
+        #expect(try #require(initializer.removingRefinedForSwiftPrefix).isConsistent(withSelector: "initWithSwiftScene:registerPresenter:", isClassMethod: false))
+
+        // A name without the prefix has no unprefixed shape, and the
+        // importer's plain spelling still matches it.
+        let hosting = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo19SHScenePresentationC12SceneHostingE02isD010sceneLayerSbSo07FBSceneG0C_tF")))
+        #expect(hosting.removingRefinedForSwiftPrefix == nil)
+        #expect(hosting.isConsistent(withSelector: "isHostingSceneLayer:", isClassMethod: false))
+    }
+
     @Test func memberShapesFollowTheImporterSpelling() throws {
         let viewWillMove = try #require(ObjCMemberShape(demangledSymbol: try demangleAsNode("$sSo17NSGlassEffectViewC6AppKitE12viewWillMove8toWindowySo8NSWindowCSg_tF")))
         #expect(viewWillMove.kind == .method(baseName: "viewWillMove", labels: ["toWindow"], arity: 1))

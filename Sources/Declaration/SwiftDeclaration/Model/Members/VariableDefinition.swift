@@ -44,4 +44,13 @@ public struct VariableDefinition: Sendable, AccessorRepresentable {
     /// printer renders it as one — `var name: Type` with its field offset —
     /// instead of the `{ get set }` computed shape the symbols alone suggest.
     public var objcImplementationStorage: ObjCImplementationClassFacts.InstanceVariable? = nil
+
+    /// The fields this property's SE-0400 init accessor initializes — what
+    /// its `@storageRestrictions(initializes:)` lists — as far as the image
+    /// tells (evolution proposal `init-accessor-recovery`). No image records
+    /// the attribute, so it is inferred at index time from the type's stored
+    /// properties (`InitAccessorFieldInference`): the field named `_<name>`
+    /// with this property's type. `nil` when nothing tells, and for a
+    /// property without an init accessor. `accesses:` is never recovered.
+    public var initializedFieldNames: [String]? = nil
 }

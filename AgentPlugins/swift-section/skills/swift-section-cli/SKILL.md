@@ -47,7 +47,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 / `dump --enable-module-selectors`, from 0.24.0
 `interface --requirements-on-associated-types` and `--emit-private-source-files`, and after
 0.24.0 `objc evolution --interface` / `--emit-available` / `--platform`,
-`objc interface --swift` and `interface --no-existential-any` / `dump --disable-existential-any`.
+`objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`
+and `interface --expand-macros`.
 When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
@@ -176,13 +177,27 @@ constrained existential type (`any Boxed<Int>`) printed in older builds as its a
 so read such a line from an older build as a constrained existential of unknown protocol, not
 as the type it names.
 
+A class the `@Observable` macro expanded prints the way its source reads (after 0.24.0):
+`@Observation.Observable` above the class, each tracked property as the stored `var x: T` it
+was declared as, a stored `var` the macro left alone under `@Observation.ObservationIgnored`
+on a line of its own (a property wrapper's attribute gets a line of its own too), and no registrar, no `access(keyPath:)` / `withMutation(keyPath:_:)` / `shouldNotifyObservers`, no
+`extension X: Observation.Observable {}`. In the binary each tracked `x` is a computed property
+over private storage `_x`; `interface --expand-macros` prints that, as older builds always did.
+A tracked property whose accessors are stripped or dead-stripped (an internal class in an app or
+OS framework) carries a note naming the storage it was synthesized from; when nothing in the
+image names `y` or gives `_y` an initial value or accessors of its own, an
+`@ObservationIgnored var _y` reads as a tracked `y` behind such a note. SwiftData
+`@Model` classes are not folded. `dump` keeps every generated member and adds
+`@Observation.Observable` to the class's header line.
+
 Only `dump` has: `--sections`, `--preferred-binary-order`, and the demangler option group
 (`--demangle-options default|simplified|interface` plus ~22 `--enable-…` / `--disable-…`
 switches).
 
 Only `interface` has: `--exported-only`, `--sort-members-by-offset`,
 `--parse-opaque-return-type`, `--show-c-imported-types`, `--resolve-c-module-names`,
-`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`.
+`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`,
+`--expand-macros`.
 
 `--requirements-on-associated-types` changes where a protocol's requirements print, never which:
 `associatedtype Body: SwiftUI.View` instead of `protocol View where Self.Body: SwiftUI.View`,
@@ -301,16 +316,20 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again. Format 11 (0.25.0 and later) rejects every earlier baseline,
-  for three reasons: in an optimized build the newer tool also records the members whose only symbol
+  a breaking change — and added again. Format 13 (0.25.0 and later) rejects every earlier baseline,
+  for five reasons: in an optimized build the newer tool also records the members whose only symbol
   is their `@objc` thunk, their initializing entry point or that entry point's function signature
   specialization (see §9), which an old baseline would report as added; a snapshot now records whether its image keeps local Swift symbols and whether
-  each member is exported, which the not-observable rule above needs; and an image's extensions now
+  each member is exported, which the not-observable rule above needs; an image's extensions now
   hold the members of its own module's types that no definition in the image gathers — SwiftUI's
   members of the types SwiftUICore defines, an internal namespace whose type descriptor was stripped —
   which earlier tools left out of `interface` and the snapshot, and an old baseline would report as
-  added. `dump` does not show them. Formats 8, 9 and 10 only ever existed on the development
-  branch, between those changes.
+  added (`dump` does not show them); a stored field whose type is a constrained existential
+  (`any Boxed<Int>`) is recorded as that existential, where it used to read as its arguments alone,
+  and an old baseline would report each such field as changed; and a property's SE-0400 init
+  accessor is one of its accessors now, so an old baseline would report every property that has
+  one as changed. Formats 8 through 12 only ever existed on the development branch, between those
+  changes.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
@@ -365,6 +384,15 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   printed only when an extension of the protocol in the same image proves it
   (`extension P where Element: ~Copyable`), which only a primary associated type
   (`protocol P<Element>`) can.
+- **`@storageRestrictions(initializes: _x) init` in an accessor block is inferred, not read**
+  (after 0.24.0). No binary records the attribute (SE-0400 init accessors): it is printed when
+  the type has a stored property `_x` of the property's own type — what `@Observable` and most
+  hand-written storage do — and it never lists `accesses:`. Otherwise a bare `init` prints under
+  `// init accessor: the binary does not record which stored properties it initializes`. **No
+  `init` line does not mean no init accessor**: the compiler gives one internal access unless it
+  is `@usableFromInline`, so an optimized, dead-stripped image (most OS frameworks, shipped
+  apps) keeps only the exported ones. `dump` lists each one it finds as `X.x.init : T`, with the
+  inference on the line above.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
 - **An `@objc protocol` whose requirements carry `@objc(selector)`, under the comment

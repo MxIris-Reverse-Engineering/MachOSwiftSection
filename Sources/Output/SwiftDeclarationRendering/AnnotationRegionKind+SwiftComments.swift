@@ -69,6 +69,13 @@ extension AnnotationRegion.Kind {
     /// `// protocol-extension default`.
     public static let protocolExtensionDefault = Self("protocolExtensionDefault")
 
+    /// `// init accessor: the binary does not record which stored properties it initializes`:
+    /// above a property whose SE-0400 init accessor initializes fields
+    /// nothing in the image names. The dump puts it, or
+    /// `// init accessor: initializes _value (inferred from the stored property's name and type)`,
+    /// above every init accessor's symbol.
+    public static let initAccessorFields = Self("initAccessorFields")
+
     /// `// EnabledKey is declared in Enabled.swift of module SwiftUICore`.
     public static let privateDeclarationSource = Self("privateDeclarationSource")
 
@@ -82,6 +89,11 @@ extension AnnotationRegion.Kind {
     /// `// Kind: Method, isAsync: false, isInstance: true`: what a protocol
     /// requirement whose symbol was stripped still records.
     public static let strippedSymbolicRequirement = Self("strippedSymbolicRequirement")
+
+    /// `// NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }`:
+    /// in the Swift view of an Objective-C class, a member the header refines
+    /// for Swift whose Swift declaration the image keeps no symbol of.
+    public static let refinedForSwiftMember = Self("refinedForSwiftMember")
 
     // Comments only the dump prints, and the dump marks none.
 

@@ -103,7 +103,8 @@ extension ObjCImportedMemberDefinition {
             isClassMember: member.isClassMember,
             ownership: ownership,
             hasExplicitSelector: member.hasExplicitSelector,
-            typeEncoding: member.typeEncoding
+            typeEncoding: member.typeEncoding,
+            objcPropertyName: member.objcPropertyName
         )
     }
 }

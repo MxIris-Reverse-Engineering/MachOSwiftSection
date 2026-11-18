@@ -178,6 +178,8 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                         configuration.exportStatusComment()
                     }
 
+                    initAccessorFieldsComment(for: symbol)
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)

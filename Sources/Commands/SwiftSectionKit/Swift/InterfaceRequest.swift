@@ -73,6 +73,12 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// `any P.Type`), as the compiler writes a `.swiftinterface`. On by
     /// default.
     public var usesExistentialAny: Bool
+    /// What an attached macro generated, as the binary has it: an
+    /// `@Observable` class's registrar, the storage and computed properties of
+    /// its tracked properties, the generated methods and conformance. Off by
+    /// default: the class prints with `@Observation.Observable` and the
+    /// stored properties its source declared.
+    public var expandsMacros: Bool
     /// Where a requirement about one of a protocol's own associated types
     /// prints: in the protocol's `where` clause, or on that `associatedtype`
     /// (`associatedtype Body: SwiftUI.View`). The requirements are the same
@@ -102,6 +108,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         infersObjCOverridesFromSelectorNames: Bool = false,
         usesModuleSelectors: Bool = false,
         usesExistentialAny: Bool = true,
+        expandsMacros: Bool = false,
         protocolRequirementPlacement: ProtocolRequirementPlacement = .protocolWhereClause,
         emitsHeader: Bool = false,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
@@ -124,6 +131,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         self.usesModuleSelectors = usesModuleSelectors
         self.usesExistentialAny = usesExistentialAny
+        self.expandsMacros = expandsMacros
         self.protocolRequirementPlacement = protocolRequirementPlacement
         self.emitsHeader = emitsHeader
         self.commentTransformers = commentTransformers
@@ -162,6 +170,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         printConfiguration.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         printConfiguration.usesModuleSelectors = usesModuleSelectors
         printConfiguration.usesExistentialAny = usesExistentialAny
+        printConfiguration.expandsMacros = expandsMacros
         printConfiguration.protocolRequirementPlacement = protocolRequirementPlacement
 
         var configuration = SwiftInterfaceBuilderConfiguration(

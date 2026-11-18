@@ -163,9 +163,15 @@ extension MemberDeclarationNodePrintable {
 
     /// The `{ get }` / `{ get set }` block of a computed variable or a
     /// subscript — `{ borrow }` / `{ borrow mutate }` for SE-0507 accessors —
-    /// indented one level deeper than the declaration.
+    /// indented one level deeper than the declaration, and opened by a
+    /// variable's SE-0400 `init` line.
     mutating func printAccessorBlock(_ keywords: AccessorBlockKeywords, indentation: Int) {
         target.write(" {")
+        if let initAccessor = keywords.initAccessor {
+            target.write("\n")
+            target.write(String(repeating: " ", count: (indentation + 1) * 4))
+            initAccessor.write(into: &target)
+        }
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))
         target.write(keywords.read, context: .context(state: .printKeyword))

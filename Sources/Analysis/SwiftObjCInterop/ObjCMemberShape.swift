@@ -178,6 +178,44 @@ public struct ObjCMemberShape: Sendable, Hashable {
         }
     }
 
+    // MARK: - NS_REFINED_FOR_SWIFT
+
+    /// What the importer puts in front of the Swift name of a member a header
+    /// marks `NS_REFINED_FOR_SWIFT` (`SwiftPrivate` in API notes).
+    public static let refinedForSwiftPrefix = "__"
+
+    /// The shape with the importer's `NS_REFINED_FOR_SWIFT` prefix taken off
+    /// the name it goes on — a property's name, a method's base name, an
+    /// initializer's first argument label — or `nil` when that name does not
+    /// carry it. An `@objc @implementation` body implements such a member
+    /// under the prefixed name (`__layerFilter` answers `layerFilter`), so
+    /// matching a selector against this shape is the importer's rule for it
+    /// (evolution proposal `swift-first-imported-declarations`).
+    public var removingRefinedForSwiftPrefix: ObjCMemberShape? {
+        func unprefixed(_ name: String) -> String? {
+            guard name.hasPrefix(Self.refinedForSwiftPrefix), name.count > Self.refinedForSwiftPrefix.count else { return nil }
+            return String(name.dropFirst(Self.refinedForSwiftPrefix.count))
+        }
+        let unprefixedKind: Kind
+        switch kind {
+        case .getter(let propertyName):
+            guard let name = unprefixed(propertyName) else { return nil }
+            unprefixedKind = .getter(propertyName: name)
+        case .setter(let propertyName):
+            guard let name = unprefixed(propertyName) else { return nil }
+            unprefixedKind = .setter(propertyName: name)
+        case .method(let baseName, let labels, let arity):
+            guard let name = unprefixed(baseName) else { return nil }
+            unprefixedKind = .method(baseName: name, labels: labels, arity: arity)
+        case .initializer(let labels, let arity):
+            guard let firstLabel = labels.first ?? nil, let label = unprefixed(firstLabel) else { return nil }
+            unprefixedKind = .initializer(labels: [label] + labels.dropFirst(), arity: arity)
+        case .subscriptGetter, .subscriptSetter:
+            return nil
+        }
+        return ObjCMemberShape(kind: unprefixedKind, isStatic: isStatic, ownerQualifiedName: ownerQualifiedName, isThrowing: isThrowing, isAsync: isAsync)
+    }
+
     private static func piecesMatch(_ pieces: [String], baseName: String, labels: [String?], arity: Int, skippingLeadingWith: Bool) -> Bool {
         guard pieces.count == arity, let firstPiece = pieces.first, firstPiece.hasPrefix(baseName) else { return false }
         for index in 0 ..< arity {

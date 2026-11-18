@@ -128,15 +128,28 @@ package enum NodeTypeNaming {
     /// Transient demangle: only the qualified-name string survives this
     /// call, so the tree must not be interned into the global `NodeCache`.
     package static func swiftClassQualifiedName(fromRuntimeName runtimeName: String) -> String? {
-        guard runtimeName.hasPrefix("_Tt") || runtimeName.hasPrefix("$s") else { return nil }
-        // The demangler wraps the result in `.global`; the qualified-name
-        // builder wants the bare nominal class node (the same shape
+        swiftClassNode(fromRuntimeName: runtimeName).flatMap(nominalQualifiedName(of:))
+    }
+
+    /// The bare `Class` node a Swift class's ObjC-side name spells: its
+    /// runtime name (`_TtC7SwiftUI3Foo`, or the `$s…` spelling a nested or
+    /// generic context gets), or — what a file's category on another
+    /// image's Swift class is bound to — its class metadata symbol
+    /// (`_$s7SwiftUI3FooCN`). `nil` for a plain ObjC class name, without
+    /// invoking the demangler. The tree is transient.
+    package static func swiftClassNode(fromRuntimeName runtimeName: String) -> Node? {
+        let mangledName: Substring
+        if runtimeName.hasPrefix("_Tt") || runtimeName.hasPrefix("$s") {
+            mangledName = Substring(runtimeName)
+        } else if runtimeName.hasPrefix("_$s") {
+            mangledName = runtimeName.dropFirst()
+        } else {
+            return nil
+        }
+        // The demangler wraps the result in `.global`; the callers want the
+        // bare nominal class node (the same shape
         // `SymbolicDemangler.demangleContext` produces on the descriptor side).
-        guard
-            let node = try? demangleAsNodeTransient(runtimeName),
-            let classNode = node.first(of: .class)
-        else { return nil }
-        return nominalQualifiedName(of: classNode)
+        return (try? demangleAsNodeTransient(String(mangledName)))?.first(of: .class)
     }
 
     private static func qualifiedName(ofNominal node: Node) -> String? {

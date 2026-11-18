@@ -64,12 +64,19 @@ extension SwiftDeclarationPrinter {
     /// `@Wrapper var x: T { get [set] }` for a wrapped property whose own
     /// accessors are stripped, built from the recovered declaration rather
     /// than from a symbol. Prints nothing for a declared-member origin.
+    /// `placesAttributeOnItsOwnLine` puts `@Wrapper` on a line of its own, as
+    /// the `@Observable` folding does under `@Observation.ObservationIgnored`.
     @SemanticStringBuilder
-    func printThrowingSynthesizedWrappedProperty(_ wrappedProperty: WrappedPropertyDefinition, level: Int) async throws -> SemanticString {
+    func printThrowingSynthesizedWrappedProperty(_ wrappedProperty: WrappedPropertyDefinition, level: Int, placesAttributeOnItsOwnLine: Bool = false) async throws -> SemanticString {
         if case .synthesized(let declaredTypeNode, let hasSetter) = wrappedProperty.origin {
             Standard("@")
             try await printThrowingType(wrappedProperty.attributeTypeNode.materialize(), isProtocol: false, level: level)
-            Space()
+            if placesAttributeOnItsOwnLine {
+                BreakLine()
+                Indent(level: level)
+            } else {
+                Space()
+            }
             // The variable node `VariableNodePrinter` reads: an identifier
             // and a type; the leading child only matters when it is an
             // `extension` or `protocol` context, which a stored property's

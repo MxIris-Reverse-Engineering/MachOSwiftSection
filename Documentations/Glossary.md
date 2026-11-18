@@ -237,6 +237,13 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 - **主要出现在**：`Sources/Output/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
 - **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)、[提案 0060](Evolutions/0060-evolution-interface-available-annotations.md)（`@available` 属性）
 
+### macro folding（宏展开的折叠，folded form / expanded form）
+
+interface 把一个 attached macro 生成的东西收回成源码里的写法：`@Observable` 展开的类印成 `@Observation.Observable` 加普通的 `var x: T`，这是**折叠形态**；`expandsMacros` 打开时照二进制原样印出 registrar、存储 `_x`、computed `x`、生成的方法与 conformance，这是**展开形态**。二进制不记宏本身，只记它生成的东西，所以「这个类用了宏」是从生成物推断出来的（`TypeDefinition.attachedMacros`）。折叠只发生在单版本 interface；模型、dump、diff、evolution 始终是展开形态，dump 另在类头上写出宏的名字。
+
+- **主要出现在**：`SwiftDeclarationPrinter+ObservableMacro.swift`、`TypeDefinition+ObservableMacro.swift`、`ObservableMacroRecognition`
+- **延伸阅读**：[0093-observable-macro-folding](Evolutions/0093-observable-macro-folding.md)
+
 ### marking mode（标记模式，`marksOptionalContent`）
 
 `SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`、exported-only 过滤删掉的声明）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字就是每段受控内容都打出来的全量文字（exported-only 过滤关着）。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。
@@ -294,10 +301,17 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 ### ObjC imported declaration（ObjC 导入声明，`ObjCImportedClassDefinition` 等）
 
-镜像里的 ObjC 类、category 或协议，按 Swift 导入它们的样子建成的声明，即 Xcode 的 Generated Interface 显示的那种。名字由本库移植的 ClangImporter 命名规则从 selector 与属性名推出，类型取自方法编码、采纳的协议里的扩展编码与属性特性串；Swift 实现的部分（桥接出去的 Swift 类、`@objc @implementation` 类、Swift extension 的成员）照抄 Swift 的声明。与「Swift 声明的 `@objc` 协议」的区别：那是 Swift 源码声明、只有 ObjC 记录的协议，导入声明面向镜像里任意的 ObjC 声明。
+镜像里的 ObjC 类、category 或协议，按 Swift 导入它们的样子建成的声明，即 Xcode 的 Generated Interface 显示的那种。名字由本库移植的 ClangImporter 命名规则从 selector 与属性名推出，类型取自方法编码、采纳的协议里的扩展编码与属性特性串；Swift 实现的部分（桥接出去的 Swift 类、`@objc @implementation` 类、Swift extension 的成员）照抄 Swift 的声明，Swift 实现的类整个以 Swift 一侧为准（提案 [0096](Evolutions/0096-swift-first-imported-declarations.md)）。与「Swift 声明的 `@objc` 协议」的区别：那是 Swift 源码声明、只有 ObjC 记录的协议，导入声明面向镜像里任意的 ObjC 声明。
 
 - **主要出现在**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedContainerIndex.swift`、`ObjCImportedMemberBuilder.swift`，`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCImported*Definition.swift`，`swift-section objc interface --swift`
 - **延伸阅读**：[0090-objc-imported-declarations](Evolutions/0090-objc-imported-declarations.md)
+
+### refined member（改名成员，`NS_REFINED_FOR_SWIFT`）
+
+头文件标了 `NS_REFINED_FOR_SWIFT` 的 ObjC 成员：Swift 导入它时名字前加 `__`（属性名、方法基名、初始化器的第一个标签），原名留给一个包装它的纯 Swift 声明。二进制不记这个宏，本库从 Swift 一侧认：有凭据的是配上了 `__` 开头的 Swift 成员（`layerFilter` ↔ `__layerFilter`）；推断的是没有 Swift 成员回答的 ObjC 属性，而同名的 Swift 属性类型明显不可能是它（`settings` 对上本模块的 struct）——Swift 不允许一个类型里有两个同名属性。方法只认前者：方法能按参数类型重载，同名说明不了改过名。导入声明把推断出的这种属性打成 `// NS_REFINED_FOR_SWIFT: var __name: …` 注释，挂在占了它原名的 Swift 属性正上方；`SwiftDeclarationPrinter.objcMembersRefinedForSwift(in:)` 交给宿主，由它在 ObjC 头文件里打回这个宏。
+
+- **主要出现在**：`Sources/Output/SwiftPrinting/ObjCImplementingSwiftMembers.swift`、`ObjCRefinedForSwiftMember.swift`，`Sources/Analysis/SwiftObjCInterop/ObjCSwiftTypeCompatibility.swift`
+- **延伸阅读**：[0096-swift-first-imported-declarations](Evolutions/0096-swift-first-imported-declarations.md)
 
 ### ObjC ancestor override（ObjC 祖先覆写）
 

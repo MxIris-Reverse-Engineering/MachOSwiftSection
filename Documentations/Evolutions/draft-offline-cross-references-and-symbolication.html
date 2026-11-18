@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --panel: #f5f5f7; --code: #f2f2f5;
+  --add: #1f8f4e; --add-bg: #e5f6ec; --mod: #a15c00; --mod-bg: #fff2dc; --del: #c4261d; --del-bg: #fde8e7;
+  --accent: #0066cc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e; --fg: #f2f2f7; --muted: #a1a1a6; --line: #3a3a3c; --panel: #2c2c2e; --code: #232325;
+    --add: #4cd788; --add-bg: #173a26; --mod: #ffb340; --mod-bg: #3d2c10; --del: #ff6b61; --del-bg: #43191a;
+    --accent: #4da3ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+h1 { font-size: 24px; line-height: 1.35; margin: 0 0 8px; }
+h2 { font-size: 19px; margin: 36px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+a { color: var(--accent); }
+code { font: 13px/1.5 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code); padding: 1px 4px; border-radius: 4px; }
+pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.55 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; text-align: left; }
+th { background: var(--panel); }
+.meta { color: var(--muted); font-size: 13.5px; }
+.meta span { display: inline-block; margin-right: 14px; }
+.callout { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+nav.toc { background: var(--panel); border-radius: 10px; padding: 10px 16px; font-size: 13.5px; }
+nav.toc a { margin-right: 12px; white-space: nowrap; }
+details { border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px; margin: 12px 0; }
+details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.tag { display: inline-block; font-size: 12px; padding: 0 6px; border-radius: 4px; font-weight: 600; }
+.tag.add { color: var(--add); background: var(--add-bg); }
+.tag.mod { color: var(--mod); background: var(--mod-bg); }
+.tag.del { color: var(--del); background: var(--del-bg); }
+/* Architecture diagram */
+.legend { font-size: 13px; margin: 8px 0 12px; }
+.legend .tag { margin-right: 8px; }
+.diagram { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 900px) { .diagram { grid-template-columns: 3fr 2fr; } }
+.repo { border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; }
+.repo > .title { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+.layer { border: 1px dashed var(--line); border-radius: 10px; padding: 8px; margin-bottom: 10px; }
+.layer > .title { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); margin-bottom: 6px; }
+.box { border: 1.5px solid var(--line); border-radius: 8px; padding: 6px 8px; margin: 6px 0; font: 12.5px/1.45 ui-monospace, Menlo, monospace; background: var(--bg); }
+.box .name { font-weight: 700; }
+.box ul { margin: 4px 0 0 0; padding-left: 16px; }
+.box.add { border-color: var(--add); background: var(--add-bg); }
+.box.mod { border-color: var(--mod); background: var(--mod-bg); }
+.box.del { border-color: var(--del); background: var(--del-bg); text-decoration: line-through; }
+.arrow { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); margin: 2px 0 2px 10px; }
+.flow { display: flex; flex-direction: column; gap: 6px; }
+.flow .step { border: 1.5px solid var(--line); border-radius: 8px; padding: 6px 10px; font: 12.5px/1.45 ui-monospace, Menlo, monospace; background: var(--panel); }
+.flow .down { text-align: center; color: var(--muted); font-size: 14px; line-height: 1; }
+.flow .step .sub { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Draft - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache</h1>
+<div class="meta">
+  <span>状态：<b>Draft</b></span>
+  <span>对应提案最后更新：<b>2026-11-18</b></span>
+  <span>作者：JH</span>
+  <span>创建：2026-11-18</span>
+  <span>所属愿景：<a href="../Visions/ReverseEngineeringWithoutIDA.md">不依赖 IDA 的逆向</a>（第 1 阶段）</span>
+</div>
+<p class="meta">本页是 <code>draft-offline-cross-references-and-symbolication.md</code> 的网页版，两者对不上时以 Markdown 原文为准。</p>
+
+<nav class="toc">
+  <a href="#summary">摘要</a><a href="#decide">要定的事</a><a href="#architecture">架构图</a><a href="#map">改动地图</a>
+  <a href="#motivation">动机</a><a href="#proposal">提议方案</a><a href="#nongoals">非目标</a><a href="#design">详细设计</a>
+  <a href="#research">前期调研</a><a href="#alternatives">替代方案</a><a href="#impact">影响</a><a href="#steps">落地步骤</a><a href="#log">决策日志</a>
+</nav>
+
+<h2 id="summary">摘要</h2>
+<p><code>CrossReferenceAnalysis</code> 今天只能分析<b>当前进程</b>映射进来的镜像，读不了磁盘上的 app、也读不了 <code>/Volumes/DyldSharedCaches</code> 下归档的各版本 cache，而且没有命令行入口。本提案做五件事：</p>
+<ol>
+  <li>把分析器里「直接读进程内存」的地方收进一个读取抽象，新增从 <code>FullDyldCache</code> 和一组 <code>MachOFile</code> 构造分析器的入口，槽里的值改由 fixup 解码得到；</li>
+  <li>把 <code>SwiftThunkAnalysis</code> 里已经写好的离线桩链与槽解析抽成独立的 <code>MachOAddressResolution</code> 模块，两边共用；</li>
+  <li>补三类引用：经 ivar 偏移变量读写 ObjC ivar、C 字符串字面量、CFString 常量，并给每条引用标上它是怎么到达目标的（直接调用、本镜像桩、stub island、cache 共用桩、GOT 槽……）；</li>
+  <li>新增地址符号化：任意一个地址，说出它在哪个镜像的哪个函数加多少偏移，或者它是桩、最终跳到谁，或者它是槽、里面装着谁；</li>
+  <li>新增 <code>swift-section refs</code> 与 <code>swift-section symbolicate</code> 两个子命令（文本与 JSON 输出），并在 RuntimeViewer 的 CLI 与 MCP 上接出 <code>callers</code> / <code>callees</code> / <code>references</code> / <code>symbolicate</code>。</li>
+</ol>
+
+<h2 id="decide">要定的事</h2>
+<div class="callout">本提案属轻量档：用户看过简报点头即可开工。提案本身没有留待用户拍板的设计问题；愿景里另有一条「后备工具用 IDA 还是 Binary Ninja」待确认。</div>
+
+<h2 id="architecture">架构图</h2>
+<div class="legend"><span class="tag add">新增</span><span class="tag mod">修改</span><span class="tag del">删除</span>未着色的是不变的上下文</div>
+
+<div class="diagram">
+  <div class="repo">
+    <div class="title">MachOSwiftSection</div>
+    <div class="layer">
+      <div class="title">Sources/MachO</div>
+      <div class="box add"><div class="name">MachOAddressResolution</div>
+        package；只依赖 MachOKit + MachOKitExtensions + MachOReading
+        <ul>
+          <li>ImageAddressSpace（原 ThunkAddressSpace）</li>
+          <li>CacheImageLocator（原 CacheImageResolver）</li>
+          <li>StubChainResolver：stubs、ld64 trampolines、stub islands、cache-shared selector/GOT stubs</li>
+          <li>SlotResolver：GOT、selref、classref、superref、protoref、ivar offset slots</li>
+        </ul>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="title">Sources/Support/ARM64InstructionDecoding</div>
+      <div class="box mod"><div class="name">ARM64InstructionWord</div>+ 32-bit ldr, ldrsw</div>
+    </div>
+    <div class="layer">
+      <div class="title">Sources/Analysis/SwiftThunkAnalysis</div>
+      <div class="box mod"><div class="name">MachOThunkEnvironment</div>uses MachOAddressResolution</div>
+      <div class="box del"><div class="name">ThunkAddressSpace, CacheImageResolver</div></div>
+    </div>
+    <div class="layer">
+      <div class="title">Sources/Analysis/CrossReferenceAnalysis</div>
+      <div class="box mod"><div class="name">CrossReferenceAnalyzer</div>
+        <ul>
+          <li>+ init(dyldCache:recordingStringReferences:)</li>
+          <li>+ init(machOFiles:recordingStringReferences:)</li>
+          <li>+ symbolication(of:) -&gt; AddressSymbolication</li>
+        </ul>
+      </div>
+      <div class="box add"><div class="name">Memory/CrossReferenceMemory</div>package protocol</div>
+      <div class="arrow">├─ <span class="tag add">新增</span> InProcessCrossReferenceMemory — today's pointer reads, moved</div>
+      <div class="arrow">└─ <span class="tag add">新增</span> FileCrossReferenceMemory ──▶ MachOAddressResolution</div>
+      <div class="box mod"><div class="name">ReferenceScanner, RegisterFile</div>+ ivar offset loads, + C string / CFString, + route</div>
+      <div class="box mod"><div class="name">CodeReferenceTarget / CodeReference</div>+ objectiveCInstanceVariable, + cString, + constantString；+ route</div>
+      <div class="box add"><div class="name">AddressSymbolication</div>public</div>
+    </div>
+    <div class="layer">
+      <div class="title">Sources/Commands/SwiftSectionKit · Sources/Executables/swift-section</div>
+      <div class="box add"><div class="name">CrossReferences/</div>ReferencesRequest, SymbolicateRequest, CrossReferenceInput</div>
+      <div class="box add"><div class="name">swift-section refs, symbolicate</div></div>
+    </div>
+  </div>
+
+  <div class="repo">
+    <div class="title">RuntimeViewer</div>
+    <div class="box mod"><div class="name">RuntimeViewerCrossReferences</div>switch over new targets；+ symbolicate engine command</div>
+    <div class="box mod"><div class="name">RuntimeViewerCommandLine</div>+ callers, callees, references, symbolicate（protocol 2 → 3）</div>
+    <div class="box mod"><div class="name">RuntimeViewerMCPBridge</div>+ Callers, Callees, TypeReferences, Symbolicate</div>
+  </div>
+</div>
+
+<h3>一次 <code>refs</code> 查询的数据流</h3>
+<div class="flow">
+  <div class="step">swift-section refs --selector makeKeyAndOrderFront: --dyld-shared-cache &lt;cache&gt;<div class="sub">ReferencesCommand.makeRequest()</div></div>
+  <div class="down">▼</div>
+  <div class="step">ReferencesRequest → CrossReferenceInput: FullDyldCache(url:) → CrossReferenceAnalyzer(dyldCache:)<div class="sub">image table from cache header imageInfos; FileCrossReferenceMemory over mapped subcache files</div></div>
+  <div class="down">▼</div>
+  <div class="step">imageIndices(referencingSelector:among: all)<div class="sub">prefilter</div></div>
+  <div class="down">▼</div>
+  <div class="step">for each candidate image, concurrently: references(to: [.selector("makeKeyAndOrderFront:")], inImageAt:)
+    <div class="sub">ReferenceScanner over the image's __text bytes</div>
+    <div class="sub">bl X → StubChainResolver(X) → cache-shared selector stub → .messageSend　route .cacheSharedStub</div>
+    <div class="sub">adrp+ldr slot → SlotResolver(slot) → rebase target → symbol　route .pointerSlot</div>
+  </div>
+  <div class="down">▼</div>
+  <div class="step">functions(containing: sites) → names<div class="sub">symbols, ImageFallbackNames</div></div>
+  <div class="down">▼</div>
+  <div class="step">StandardStreamOutput: text rows | one JSON document</div>
+</div>
+
+<h2 id="map">改动地图</h2>
+<p class="meta">步骤号对应「落地步骤」。</p>
+<table>
+<thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+<tbody>
+<tr><td><code>Sources/Analysis/CrossReferenceAnalysis/Memory/CrossReferenceMemory.swift</code> · <code>CrossReferenceMemory</code></td><td><span class="tag add">新增</span></td><td>package 协议：区间字节、槽内容、C 字符串、指针掩码</td><td>两种模式唯一的本质差别收在这里</td><td>1</td></tr>
+<tr><td><code>…/Memory/InProcessCrossReferenceMemory.swift</code> · <code>InProcessCrossReferenceMemory</code></td><td><span class="tag add">新增</span></td><td>搬入现有的直接读指针与 slide 换算</td><td>进程内行为不变</td><td>1</td></tr>
+<tr><td><code>…/CrossReferenceAnalyzer.swift</code> · <code>CrossReferenceAnalyzer</code></td><td><span class="tag mod">修改</span></td><td>持有 <code>CrossReferenceMemory</code>；构造逻辑拆成「进程」与「文件」两条；<code>images</code> 标 deprecated</td><td>支持文件模式</td><td>1、3</td></tr>
+<tr><td><code>…/Scanning/ReferenceScanner.swift</code></td><td><span class="tag mod">修改</span></td><td>7 处直接读内存改走 memory；记录 <code>route</code>；识别 ivar 偏移变量与两种字符串</td><td>读取抽象；新引用种类</td><td>1、4</td></tr>
+<tr><td><code>…/Scanning/RegisterFile.swift</code></td><td><span class="tag mod">修改</span></td><td>跟踪 <code>ldrsw</code> / 32 位 <code>ldr</code> 读出的 ivar 偏移来源</td><td>ivar 引用</td><td>4</td></tr>
+<tr><td><code>…/Scanning/ImageFunctionTable.swift</code></td><td><span class="tag mod">修改</span></td><td>selref 读取走 memory；文件模式的函数起点</td><td>读取抽象；文件模式</td><td>1、3</td></tr>
+<tr><td><code>…/Scanning/ObjectiveCClassIndex.swift</code>、<code>SwiftTypeIndex.swift</code>、<code>ImageFallbackNames.swift</code></td><td><span class="tag mod">修改</span></td><td>直接读内存改走 memory；文件模式下类名经 MachOObjCSection 的文件读取</td><td>读取抽象；文件模式</td><td>1、3</td></tr>
+<tr><td><code>…/CrossReferenceAnalyzer+Prefiltering.swift</code>、<code>+SwiftTypes.swift</code></td><td><span class="tag mod">修改</span></td><td>直接读内存改走 memory；新增 ivar 与字符串的预筛</td><td>读取抽象；新查询</td><td>1、4</td></tr>
+<tr><td><code>…/Scanning/StoredPointer.swift</code></td><td><span class="tag mod">修改</span></td><td>掩码由 memory 提供</td><td>文件模式没有 <code>InProcessContext</code></td><td>1</td></tr>
+<tr><td><code>…/Memory/FileCrossReferenceMemory.swift</code> · <code>FileCrossReferenceMemory</code></td><td><span class="tag add">新增</span></td><td>映射的代码字节；经 <code>SlotResolver</code> 解 fixup</td><td>文件模式</td><td>3</td></tr>
+<tr><td><code>Sources/MachO/MachOAddressResolution/ImageAddressSpace.swift</code> · <code>ImageAddressSpace</code></td><td><span class="tag add">新增</span></td><td>由 <code>ThunkAddressSpace</code> 搬来，连同地址约定的注释</td><td>两个分析模块共用</td><td>2</td></tr>
+<tr><td><code>…/MachOAddressResolution/CacheImageLocator.swift</code> · <code>CacheImageLocator</code></td><td><span class="tag add">新增</span></td><td>由 <code>CacheImageResolver</code> 搬来</td><td>同上</td><td>2</td></tr>
+<tr><td><code>…/MachOAddressResolution/StubChainResolver.swift</code> · <code>StubChainResolver</code></td><td><span class="tag add">新增</span></td><td>由 <code>MachOThunkEnvironment</code> 的桩链部分抽出，补 27 的 cache 共用桩，记录每一跳</td><td>同上；符号化要每一跳</td><td>2</td></tr>
+<tr><td><code>…/MachOAddressResolution/SlotResolver.swift</code> · <code>SlotResolver</code></td><td><span class="tag add">新增</span></td><td>由 <code>MachOThunkEnvironment</code> 的槽解析抽出，补 selref / classref / protoref / ivar 偏移槽</td><td>同上</td><td>2</td></tr>
+<tr><td><code>Sources/Analysis/SwiftThunkAnalysis/Resolution/MachOThunkEnvironment.swift</code></td><td><span class="tag mod">修改</span></td><td>改用上面四个类型，行为不变</td><td>去重</td><td>2</td></tr>
+<tr><td><code>…/SwiftThunkAnalysis/Resolution/ThunkAddressSpace.swift</code> · <code>ThunkAddressSpace</code></td><td><span class="tag del">删除</span></td><td>调用点改用 <code>ImageAddressSpace</code></td><td>已搬走</td><td>2</td></tr>
+<tr><td><code>Sources/Support/ARM64InstructionDecoding/ARM64InstructionWord.swift</code></td><td><span class="tag mod">修改</span></td><td><code>load(_:)</code> 之外新增 32 位 <code>ldr</code> 与 <code>ldrsw</code> 的解码</td><td>ivar 偏移变量的读法</td><td>4</td></tr>
+<tr><td><code>Sources/Analysis/CrossReferenceAnalysis/Models/CodeReference.swift</code> · <code>CodeReferenceTarget</code>、<code>CodeReference</code></td><td><span class="tag mod">修改</span></td><td>新增三个 target case；新增 <code>Route</code> 与 <code>route</code>；旧初始化方法 deprecated</td><td>新引用种类；引用路线</td><td>4</td></tr>
+<tr><td><code>…/Models/CodeReferenceTable.swift</code> · <code>CodeReferenceTable.Key</code></td><td><span class="tag mod">修改</span></td><td>新增 <code>instanceVariable</code>、<code>cString</code>、<code>constantString</code> 键</td><td>按新目标查</td><td>4</td></tr>
+<tr><td><code>…/Models/CodeReferenceIndex.swift</code> · <code>CodeReferenceIndex</code></td><td><span class="tag mod">修改</span></td><td>编码新 target 与 <code>route</code></td><td>常驻索引也要带上</td><td>4</td></tr>
+<tr><td><code>…/Symbolication/AddressSymbolication.swift</code> · <code>AddressSymbolication</code></td><td><span class="tag add">新增</span></td><td>公开的符号化结果模型</td><td>符号化</td><td>5</td></tr>
+<tr><td><code>…/CrossReferenceAnalyzer+Symbolication.swift</code> · <code>symbolication(of:)</code></td><td><span class="tag add">新增</span></td><td>按「函数 → 桩 → 槽 → 字符串 → 最近符号 → 未映射」判断</td><td>符号化</td><td>5</td></tr>
+<tr><td><code>Sources/Commands/SwiftSectionKit/CrossReferences/CrossReferenceInput.swift</code></td><td><span class="tag add">新增</span></td><td>由文件、cache 或本机 cache 建分析器</td><td>两个子命令共用</td><td>6</td></tr>
+<tr><td><code>…/SwiftSectionKit/CrossReferences/ReferencesRequest.swift</code> · <code>ReferencesRequest</code></td><td><span class="tag add">新增</span></td><td>预筛 → 并发逐镜像查 → 起名 → 文本 / JSON</td><td><code>refs</code> 的逻辑</td><td>6</td></tr>
+<tr><td><code>…/SwiftSectionKit/CrossReferences/SymbolicateRequest.swift</code> · <code>SymbolicateRequest</code></td><td><span class="tag add">新增</span></td><td>批量符号化 → 文本 / JSON</td><td><code>symbolicate</code> 的逻辑</td><td>6</td></tr>
+<tr><td><code>Sources/Executables/swift-section/Commands/ReferencesCommand.swift</code>、<code>SymbolicateCommand.swift</code></td><td><span class="tag add">新增</span></td><td>flag、<code>validate()</code>、<code>makeRequest()</code></td><td>CLI 入口</td><td>6</td></tr>
+<tr><td><code>Sources/Executables/swift-section/Models/CrossReferenceInputOptionGroup.swift</code></td><td><span class="tag add">新增</span></td><td>多文件 / cache / 本机 cache、<code>-a</code>、<code>--in-image</code></td><td>现有选项组只产出单个 <code>MachOFile</code></td><td>6</td></tr>
+<tr><td><code>Sources/Executables/swift-section/SwiftSectionCommand.swift</code></td><td><span class="tag mod">修改</span></td><td>登记两个子命令</td><td>CLI 入口</td><td>6</td></tr>
+<tr><td><code>Package.swift</code></td><td><span class="tag mod">修改</span></td><td>新增 <code>MachOAddressResolution</code>；<code>CrossReferenceAnalysis</code>、<code>SwiftThunkAnalysis</code> 依赖它；<code>SwiftSectionKit</code> 与 <code>swift-section</code> 依赖 <code>CrossReferenceAnalysis</code></td><td>模块图</td><td>1、2、6</td></tr>
+<tr><td><code>Tests/CrossReferenceAnalysisTests/…</code></td><td><span class="tag add">新增</span></td><td>对照、文件模式、新种类、符号化测试（见落地步骤）</td><td>验证</td><td>1–5</td></tr>
+<tr><td><code>Tests/MachOAddressResolutionTests/…</code></td><td><span class="tag add">新增</span></td><td>桩链、槽解析测试</td><td>验证</td><td>2</td></tr>
+<tr><td><code>Tests/SwiftThunkAnalysisTests/…</code></td><td><span class="tag mod">修改</span></td><td>抽取前后结果一致的守护测试</td><td>去重不改行为</td><td>2</td></tr>
+<tr><td><code>Tests/…</code>（SwiftSectionKit 的命令测试）</td><td><span class="tag add">新增</span></td><td><code>refs</code> / <code>symbolicate</code> 的文本与 JSON 输出</td><td>验证</td><td>6</td></tr>
+<tr><td><code>Documentations/Internal/Modules/CrossReferenceAnalysis.md</code></td><td><span class="tag mod">修改</span></td><td>文件模式、读取抽象、新种类、路线、符号化、离线吞吐实测</td><td>模块参考</td><td>3–5</td></tr>
+<tr><td><code>Documentations/Internal/Modules/MachOAddressResolution.md</code></td><td><span class="tag add">新增</span></td><td>新模块参考（地址约定、桩链、槽）</td><td>模块参考</td><td>2</td></tr>
+<tr><td><code>AgentPlugins/swift-section/skills/swift-section-cli/</code></td><td><span class="tag mod">修改</span></td><td>两个新子命令的用法与坑</td><td><code>AGENTS.md</code> 要求</td><td>6</td></tr>
+<tr><td><code>README.md</code>（CLI 一节）</td><td><span class="tag mod">修改</span></td><td>列出两个新子命令</td><td>面向用户</td><td>6</td></tr>
+<tr><td><code>Documentations/Internal/ProjectEvolutionLog.md</code>、<code>Documentations/Glossary.md</code></td><td><span class="tag mod">修改</span></td><td>追加本批次；登记「符号化」「引用路线」「stub island」等术语</td><td>文档约定</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>RuntimeViewerCore/Sources/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift</code></td><td><span class="tag mod">修改</span></td><td><code>switch reference.target</code>（<code>:92</code>）补三个新 case</td><td>穷尽 switch 会编译失败</td><td>4</td></tr>
+<tr><td>RuntimeViewer <code>…/RuntimeViewerCrossReferences/</code>（新文件）· 符号化引擎命令</td><td><span class="tag add">新增</span></td><td>引擎侧 <code>symbolicate</code> 命令</td><td>CLI / MCP 的符号化</td><td>7</td></tr>
+<tr><td>RuntimeViewer <code>RuntimeViewerCommandLine/Sources/RuntimeViewerCommandLineInterface/Model/Command.swift</code>、<code>CommandResult.swift</code></td><td><span class="tag mod">修改</span></td><td><code>.callers</code> / <code>.callees</code> / <code>.references</code> / <code>.symbolicate</code> 与结果</td><td>CLI</td><td>7</td></tr>
+<tr><td>RuntimeViewer <code>…/CommandLine/Subcommands.swift</code>、<code>Execution/CommandExecutor.swift</code>、<code>Rendering/TextRenderer.swift</code></td><td><span class="tag mod">修改</span></td><td>四个子命令的解析、执行与显示</td><td>CLI</td><td>7</td></tr>
+<tr><td>RuntimeViewer <code>…/Protocol/WireMessage.swift</code> · <code>CommandLineProtocol.version</code></td><td><span class="tag mod">修改</span></td><td>2 → 3</td><td>新增命令</td><td>7</td></tr>
+<tr><td>RuntimeViewer <code>RuntimeViewerMCP/Sources/RuntimeViewerMCPBridge/MCPBridgeServer.swift</code></td><td><span class="tag mod">修改</span></td><td><code>Callers</code>、<code>Callees</code>、<code>TypeReferences</code>、<code>Symbolicate</code> 四个工具</td><td>MCP</td><td>8</td></tr>
+<tr><td>RuntimeViewer <code>AgentPlugins/runtime-viewer/</code>、<code>Documentations/Guides/CommandLineInterface.md</code>、<code>Documentations/Evolutions/README.md</code></td><td><span class="tag mod">修改</span></td><td>skill 与两个插件清单的 version；使用指南；<code>cross-repository draft</code> 一行</td><td>文档同批</td><td>7、8</td></tr>
+</tbody>
+</table>
+
+<h2 id="motivation">动机</h2>
+<p>完整动机见愿景《<a href="../Visions/ReverseEngineeringWithoutIDA.md">不依赖 IDA 的逆向</a>》的「现状与代价」。这一步特有的部分：</p>
+<ul>
+  <li><b>最常卡住的就是这一块。</b>逆向 agent 的笔记里约 15 条用「扫 selref / GOT 字节 → 换算子 cache 偏移 → 反汇编 stub island → <code>a2s</code> 起名」这条手工链路回答「谁调用了它」，13 条涉及 selref，12 条涉及 GOT（<code>~/.claude/agent-memory/reverse-explorer/cross-cache-caller-search.md</code>、全局 <code>reverse-engineering</code> skill 的 <code>references/ipsw-cache-recipes.md</code>）。现成工具都会静默漏：<code>ipsw dyld xref</code> 不跟进 stub island，<code>dyld_info -imports</code> 漏掉大部分 bind。2026-10-29 有一次因此判错：<code>UINSPasteboardWritingItemProvider</code> 在 27.0 和 27.2 上都有两个调用者，它们经 <code>__DATA_CONST.__got</code> 读<b>本镜像自己</b>的类对象，<code>ipsw dyld disass</code> 只显示 <code>ldr x0, [x23, #0x590]</code>，没有类名。</li>
+  <li><b>分析器已经有了，只是够不着这些目标。</b><code>CrossReferenceAnalyzer</code> 在进程内 1.6–3.0 秒扫完 macOS 27.2 的整个 cache，认得 27 的 cache 共用 selector 桩与 GOT 桩、stub island 多跳（<code>Internal/Modules/CrossReferenceAnalysis.md</code>「吞吐」节）。但它的构造器用 <code>DyldCacheLoaded.current</code> 与 <code>_dyld_get_image_header</code>，只看得到正在运行的系统；卷上归档的 7 个 macOS 版本（15.5 到 27.2）和 <code>/Volumes/RE</code> 下的 app 都够不着。0072 把 <code>MachOFile</code> 与 <code>swift-section</code> 子命令明确留给了后续提案。</li>
+  <li><b>RuntimeViewer 只在界面里给出交叉引用。</b>RuntimeViewer 0056 的第 4 步（CLI 与 MCP）在 2026-10-26 经用户批准拆成暂缓项，说明以后另起提案。全部对话记录里 RuntimeViewer 的 MCP 一次也没被调用过；agent 要查调用者，只能退回 IDA 或 <code>ipsw</code>。</li>
+  <li><b>地址起名是同一个问题的另一面。</b><code>dyld_info -disassemble</code> 把 macOS 26.7 SwiftUICore 的 2,195 个 <code>__auth_stubs</code> 桩标成同一个错名，15.3 万条 <code>bl</code> 的目标因此标错（RuntimeViewer 记忆 <code>dyld-info-mislabels-cache-stubs.md</code>）；<code>ipsw dyld a2s</code> 对 27 的 cache 共用 <code>objc_msgSend$…</code> 桩只回 <code>?</code>，agent 只能先反汇编桩的前三条，自己算 <code>adrp x1</code> 的页加 <code>add x1</code> 的偏移，再去读字符串。分析器在扫描时本来就要把每个桩解析到底，把这一步单独开放出来就是符号化。</li>
+</ul>
+
+<h2 id="proposal">提议方案</h2>
+<h3>1. 读取抽象：<code>CrossReferenceMemory</code></h3>
+<p>分析器里所有「按地址读」都改走一个 package 级协议 <code>CrossReferenceMemory</code>，它只回答分析器真正问的几个问题：某个镜像某个区间的<b>连续只读字节</b>（扫描热循环用，循环本身不变，仍对一段缓冲区逐条解码）；某个<b>槽</b>里装的是什么（目标地址，或导入符号名）；某个地址处的 C 字符串；去掉指针认证位的掩码。</p>
+<p>两种实现：</p>
+<ul>
+  <li><code>InProcessCrossReferenceMemory</code>：今天的行为原样搬进来——读 dyld 已绑定的值、按 <code>vmaddrSlide</code> 换算。</li>
+  <li><code>FileCrossReferenceMemory</code>：基于 <code>FullDyldCache</code> 或一组 <code>MachOFile</code>。代码字节来自映射的文件；槽的内容由 fixup 解码得到——cache 镜像里 GOT 是 rebase（指向别的镜像或本镜像的类对象），独立文件里是 bind、self-bind 或 rebase。地址约定沿用 <code>ThunkAddressSpace</code>：未滑动地址 − <code>sharedRegionStart</code>。</li>
+</ul>
+<p>协议选「分析器专用的小协议」而不是直接用 <code>ReadingContext</code>：<code>ReadingContext</code> 回答「按类型读一个元素」，分析器要的是「槽里装着谁」——在进程内是读已绑定的值，在文件里是解 fixup，这层差别正是两种模式唯一的本质区别。<code>FileCrossReferenceMemory</code> 内部仍用 <code>ReadingContext</code> 读元素。</p>
+
+<h3>2. 抽出 <code>MachOAddressResolution</code></h3>
+<p>把 <code>SwiftThunkAnalysis</code> 里与 Swift thunk 无关的离线解析抽成新的 package 模块 <code>Sources/MachO/MachOAddressResolution</code>，<code>SwiftThunkAnalysis</code> 与 <code>CrossReferenceAnalysis</code> 共用：</p>
+<ul>
+  <li><code>ImageAddressSpace</code>：原 <code>ThunkAddressSpace</code>，地址约定与它的长注释一起搬。</li>
+  <li><code>CacheImageLocator</code>：原 <code>CacheImageResolver</code>，「地址 → cache 镜像」与按路径懒打开。</li>
+  <li><code>StubChainResolver</code>：桩、ld64 跳板、stub island 多跳、27 的 cache 共用 selector 桩与 GOT 桩 → 最终目标（函数地址、导入符号名或 selector），并记下经过的每一跳。</li>
+  <li><code>SlotResolver</code>：GOT / auth GOT / selref / classref / superref / protoref / ivar 偏移变量的槽 → 目标。</li>
+</ul>
+<p>这个模块只依赖 MachOKit、MachOKitExtensions 与 <code>MachOReading</code>，不碰 Swift 元数据，将来照 <code>move-reading-and-resolving-modules</code> 的走法整体迁进 MachOKitExtensions（愿景「我们选的方向」第 6 条）。</p>
+
+<h3>3. 文件模式的分析器</h3>
+<pre><code>let cache = try FullDyldCache(url: URL(filePath: "/Volumes/DyldSharedCaches/macOS/27.2/dyld_shared_cache_arm64e"))
+let analyzer = try CrossReferenceAnalyzer(dyldCache: cache)</code></pre>
+<p>镜像表来自 cache 头的 <code>imageInfos</code>；<code>imagePaths</code>、<code>imageIndex(forPath:)</code>、函数表、预筛、<code>referenceTable</code> 等全部照旧可用。<code>location(ofRuntimeAddress:)</code> 在文件模式下接受的就是未滑动地址。<code>images: [MachOImage]</code> 在文件模式下为空，标为 deprecated 并指向 <code>imagePaths</code> / <code>imageCount</code>。</p>
+
+<h3>4. 新的引用种类与引用路线</h3>
+<ul>
+  <li><b>ObjC ivar</b>：<code>adrp</code> + <code>ldrsw</code>（或 32 位 <code>ldr</code>）读 <code>__objc_ivar</code> 里的偏移变量 → <code>.objectiveCInstanceVariable(className:name:)</code>。解码器补 <code>ldrsw</code> 与 32 位 <code>ldr</code>。名字取自偏移变量的符号 <code>_OBJC_IVAR_$_&lt;类&gt;.&lt;ivar&gt;</code>；没有符号时从类的 ivar 列表反查（ivar 记录里的 <code>offset</code> 字段指向这个槽）。</li>
+  <li><b>C 字符串字面量</b>：<code>adrp</code> + <code>add</code> 落进 <code>__cstring</code> / <code>__objc_methname</code> / <code>__oslogstring</code>，且没被当作 selector 用掉 → <code>.cString(String)</code>。覆盖 <code>objc_getClass("…")</code>、<code>sel_registerName</code>、<code>dlsym</code> 一类调用。Swift 大字符串字面量的写法是 <code>adrp; add; sub #0x20</code>（对象里存的是「地址 − 0x20」），也要认成指向那段字符的引用——Binary Ninja 在实测里正是漏在这里。</li>
+  <li><b>CFString 常量</b>：<code>adrp</code> + <code>add</code> 落进 <code>__cfstring</code> → 解出字符串指针 → <code>.constantString(String)</code>。覆盖 <code>NSSelectorFromString(@"…")</code>、<code>NSUserDefaults</code> 键一类用法。</li>
+  <li>两种字符串引用默认<b>不记录</b>：它们数量大，RuntimeViewer 常驻的索引不需要。构造分析器时用 <code>recordingStringReferences: true</code> 打开，<code>swift-section refs --string</code> 会自动打开。</li>
+  <li><b>引用路线</b>：<code>CodeReference</code> 新增 <code>route</code>，说明引用是怎么到达目标的。照 Binary Ninja 的「引用按来源种类建模」，但只在代码引用上加一个字段，不引入数据引用（见非目标）。</li>
+</ul>
+
+<h3>5. 地址符号化</h3>
+<pre><code>let symbolication = analyzer.symbolication(of: 0x1_9012_3450)
+// symbolication.meaning == .stub(hops: [0x1_9012_3450], target: .messageSend(selector: "setFrame:", receiver: .unknown))</code></pre>
+<p>回答「这个地址是什么」，按顺序判断：在某个函数体里（函数起点、名字、偏移；名字来自符号、<code>ImageFallbackNames</code> 的回退名）；是桩或 stub island 的跳板（每一跳与最终目标）；是一个槽（槽的种类与里面装的目标）；是 C 字符串或 CFString（内容）；以上都不是时给最近的前一个符号加偏移；不在任何映射里时如实说没有映射。</p>
+
+<h3>6. <code>swift-section refs</code> 与 <code>swift-section symbolicate</code></h3>
+<pre><code>swift-section refs --selector makeKeyAndOrderFront: --dyld-shared-cache /Volumes/DyldSharedCaches/macOS/27.2/dyld_shared_cache_arm64e
+swift-section refs --class UINSPasteboardWritingItemProvider --uses-system-dyld-shared-cache --json
+swift-section refs --function 0x1880a1000 --callees --uses-system-dyld-shared-cache
+swift-section refs --string NSWindowDidBecomeKeyNotification --in-image AppKit /path/to/Foo.app/Contents/MacOS/Foo
+swift-section symbolicate 0x19012345 0x1e1226590 --dyld-shared-cache /Volumes/DyldSharedCaches/macOS/27.0/dyld_shared_cache_arm64e</code></pre>
+<ul>
+  <li>查询（恰好一个）：<code>--selector</code>、<code>--symbol</code>（C 符号、Swift 修饰名、<code>_OBJC_CLASS_$_…</code>）、<code>--class</code>、<code>--function &lt;地址&gt;</code>（以它开头或包含它的函数的调用者；加 <code>--callees</code> 改列它引用了什么）、<code>--ivar &lt;类&gt;.&lt;ivar&gt;</code>、<code>--string &lt;文本&gt;</code>。</li>
+  <li>输入：一个或多个独立 Mach-O 文件，或 <code>--dyld-shared-cache &lt;路径&gt;</code>，或 <code>--uses-system-dyld-shared-cache</code>；<code>-a/--architecture</code>。<code>--in-image</code> 可重复，限定扫描哪些镜像。</li>
+  <li>输出：文本每条引用一行——镜像短名、所在函数名加偏移、调用点地址、引用种类与路线；<code>--json</code> 输出一个 JSON 文档，地址一律写成十六进制字符串（照 Binary Ninja MCP 的理由：避免客户端丢失 64 位精度）。</li>
+  <li><code>--limit &lt;n&gt;</code> 截断时如实标出 <code>isTruncated</code>。</li>
+</ul>
+
+<h3>7. RuntimeViewer：CLI 与 MCP</h3>
+<p>按 0056 §8 原定的设计实现它暂缓的第 4 步，并加上符号化：</p>
+<ul>
+  <li>CLI 子命令 <code>callers</code>、<code>callees</code>、<code>references</code>、<code>symbolicate</code>；目标写法照 0056：<code>-[类 sel]</code>、Swift 名、符号名，或 <code>0x…</code> 加 <code>--image</code>；选项 <code>--selector</code>、<code>--scope image|indexed</code>、<code>--receiver</code>、<code>--include-runtime</code>、<code>--limit</code>。CLI 协议版本 <code>CommandLineProtocol.version</code> 由 2 升到 3。</li>
+  <li>MCP 工具 <code>Callers</code>、<code>Callees</code>、<code>TypeReferences</code>、<code>Symbolicate</code>，<code>@MCPTool(hints: [.readOnly])</code>，照现有工具带 <code>windowIdentifier</code>；每次最多等 30 秒，<code>isComplete == false</code> 时返回部分结果。</li>
+  <li>只覆盖活的引擎（本机、Catalyst、注入的进程）；文件引擎见非目标。</li>
+</ul>
+
+<h2 id="nongoals">非目标</h2>
+<ul>
+  <li><b>落盘索引</b>：沿用 0072 与 RuntimeViewer 0056 的决定。第 3 步实测离线吞吐，结果写进模块文档，是否需要持久化由愿景的后续阶段决定。</li>
+  <li><b>数据引用</b>（方法表条目 → IMP、CFString → 字符串这类「数据 → 地址」）与其余数据解码（KeyPath、ObjC 字面量、Swift 字符串）：愿景第 3 阶段。</li>
+  <li><b>带注解的反汇编、函数清单命令</b>：愿景第 2 阶段。</li>
+  <li><b>跨基本块的常量追踪、调用点常量参数普查</b>：愿景第 4 阶段。</li>
+  <li><b>接收者类型推断、Swift 字段级引用</b>。</li>
+  <li><b>x86_64</b>。</li>
+  <li>0072「后续」里列的其余项：协议见证与 override 的起名、<code>objc_getClass("…")</code> 解析成类引用（本提案只把它记成 C 字符串引用）、Swift 的 super 发送、协议类型引用。</li>
+  <li><b>RuntimeViewer</b>：CLI 直接读文件引擎、文件引擎上的交叉引用（RuntimeViewer「暂缓的后续项」里的另一条）、MCP 无头化（RuntimeViewer 愿景《无头 RuntimeViewer》的「之后可以接」）。</li>
+  <li><b>idax 建库时写入桩名与 Swift 函数名</b>：IDA 已降为后备。</li>
+</ul>
+
+<h2 id="design">详细设计</h2>
+<details open>
+<summary>公开 API（<code>CrossReferenceAnalysis</code>）</summary>
+<p>按全局 <code>apple-style-api-design</code> skill 的顺序，先写调用点：</p>
+<pre><code>// Simplest: what is this address?
+let analyzer = try CrossReferenceAnalyzer(dyldCache: FullDyldCache(url: cacheURL))
+print(analyzer.symbolication(of: 0x1_9012_3450))
+
+// Most common: who sends a selector, across an archived cache.
+let selectorKey = CodeReferenceTable.Key.selector("makeKeyAndOrderFront:")
+for imageIndex in analyzer.imageIndices(referencingSelector: "makeKeyAndOrderFront:", among: analyzer.imagePaths.indices) {
+    for reference in analyzer.references(to: [selectorKey], inImageAt: imageIndex) {
+        print(analyzer.imagePaths[imageIndex], reference.instructionAddress, reference.route)
+    }
+}
+
+// Most complex: an app and its frameworks, string references included.
+let files = try appBundle.machOFileURLs.map { try MachOFile(url: $0) }
+let appAnalyzer = try CrossReferenceAnalyzer(machOFiles: files, recordingStringReferences: true)</code></pre>
+<p>声明：</p>
+<pre><code>extension CrossReferenceAnalyzer {
+    /// Analyzes every image of a dyld shared cache read from disk, such as an archived one.
+    public convenience init(dyldCache: FullDyldCache, recordingStringReferences: Bool = false) throws
+
+    /// Analyzes standalone Mach-O files, such as an app's executable and its embedded frameworks.
+    public convenience init(machOFiles: [MachOFile], recordingStringReferences: Bool = false) throws
+
+    /// The number of images the analyzer covers, in either mode.
+    public var imageCount: Int { get }
+
+    /// What the address is: a place inside a function, a stub, a pointer slot, a string, or nothing mapped.
+    public func symbolication(of address: UInt64) -&gt; AddressSymbolication
+}
+
+extension CrossReferenceAnalyzer {
+    @available(*, deprecated, message: "Empty for analyzers created from files; use imagePaths or imageCount")
+    public var images: [MachOImage] { get }
+}
+
+public enum CodeReferenceTarget: Hashable, Sendable {
+    // … the nine existing cases …
+    /// A load of an Objective-C instance variable's offset variable (`_OBJC_IVAR_$_Class.ivar`).
+    case objectiveCInstanceVariable(className: String, name: String)
+    /// A C string literal whose address the code materializes. Recorded only when string references are recorded.
+    case cString(String)
+    /// A constant `CFString` / `NSString` literal. Recorded only when string references are recorded.
+    case constantString(String)
+}
+
+extension CodeReference {
+    /// How the code reached the target.
+    public enum Route: UInt8, Hashable, Sendable {
+        /// `bl` / `b` straight to the target.
+        case direct
+        /// A stub in the referencing image's own `__stubs`, `__auth_stubs` or `__objc_stubs`.
+        case imageStub
+        /// A trampoline in a dyld shared cache stub island, possibly after several hops.
+        case stubIsland
+        /// A stub shared by the whole cache: macOS / iOS 27's `objc_msgSend$…` selector stubs and GOT stubs.
+        case cacheSharedStub
+        /// `adrp` + `ldr` through a GOT or auth GOT slot.
+        case pointerSlot
+        /// `adrp` + `ldr` through an `__objc_selrefs` slot.
+        case selectorReference
+        /// `adrp` + `ldr` through an `__objc_classrefs` or `__objc_superrefs` slot.
+        case classReference
+        /// `adrp` + `add`, or `adr`, computing the target's address.
+        case addressMaterialization
+        /// `ldr` of a literal pool entry.
+        case literalLoad
+        /// An authenticated indirect call through a vtable, protocol witness table or value witness table.
+        case authenticatedIndirect
+    }
+
+    public let route: Route
+
+    public init(function: CodeLocation, instructionAddress: UInt64, kind: Kind, target: CodeReferenceTarget, route: Route, isRuntimeHelperCall: Bool)
+
+    @available(*, deprecated, renamed: "init(function:instructionAddress:kind:target:route:isRuntimeHelperCall:)")
+    public init(function: CodeLocation, instructionAddress: UInt64, kind: Kind, target: CodeReferenceTarget, isRuntimeHelperCall: Bool)
+}
+
+extension CodeReferenceTable.Key {
+    // new cases
+    case instanceVariable(className: String, name: String)
+    case cString(String)
+    case constantString(String)
+}
+
+public struct AddressSymbolication: Hashable, Sendable {
+    public let address: UInt64
+    public let imagePath: String?
+    public let segmentName: String?
+    public let sectionName: String?
+    public let meaning: Meaning
+
+    public enum Meaning: Hashable, Sendable {
+        /// Inside a function's body.
+        case function(start: CodeLocation, name: String?, offset: UInt64)
+        /// A stub or stub-island trampoline; `hops` lists every trampoline passed through, starting with the address asked about.
+        case stub(hops: [UInt64], target: CodeReferenceTarget)
+        /// A pointer slot and what it holds.
+        case pointerSlot(PointerSlotKind, target: CodeReferenceTarget)
+        case cString(String)
+        case constantString(String)
+        /// None of the above: the nearest preceding symbol.
+        case symbol(name: String, offset: UInt64)
+        /// Not inside any mapped image.
+        case unmapped
+    }
+
+    public enum PointerSlotKind: Hashable, Sendable {
+        case globalOffsetTable
+        case selectorReference
+        case classReference
+        case superclassReference
+        case protocolReference
+        case instanceVariableOffset
+    }
+}</code></pre>
+<p>（<code>CodeReferenceTable.Key</code> 的新 case 在实现里直接写进原 enum；上面用 extension 的写法只为标出新增部分。）</p>
+<p>命名取舍：</p>
+<ul>
+  <li>用 <b>symbolication / symbolicate</b> 而不是 resolve：MachOKit 与 MachOKitExtensions 里 <code>resolveBind</code> / <code>resolveRebase</code> 的 resolve 指「解 fixup」，同一个词不能再指「说出地址是什么」；symbolication 是 Apple 自己的说法（<code>atos</code>、崩溃报告的 symbolication）。</li>
+  <li>方法用名词短语 <code>symbolication(of:)</code>：它没有副作用，按 API Design Guidelines 读成名词短语。</li>
+  <li><code>route</code> 不给默认值：它影响结果是否可信，按「影响正确性的参数不给默认值」处理；旧初始化方法保留一个版本并标 <code>renamed:</code>。</li>
+</ul>
+</details>
+
+<details>
+<summary>读取抽象（package）</summary>
+<pre><code>package protocol CrossReferenceMemory: Sendable {
+    /// Read-only bytes of an image range, contiguous, for the scanner's decode loop.
+    func bytes(inImageAt imageIndex: Int, unslidRange: Range&lt;UInt64&gt;) -&gt; UnsafeRawBufferPointer?
+    /// What a pointer slot holds: an address in some image, or an imported symbol name.
+    func slotContent(at unslidAddress: UInt64, inImageAt imageIndex: Int) -&gt; SlotContent?
+    /// A NUL-terminated C string at the address, if it is printable to the end.
+    func cString(at unslidAddress: UInt64) -&gt; String?
+    /// Mask that strips pointer-authentication and tag bits.
+    var addressMask: UInt64 { get }
+}
+
+package enum SlotContent: Hashable, Sendable {
+    case address(UInt64)
+    case importedSymbol(String)
+}</code></pre>
+<p>并发：分析器今天是 <code>@unchecked Sendable</code> 加手写锁（裁决 A62）。<code>FileCrossReferenceMemory</code> 的读取是对只读映射的并发读，fixup 解码的记忆化沿用 MachOKitExtensions <code>cached</code> 视图里已有的锁。</p>
+</details>
+
+<details>
+<summary><code>swift-section</code> 的 JSON、地址约定、性能预算</summary>
+<pre><code>{
+  "query": { "selector": "makeKeyAndOrderFront:" },
+  "input": { "dyldSharedCache": "/Volumes/DyldSharedCaches/macOS/27.2/dyld_shared_cache_arm64e", "imageCount": 4114 },
+  "scannedImageCount": 2759,
+  "isTruncated": false,
+  "references": [
+    {
+      "image": "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit",
+      "function": { "address": "0x18801a000", "name": "-[NSApplication _showWindow:]" },
+      "site": "0x18801a040",
+      "kind": "call",
+      "route": "cacheSharedStub",
+      "target": { "messageSend": { "selector": "makeKeyAndOrderFront:", "receiver": "unknown" } }
+    }
+  ]
+}</code></pre>
+<p>（示例中的函数名与地址是示意，不是实测值。）<code>symbolicate --json</code> 输出 <code>{"symbolications": [ … ]}</code>，每项的字段对应 <code>AddressSymbolication</code>。字段名定下后即是契约，改名按 CLI 的破坏性变更处理。</p>
+<p><b>地址的约定</b>：CLI 与 API 进出的地址一律是<b>未滑动的虚拟地址</b>，也就是 IDA、<code>ipsw</code>、<code>dyld_info</code> 显示的那种。进程内模式在内部换算，调用方不需要知道 slide。</p>
+<p><b>性能预算</b>：第 3 步实测并写进模块文档：在 Ultra 上对 <code>/Volumes/DyldSharedCaches/macOS/27.2</code> 冷启动、热启动各跑 <code>--selector makeKeyAndOrderFront:</code> 与 <code>--selector init</code>。若冷启动的整 cache 查询超过 60 秒，在愿景里把「落盘」阶段提前。</p>
+</details>
+
+<h2 id="research">前期调研</h2>
+<details>
+<summary>现状代码怎么走的</summary>
+<p>以下路径相对于本仓库，读自 <code>next</code>（<code>6e73eeaa</code>）。</p>
+<p><b><code>CrossReferenceAnalysis</code> 的公开入口</b>（<code>Sources/Analysis/CrossReferenceAnalysis/CrossReferenceAnalyzer.swift</code>）：</p>
+<ul>
+  <li><code>public init?()</code>（<code>:85</code>）只扫当前进程，非 arm64 时返回 <code>nil</code>；<code>public let images: [MachOImage]</code>（<code>:23</code>）、<code>imagePaths</code>（<code>:30</code>）、<code>imageIndex(forPath:)</code>、<code>location(ofRuntimeAddress:)</code>（<code>:250</code>）。</li>
+  <li>函数表：<code>functions(inImageAt:)</code>、<code>function(containing:)</code>、<code>functions(containing:)</code>、<code>symbolName(at:)</code>。</li>
+  <li>引用：<code>references(madeBy:)</code>、<code>referenceTable(ofImageAt:)</code>、<code>referenceIndex(ofImageAt:)</code>、<code>references(to:inImageAt:)</code>（<code>:449</code>，键是 <code>CodeReferenceTable.Key</code>）。</li>
+  <li>预筛（<code>+Prefiltering.swift</code>、<code>+Linkage.swift</code>、<code>+SwiftTypes.swift</code>）：<code>imageIndices(importing:among:)</code>、<code>imageIndices(referencingSelector:among:)</code>、<code>imageIndices(referencingObjectiveCClassAt:among:)</code>、<code>imageIndices(linkingImageAt:among:)</code>、<code>imageIndices(referencingSwiftType:among:)</code> 等。</li>
+  <li>宿主内存管理：<code>prepareNames(inImageAt:)</code>、<code>preparePrefilters()</code>、<code>releaseImageData(exceptForImagesAt:)</code>、<code>approximateByteCount(ofImageDataAt:)</code>。</li>
+</ul>
+<p><b>模型</b>（<code>Models/</code>）：<code>CodeLocation</code>（镜像下标 + 未滑动地址）；<code>CodeReference</code>（<code>function</code>、<code>instructionAddress</code>、<code>kind: call | tailCall | reference</code>、<code>target</code>、<code>isRuntimeHelperCall</code>，公开 memberwise 初始化方法在 <code>CodeReference.swift:104</code>）；<code>CodeReferenceTarget</code> 有 <code>function</code>、<code>importedSymbol</code>、<code>messageSend(selector:receiver:)</code>、<code>superMessageSend</code>、<code>swiftType</code>、<code>swiftTypeName</code>、<code>objectiveCClass</code>、<code>indirect</code>、<code>unrecognized</code> 九种；<code>CodeReferenceTable.Key</code> 有 <code>function</code>、<code>selector</code>、<code>importedSymbol</code>、<code>objectiveCClass</code>、<code>swiftTypeDescriptor</code> 等。</p>
+<p><b>分析器只能在进程内成立的依赖</b>——本提案要拆掉的就是这些：</p>
+<ol>
+  <li>构造器用 <code>DyldCacheLoaded.current</code> + <code>cache.slide</code>、<code>_dyld_image_count</code>、<code>_dyld_get_image_header</code>、<code>dladdr</code>（<code>CrossReferenceAnalyzer.swift:89-120</code>）。</li>
+  <li>未滑动地址靠 <code>image.vmaddrSlide</code> 换成运行时地址。</li>
+  <li>直接按地址读进程内存：<code>UnsafeRawPointer(bitPattern:)</code> 在 <code>ReferenceScanner.swift</code> 7 处、<code>ObjectiveCClassIndex.swift</code> 5 处、<code>SwiftTypeIndex.swift</code> 4 处、<code>ImageFunctionTable.swift</code> 2 处、<code>+SwiftTypes.swift</code> 2 处、<code>+Prefiltering.swift</code> 1 处、<code>ImageFallbackNames.swift</code> 1 处，共 22 处。</li>
+  <li><b>GOT 槽依赖 dyld 已经绑定好的值</b>：模块文档写明「GOT 槽在进程内已经绑定，读出指针、去掉指针认证位就是目标」，懒绑定场景由 <code>LazyBindingTests</code> 守着。</li>
+  <li>去掉指针认证位用 <code>StoredPointer</code> 里的 <code>InProcessContext.addressMask</code>。</li>
+  <li>函数起点依赖 <code>MachOImage.FunctionStarts</code> 的偏移语义（模块文档说进程内给的已是绝对地址，与 MachOKit 的注释不符）。</li>
+  <li>类名经 MachOObjCSection 读 <code>class_rw_t</code>（类已被运行时实现时）。</li>
+</ol>
+<p><b>已能认出的引用形态</b>（<code>Scanning/ReferenceScanner.swift</code>、<code>Scanning/RegisterFile.swift</code>，解码器是 <code>Sources/Support/ARM64InstructionDecoding/ARM64InstructionWord.swift</code>）：直接 <code>bl</code> / <code>b</code> 与尾调用、跳转表；镜像自带的 <code>__objc_stubs</code> 与 <code>__stubs</code> / <code>__auth_stubs</code>（读不出时由 <code>ARM64Trampoline</code> 补读 ld64 改写过的 <code>nop; ldr x16, &lt;slot&gt;; br x16</code>）；27 的 cache 共用 selector 桩（<code>adrp x1; add x1; b &lt;objc_msgSend 副本&gt;</code>）与 GOT 桩（<code>adrp x17; add x17; ldr x16, [x17]; braa</code>）；stub island 多跳；cache 内经典发送（<code>x1</code> 由 <code>adrp</code> / <code>add</code> 算出可打印的字符串地址）；GOT / selref / classref / superref 的 <code>adrp</code> + <code>ldr</code> 与字面量 <code>ldr</code>；<code>adrp</code> + <code>add</code> / <code>adr</code> 算出类对象、元数据或访问器；Swift 类型访问器与 <code>__swift_instantiateConcreteTypeFromMangledName*</code>；按 <code>autda</code> / <code>movk</code> 鉴别常量区分 vtable、PWT、VWT 的间接调用。</p>
+<p><b>解码器的覆盖</b>：<code>ARM64InstructionWord.load(_:)</code>（<code>:88</code>）只认 64 位的 <code>ldr</code> / <code>ldur</code> / 前变址 <code>ldr!</code> / <code>ldraa</code> / <code>ldrab</code>；<b>不认 <code>ldrsw</code> 与 32 位 <code>ldr w</code></b>，而 arm64 上读 ObjC ivar 偏移变量正是 <code>adrp x8, _OBJC_IVAR_$_C.ivar@PAGE; ldrsw x8, [x8, …@PAGEOFF]</code>。</p>
+<p><b>性能</b>（模块文档「吞吐」节，macOS 27.2，28 核）：建分析器 0.06 秒（4,114 个镜像）；每个镜像都建整表 3.0 秒、1.26 亿条引用；查 <code>init</code> 的调用者预筛出 2,759 个镜像，0.05 + 1.8 秒；查 <code>makeKeyAndOrderFront:</code> 0.06 + 0.33 秒；手写解码器单线程解码 AppKit 约 187 MiB/s，比 Capstone 快 25–50 倍。</p>
+<p><b>本库已有的离线解析</b>（<code>Sources/Analysis/SwiftThunkAnalysis/Resolution/</code>）：</p>
+<ul>
+  <li><code>MachOThunkEnvironment</code>（<code>package final class</code>，551 行）已经在 <code>MachOFile</code> 上做了这几件事：<code>callee(at:)</code> 解析桩、ld64 跳板与 stub island（可多跳，<code>hopping(from:to:islandHops:)</code>）；<code>callee(boundInSlotAt:)</code> 解析 GOT 槽——独立文件经 <code>resolveBind(fileOffset:)</code> 得 bind 名，cache 里是 rebase 到别的镜像，再按地址找符号；<code>pointer(at:)</code>、<code>slotSymbolName(at:)</code>；<code>foreignCallee</code> 与 <code>dependencyCallee</code> 跨镜像找导出。</li>
+  <li><code>CacheImageResolver</code>（同文件 <code>:466</code>）用 <code>imageInfos</code> 按加载地址二分，回答「这个地址在 cache 的哪个镜像」，并按路径懒打开 <code>MachOFile</code>。</li>
+  <li><code>ThunkAddressSpace</code>（<code>ThunkAddressSpace.swift</code>）定下 cache 镜像的偏移约定：<b>未滑动地址 − <code>sharedRegionStart</code></b>，并实测记下三种看似可用、实际静默出错的换算（<code>segment.fileOffset</code>、<code>MachOFile.fileOffset(of:)</code>、<code>FullDyldCache.address(of:)</code>，在 macOS 26 的 SwiftUI 上分别偏 0x88000、另一套记账、再偏 16384）。</li>
+</ul>
+<p><b>读取层</b>：<code>Sources/MachO/MachOReading</code> 已有 <code>ReadingContext</code> 协议（<code>associatedtype Runtime</code>、<code>associatedtype Address</code>、<code>readElement(at:)</code>、<code>readElements(at:numberOfElements:)</code>、<code>readWrapperElement(at:)</code>）及 <code>MachOContext</code> / <code>InProcessContext</code> 两种实现。MachOKitExtensions 的草案 <code>move-reading-and-resolving-modules</code>（In Progress，四个仓库同名分支）正把它原名迁进 MachOKitExtensions 2.0.0，随本库 0.25.0 一起发。</p>
+<p><b><code>swift-section</code> CLI</b>：根命令 <code>Sources/Executables/swift-section/SwiftSectionCommand.swift</code>；输入选项组 <code>Models/MachOOptionGroup.swift</code>（<code>filePath</code>、<code>-p/--cache-image-path</code>、<code>-n/--cache-image-name</code>、<code>--dyld-shared-cache</code>、<code>--uses-system-dyld-shared-cache</code>、<code>-a/--architecture</code>、<code>--dependency-search-path</code>），经 <code>Sources/Commands/SwiftSectionKit/Inputs/MachOSource.swift</code> 只产出<b>单个</b> <code>MachOFile</code>。<code>AGENTS.md</code> 的 CLI 一节规定：子命令逻辑写进 <code>SwiftSectionKit</code> 的 Request 类型，可执行层只管 flag、<code>validate()</code>、<code>makeRequest()</code> 与错误翻译；输出一律经 <code>StandardStreamOutput</code>；CLI 改动要同批更新 <code>AgentPlugins/swift-section/skills/swift-section-cli/</code>。目前只有 <code>evolution --json</code> 与 snapshot 有 JSON，没有统一约定。<code>swift-section</code> target 现在不依赖 <code>CrossReferenceAnalysis</code>（<code>Package.swift:920-941</code>）。</p>
+</details>
+
+<details>
+<summary>上游或依赖是否已具备能力</summary>
+<ul>
+  <li><b>MachOKit</b>（fork，本库要求 <code>from: "0.55.102"</code>）：<code>stubs(in:)</code> / <code>objcStubs(in:)</code>（<code>LoadCommand/Model/Section+Stubs.swift</code>，<code>Stub.Branch</code> 为 <code>.viaSlot</code> / <code>.direct</code> / <code>.unknown</code>，带 <code>indirectSymbolIndex</code>）；<code>MachOFile.resolveBind(at:)</code>（<code>MachOFile.swift:927</code>）、<code>resolveRebase(at:)</code>（<code>:879</code>）、<code>DyldCache.resolveRebase(at:)</code>；<code>MachOFile.functionStarts</code>（<code>:481</code>）；<code>closestSymbol(at:…)</code>（<code>MachORepresentable.swift:396-745</code>）；<code>DyldCache.symbolCache</code> 读 <code>.symbols</code> 文件。<b>没有</b> stub island 或 cache 共用桩的 API，<b>没有</b>「地址 → 所属镜像」的 API，<b>没有</b>共享 selector 哈希表的解析；selref / classref / protoref 没有专门的访问器。读文件经 p-x9 的 <code>swift-fileio</code>（内存映射）。</li>
+  <li><b>MachOKitExtensions</b>（<code>from: "1.3.2"</code>）：<code>MachOFile.resolveBind(fileOffset:)</code> 覆盖 chained fixup 与旧式 dyld info，但 <b><code>isLoadedFromDyldCache</code> 时直接返回 <code>nil</code></b>；<code>resolveSelfBind(fileOffset:)</code> 处理 <code>BIND_SPECIAL_DYLIB_SELF</code>；<code>resolveRebase(fileOffset:)</code> 对 cache 镜像走 cache；<code>MachOFile.cached</code> 的 <code>fixupPointer(at:)</code>；<code>DyldCacheSubCacheTable</code> 子 cache 地址二分表。</li>
+</ul>
+</details>
+
+<details>
+<summary>前人怎么做的（ipsw、dyld_info、IDA、Binary Ninja）</summary>
+<ul>
+  <li><b>ipsw</b>：<code>dyld xref</code> 不跟进 stub island；<code>dyld a2s</code> 对 27 的 cache 共用 <code>objc_msgSend$</code> 桩只回 <code>?</code>；没有 <code>.a2s</code> 符号缓存时 <code>disass</code> 会卡在解析符号上 12 分钟、占 23 GB 内存（逆向 agent 笔记）。</li>
+  <li><b>Apple <code>dyld_info</code></b>：只读本机正在运行的 cache；<code>-disassemble</code> 给 cache 桩标错名；<code>-imports</code> 漏 bind；<code>-objc</code> 对 cache 镜像静默无输出、退出码 0。</li>
+  <li><b>IDA</b>：一个库只装得下几个镜像，跨镜像看不到；单镜像库的导入桩借用别的局部符号名；查调用者要两跳（槽 → <code>j__&lt;符号&gt;</code> 桩 → 调用者）。</li>
+  <li><b>Binary Ninja</b>（开源部分取自 <code>Vector35/binaryninja-api</code> 的 <code>dev</code> 分支；用户装的是 6.0.10601 Personal）：
+    <ul>
+      <li>整个 cache 放进一个地址空间，跨镜像引用就是普通地址；全 cache 的符号单独存成 <code>CacheSymbol</code>，打开 cache 时读每个镜像的导出 trie 建「地址 → 符号」表，LC_SYMTAB 与 <code>.symbols</code> 本地符号等镜像被加载时才读（<code>view/sharedcache/core/SharedCache.cpp:305</code>、<code>core/MachOProcessor.cpp:88-134</code>）。</li>
+      <li>stub island 当作单独的区域；桩的判定看节名后缀（<code>__stubs</code>、<code>__auth_stubs</code>、<code>__objc_stubs</code>、<code>_branch_islands</code>）；解析时在 MLIL 的 SSA 形式上沿跳转目标往回找 <code>LOAD(CONST_PTR)</code>，命名为 <code>j_&lt;目标符号&gt;</code>（<code>view/sharedcache/workflow/SharedCacheWorkflow.cpp</code>）。</li>
+      <li>ObjC 调用点的 selector 取 <code>x1</code> 的 SSA 常量值；<code>objc_msgSend$sel</code> 桩不靠符号表，「不超过 32 字节、一个基本块、尾调用 msgSend」就当它是，并用同样的 <code>x1</code> 追踪取 selector（<code>plugins/workflow_objc/src/activities/</code> 下的 <code>objc_msg_send_calls.rs</code>、<code>name_stubs.rs</code>）。</li>
+      <li>selector 到实现不改写调用，而是从 selector 字符串和 selref 槽各加一条<b>数据引用</b>指向 IMP，查询时两跳；改写成直接调用的选项默认关，源码 TODO 承认它总取第一个实现、需要接收者类型才做得好（<code>objectivec/objc.cpp:1182-1184</code>、<code>rewrite_to_direct_call.rs</code>）。</li>
+      <li>引用分代码、数据、类型、变量四类，另有类型字段引用（<code>get_code_refs_for_type_field</code>）；6.0 新增 <code>get_derived_string_code_refs</code>（派生字符串，例如 CFString 的代码引用）。数据流只在函数内做（<code>docs/dev/concepts.md:160</code>）。</li>
+      <li>界面里引用列表有上限（<code>ui.maxXrefItems = 1000</code>），超出时计数后面带 <code>+</code>；可按方向、种类过滤。</li>
+      <li>6.0 自带 MCP 服务器：GUI 内的 HTTP 版随所有 GUI 版本提供（含 Personal），能查交叉引用、调用者、反汇编、IL 与伪代码；无界面的 <code>binaryninja_mcp</code> 只随 Commercial / Ultimate。地址在输出里一律写成十六进制字符串，「so clients do not lose precision when handling 64-bit addresses」；列表结果带 <code>count</code>、<code>total</code>、<code>nextOffset</code>、<code>truncated</code>（应用内 <code>docs/guide/mcp.html</code>）。</li>
+    </ul>
+  </li>
+</ul>
+</details>
+
+<details>
+<summary>验证过什么</summary>
+<ul>
+  <li>已验证（引自现有文档与记忆）：进程内分析器的吞吐数字；<code>ThunkAddressSpace</code> 的地址约定与三种错误换算（macOS 26 SwiftUI）；<code>UINSPasteboardWritingItemProvider</code> 的两个经 GOT 的调用者（27.0、27.2）；<code>dyld_info</code> 的 2,195 个错名桩（26.7 SwiftUICore）。</li>
+  <li>IDA 与 Binary Ninja 的交叉引用实测（2026-11-18，Finder 26.5.2 与 ControlCenter 26.7，详见愿景「我们选的方向」第 1 条）：代码引用召回 IDA 一次查询 97.0%、两跳 99.4%，Binary Ninja 经 MCP 67.6%。三处双方的盲点直接变成本提案的测试用例：恰好页对齐的类对象（<code>adrp; add #0</code>，IDA 漏）、Swift 大字符串的 <code>adrp; add; sub #0x20</code>（Binary Ninja 漏）、<code>retab</code> 之后没建函数的异常清理代码（Binary Ninja 漏）。</li>
+  <li>卷上有 cache 文件的版本：macOS 15.5、26.0（单文件）；26.5.2、26.6.2、26.7（12 个子文件）；27.0（79 个）、27.2（81 个）。本机运行 27.2。</li>
+  <li><b>推测，第 1、3 步先实测</b>：
+    <ul>
+      <li>离线模式的吞吐。cache 在外置卷上、冷读几个 GB 的映射文件，预计比进程内慢，慢多少不知道。</li>
+      <li>文件模式下能否拿到 <code>__text</code> 的连续只读字节（<code>swift-fileio</code> 的映射能否按区间给出指针），拿不到就按镜像把 <code>__text</code> 读进一块缓冲区。</li>
+      <li><code>MachOFile.functionStarts</code> 在 cache 镜像上的偏移语义。</li>
+      <li>macOS 27 的 cache <b>文件</b>里各镜像的 <code>__objc_stubs</code> 是否也是 0 大小（文档只说进程内为 0）。</li>
+    </ul>
+  </li>
+</ul>
+</details>
+
+<h2 id="alternatives">替代方案考量</h2>
+<details>
+<summary>评估过但放弃的路径（11 条）</summary>
+<ul>
+  <li><b>另写一个离线分析器，不动现有的。</b>否：扫描、寄存器跟踪、命名合计约 5,200 行，复制一份就会和进程内版本漂移；<code>SwiftThunkAnalysis</code> 里已经有一份重复的离线解析，正是本提案要合并的。</li>
+  <li><b>把分析器改成对 <code>MachO: MachORepresentable</code> 泛型</b>（本库其它模块的惯用写法）。否：两种模式的差别不在「哪种 Mach-O 类型」，而在「槽里的值怎么得到」——进程内读已绑定的值，文件里解 fixup。泛型会一路传染到 RuntimeViewer 持有分析器的会话类型，而一个小协议正好只隔离这一点。</li>
+  <li><b>直接用 <code>ReadingContext</code> 当读取抽象。</b>否，理由见「提议方案」第 1 节；<code>FileCrossReferenceMemory</code> 内部仍用它。</li>
+  <li><b>后端用 <code>ipsw</code> 或 <code>dyld_info</code>。</b>否：「前人怎么做的」里列的几类静默漏报、错名都会原样带进来。</li>
+  <li><b>直接用 Binary Ninja。</b>否：用户的 Personal 许可没有无界面 API，无界面的 <code>binaryninja_mcp</code> 也只随 Commercial / Ultimate；GUI 的 MCP 要求界面开着、当前视图跟随界面，多个 agent 会互相抢；整 cache 查询要把几千个镜像装进一个视图。2026-11-18 的实测里，它经 MCP 的代码引用召回只有 67.6%（IDA 两跳 99.4%），所以连核对也只作补充。</li>
+  <li><b>现在就做落盘索引。</b>否：0072 与 RuntimeViewer 0056 都定过不做；先量离线吞吐再说。</li>
+  <li><b>地址符号化放进 MachOKit fork。</b>否：fork 已落后上游 33 个提交，再加新能力只会更难合。</li>
+  <li><b>放进 MachOKitExtensions。</b>现在不放：它正在为 2.0.0 接收读取层，同时动两件事风险大；新模块按可迁移的依赖写，等那次迁移落定后照同样的路搬过去。</li>
+  <li><b>CLI 子命令叫 <code>resolve</code>。</b>否：与 <code>resolveBind</code> / <code>resolveRebase</code> 撞义，见「详细设计」的命名取舍。</li>
+  <li><b>照 Binary Ninja 建统一地址空间、换掉 <code>CodeLocation</code>。</b>否：<code>CodeLocation</code> 是公开模型，RuntimeViewer 的查询层建在它上面；统一地址空间里最有用的「任何地址都说得出是什么」由符号化单独提供。</li>
+  <li><b>照 Binary Ninja 加「selref / selector → IMP」的数据引用。</b>本提案不做，归入愿景第 3 阶段的数据引用；现在按 selector 查发送者已经可以，从调用点到实现的两跳留给数据引用一起做。</li>
+</ul>
+</details>
+
+<h2 id="impact">影响</h2>
+<h3>源码兼容性（source compatibility）</h3>
+<p><b>有破坏</b>，逐条：</p>
+<ul>
+  <li><code>CodeReferenceTarget</code> 新增三个 case，<code>CodeReferenceTable.Key</code> 新增三个 case：对它们做穷尽 <code>switch</code> 的代码编译失败。已知下游只有 RuntimeViewer 的 <code>CrossReferenceQuery.swift:92</code>（<code>switch reference.target</code>），在第 4 步同一时间窗里补上：
+<pre><code>// Before: nine cases.
+// After: add
+case .objectiveCInstanceVariable, .cString, .constantString:
+    return nil   // not surfaced in the GUI yet</code></pre>
+  RuntimeViewer 本地按「本地路径优先」依赖本库（<code>../../MachOSwiftSection</code>），所以本库 <code>next</code> 一合进新 case，RuntimeViewer 的 <code>next</code> 就要跟着改，两边要同批合入。</li>
+  <li><code>CodeReference</code> 的旧初始化方法标 deprecated（<code>renamed:</code> 到新签名），仍可用一个版本。</li>
+  <li><code>images</code> 标 deprecated；进程内模式行为不变。</li>
+</ul>
+<p>其余全是新增。</p>
+<h3>ABI 兼容性</h3>
+<p>不适用 —— 本库以 SPM 源码分发，使用方每次重新编译。</p>
+<h3>下游影响</h3>
+<ul>
+  <li>本仓库内：<code>SwiftThunkAnalysis</code> 改用抽出的模块（行为不变，由守护测试保证）；<code>SwiftSectionKit</code> 与 <code>swift-section</code> 新增对 <code>CrossReferenceAnalysis</code> 的依赖。</li>
+  <li>RuntimeViewer：见上；另有第 7、8 步的 CLI 与 MCP。它的常驻索引（<code>CodeReferenceIndex</code>）多出 <code>route</code>，第 4 步量出 <code>approximateByteCount</code> 的增量写进模块文档。</li>
+  <li>swift-decompiler：依赖本库的 <code>SwiftThunkAnalysis</code> 时只经它的公开接口，抽取不改公开接口；第 2 步核对一次。</li>
+  <li>MachOKitExtensions 的读取层迁移：新模块依赖 <code>MachOReading</code>，迁移是原名迁入，import 不变；若迁移先合进 <code>next</code>，第 2 步照新的包依赖写 <code>Package.swift</code>。</li>
+</ul>
+<h3>文档与示例</h3>
+<p>README 的 CLI 一节、<code>swift-section-cli</code> skill、两个模块参考文档、RuntimeViewer 的 CLI 使用指南与 <code>runtime-viewer</code> skill。</p>
+<h3>API 演进与废弃策略</h3>
+<ul>
+  <li><code>CodeReference.init(function:instructionAddress:kind:target:isRuntimeHelperCall:)</code> 与 <code>CrossReferenceAnalyzer.images</code>：标 <code>@available(*, deprecated, …)</code> 保留一个次版本，下一个次版本删除。</li>
+  <li><code>ThunkAddressSpace</code>、<code>CacheImageResolver</code> 是 package 级，直接搬走，不留旧名。</li>
+  <li>本库仍在 0.x，随下一个次版本发布，不需要大版本。</li>
+</ul>
+
+<h2 id="steps">落地步骤</h2>
+<ol>
+  <li><b>读取抽象，行为不变</b> —— 改动地图里的 <code>CrossReferenceMemory</code>、<code>InProcessCrossReferenceMemory</code>、分析器与各扫描文件的读取改造、<code>StoredPointer</code>、<code>Package.swift</code>。
+    <ul><li><code>inProcessReferenceTablesAreUnchangedForAppKitSwiftUICoreAndFoundation</code>（改造前后逐条比对整表）</li>
+    <li><code>crossReferenceAnalysisReadsMemoryOnlyThroughCrossReferenceMemory</code>（源码扫描：分析模块里不再有 <code>UnsafeRawPointer(bitPattern:)</code>）</li></ul></li>
+  <li><b>抽出 <code>MachOAddressResolution</code></b> —— 四个新类型、<code>MachOThunkEnvironment</code> 改用它们、删 <code>ThunkAddressSpace</code>、模块文档。
+    <ul><li><code>thunkAnalysisResultsAreUnchangedAfterExtraction</code></li>
+    <li><code>stubChainResolvesCacheSharedSelectorStubToItsSelector</code></li>
+    <li><code>stubChainRecordsEveryStubIslandHop</code></li>
+    <li><code>slotResolverNamesTheOwnImageClassHeldInAGlobalOffsetTableSlot</code></li>
+    <li><code>slotResolverResolvesStandaloneBindsAndSelfBinds</code></li></ul></li>
+  <li><b>文件模式的分析器</b> —— <code>FileCrossReferenceMemory</code>、两个新构造器、函数起点与类名的文件模式。
+    <ul><li><code>fileModeMatchesInProcessReferencesOnTheRunningSystemCache</code>（同一个 cache 两种模式逐条比对，镜像取 AppKit、SwiftUICore、Foundation）</li>
+    <li><code>archivedCacheFindsBothCallersOfPasteboardWritingItemProvider</code>（27.0 与 27.2；卷不在时跳过）</li>
+    <li><code>archivedCacheFollowsStubIslandsForSelectorSends</code></li>
+    <li><code>standaloneAppResolvesImportedAndSelfBoundSymbols</code></li>
+    <li><code>offlineThroughputIsRecordedInTheModuleDocument</code>（不是断言，是把实测写进文档）</li>
+    <li><code>fileModeScansExceptionCleanupCodeAfterReturn</code>（<code>retab</code> 之后、没有函数起点的异常清理代码也要被扫到）</li>
+    <li>核对：在 Finder 26.5.2 与 ControlCenter 26.7（卷上有现成 <code>.i64</code>）上，用 2026-11-18 那次实测的做法——<code>otool -tV</code> 加独立寄存器跟踪生成标准答案——比对本库文件模式的结果，并与 IDA 查到两跳的结果对照，差异逐条归因后写进模块文档。Binary Ninja 经 MCP 只作补充：它没有「代码 → 数据地址」的反查，dyld cache 的镜像也要先在界面里加载。</li></ul></li>
+  <li><b>新引用种类与路线</b> —— 解码器的 <code>ldrsw</code> / 32 位 <code>ldr</code>、<code>RegisterFile</code>、三个 target、<code>Route</code>、表键、常驻索引编码、RuntimeViewer 的穷尽 switch。
+    <ul><li><code>instanceVariableOffsetLoadsBecomeInstanceVariableReferences</code></li>
+    <li><code>stringReferencesAreRecordedOnlyWhenRequested</code></li>
+    <li><code>constantStringReferencesCarryTheirCharacters</code></li>
+    <li><code>everyReferenceCarriesTheRouteItTook</code></li>
+    <li><code>referenceIndexRoundTripsNewTargetsAndRoutes</code></li>
+    <li><code>decoderDecodesThirtyTwoBitLoadAndLoadSignedWord</code></li>
+    <li><code>pageAlignedClassObjectMaterializationIsAReference</code>（<code>adrp; add #0</code>）</li>
+    <li><code>swiftLargeStringLiteralPointsAtItsCharacters</code>（<code>adrp; add; sub #0x20</code>）</li></ul></li>
+  <li><b>地址符号化</b> —— <code>AddressSymbolication</code> 与 <code>symbolication(of:)</code>。
+    <ul><li><code>symbolicatesEverySwiftUICoreAuthStubToItsIndirectSymbol</code>（对照 MachOKit 的 <code>Stub.indirectSymbolIndex</code>，正是 <code>dyld_info</code> 标错的那批）</li>
+    <li><code>symbolicatesCacheSharedMessageSendStubToItsSelector</code></li>
+    <li><code>symbolicatesGlobalOffsetTableSlotToItsBoundSymbol</code></li>
+    <li><code>symbolicatesAnAddressInsideAnUnnamedFunctionWithItsFallbackName</code></li>
+    <li><code>symbolicatesAnUnmappedAddressAsUnmapped</code></li></ul></li>
+  <li><b><code>swift-section refs</code> 与 <code>symbolicate</code></b> —— SwiftSectionKit 的三个类型、两个命令、选项组、登记、README、skill。
+    <ul><li><code>refsListsCallerRowsForASelectorInAnArchivedCache</code></li>
+    <li><code>refsJSONUsesHexadecimalStringAddresses</code></li>
+    <li><code>refsMarksTruncatedResultsWhenLimited</code></li>
+    <li><code>refsRequiresExactlyOneQuery</code></li>
+    <li><code>symbolicateAcceptsSeveralAddresses</code></li>
+    <li><code>crossReferenceCommandsWriteOnlyThroughStandardStreamOutput</code>（沿用仓库已有的输出扫描测试）</li></ul></li>
+  <li><b>RuntimeViewer CLI</b> —— 引擎侧符号化命令、四个子命令、协议版本、文本显示、使用指南、skill。
+    <ul><li><code>callersCommandJSONMatchesTheMCPResponseFields</code></li>
+    <li><code>commandLineProtocolVersionIsThree</code></li>
+    <li><code>symbolicateCommandWorksOnTheLocalSource</code></li></ul></li>
+  <li><b>RuntimeViewer MCP 与收尾</b> —— 四个 MCP 工具；本库的 <code>ProjectEvolutionLog.md</code>、<code>Glossary.md</code>；RuntimeViewer 的 <code>Evolutions/README.md</code> 加 <code>cross-repository draft</code> 一行，0056 的暂缓表里把第 4 步那一行指向本提案。
+    <ul><li><code>callersToolReturnsAPartialResultAfterThirtySeconds</code></li>
+    <li><code>symbolicateToolRequiresAWindowIdentifier</code></li></ul></li>
+</ol>
+<p><b>收尾时必须判断两件事</b>（判断结果写进决策日志，不允许沉默跳过）：</p>
+<ul>
+  <li><b>要不要配套专题文章</b> —— 预判要写一份 CLI 使用指南：「地址一律未滑动」「字符串引用要打开才记录」「截断标记」这几条契约在签名里看不出来。模块参考文档本身按约定更新。</li>
+  <li><b>有没有引入新术语</b> —— 预计有「地址符号化（symbolication）」「引用路线（route）」，以及 stub island、cache 共用桩若术语表里还没有。</li>
+</ul>
+
+<h2 id="log">决策日志</h2>
+<table>
+<thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>2026-11-18</td><td>Created as Draft</td><td>调研了过去逆向卡住最久的地方，「跨镜像查谁用了它」与「地址起名」排在最前；用户选定先做这一块，并把它定为愿景《不依赖 IDA 的逆向》的第一步，伪代码不再是默认读物，IDA 退为后备</td></tr>
+<tr><td>2026-11-18</td><td>参照 Binary Ninja</td><td>用户指出 IDA 的交叉引用弱、Binary Ninja 强。调研了它开源的 shared cache 视图与 ObjC 插件：采纳桩按节名判定与 <code>j_</code> 式命名、引用按来源种类标注（本提案的 <code>route</code>）、地址写成十六进制字符串、结果带截断标记；selector → IMP 的数据引用留给愿景第 3 阶段</td></tr>
+<tr><td>2026-11-18</td><td>Binary Ninja 6 的 MCP</td><td>用户升级到 Binary Ninja 6.0。它的 GUI 内 MCP 服务器 Personal 版也有，可作第 3 步的结果核对；无界面版仍要 Commercial / Ultimate，所以不作后端</td></tr>
+<tr><td>2026-11-18</td><td>实测后改用 IDA 核对</td><td>在 Finder 与 ControlCenter 上实测：代码引用召回 IDA 两跳 99.4%、Binary Ninja 经 MCP 67.6%。第 3 步的核对改以独立生成的标准答案为准、IDA 对照、Binary Ninja 补充；双方的三处盲点（页对齐类对象、Swift 大字符串、<code>retab</code> 后的清理代码）加成测试</td></tr>
+</tbody>
+</table>
+
+</main>
+</body>
+</html>

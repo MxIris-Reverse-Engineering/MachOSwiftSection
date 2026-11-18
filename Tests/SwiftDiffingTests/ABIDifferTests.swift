@@ -179,6 +179,19 @@ struct ABIDifferProjectionTests {
         #expect(changes.first?.kind == .variable)
     }
 
+    /// An exported init accessor is ABI: a client's inlined initializer calls
+    /// it (evolution proposal `init-accessor-recovery`).
+    @Test("gaining an init accessor diffs as .modified")
+    func gainingInitAccessorIsModified() {
+        let withoutInitAccessor = [MemberRecord.make(variable("value", accessors: [.getter, .setter]))]
+        let withInitAccessor = [MemberRecord.make(variable("value", accessors: [.getter, .setter, .initAccessor]))]
+        #expect(withInitAccessor.first?.payloadKey.sortKey.hasSuffix("|acc:get,init,set") == true)
+        let changes = ABIDiffer().diffMembers(old: withoutInitAccessor, new: withInitAccessor)
+        #expect(changes.count == 1)
+        #expect(changes.first?.status == .modified)
+        #expect(changes.first?.kind == .variable)
+    }
+
     @Test("reordering enum cases renumbers tags, so the moved cases diff as .modified")
     func enumCaseReorderIsModified() {
         let old = [

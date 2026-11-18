@@ -43,7 +43,10 @@ public enum ObjCMembers {
         // rejected against a header saying `drawInRect:`), so a header
         // selector the derivation does not produce means the Swift source
         // wrote `@objc(drawInRect:)` — exactly what the flag reports.
-        return table(for: hierarchy, ownerQualifiedName: "\(objcModule).\(runtimeName)", in: machO)
+        // Another image's Swift class owns its members under its Swift name,
+        // which its mangled runtime name spells.
+        let ownerQualifiedName = NodeTypeNaming.swiftClassQualifiedName(fromRuntimeName: runtimeName) ?? "\(objcModule).\(runtimeName)"
+        return table(for: hierarchy, ownerQualifiedName: ownerQualifiedName, in: machO)
     }
 
     /// The table for the Swift class whose qualified name is `qualifiedName`

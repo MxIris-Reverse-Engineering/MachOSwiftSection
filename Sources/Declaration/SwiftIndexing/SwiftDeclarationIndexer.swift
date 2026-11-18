@@ -790,6 +790,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
                     let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedAssociatedTypeWitnesses(of: conformanceAssociatedTypes))
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
+                    extensionDefinition.generatingMacro = generatingMacro(ofConformanceOf: typeName, to: protocolName)
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
                     eventDispatcher.dispatch(.conformanceExtensionCreated(context: SwiftIndexEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
@@ -848,6 +849,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
 
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftIndexEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
+    }
+
+    /// The macro attached to the extended type that generated this
+    /// conformance, or `nil` (evolution proposal `observable-macro-folding`):
+    /// `@Observable` writes `extension Model: Observation.Observable {}` for
+    /// the class it expands. Every type definition exists by now, so the
+    /// extended class's `attachedMacros` already says whether it was
+    /// expanded; a hand-written conformance of a class the macro did not
+    /// expand is left alone.
+    private func generatingMacro(ofConformanceOf typeName: TypeName, to protocolName: ProtocolName) -> SwiftAttachedMacro? {
+        guard currentStorage.allTypeDefinitions[typeName]?.attachedMacros.contains(.observable) == true,
+              ObservableMacroRecognition.isObservableProtocol(protocolName.node.materialize())
+        else { return nil }
+        return .observable
     }
 
     /// Freezes associated-type witness records into Mach-O-free values

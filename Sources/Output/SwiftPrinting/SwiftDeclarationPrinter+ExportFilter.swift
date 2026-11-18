@@ -213,24 +213,39 @@ extension SwiftDeclarationPrinter {
     ///
     /// When marking, the last line break of such a body is visible only while
     /// the filter is off; see `bodyAfterNestedDefinitions(of:content:)`.
+    ///
+    /// What only an attached macro's expansion prints counts as ruled out as
+    /// well: marking, it is visible only while `expandsMacros` is on
+    /// (evolution proposal `observable-macro-folding`). A tracked property's
+    /// storage prints in one form or the other under either value, so it
+    /// keeps the break when neither form is ruled out.
     package func excludesEveryDeclarationAfterNestedDefinitions(of definition: some Definition) -> Bool {
         guard evaluatesExportFilter else { return false }
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
+        let folding = observableMacroFolding(of: definition)
         var hasDeclaration = false
         if let typeDefinition = definition as? TypeDefinition {
             if typeDefinition.deallocatorSymbol != nil { return false }
             let isEnum = typeDefinition.typeName.kind == .enum
             for field in typeDefinition.fields where !field.flags.contains(.isArtificial) && !synthesizedPropertyWrapperMembers.hiddenFieldNames.contains(field.name) {
-                if isEnum || !isExcludedByExportFilter(field: field) { return false }
                 hasDeclaration = true
+                if isEnum { return false }
+                if folding.isExpansionOnly(field) { continue }
+                if let trackedProperty = folding.trackedProperty(storedIn: field),
+                   let memberVariable = folding.trackedMemberVariablesByName[trackedProperty.name],
+                   isExcludedByExportFilter(.variable(memberVariable)) {
+                    continue
+                }
+                if !isExcludedByExportFilter(field: field) { return false }
             }
         }
         if let extensionDefinition = definition as? ExtensionDefinition {
             if !extensionDefinition.associatedTypes.isEmpty || !extensionDefinition.unrepresentedObjCImplementationInstanceVariables.isEmpty { return false }
         }
         for member in definition.orderedMembers where !synthesizedPropertyWrapperMembers.contains(member) {
-            if !isExcludedByExportFilter(member) { return false }
             hasDeclaration = true
+            if folding.isExpansionOnly(member) { continue }
+            if !isExcludedByExportFilter(member) { return false }
         }
         return hasDeclaration
     }

@@ -51,7 +51,14 @@ package enum MemberDefinitionBuilder {
         }
 
         var storedPropertyAccessorsByFieldName: [String: [Accessor]] = [:]
-        for (name, accessors) in accessorsByName.sorted(by: { $0.key < $1.key }) {
+        for (name, symbolOrderedAccessors) in accessorsByName.sorted(by: { $0.key < $1.key }) {
+            // A SE-0400 init accessor goes last (evolution proposal
+            // `init-accessor-recovery`): `accessors.first` answers for the
+            // property's witness table offset, which an init accessor never
+            // has. A stored property's group keeps it too — SwiftUICore keeps
+            // a function under a stored property's init accessor name for the
+            // clients that inlined a call to it.
+            let accessors = symbolOrderedAccessors.filter { $0.kind != .initAccessor } + symbolOrderedAccessors.filter { $0.kind == .initAccessor }
             guard !fieldNames.contains(name) else {
                 storedPropertyAccessorsByFieldName[name] = accessors
                 continue

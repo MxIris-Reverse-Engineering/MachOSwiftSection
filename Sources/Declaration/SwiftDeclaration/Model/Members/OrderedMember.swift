@@ -19,12 +19,17 @@ public enum OrderedMember: Sendable {
     }
 
     /// The minimum symbol file offset (MachO offset) among all symbols of this member.
+    ///
+    /// A variable's SE-0400 init accessor takes no part: whether the image
+    /// kept it depends on the build, not on where the source declared the
+    /// property, so it would move the property between builds (evolution
+    /// proposal `init-accessor-recovery`).
     public var minSymbolOffset: Int {
         switch self {
         case .allocator(let f), .function(let f):
             return f.symbol.offset
         case .variable(let v):
-            return v.accessors.map(\.symbol.offset).min() ?? .max
+            return v.accessors.lazy.filter { $0.kind != .initAccessor }.map(\.symbol.offset).min() ?? .max
         case .subscript(let s):
             return s.accessors.map(\.symbol.offset).min() ?? .max
         }

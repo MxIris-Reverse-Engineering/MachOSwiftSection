@@ -73,7 +73,7 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
         case .unsignedLongLong: return Self.swiftStructure("UInt")
         case .float: return Self.swiftStructure("Float")
         case .double, .longDouble: return Self.swiftStructure("Double")
-        case .characterString: return Self.boundGenericStructure(Self.swiftStructure("UnsafeMutablePointer"), arguments: [Self.swiftStructure("Int8")])
+        case .characterString(let isConst): return Self.boundGenericStructure(Self.swiftStructure(isConst ? "UnsafePointer" : "UnsafeMutablePointer"), arguments: [Self.swiftStructure("Int8")])
         case .selector: return Self.structure(module: "ObjectiveC", name: "Selector")
         case .objectClass: return Node.createTransient(kind: .typeAlias, children: [Self.module("Swift"), Node.createTransient(kind: .identifier, text: "AnyClass")])
         case .object(let className, let protocolNames): return objectNode(className: className, protocolNames: protocolNames)
@@ -89,19 +89,47 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
             switch pointee {
             case .void: return Self.swiftStructure(isConst ? "UnsafeRawPointer" : "UnsafeMutableRawPointer")
             case .unknown, .object, .block, .objectClass, .bitField: return Self.swiftStructure("OpaquePointer")
+            // ClangImporter imports a pointer to what it cannot represent as
+            // `OpaquePointer`.
+            case .array where Self.flattenedElementCount(of: pointee) == nil: return Self.swiftStructure("OpaquePointer")
             default: return Self.boundGenericStructure(Self.swiftStructure(isConst ? "UnsafePointer" : "UnsafeMutablePointer"), arguments: [bareTypeNode(pointee)])
             }
         case .structure(let name), .union(let name):
             guard let name else { return Self.swiftStructure("OpaquePointer") }
             return Self.structure(module: objcModule, name: name)
         case .array(let count, let element):
-            // A C array imports as a tuple of its elements.
-            return Node.createTransient(kind: .tuple, children: (0 ..< max(count, 0)).map { _ in
+            // A C array imports as a tuple of its elements, a single element
+            // as the element itself; one it cannot represent, as nothing.
+            guard Self.flattenedElementCount(of: type) != nil else { return Self.anyNode }
+            if count == 1 { return bareTypeNode(element) }
+            return Node.createTransient(kind: .tuple, children: (0 ..< count).map { _ in
                 Node.createTransient(kind: .tupleElement, child: Self.type(bareTypeNode(element)))
             })
         case .bitField, .unknown:
             return Self.anyNode
         }
+    }
+
+    /// ClangImporter imports a C array of at most this many elements, as a
+    /// tuple, and no longer one (`VisitConstantArrayType`).
+    static var maximumImportedArrayCount: Int { 4096 }
+
+    /// The most elements nested arrays may flatten to. Each level within
+    /// ClangImporter's limit still multiplies, and a tuple of tuples past
+    /// this would take for ever to build and print — what an encoding
+    /// crafted to do so asks for — so past it the type reads as one the
+    /// importer cannot represent.
+    static var maximumFlattenedArrayElementCount: Int { 65_536 }
+
+    /// How many elements `type` flattens to — 1 for anything but an array —
+    /// or `nil` for an array ClangImporter cannot represent, or one past
+    /// `maximumFlattenedArrayElementCount`.
+    static func flattenedElementCount(of type: ObjCEncodedType) -> Int? {
+        guard case .array(let count, let element) = type else { return 1 }
+        guard count >= 0, count <= maximumImportedArrayCount, let elementCount = flattenedElementCount(of: element) else { return nil }
+        let (flattenedCount, overflowed) = count.multipliedReportingOverflow(by: elementCount)
+        guard !overflowed, flattenedCount <= maximumFlattenedArrayElementCount else { return nil }
+        return flattenedCount
     }
 
     private func objectNode(className: String?, protocolNames: [String]) -> Node {

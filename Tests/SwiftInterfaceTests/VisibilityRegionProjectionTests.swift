@@ -53,6 +53,7 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
         configuration.printEnumLayout = options.contains(.printEnumLayout)
         configuration.infersObjCOverridesFromSelectorNames = options.contains(.infersObjCOverridesFromSelectorNames)
         configuration.printExportedDeclarationsOnly = options.contains(.printExportedDeclarationsOnly)
+        configuration.expandsMacros = options.contains(.expandsMacros)
         return configuration
     }
 
@@ -134,6 +135,34 @@ final class VisibilityRegionProjectionTests: MachOSwiftSectionFixtureTests, @unc
     @Test func filePrintsProjectToEveryConfiguration() async throws {
         let result = try await Self.mismatches(in: machOFile, optionCombinations: Self.optionCombinations(varying: Self.layoutOptions))
         #expect(result.checkedDeclarationCount > 100)
+        #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
+    }
+
+    // MARK: - Attached macros
+
+    /// The `@Observable` folding (evolution proposal
+    /// `observable-macro-folding`): marked, a class the macro expanded prints
+    /// both forms — the attribute and the declared properties visible only
+    /// while `expandsMacros` is off, the registrar, the storage, the computed
+    /// properties, the generated methods and conformance only while it is on
+    /// — and projects to either print, the exported-only filter and the
+    /// comments the members carry included.
+    @Test(arguments: ObservableMacroFixture.Variant.allCases)
+    func observableMacroFixturePrintsProjectToEveryConfiguration(variant: ObservableMacroFixture.Variant) async throws {
+        let result = try await Self.mismatches(
+            in: try await ObservableMacroFixture.machOFile(variant),
+            optionCombinations: Self.optionCombinations(varying: [.expandsMacros, .printExportedDeclarationsOnly, .printMemberAddress, .printVTableOffset, .printFieldOffset])
+        )
+        #expect(result.checkedDeclarationCount > 10)
+        #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
+    }
+
+    @Test func observableMacroFixtureInProcessPrintsProjectToEveryConfiguration() async throws {
+        let result = try await Self.mismatches(
+            in: try await ObservableMacroFixture.loadedImage(),
+            optionCombinations: Self.optionCombinations(varying: [.expandsMacros, .printExportedDeclarationsOnly, .printMemberAddress, .printVTableOffset, .printFieldOffset])
+        )
+        #expect(result.checkedDeclarationCount > 10)
         #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
     }
 

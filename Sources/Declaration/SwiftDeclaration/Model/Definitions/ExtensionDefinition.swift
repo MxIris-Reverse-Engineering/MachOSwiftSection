@@ -67,6 +67,20 @@ public final class ExtensionDefinition: Definition, MutableDefinition, @unchecke
 
     public package(set) var isRetroactive: Bool = false
 
+    /// The macro attached to the extended type whose expansion this
+    /// extension is, or `nil` (evolution proposal
+    /// `observable-macro-folding`): `@Observable` writes
+    /// `extension Model: Observation.Observable {}`, so the conformance
+    /// extension of an `.observable` class to that protocol carries
+    /// `.observable`. Set by the indexer when it builds the conformance
+    /// extensions, which it does after every type definition — and so every
+    /// `TypeDefinition.attachedMacros` — exists.
+    ///
+    /// The folded interface prints the macro attribute in its place; a host
+    /// showing extensions as objects of their own hides one that carries a
+    /// macro while the interface folds macro expansions.
+    public package(set) var generatingMacro: SwiftAttachedMacro? = nil
+
     /// Set by the indexer's container-unification pass (evolution proposal
     /// 0007) when this symbol-scan protocol-extension block was attached to
     /// its `ProtocolDefinition.defaultImplementationExtensions` — the

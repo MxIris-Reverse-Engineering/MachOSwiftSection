@@ -15,12 +15,17 @@ extension SwiftDeclarationPrinter {
     /// `objc-imported-declarations`): `class Name: Superclass, Protocol…`
     /// and its members, named by the importer's rules.
     ///
-    /// A Swift class prints as the Swift class it is, followed by its
-    /// extensions in the image and an `extension` of the Objective-C methods
-    /// no member of them answers to. A class declared in Objective-C prints
-    /// each member a Swift extension of it answers to as that Swift member —
-    /// an `@objc @implementation` class all of its own — and the rest by the
-    /// rules.
+    /// A class Swift implements prints as its Swift side (evolution proposal
+    /// `swift-first-imported-declarations`). A Swift class prints as the
+    /// Swift class it is, followed by its extensions in the image and an
+    /// `extension` of the Objective-C methods no member of them answers to.
+    /// An `@objc @implementation` class prints the implementation's body —
+    /// as the Swift interface prints it, its `final` members too — under the
+    /// class's own declaration, the Objective-C methods no Swift member
+    /// answers to last, and the image's other extensions of it after it. A
+    /// class implemented in Objective-C prints its method list in order, each
+    /// member a Swift extension of it answers to as that Swift member and the
+    /// rest by the rules.
     public func printObjCImportedClassDefinition(_ definition: ObjCImportedClassDefinition, level: Int = 1) async throws -> SemanticString {
         try await LargeStackTaskExecution.run {
             try await printIncludedObjCImportedClassDefinition(definition, level: level)
@@ -45,6 +50,23 @@ extension SwiftDeclarationPrinter {
         }
     }
 
+    /// The members of `definition` a header marks `NS_REFINED_FOR_SWIFT`, as
+    /// far as the image's Swift side shows (evolution proposal
+    /// `swift-first-imported-declarations`): one a Swift member named with
+    /// the importer's `__` prefix answers to, and a property no Swift member
+    /// answers to whose plain name a Swift property of another type has
+    /// taken. The binary keeps no trace of the macro; a host printing the
+    /// header puts it back from these. Empty for a Swift class, which has no
+    /// header, and for a class no Swift definition implements or extends.
+    public func objcMembersRefinedForSwift(in definition: ObjCImportedClassDefinition) throws -> [ObjCRefinedForSwiftMember] {
+        try definition.index(in: machO)
+        guard definition.swiftClassDefinition == nil, !definition.swiftExtensions.isEmpty else { return [] }
+        let swiftMembers = try implementingSwiftMembers(of: definition.members, typeDefinitions: [], extensionDefinitions: definition.swiftExtensions, recognizesRefinements: true)
+        return definition.members.indices.compactMap { index in
+            swiftMembers.refinement(ofMemberAt: index).map { ObjCRefinedForSwiftMember(member: definition.members[index], refinement: $0) }
+        }
+    }
+
     // MARK: Classes
 
     @SemanticStringBuilder
@@ -56,8 +78,8 @@ extension SwiftDeclarationPrinter {
 
         if let swiftClassDefinition = definition.swiftClassDefinition {
             try await printTypeDefinition(swiftClassDefinition, level: level)
-            let swiftMembers = try implementingSwiftMembers(typeDefinitions: [swiftClassDefinition], extensionDefinitions: definition.swiftExtensions)
-            let unimplementedMembers = definition.members.filter { swiftMembers.member(answering: $0) == nil }
+            let swiftMembers = try implementingSwiftMembers(of: definition.members, typeDefinitions: [swiftClassDefinition], extensionDefinitions: definition.swiftExtensions, recognizesRefinements: false)
+            let unansweredMembers = definition.members.indices.filter { swiftMembers.member(answeringMemberAt: $0) == nil }.map { definition.members[$0] }
             // Its extensions trail it, as in the module's interface.
             await BlockList {
                 for extensionDefinition in definition.swiftExtensions {
@@ -68,7 +90,7 @@ extension SwiftDeclarationPrinter {
                         try await printExtensionDefinition(extensionDefinition)
                     }
                 }
-                if !unimplementedMembers.isEmpty {
+                if !unansweredMembers.isEmpty {
                     await printCatchedThrowing(
                         dispatchingTo: eventDispatcher,
                         context: .init(name: definition.className.name, kind: .extension)
@@ -80,7 +102,7 @@ extension SwiftDeclarationPrinter {
                         } body: {
                             try await MemberList(level: level) {
                                 comment(.note("Objective-C methods of the class that no member of the Swift class answers to. Swift names follow the ClangImporter's rules for these selectors."), as: .note)
-                                for member in unimplementedMembers {
+                                for member in unansweredMembers {
                                     await printObjCImportedMember(member, level: level)
                                 }
                             }
@@ -88,20 +110,143 @@ extension SwiftDeclarationPrinter {
                     }
                 }
             }
+        } else if definition.swiftExtensions.contains(where: { $0.objcImplementation != nil }) {
+            try await printObjCImplementationClass(definition, level: level)
         } else {
-            let swiftMembers = try implementingSwiftMembers(typeDefinitions: [], extensionDefinitions: definition.swiftExtensions)
-            let inheritedNodes = [definition.superclassName?.node].compactMap { $0 } + definition.protocolNames.map(\.node)
+            let swiftMembers = try implementingSwiftMembers(of: definition.members, typeDefinitions: [], extensionDefinitions: definition.swiftExtensions, recognizesRefinements: true)
             try await DeclarationBlock(level: level) {
-                Keyword(.class)
-                Space()
-                TypeDeclaration(kind: .class, Self.leafName(of: definition.className.node, kind: .class) ?? definition.objcRuntimeName)
-                try await inheritanceClause(inheritedNodes)
+                try await importedClassDeclaration(definition)
             } body: {
                 try await objcImportedMemberList(definition.members, swiftMembers: swiftMembers, level: level)
             }
         }
 
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
+    }
+
+    /// An `@objc @implementation` class as its Swift side (evolution proposal
+    /// `swift-first-imported-declarations`): the class's own declaration —
+    /// superclass and protocols from the Objective-C record — around the
+    /// implementation's body as the Swift interface prints it, then the
+    /// Objective-C methods no Swift member answers to; the image's other
+    /// Swift extensions of the class trail it. A stored property whose Swift
+    /// type the image does not record prints as the Objective-C property
+    /// synthesized on it, where the Swift interface can only describe the
+    /// ivar in a comment. A property the header refines for Swift whose `__`
+    /// declaration the image keeps no symbol of is worded right above the
+    /// Swift property that took its plain name, rather than with the other
+    /// unanswered methods.
+    @SemanticStringBuilder
+    private func printObjCImplementationClass(_ definition: ObjCImportedClassDefinition, level: Int) async throws -> SemanticString {
+        let swiftMembers = try implementingSwiftMembers(of: definition.members, typeDefinitions: [], extensionDefinitions: definition.swiftExtensions, recognizesRefinements: true)
+        let implementationExtensions = definition.swiftExtensions.filter { $0.objcImplementation != nil }
+        let otherExtensions = definition.swiftExtensions.filter { $0.objcImplementation == nil }
+        let standInIndices = Self.memberIndicesStandingIn(forInstanceVariablesOf: implementationExtensions, members: definition.members, swiftMembers: swiftMembers)
+        let standIns = standInIndices.mapValues { definition.members[$0] }
+        let standInIndexSet = Set(standInIndices.values)
+        let unansweredIndices = definition.members.indices.filter { swiftMembers.member(answeringMemberAt: $0) == nil && !standInIndexSet.contains($0) }
+        let refinedForSwiftComments = await refinedForSwiftCommentsAboveNameTakingProperties(of: unansweredIndices, in: definition, swiftMembers: swiftMembers, implementationExtensions: implementationExtensions, level: level)
+        let trailingIndices = unansweredIndices.filter { !refinedForSwiftComments.placedMemberIndices.contains($0) }
+        try await DeclarationBlock(level: level) {
+            try await importedClassDeclaration(definition)
+        } body: {
+            for extensionDefinition in implementationExtensions {
+                try await printExtensionBodyContents(extensionDefinition, level: level, refinedForSwiftCommentsByVariableKey: refinedForSwiftComments.commentsByVariableKey) {
+                    await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1, standIns: standIns)
+                }
+            }
+            if !trailingIndices.isEmpty {
+                await MemberList(level: level) {
+                    comment(.note("Objective-C methods of the class that no Swift member answers to. Swift names follow the ClangImporter's rules for these selectors."), as: .note)
+                    for index in trailingIndices {
+                        await printUnansweredObjCImportedMember(definition.members[index], refinement: swiftMembers.refinement(ofMemberAt: index), level: level)
+                    }
+                }
+            }
+        }
+        // Its other extensions trail it, as in the module's interface.
+        await BlockList {
+            for extensionDefinition in otherExtensions {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
+                ) {
+                    try await printExtensionDefinition(extensionDefinition)
+                }
+            }
+        }
+    }
+
+    /// `class Name: Superclass, Protocol…`, from the Objective-C record.
+    @SemanticStringBuilder
+    private func importedClassDeclaration(_ definition: ObjCImportedClassDefinition) async throws -> SemanticString {
+        Keyword(.class)
+        Space()
+        TypeDeclaration(kind: .class, Self.leafName(of: definition.className.node, kind: .class) ?? definition.objcRuntimeName)
+        try await inheritanceClause([definition.superclassName?.node].compactMap { $0 } + definition.protocolNames.map(\.node))
+    }
+
+    /// The Objective-C property each stored property of an `@objc
+    /// @implementation` stands in for, by the ivar's identity: the one
+    /// synthesized on an ivar whose Swift type the image does not record, and
+    /// that no Swift member answers to.
+    private static func memberIndicesStandingIn(forInstanceVariablesOf implementationExtensions: [ExtensionDefinition], members: [ObjCImportedMemberDefinition], swiftMembers: ObjCImplementingSwiftMembers) -> [ObjectIdentifier: Int] {
+        var indicesByInstanceVariable: [ObjectIdentifier: Int] = [:]
+        for extensionDefinition in implementationExtensions {
+            guard let facts = extensionDefinition.objcImplementation else { continue }
+            for instanceVariable in extensionDefinition.unrepresentedObjCImplementationInstanceVariables where instanceVariable.swiftTypeNode == nil && !instanceVariable.name.isEmpty {
+                // A property's attributes name its ivar (`V…`) when the
+                // compiler wrote one; otherwise it is the ivar's namesake.
+                guard let property = facts.objcProperty(storedIn: instanceVariable, swiftPropertyName: instanceVariable.swiftPropertyName ?? instanceVariable.name),
+                      let index = members.indices.first(where: { members[$0].kind == .property && !members[$0].isClassMember && members[$0].objcPropertyName == property.name && swiftMembers.member(answeringMemberAt: $0) == nil })
+                else { continue }
+                indicesByInstanceVariable[ObjectIdentifier(instanceVariable)] = index
+            }
+        }
+        return indicesByInstanceVariable
+    }
+
+    /// The `NS_REFINED_FOR_SWIFT` comments of an `@objc @implementation`
+    /// class that print above a Swift property rather than with the other
+    /// unanswered methods, and the members they word.
+    private struct RefinedForSwiftCommentPlacement {
+        /// Keyed by `variableKey(of:)` of the Swift property each prints above.
+        var commentsByVariableKey: [String: [StructuredComment]] = [:]
+        var placedMemberIndices: Set<Int> = []
+    }
+
+    /// Places the comment of each of `unansweredIndices` that is a property
+    /// whose plain name a Swift property took
+    /// (`ObjCImplementingSwiftMembers.Refinement.nameTakenByAnotherDeclaration`)
+    /// above that Swift property — when the class body prints it: it is a
+    /// member of the implementation, not of another extension of the class,
+    /// and the exported-only filter keeps it, or the comment would vanish with
+    /// it. The rest stay where they were.
+    private func refinedForSwiftCommentsAboveNameTakingProperties(
+        of unansweredIndices: [Int],
+        in definition: ObjCImportedClassDefinition,
+        swiftMembers: ObjCImplementingSwiftMembers,
+        implementationExtensions: [ExtensionDefinition],
+        level: Int
+    ) async -> RefinedForSwiftCommentPlacement {
+        let bodyVariableKeys = Set(implementationExtensions.flatMap { $0.variables + $0.staticVariables }.compactMap(Self.variableKey(of:)))
+        var placement = RefinedForSwiftCommentPlacement()
+        for index in unansweredIndices where swiftMembers.refinement(ofMemberAt: index) == .nameTakenByAnotherDeclaration {
+            guard case .variable(let nameTakingVariable)? = swiftMembers.member(takingNameOfMemberAt: index),
+                  let variableKey = Self.variableKey(of: nameTakingVariable), bodyVariableKeys.contains(variableKey),
+                  !isExcludedByExportFilter(.variable(nameTakingVariable)),
+                  let refinedForSwiftComment = await refinedForSwiftComment(of: definition.members[index], refinement: .nameTakenByAnotherDeclaration, level: level)
+            else { continue }
+            placement.commentsByVariableKey[variableKey, default: []].append(refinedForSwiftComment)
+            placement.placedMemberIndices.insert(index)
+        }
+        return placement
+    }
+
+    /// What a variable is found by among the members a definition prints:
+    /// its first accessor's symbol, whose name no other member shares.
+    static func variableKey(of variable: VariableDefinition) -> String? {
+        variable.accessors.first?.symbol.name
     }
 
     // MARK: Categories
@@ -112,7 +257,7 @@ extension SwiftDeclarationPrinter {
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
         try definition.index(in: machO)
-        let swiftMembers = try implementingSwiftMembers(typeDefinitions: [], extensionDefinitions: definition.swiftExtensions)
+        let swiftMembers = try implementingSwiftMembers(of: definition.members, typeDefinitions: [], extensionDefinitions: definition.swiftExtensions, recognizesRefinements: false)
 
         try await DeclarationBlock(level: level) {
             Keyword(.extension)
@@ -162,11 +307,11 @@ extension SwiftDeclarationPrinter {
             if let leadingNote {
                 comment(.note(leadingNote), as: .note)
             }
-            if members.contains(where: { swiftMembers.member(answering: $0) == nil }) {
+            if members.indices.contains(where: { swiftMembers.member(answeringMemberAt: $0) == nil }) {
                 comment(.note("Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them."), as: .note)
             }
-            for member in members {
-                if let swiftMember = swiftMembers.member(answering: member) {
+            for (index, member) in members.enumerated() {
+                if let swiftMember = swiftMembers.member(answeringMemberAt: index) {
                     switch swiftMember {
                     case .function(let function):
                         await printFunction(function, level: level)
@@ -176,14 +321,99 @@ extension SwiftDeclarationPrinter {
                         await printSubscript(`subscript`, level: level)
                     }
                 } else {
-                    await printObjCImportedMember(member, level: level)
+                    await printUnansweredObjCImportedMember(member, refinement: swiftMembers.refinement(ofMemberAt: index), level: level)
                 }
             }
         }
     }
 
+    /// An Objective-C member no Swift member answers to, by the importer's
+    /// rules — or, for a property whose plain name a Swift declaration of
+    /// another type has taken, the declaration Swift gives it under
+    /// `NS_REFINED_FOR_SWIFT`, as a comment: the image keeps no symbol of it,
+    /// and the prefixed name is the importer's rule, not the binary's word
+    /// (evolution proposal `swift-first-imported-declarations`).
     @SemanticStringBuilder
-    private func printObjCImportedMember(_ member: ObjCImportedMemberDefinition, level: Int) async -> SemanticString {
+    private func printUnansweredObjCImportedMember(_ member: ObjCImportedMemberDefinition, refinement: ObjCImplementingSwiftMembers.Refinement?, level: Int) async -> SemanticString {
+        let refinedForSwiftComment = await refinedForSwiftComment(of: member, refinement: refinement, level: level)
+        if let refinedForSwiftComment {
+            comment(refinedForSwiftComment, as: .refinedForSwiftMember)
+        } else {
+            await printObjCImportedMember(member, level: level)
+        }
+    }
+
+    /// The `NS_REFINED_FOR_SWIFT` comment wording `member`, a property whose
+    /// plain name a Swift declaration of another type has taken, under the
+    /// name Swift gives it; `nil` for any other member, or when its
+    /// declaration does not print.
+    private func refinedForSwiftComment(of member: ObjCImportedMemberDefinition, refinement: ObjCImplementingSwiftMembers.Refinement?, level: Int) async -> StructuredComment? {
+        guard refinement == .nameTakenByAnotherDeclaration,
+              let refinedMember = refinedForSwiftMember(of: member),
+              let declaration = await refinedForSwiftDeclarationSegments(of: refinedMember, level: level)
+        else { return nil }
+        return .refinedForSwiftMember(declaration: declaration)
+    }
+
+    /// The declaration of `refinedMember` — a property under its `__` name —
+    /// on one line, as a line comment holds it, in segments: its name and its
+    /// type marked, the modifiers, the colon and the accessor block playing
+    /// no role. Each part is taken from the structure, not cut out of the
+    /// printed text: the modifiers and the name from the components the
+    /// declaration prints as (the name is the `.variable` one), the type
+    /// printed on its own from the property's type node — as the declaration
+    /// prints it — and the accessor block from its keywords.
+    private func refinedForSwiftDeclarationSegments(of refinedMember: ObjCImportedMemberDefinition, level: Int) async -> [StructuredComment.Segment]? {
+        let components = await printObjCImportedMember(refinedMember, level: level).components
+        guard let nameIndex = components.firstIndex(where: { $0.type == .variable }),
+              let typeNode = ObjCSwiftTypeCompatibility.propertyType(ofDemangledMember: refinedMember.node.materialize())
+        else { return nil }
+        var typePrinter = SemanticTypeNodePrinter(delegate: self)
+        guard let typeName = try? await typePrinter.printRoot(typeNode).string, !typeName.isEmpty else { return nil }
+        let modifiers = components[..<nameIndex].map(\.string).joined()
+        let accessorKeywords = AccessorBlockKeywords.getter(hasSetter: refinedMember.isSettable)
+        let accessorBlock = " { " + ([accessorKeywords.read] + [accessorKeywords.write].compactMap { $0 }).joined(separator: " ") + " }"
+        return [.plain(modifiers), .name(components[nameIndex].string), .plain(": "), .type(typeName), .plain(accessorBlock)]
+    }
+
+    /// `member`, a property, under the name Swift gives a property the header
+    /// marks `NS_REFINED_FOR_SWIFT`; `nil` for any other member. The selector
+    /// stays the Objective-C one, which the prefixed name does not derive, so
+    /// no `@objc(selector)` is spelled: the importer pairs them.
+    private func refinedForSwiftMember(of member: ObjCImportedMemberDefinition) -> ObjCImportedMemberDefinition? {
+        guard member.kind == .property, let node = Self.refinedForSwiftPropertyNode(member.node.materialize()) else { return nil }
+        return ObjCImportedMemberDefinition(
+            kind: member.kind,
+            node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO),
+            selector: member.selector,
+            setterSelector: member.setterSelector,
+            isClassMember: member.isClassMember,
+            ownership: member.ownership,
+            hasExplicitSelector: false,
+            typeEncoding: member.typeEncoding,
+            objcPropertyName: member.objcPropertyName
+        )
+    }
+
+    /// `node` — a property's `Global > [Static >] Getter > Variable` — with
+    /// `ObjCMemberShape.refinedForSwiftPrefix` in front of the property's
+    /// name; `nil` when it holds no named `Variable`.
+    private static func refinedForSwiftPropertyNode(_ node: Node) -> Node? {
+        var children = Array(node.children)
+        if node.kind == .variable {
+            guard let identifierIndex = children.firstIndex(where: { $0.kind == .identifier }), let name = children[identifierIndex].text else { return nil }
+            children[identifierIndex] = Node.createTransient(kind: .identifier, text: ObjCMemberShape.refinedForSwiftPrefix + name)
+            return Node.createTransient(kind: .variable, children: children)
+        }
+        guard let childIndex = children.firstIndex(where: { $0.kind == .variable || $0.first(of: .variable) != nil }),
+              let renamedChild = refinedForSwiftPropertyNode(children[childIndex])
+        else { return nil }
+        children[childIndex] = renamedChild
+        return Node.createTransient(kind: node.kind, children: children)
+    }
+
+    @SemanticStringBuilder
+    func printObjCImportedMember(_ member: ObjCImportedMemberDefinition, level: Int) async -> SemanticString {
         await dispatchingCatchedThrowing(.init(name: member.selector, kind: Self.printingKind(of: member))) {
             if member.hasExplicitSelector {
                 Keyword(.atObjc)
@@ -269,14 +499,14 @@ extension SwiftDeclarationPrinter {
 
     /// The Swift members of the definitions a class or category is paired
     /// with, indexed here — an index pass must not index another definition.
-    private func implementingSwiftMembers(typeDefinitions: [TypeDefinition], extensionDefinitions: [ExtensionDefinition]) throws -> ObjCImplementingSwiftMembers {
+    private func implementingSwiftMembers(of objcMembers: [ObjCImportedMemberDefinition], typeDefinitions: [TypeDefinition], extensionDefinitions: [ExtensionDefinition], recognizesRefinements: Bool) throws -> ObjCImplementingSwiftMembers {
         for typeDefinition in typeDefinitions {
             try typeDefinition.index(in: machO)
         }
         for extensionDefinition in extensionDefinitions {
             try extensionDefinition.index(in: machO)
         }
-        return ObjCImplementingSwiftMembers(typeDefinitions: typeDefinitions, extensionDefinitions: extensionDefinitions)
+        return ObjCImplementingSwiftMembers(objcMembers: objcMembers, typeDefinitions: typeDefinitions, extensionDefinitions: extensionDefinitions, recognizesRefinements: recognizesRefinements)
     }
 
     /// A class's or protocol's own name, unqualified, as a header prints it.
@@ -298,82 +528,5 @@ extension SwiftDeclarationPrinter {
         case .property: .variable
         case .subscript: .subscript
         }
-    }
-}
-
-/// The Swift members of a class's or category's Swift definitions that
-/// answer Objective-C selectors, by the selector the class's Objective-C
-/// member table ties each to (`objcMember`). A tie by the `To` thunk symbol
-/// or the thunk's code wins; a tie by name alone is taken when there is no
-/// other — the definitions here implement the class, so a member whose name
-/// is the importer's spelling of a selector of the class answers to it.
-struct ObjCImplementingSwiftMembers {
-    enum Member {
-        case function(FunctionDefinition)
-        case variable(VariableDefinition)
-        case `subscript`(SubscriptDefinition)
-    }
-
-    private struct Key: Hashable {
-        let selector: String
-        let isClassMethod: Bool
-    }
-
-    private var joinedMembersByKey: [Key: Member] = [:]
-    private var nameOnlyMembersByKey: [Key: Member] = [:]
-
-    init(typeDefinitions: [TypeDefinition], extensionDefinitions: [ExtensionDefinition]) {
-        for typeDefinition in typeDefinitions {
-            add(
-                functions: typeDefinition.functions + typeDefinition.staticFunctions + typeDefinition.allocators + typeDefinition.constructors,
-                variables: typeDefinition.variables + typeDefinition.staticVariables,
-                subscripts: typeDefinition.subscripts + typeDefinition.staticSubscripts
-            )
-        }
-        for extensionDefinition in extensionDefinitions {
-            add(
-                functions: extensionDefinition.functions + extensionDefinition.staticFunctions + extensionDefinition.allocators + extensionDefinition.constructors,
-                variables: extensionDefinition.variables + extensionDefinition.staticVariables,
-                subscripts: extensionDefinition.subscripts + extensionDefinition.staticSubscripts
-            )
-        }
-    }
-
-    private mutating func add(functions: [FunctionDefinition], variables: [VariableDefinition], subscripts: [SubscriptDefinition]) {
-        for function in functions {
-            insert(function.objcMember, as: .function(function))
-        }
-        for variable in variables {
-            insert(variable.objcMember, as: .variable(variable))
-        }
-        for `subscript` in subscripts {
-            insert(`subscript`.objcMember, as: .subscript(`subscript`))
-        }
-    }
-
-    private mutating func insert(_ objcMember: ObjCMember?, as member: Member) {
-        guard let objcMember else { return }
-        let key = Key(selector: objcMember.selector, isClassMethod: objcMember.isClassMethod)
-        if objcMember.evidence == .selectorName {
-            if nameOnlyMembersByKey[key] == nil {
-                nameOnlyMembersByKey[key] = member
-            }
-        } else if joinedMembersByKey[key] == nil {
-            joinedMembersByKey[key] = member
-        }
-    }
-
-    /// The Swift member answering to `member`'s selector — a property's
-    /// getter, or its setter when only that one is tied — or `nil`.
-    func member(answering member: ObjCImportedMemberDefinition) -> Member? {
-        // A factory method is a class method in Objective-C.
-        let isClassMethod = member.isClassMember || member.kind == .factoryInitializer
-        let keys = [member.selector, member.setterSelector].compactMap { $0 }.map { Key(selector: $0, isClassMethod: isClassMethod) }
-        for membersByKey in [joinedMembersByKey, nameOnlyMembersByKey] {
-            if let found = keys.lazy.compactMap({ membersByKey[$0] }).first {
-                return found
-            }
-        }
-        return nil
     }
 }

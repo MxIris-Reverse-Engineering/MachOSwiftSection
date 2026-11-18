@@ -144,6 +144,43 @@ extension StructuredComment {
     /// protocol-extension default.
     package static let protocolExtensionDefault = line([.label("protocol-extension default")])
 
+    /// `// init accessor: the binary does not record which stored properties it initializes`:
+    /// the property's SE-0400 init accessor, whose `@storageRestrictions`
+    /// nothing in the image infers (evolution proposal
+    /// `init-accessor-recovery`).
+    package static let initAccessorFieldsNotRecorded = line([
+        .label("init accessor"), .separator(": "), .text("the binary does not record which stored properties it initializes"),
+    ])
+
+    /// `// init accessor: initializes _value (inferred from the stored property's name and type)`:
+    /// what the dump says above an init accessor whose `@storageRestrictions`
+    /// the image's stored properties infer (evolution proposal
+    /// `init-accessor-recovery`).
+    package static func initAccessorInitializedFields(_ fieldNames: [String]) -> Self {
+        var body: [Segment] = [.label("init accessor"), .separator(": "), .text("initializes ")]
+        for (index, fieldName) in fieldNames.enumerated() {
+            if index > 0 {
+                body.append(.separator(", "))
+            }
+            body.append(.name(fieldName))
+        }
+        body.append(.text(" (inferred from the stored property's name and type)"))
+        return line(body)
+    }
+
+    /// `// NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }`:
+    /// an Objective-C member a header refines for Swift that no Swift member
+    /// of the image implements under its Swift name — the declaration the
+    /// importer gives it, by its rules (evolution proposal
+    /// `swift-first-imported-declarations`). `declaration` is that
+    /// declaration on one line, its parts marked as a field tree's row marks
+    /// them: the member's name `.name`, its type `.type`, and the keywords and
+    /// punctuation playing no role — a host hides a separator's punctuation,
+    /// and the colon inside a declaration has to stay.
+    package static func refinedForSwiftMember(declaration: [Segment]) -> Self {
+        line([.label("NS_REFINED_FOR_SWIFT"), .separator(": ")] + declaration)
+    }
+
     /// `// No implementation in this image (deleted method — slot retained for ABI)`.
     package static let deletedMethodSlot = note("No implementation in this image (deleted method — slot retained for ABI)")
 

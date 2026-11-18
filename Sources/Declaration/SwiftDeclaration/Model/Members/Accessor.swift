@@ -34,6 +34,11 @@ extension AccessorRepresentable {
     /// own; a getter or setter beside them is one the compiler synthesized.
     public var hasBorrowAccessor: Bool { accessors.contains { $0.kind == .borrowAccessor } }
     public var hasMutateAccessor: Bool { accessors.contains { $0.kind == .mutateAccessor } }
+    /// SE-0400. The image keeps the init accessor only while something
+    /// references it or exports it, so `false` says nothing about the
+    /// source: an optimized, dead-stripped image drops every one its
+    /// initializers inlined.
+    public var hasInitAccessor: Bool { accessors.contains { $0.kind == .initAccessor } }
     public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
 }
 

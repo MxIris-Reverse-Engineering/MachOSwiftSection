@@ -130,7 +130,7 @@ extension DeclarationRenderConfiguration {
         case .printVTableOffset: printVTableOffset
         case .printTypeLayout: printTypeLayout
         case .printEnumLayout: printEnumLayout
-        case .printStrippedSymbolicItem, .printPWTOffset, .infersObjCOverridesFromSelectorNames, .printExportedDeclarationsOnly, .opaqueTypeResolution: false
+        case .printStrippedSymbolicItem, .printPWTOffset, .infersObjCOverridesFromSelectorNames, .printExportedDeclarationsOnly, .opaqueTypeResolution, .expandsMacros: false
         }
     }
 
@@ -249,6 +249,22 @@ extension DeclarationRenderConfiguration {
     package func exportStatusComment() -> SemanticString {
         indentString
         comment(.exportStatus, as: .exportStatus)
+        BreakLine()
+    }
+
+    /// Builds the line the dumpers emit above a SE-0400 init accessor's
+    /// symbol (evolution proposal `init-accessor-recovery`): the fields it
+    /// is inferred to initialize, or that the binary does not record them.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func initAccessorFieldsComment(initializedFieldNames: [String]?) -> SemanticString {
+        indentString
+        if let initializedFieldNames {
+            comment(.initAccessorInitializedFields(initializedFieldNames), as: .initAccessorFields)
+        } else {
+            comment(.initAccessorFieldsNotRecorded, as: .initAccessorFields)
+        }
         BreakLine()
     }
 

@@ -46,6 +46,10 @@ extension TypeDefinition: OnceIndexedDefinition {
         )
         foldStoredPropertyAccessors(storedPropertyAccessorsByFieldName, into: &indexedFields)
 
+        // Needs the member variables and the fields: which field each init
+        // accessor initializes (evolution proposal `init-accessor-recovery`).
+        recoverInitAccessorFieldNames(fields: indexedFields)
+
         // Cross-reference @objc and @nonobjc thunk symbols with built definitions
         applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: typeName.name, typeNode: typeName.node, in: machO)
 
@@ -95,6 +99,10 @@ extension TypeDefinition: OnceIndexedDefinition {
         // Needs the fields and the member variables above: which `_x` is a
         // wrapper's storage, and whether `x` still has accessors of its own.
         recoverWrappedProperties(in: machO)
+
+        // Needs the wrapped properties: a wrapper's storage is not the
+        // `@Observable` macro's (evolution proposal `observable-macro-folding`).
+        recoverObservableMacroExpansion(in: machO)
 
         applyObjCProtocolAdoption(in: machO)
     }

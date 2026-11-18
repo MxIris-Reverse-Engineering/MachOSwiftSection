@@ -143,6 +143,25 @@ public final class ObjCImplementationClassFacts: Sendable {
     public struct Property: Sendable {
         public let name: String
         public let attributes: String
+
+        private var attributeCodes: [Substring] {
+            attributes.split(separator: ",")
+        }
+
+        /// `R`: the class offers Objective-C no setter.
+        public var isReadOnly: Bool {
+            attributeCodes.contains("R")
+        }
+
+        /// `W`: a `weak` property.
+        public var isWeak: Bool {
+            attributeCodes.contains("W")
+        }
+
+        /// The ivar `V` names, the storage the property is synthesized on.
+        public var instanceVariableName: String? {
+            attributeCodes.first { $0.hasPrefix("V") }.map { String($0.dropFirst()) }
+        }
     }
 
     /// The bare ObjC class name (`NSGlassEffectView`).
@@ -191,6 +210,20 @@ public final class ObjCImplementationClassFacts: Sendable {
     /// never the property's own.
     public func storageInstanceVariable(forPropertyNamed name: String) -> InstanceVariable? {
         instanceVariable(forSwiftPropertyNamed: name) ?? instanceVariables.first { $0.lazyPropertyName == name }
+    }
+
+    /// The Objective-C property a stored property is exposed as: the one
+    /// synthesized on its ivar (`V<ivar name>`), else the one named like the
+    /// Swift property. `nil` for storage Objective-C never sees. It says what
+    /// the symbols may not: under `-O` a stored property's setter is often
+    /// inlined into its thunk and leaves no symbol, but the property is still
+    /// settable when the class offers Objective-C a setter (evolution
+    /// proposal `swift-first-imported-declarations`).
+    public func objcProperty(storedIn instanceVariable: InstanceVariable, swiftPropertyName: String) -> Property? {
+        if !instanceVariable.name.isEmpty, let property = properties.first(where: { $0.instanceVariableName == instanceVariable.name }) {
+            return property
+        }
+        return properties.first { $0.name == swiftPropertyName }
     }
 }
 

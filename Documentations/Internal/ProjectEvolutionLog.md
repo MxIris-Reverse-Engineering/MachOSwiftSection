@@ -3195,6 +3195,114 @@
 - **后续**：swift-demangling 发版后抬本库的版本下限——在那之前，走远端依赖的构建编不过；ABI 快照要用新版重新生成；RuntimeViewer 用打印配置的默认值，升级后直接显示 `any`，要不要给它加设置项另议；两处拼写仍按 `.default` 走、不写 `any`（未展开 opaque 引用的实参、展开字段偏移注释里的嵌套类型名，见提案决策日志）。
 - **对应版本**：未发版。
 
+## 132. 识别 `@Observable` 宏：interface 默认折叠它的展开
+
+- **时间段**：2026-11-11 至 2026-11-12，分支 `feature/observable-macro`（worktree `.worktrees/MachOSwiftSection-ObservableMacro`，基于 `next` cd8472b2），分几次在本地合进 `next` 供用户查看，11-12 正式落地。提案 [0093-observable-macro-folding](../Evolutions/0093-observable-macro-folding.md)（轻量档）。
+- **动机**：`@Observable` 类在二进制里只剩宏展开的结果——存储 `_x`、computed `x`、registrar、`access(keyPath:)`、`withMutation(keyPath:_:)`、`shouldNotifyObservers(_:_:)` 重载与 conformance——interface 原样印出来，与源码对不上。RuntimeViewer 要在侧边栏标出这类类型、在折叠与展开之间切换，之后又要做 Xcode 式的内联展开。
+- **关键决策**：
+  - 识别在构造时只读字段记录：有类型正是 `Observation.ObservationRegistrar` 的 `_$observationRegistrar`、又没有 SwiftData `@Model` 的 `_$backingData`。剥过符号的镜像照样认得出；`SwiftAttachedMacro` 用 struct 加静态成员，以后加别的宏不会让宿主的 `switch` 编不过。
+  - 哪些 `_x` 是被跟踪属性的存储由索引期按证据定：init accessor、成员的 setter 或 `_modify`、挂在 `x` 名下的初始值表达式；`_x` 自己有初始值表达式、或只有 `_x` 有 accessor 时排除；都没有就凭字段名。镜像带不带本地符号不分流：SwiftUI 带本地符号，却被 dead-strip 去掉了 init accessor。
+  - 类型比对撇开 `sending`：编译器 mangle 声明自身的函数类型时不写它，字段记录照写，SwiftUI 三个类的 `makeFileCoordinator` 因此没折叠。wrapped property 的属性写法用同一个比较。
+  - interface 默认折叠，`expandsMacros` / `--expand-macros` 关掉折叠后与之前逐字节相同，标记模式两种形态都印；dump 只在类头加 `@Observation.Observable`。
+  - 宿主的内联展开：`printMacroExpansion` 整块，`printMacroExpansionParts` 照 Xcode 的位置分块，`marksAttachedMacros` 标出宏属性与每个被跟踪属性折叠出的声明；类型的闭合括号靠定义区域定位，不改 swift-semantic-string。accessor 块一律照宏的写法 `{ get set }`，不看镜像里还剩哪些 accessor。
+- **落地**：
+  - SwiftInspection：`ObservableMacroRecognition`。SwiftDeclaration：`SwiftAttachedMacro`、`TypeDefinition.attachedMacros` / `observableMacroExpansion`、`ExtensionDefinition.generatingMacro`、`ObservableMacroExpansionRecovery`。SwiftIndexing 标出宏生成的 conformance。
+  - SwiftPrinting：`expandsMacros`、`marksAttachedMacros`、`MacroExpansionPart`、`AnnotationRegion.Kind.attachedMacro(_:)` / `attachedMacroTrackedProperty(_:named:)`。SwiftDump：类头。SwiftSectionKit 与 CLI：`InterfaceRequest.expandsMacros`、`interface --expand-macros`。
+  - 测试：现场编译的 `ObservableMacroFixture`（debug、release、dead-strip、strip 四个变体），覆盖识别、证据、折叠与展开、投影、分块、dump、Kit 与 CLI 映射。
+  - 文档：提案、`Modules/SwiftDeclaration.md`、`Modules/SwiftInterface.md`、术语表 macro folding、`SystemFrameworkRenderingVerification.md`、`AgentPlugins/swift-section` 的 skill。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑。最终全量 2889 个测试，只红两条：`FileMappingTests`，基线上同样失败；`BoundedConcurrentMapTests` 的时限超时，是 Ultra 全量下的既有偶发，失败发生在任何新测试开始之前。渲染 A/B 96 对：关掉折叠时 interface 全部一致，dump 只差 28 个类的类头。修复 `sending` 前后渲染 SwiftUI、SwiftUICore、SwiftData 的折叠形态，只有那三处变了。
+- **后续**：
+  - getter 被 `@_silgen_name` 钉成旧 mangling 的属性不折叠，已裁决不处理。
+  - 完全剥光符号的 internal 类会把 `@ObservationIgnored var _y` 读成被跟踪属性。
+  - `@Model` 等别的宏还没有识别。
+  - 发版要先发 swift-demangling。
+  - init accessor 提案（[0094-init-accessor-recovery](../Evolutions/0094-init-accessor-recovery.md)）在这之上给 accessor 块加了 `init` 一行，并把类型比对挪进 SwiftInspection 的 `StoredTypeMatching`。
+- **对应版本**：未发版。
+
+## 133. 还原 SE-0400 的 init accessor
+
+- **时间段**：2026-11-12，分支 `feature/init-accessor-recovery`（worktree `.worktrees/MachOSwiftSection-InitAccessorRecovery`，基于 `next` 096970e7），中途三次合进本地 `next` 上 `@Observable` 的改动，做完先在本地合进 `next` 供用户查看，当天与第 132 节一起正式落地；RuntimeViewer 的同名分支只补 `kindString` 一行。提案 [0094-init-accessor-recovery](../Evolutions/0094-init-accessor-recovery.md)（轻量档）。
+- **动机**：SE-0400 的 init accessor 在二进制里只留下符号（后缀 `vi`），`@storageRestrictions` 的名单与参数名都不留。库原先把这个符号整个丢掉：dump 不列，ABI diff 看不到，interface 只印 `get` / `set`。起因是 SwiftUICore 导出的 `_GeometryActionModifier2.value.init`，编译器自己的 `.swiftinterface` 印成 `@storageRestrictions(initializes: _value) init(initialValue)`；`@Observable` 展开里每个被跟踪属性也都缺这一行。
+- **关键决策**：
+  - init accessor 是 `AccessorKind` 的一个 case，与 SE-0507 的 `borrow` / `mutate` 一样：dump 的成员循环、地址注释与 ABI diff 沿着 `accessors` 自动带上它，代价是 RuntimeViewer 的穷举 `switch` 要同批补一行。它排在同名一组的最后，不参与成员排序（release 里它的地址可能在 getter 前面），也不算 `final` 的证据（它从不进 vtable）。
+  - 不从机器码推 `initializes:` / `accesses:`：指针直接指向存储，只数得出个数。名单只按「同名的 `_x`、类型与属性相同（先剥掉 `weak` / `unowned`）」推断，推不出就只印 `init`，声明上一行注明二进制没有记录；只看名字会把 SwiftData `@Model` 那种类型不同的 `_name` 也认进来。
+  - 比较的类型取 init accessor 自己的符号，不取 getter 的：SwiftUICore 用 `@_silgen_name` 把 `_GeometryActionModifier2.value` 的 getter 钉在没有 `@Sendable` 的旧 mangling 上，渲染 A/B 抓到了这一处。声明自身的 mangling 不写 `sending`，比较照 `@Observable` 那边的修法撇开它；比较函数下沉到 SwiftInspection 的 `StoredTypeMatching`，`@Observable` 的展开恢复、wrapper attribute 的写法与本推断三处共用。
+  - `@Observable` 的整块与分块展开照宏的写法，总是印 `@storageRestrictions(initializes: _x) init`，与别处的 accessor 块共用 `AccessorBlockKeywords.InitAccessorLine`；`--expand-macros` 照镜像。
+- **落地**：
+  - MachOSymbols：`.initAccessor` 进成员桶；分桶之前的 `Node.Kind.isMember` 名单也要加，漏了就一个都不进桶、不报错。SwiftDeclaration：`AccessorKind.initAccessor`、`hasInitAccessor`、`VariableDefinition.initializedFieldNames`、索引步骤 `TypeDefinition+InitAccessors`。SwiftInspection：`InitAccessorFieldInference`、`StoredTypeMatching`。
+  - SwiftPrinting：accessor 块的 `init` 一行。SwiftDeclarationRendering：注释工厂 `initAccessorFieldsNotRecorded` / `initAccessorInitializedFields(_:)` 与注释种类 `initAccessorFields`。SwiftDump：每条 init accessor 前的推断结果。SwiftDiffing：token `init`，ABI 快照格式 13。
+  - 测试：现场编译的 `InitAccessorFixture`（debug、release、dead-strip、strip 四个变体），模型、interface、dump、ABI diff 各一组；`ObservableMacroInterfaceTests` 补上 `init` 那一行。
+  - RuntimeViewer：`kindString` 补 `case .initAccessor`，随 RuntimeViewer 的 `@Observable` 改动一起推。
+  - 文档：提案、`Modules/SwiftDeclaration.md`、`Modules/MachOSymbols.md`、`Modules/SwiftInterface.md`、`AgentPlugins/swift-section` 的 skill（推断出的名单；快照格式的说明改到 13）。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑。最终全量 2908 个测试，红 5 条，在不含本分支的 `@Observable` 全量里都同样出现：`FileMappingTests` 一条，`SharedCacheTests` 一条与 `BoundedConcurrentMapTests` 三条是满负载下超时，单独重跑都过。渲染 A/B 96 对：80 对逐字节相同，16 对只多出新行（init accessor 的符号行、推断注释、`init` 一行与它的地址注释）；interface 里 SwiftUICore 的 `_GeometryActionModifier2.value` 与官方 `.swiftinterface` 只差参数名。RuntimeViewerCore 带上 `kindString` 那一行，对着本分支编译通过。
+- **后续**：
+  - 一个属性初始化几块存储（`initializes: _x, _y`）、初始化的不是 `_x`、只写 `accesses:` 的写法推不出，只印 `init` 加注释；参数名与 `accesses:` 一律不印。
+  - `propertyWrappedFieldInitAccessor`（mangling 里的 `fF`）不在范围内。
+  - 旧的 ABI 快照要用新版重新生成。RuntimeViewer 的 `next` 等它那边 `@Observable` 的改动做完再推，`kindString` 那一行跟着一起上。
+- **对应版本**：未发版。
+
+## 134. `@Observable` 的展开分两层，`@Observation.ObservationIgnored` 单独占一行
+
+- **时间段**：2026-11-12，分支 `feature/observable-nested-expansion`（worktree `.worktrees/MachOSwiftSection-ObservableNestedExpansion`，基于 `next` 2837d2e0），两次在本地合进 `next` 供用户查看，当天正式落地。提案 [0095-observable-nested-expansion](../Evolutions/0095-observable-nested-expansion.md)（轻量档），接着第 132 节的 0093。
+- **动机**：0093 的分块展开，把 accessor 块与存储直接算作展开 `@Observable` 的结果。Swift 源码里 `ObservableMacro` 只给每个被跟踪属性加 `@ObservationTracked`，accessor 块与存储是 `ObservationTrackedMacro` 写的，Xcode 也分两次展开，RuntimeViewer 要照这个分层显示。同一轮里，用户在 RuntimeViewer 里看 SwiftUI 时发现，折叠形态的 `@Observation.ObservationIgnored` 与很长的类型挤在一行，行行折行。
+- **关键决策**：
+  - 分块分两层。第一层每个被跟踪属性一块 `@Observation.ObservationTracked`（`.trackedPropertyAttribute`，放在折叠声明上方），带一个 `NestedExpansion`：属性在块里的 UTF-8 范围、宏，以及展开它的分块，也就是原来的 `.trackedProperty`，内容不变。两层的 `anchorKind` 都是同一个折叠声明的区域，`anchorKind` 改为存储属性。
+  - 属性写成带模块名的 `@Observation.ObservationTracked`（用户选定；宏源码写的是 `@ObservationTracked`），经类型打印器印出，module selector 照样生效。
+  - 被导出过滤排除的属性两层都不出；属性块里不放标记区域，范围由 `attributeUTF8Range` 给出。整块展开 `printMacroExpansion` 不变，仍是两层合起来的样子。
+  - `@Observation.ObservationIgnored` 单独占一行，放在声明上方；被忽略的 wrapped property，wrapper 属性也单独占一行（用户选定），`lazy` 留在声明行，别处的 wrapper 属性照旧与声明同行。公开的 `printThrowingVariable` 签名不变，转调一个内部重载。
+- **落地**：
+  - SwiftInspection：`ObservableMacroRecognition.observationTrackedAttributeNameNode`。SwiftDeclaration：`SwiftAttachedMacro.observationTracked`。
+  - SwiftPrinting：`MacroExpansionPart`（`.trackedPropertyAttribute`、`NestedExpansion`、存储的 `anchorKind`）、`printMacroExpansionParts`、`observationIgnoredAttribute(level:)`、`printThrowingVariable` 的内部重载、`printThrowingSynthesizedWrappedProperty(_:level:placesAttributeOnItsOwnLine:)`。
+  - 测试：`ObservableMacroInterfaceTests` 的两层分块、属性写法与属性换行（成员与合成两条路径）。
+  - 文档：提案、`Modules/SwiftInterface.md`、`AGENTS.md`、`AgentPlugins/swift-section` 的 skill。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6）上跑。最终全量 2909 个测试，只红两条：`FileMappingTests`，基线上同样失败；`BoundedConcurrentMapTests` 的时限超时，是既有偶发，失败在新测试开始之前。分块 API 不影响 interface 与 dump 的输出；折叠形态只改了换行，而渲染 A/B 的候选侧带 `--expand-macros`，比较不到折叠形态，所以没跑渲染 A/B。
+- **后续**：RuntimeViewer 照这一版的分块显示两层展开，它的锁文件要钉到推送后的 origin/next。
+- **对应版本**：未发版。
+
+## 135. 首次代码库体检，修掉它确认与待确认的九条严重 bug
+
+- **时间段**：2026-11-16，分支 `fix/codebase-audit-2026-11-16`（worktree `.worktrees/MachOSwiftSection-AuditFixes`，基于 `next` 1ba927ad）。在 JHs-Mac-Studio 上体检与修复，转到 JHs-Mac-Studio-Ultra 验证并当天落地。
+- **动机**：第一次用 `audit-codebase` 给整个 `next` 做体检，审的是近 30 天的改动（443 个文件，约 2.6 万新增行），报告与账本见 [Reviews/CodebaseAudits/](Reviews/CodebaseAudits/README.md)。确认 7 条严重 bug、2 条待确认，用户批准修掉 7 条，第 8 条（待确认）随第 2 条一起修；前八条验证完后，第 9 条（待确认）也批准修掉。
+- **关键决策**：
+  - 每条先写复现测试，确认修复前失败（两条是子进程 SIGTRAP，其余是错误输出），测试永久保留；崩溃类的用 exit test，避免拖垮整个测试进程。
+  - 参数个数守卫收成 `ObjCTypeEncodingParser.methodType(from:matchingArgumentsOf:)`，类成员与协议要求两条路径共用，不再各写一份。
+  - 第 8 条不改读取器的表示，在 `ObjCProtocolRecord.make` 里核对扩展编码与方法表编码是否同一签名，对不上就整组不用：不论错位从哪来都挡得住。
+  - 第 4 条修的时候发现同类问题：文件里给别的镜像的 Swift 类写的 category 指向类元数据符号 `_$s…CN`，interface 把扩展印成 `extension __C._$s…`。由新的 `NodeTypeNaming.swiftClassNode(fromRuntimeName:)` 统一认 `_TtC`、`$s`、`_$s` 三种写法，dump 那份私有实现也改用它。
+  - 三条建议不修的登记为已裁决清单的 A83–A85。
+- **落地**：
+  - CrossReferenceAnalysis：`CrossReferenceAnalyzer.ClassArgumentReturn`（`objc_opt_class` 与原样返回的两个分开），`ImageFunctionTable.isObjectiveCClassMethod(at:)`；`RenamedReexportIndex` 不再把超出表尾的终端大小与游标相加。
+  - SwiftObjCInterop：`ObjCTypeEncodingParser.methodType(from:matchingArgumentsOf:)`、`ObjCEncodedType.characterString(isConst:)` 与 `withoutExtendedNames`、`ObjCProtocolRecord.make` 的签名核对、`SwiftClassWithoutClassObjectIndex` 的同名处理、`ObjCRuntimeNames` 改用共享的类名识别；`ObjCImportedTypes` 照 ClangImporter 导入 C 数组（超过 4,096 个元素不导入、指针指向它时是 `OpaquePointer`，单元素数组是元素本身，嵌套展开超过 65,536 个元素同样不导入）。
+  - SwiftInspection：`NodeTypeNaming.swiftClassNode(fromRuntimeName:)`。SwiftThunkAnalysis：`ObjCProtocolWitnesses` 对别的镜像的 Swift 类按运行时名取表，`ObjCMembers.table(forObjCClassNamed:)` 的所属名取 Swift 名。SwiftDeclaration：`ObservableMacroExpansionRecovery.isGeneratedFunction(name:node:)`。SwiftDump：category 行的类名。
+  - 测试：新增 `MalformedExportTrieTests`、`ClassOfReceiverSendTests`，以及 `ObjCProtocolRequirementBuilderTests`、`ObjCImportedMemberBuilderTests`、`ObjCProtocolDefinitionIndexingTests`、`SwiftClassWithoutClassObjectIndexTests`、`ObservableMacroInterfaceTests`、`ObservableMacroExpansionRecoveryTests` 里的用例；三个现场编译的 fixture 各加了对应的形态。
+  - 文档：体检报告与账本、`ReviewAdjudications.md`（A83–A85）、`Modules/CrossReferenceAnalysis.md`、`Modules/SwiftObjCInterop.md`、`Modules/SwiftDeclaration.md`、文档索引，`AGENTS.md` 的 SwiftObjCInterop 一段补了 `_$s…CN` 类名这个陷阱。`AgentPlugins/swift-section` 的 skill 不用改：它说的「不印 `access(keyPath:)` 这几个方法」指宏生成的那几个，修复后依然成立。没有新术语。
+- **验证**：在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖）上跑全量：2,916 个测试、554 个套件，红 3 条；第 9 条修完后在最终代码上又跑一次全量，2,917 个测试只红其中 2 条（`FileMappingTests`、`BoundedConcurrentMapTests` 的时限）——`FileMappingTests.readersOfOneCacheFileShareOneMapping`、`SharedCacheTests.differentKeysParallelViaAsyncLet`、`BoundedConcurrentMapTests.cancellationStopsSubmittingPendingElements` 的时限，都是满负载下的既有偶发，三个套件单独重跑全过；28 核上并行全量没有卡死。此前在 JHs-Mac-Studio（10 核）上，受影响的 22 个套件 118 个测试全过，并行全量两次卡死在 `DemanglingWave`（体检报告第 10 条，与本批改动无关）。没跑渲染 A/B：改动只影响几种具体形态的输出，不是大重构。
+- **后续**：
+  - 体检报告里复核为 PLAUSIBLE、未达门槛的 8 条线索没动。
+- **对应版本**：未发版。
+- **补记（同日，体检报告第 10 条）**：验证修复时发现的卡死已查明并修掉，分支 `fix/demangling-wave-hang`。
+  - 复现：在子进程里同时起「核数 × 2」个任务，各自在协作线程上同步读一个新建 storage 的 demangled index（`SymbolIndexDemangledIndexTests.firstReadersOnEveryCooperativeThreadAllFinish`），28 核的 Ultra 上也稳定卡住。
+  - 根因：协作线程全部同步阻塞时，它们仍占着同一 QoS 的并发额度，交给 `DispatchQueue.global()` 的那批 demangle 分不到线程，建索引的线程同步等它，整个进程停住。只用 GCD 的探针也一样：全局队列和私有并发队列都饿死，私有串行队列（挂在 overcommit 根队列上）0.07 秒就执行。
+  - 修法：`DemanglingWave` 改从私有串行队列起头，`concurrentPerform` 照常用满所有核。`AGENTS.md` 的异步一节加了这条规则，`Modules/MachOSymbols.md` 写明原因，回归测试所在的套件加进了 CI 名单。
+  - 验证：修复前回归测试两次都卡满看门狗，修复后单跑 15 秒通过。JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖）上全量 2,918 个测试只红 `FileMappingTests` 一条，是负载相关的既有问题。回归测试在全量里连排队一共 360 秒，所以子进程的看门狗定为 300 秒，真回归时子进程永远卡住，照样变红。
+
+## 136. Swift 实现的类，导入声明以 Swift 一侧为准
+
+- **时间段**：2026-11-17 至 11-18，三个仓库同名的分支 `feature/swift-first-imported-declarations`（本库 worktree `.worktrees/MachOSwiftSection-SwiftFirstImportedDeclarations`）。在 JHs-Mac-Studio 上写，在 JHs-MacBook-Pro 上构建与测试：JHs-Mac-Studio-Ultra 当天连不上 GitHub。用户看过效果后追加的注释位置与分段在 JHs-Mac-Studio-Ultra 上做。
+- **动机**：RuntimeViewer 的 Generated Interface 显示 macOS 27.2 SceneHosting 的 `SHScenePresentation`（`@objc @implementation` 类）时，只有 5 个成员用上 Swift 声明，其余按 selector 推导（`isHostingSceneLayer(_: Any!)`）。系统框架剥掉 thunk 符号、`-O` 把函数体内联进 thunk，0048 的前两档配不上，按名字的第三档只算 override。用户要求 Swift 实现的类以 Swift 一侧为准，并让 ObjC 头文件标出 `NS_REFINED_FOR_SWIFT`。提案 [0096-swift-first-imported-declarations](../Evolutions/0096-swift-first-imported-declarations.md)，三个库共用。
+- **关键决策**：
+  - `@objc @implementation` 类改成桥接 Swift 类那样的形状：类体是实现的 Swift 一侧，纯 Swift 成员也在，没有 Swift 成员回答的 ObjC 方法放最后；category 与 ObjC 实现的类仍逐个成员替换。
+  - 按名字配对在打印时做（`ObjCImplementingSwiftMembers`），不改 0048 在索引期记下的事实；认 `NS_REFINED_FOR_SWIFT` 的 `__` 前缀并优先于同名的纯 Swift 成员；类型明显对不上的不配（`ObjCSwiftTypeCompatibility`）；两边都只有对方一个候选时才配。
+  - 「改名成员」两种：配上 `__` 成员的有凭据；同名 Swift 属性类型对不上的 ObjC 属性是推断，只用于属性。推断的那种在导入声明里打成结构化注释（`refinedForSwiftMember` 种类），挂在占了它原名的 Swift 属性正上方，声明里的属性名与类型各成一段（`.name`、`.type`），供宿主分色——这两点是用户在 RuntimeViewer 里看过效果后追加的；交给宿主的查询是 `objcMembersRefinedForSwift(in:)`，用本库自己的类型——本库按版本依赖 MachOObjCSection，它的新接口（`ObjCSwiftImportNotes`）只在它的 `next` 上。
+  - `@implementation` 存储属性的 `var` / `weak` 取自 ObjC 属性特性，Swift 一侧的 interface 同样生效；只剩 ivar 的存储属性在导入声明里打成同名 ObjC 属性的导入形式。
+- **落地**：
+  - SwiftObjCInterop：`ObjCSwiftTypeCompatibility`、`ObjCMemberShape.removingRefinedForSwiftPrefix`、`ObjCImplementationClassFacts.objcProperty(storedIn:swiftPropertyName:)` 与 `Property` 的特性判断、`ObjCImportedMember.objcPropertyName`。
+  - SwiftDeclaration：`ObjCImportedMemberDefinition.objcPropertyName`。SwiftIndexing：`objcClassRuntimeNamesExtendedInSwift`。
+  - SwiftPrinting：`ObjCImplementingSwiftMembers`（从打印器文件里移出、改按位置配对）、`ObjCRefinedForSwiftMember`、`objcMembersRefinedForSwift(in:)`、`@implementation` 类的 Swift 优先打印、`printExtensionBodyContents`（扩展体与导入声明共用）、存储属性的 `var` / `weak`。SwiftDeclarationRendering：`StructuredComment.refinedForSwiftMember(declaration:)` 与注释种类 `refinedForSwiftMember`。
+  - 测试：夹具加 `ScenePresentationWidget`（仿 `SHScenePresentation`）；`ObjCImportedDefinitionTests` 四个新用例、`ObjCMemberRecoveryTests` 一个、新的 `ObjCSwiftTypeCompatibilityTests`、`StructuredCommentTests` 一条期望；识别测试的类集合加上新类。
+  - 文档：`ObjCCommandLine.md`「The Swift view」、插件 skill 的 `references/objc.md`、`Modules/SwiftObjCInterop.md`、`Modules/SwiftDeclaration.md`、术语表（新词「改名成员」）。
+- **验证**：JHs-MacBook-Pro（macOS 27.2，Xcode 27.2，本地兄弟依赖只配了 swift-demangling `next`）。新测试改动前失败（夹具编过后 11 处），改动后相关套件全过；全量（`--skip IntegrationTests`）有 167 个失败点，与同机同夹具跑不含改动的 `next` 完全相同——SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录，这台只有 27.2，另有 `SymbolicDemanglerTests` 要的模拟器 SwiftUI 不在。追加的两处在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2，本地兄弟依赖）上验证：两个新用例改动前失败、改动后通过，相关的 9 个套件 73 个测试全过。
+- **对应版本**：未发版。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
