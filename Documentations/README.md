@@ -14,6 +14,16 @@ Documentation is split by audience.
 > Proposals [0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)–[0008](Evolutions/0008-interface-header-and-export-status-annotations.md) are the issue #106 interface-fidelity batches (`final` keyword + lazy accessor type, extension container dedup, interface header + export-status annotations).
 > Project-specific terminology lives in [`Glossary.md`](Glossary.md) (Chinese; register new terms in the same batch that introduces them — cross-project terms stay in the global glossary).
 
+## 愿景（Visions）
+
+方向层面的边界与取舍，位于提案之上，统辖若干提案；属于某个愿景的提案在头部用「所属愿景」字段指回它。
+
+- **[不依赖 IDA 的逆向](Visions/ReverseEngineeringWithoutIDA.md)**（Active）—— 让 agent 默认读带注解的汇编、
+  IDA 退为后备：地址符号化、跨镜像交叉引用、注解反汇编、数据解码、控制流与常量追踪、构建间逐函数比对、按需持久化，
+  横跨 MachOKitExtensions、本库、swift-capstone 与 RuntimeViewer；定下手写解码器与 capstone 的分工、不建完整
+  中间表示、先现算后落盘、分层归属与正确性的标准答案。第一步是提案
+  [draft-offline-cross-references-and-symbolication](Evolutions/draft-offline-cross-references-and-symbolication.md)。
+
 ## External — for library users / other developers
 
 Public, reference-style documentation. Bilingual (English + 中文).
