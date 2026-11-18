@@ -100,7 +100,15 @@ package struct ImageAddressSpace: Sendable {
     /// is `__TEXT`'s plus the offset, which is also right for a standalone
     /// dylib (`__TEXT` at 0) and an executable (`__TEXT` at 0x100000000).
     package func address(forExportedSymbolOffset offset: Int) -> UInt64? {
-        textSegmentAddress.map { $0 &+ UInt64(offset) }
+        address(forHeaderOffset: offset)
+    }
+
+    /// The address `offset` bytes from the Mach header — the first byte of
+    /// `__TEXT`. What an export trie's offsets count from, and a standalone
+    /// file's chained fixups: their rebase targets are offsets from the
+    /// image's preferred load address, which is `__TEXT`'s.
+    package func address(forHeaderOffset offset: Int) -> UInt64? {
+        textSegmentAddress.map { UInt64(bitPattern: Int64(bitPattern: $0) &+ Int64(offset)) }
     }
 
     package func address(forOffset offset: Int) -> UInt64? {

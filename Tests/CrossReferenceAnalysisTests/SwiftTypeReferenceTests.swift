@@ -231,7 +231,7 @@ struct SwiftTypeReferenceTests {
     @Test(arguments: ["/Foundation.framework/Versions/C/Foundation", "/AppKit.framework/Versions/C/AppKit"])
     func typeLookupsCompareSameNamedTypesOnly(imageSuffix: String) throws {
         let imageIndex = try imageIndex(endingWith: imageSuffix)
-        let typeIndex = SwiftTypeIndex(image: analyzer.images[imageIndex], imageIndex: imageIndex, memory: analyzer.memory)
+        let typeIndex = SwiftTypeIndex(image: analyzer.imageSet.images[imageIndex], imageIndex: imageIndex, memory: analyzer.memory)
         var locationsByKey: [String: Set<CodeLocation>] = [:]
         for address in typeIndex.descriptorAddresses {
             guard let key = typeIndex.key(ofDescriptorAt: address) else { continue }
@@ -253,7 +253,7 @@ struct SwiftTypeReferenceTests {
     func exportLookupsAgreeWithTheWholeTrie(imageSuffix: String) throws {
         let imageIndex = try imageIndex(endingWith: imageSuffix)
         let exportedNames = Set(analyzer.images[imageIndex].exportedSymbols.map(\.name))
-        let typeIndex = SwiftTypeIndex(image: analyzer.images[imageIndex], imageIndex: imageIndex, memory: analyzer.memory)
+        let typeIndex = SwiftTypeIndex(image: analyzer.imageSet.images[imageIndex], imageIndex: imageIndex, memory: analyzer.memory)
         var exportedTypeCount = 0
         for address in typeIndex.descriptorAddresses {
             guard let key = typeIndex.key(ofDescriptorAt: address) else { continue }

@@ -31,14 +31,22 @@ package final class ObjCImageSections: ImageFunctionTableAttachment, @unchecked 
         var selectorReferenceRange: Range<UInt64>?
         var classReferenceRanges: [Range<UInt64>] = []
         var superclassReferenceRange: Range<UInt64>?
-        let image = table.image
+        let image = table.image.reader
         for section in table.sections {
             let sectionStart = UInt64(section.address)
             let sectionRange = sectionStart ..< sectionStart + UInt64(section.size)
             guard !sectionRange.isEmpty else { continue }
             switch section.sectionName {
             case "__objc_stubs":
-                guard let stubs = section.objcStubs(in: image) else { continue }
+                // MachOKit reads the stubs through an API per kind of reader.
+                let stubs = if let machOImage = image.asMachOImage {
+                    section.objcStubs(in: machOImage)
+                } else if let machOFile = image.asMachOFile {
+                    section.objcStubs(in: machOFile)
+                } else {
+                    nil as ObjCStubCollection?
+                }
+                guard let stubs else { continue }
                 stubRange = sectionRange
                 for objectiveCStub in stubs {
                     guard let selectorReference = objectiveCStub.selectorReference,

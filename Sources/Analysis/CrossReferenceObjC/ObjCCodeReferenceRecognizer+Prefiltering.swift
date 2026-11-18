@@ -27,11 +27,10 @@ extension ObjCCodeReferenceRecognizer {
             return candidates.filter { imageIndex in
                 if entryPointSenders.contains(imageIndex) { return true }
                 let image = images.images[imageIndex]
-                guard let slide = image.vmaddrSlide,
-                      let section = image.sections64.first(where: { $0.sectionName == "__objc_selrefs" }),
+                guard let section = image.reader.sections64.first(where: { $0.sectionName == "__objc_selrefs" }),
                       section.size > 0
                 else { return false }
-                let slots = UInt(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide)
+                let slots = image.runtimeAddress(ofUnslid: UInt64(section.address))
                 let slotCount = section.size / 8
                 // Read in chunks: most images that send it have a match among
                 // their first slots, and stop there.
@@ -76,21 +75,18 @@ extension ObjCCodeReferenceRecognizer {
         let image = images.images[definer]
         let objectAddresses = Set(classIndex(ofImageAt: definer).objectAddresses(ofClassAt: classLocation))
         var names = Set<String>()
-        if let symbols = image.symbols64 {
-            for symbolIndex in 0 ..< symbols.numberOfSymbols {
-                let entry = symbols.symbols[symbolIndex]
-                // A symbol defined in a section of this image.
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E, objectAddresses.contains(entry.n_value) else { continue }
-                names.insert(String(cString: symbols.stringBase.advanced(by: Int(entry.n_un.n_strx))))
-            }
+        let linkEdit = images.linkEdit(ofImageAt: definer)
+        for symbolIndex in linkEdit.symbols.indices {
+            let entry = linkEdit.symbols[symbolIndex]
+            // A symbol defined in a section of this image.
+            guard ImageLinkEdit.isDefinedInSection(entry), objectAddresses.contains(entry.n_value),
+                  let name = linkEdit.name(ofSymbolAt: symbolIndex)
+            else { continue }
+            names.insert(String(cString: name))
         }
-        if let headerAddress = image.segments64.first(where: { $0.segmentName == "__TEXT" }).map({ UInt64($0.layout.vmaddr) }) {
-            for symbol in image.exportedSymbols {
-                guard let offset = symbol.offset,
-                      objectAddresses.contains(UInt64(bitPattern: Int64(bitPattern: headerAddress) &+ Int64(offset)))
-                else { continue }
-                names.insert(symbol.name)
-            }
+        for symbol in image.reader.exportedSymbols {
+            guard let offset = symbol.offset, objectAddresses.contains(image.unslidAddress(atHeaderOffset: offset)) else { continue }
+            names.insert(symbol.name)
         }
         let candidates = Array(candidates)
         // A class re-exported under another name is imported by that name:

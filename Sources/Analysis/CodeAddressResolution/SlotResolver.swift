@@ -58,9 +58,16 @@ package struct SlotResolver {
     /// `MachOKitExtensions.resolveRebase(fileOffset:)` answers in two
     /// accountings: for a cache image the target minus `sharedRegionStart`
     /// (the offsets `MachOSwiftSection` uses), for a standalone file the
-    /// target's own address.
+    /// target's offset from the image's preferred load address — what a
+    /// chained fixup stores. That offset is the address only where `__TEXT`
+    /// lies at 0, as a dylib's does; a main executable's lies at
+    /// 0x100000000, and read as an address the target pointed 4 GiB low (the
+    /// accessor-thunk reader took it so until the offline cross references
+    /// read a whole app). A standalone file without chained fixups — rebased
+    /// by opcodes, as older deployment targets are — is not
+    /// decoded: MachOKitExtensions answers nothing for its slots.
     private func rebaseTarget(ofSlotAtOffset offset: Int) -> UInt64? {
         guard let target = machO.resolveRebase(fileOffset: offset) else { return nil }
-        return machO.cache != nil ? addressSpace.address(forOffset: Int(target)) : target
+        return machO.cache != nil ? addressSpace.address(forOffset: Int(target)) : addressSpace.address(forHeaderOffset: Int(target))
     }
 }

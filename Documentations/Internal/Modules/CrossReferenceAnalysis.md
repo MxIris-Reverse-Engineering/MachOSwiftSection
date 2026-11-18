@@ -1,6 +1,6 @@
 # CrossReferenceAnalysis
 
-从 arm64 机器码里读出一个镜像的函数表，以及每个函数引用了什么：直接调用与尾调用、ObjC 消息发送、`super` 发送、经桩的跨库调用、间接调用、ObjC 类引用、Swift 类型引用。只在进程内读 `MachOImage`，只支持 arm64 / arm64e。RuntimeViewer 的交叉引用功能（调用者、被调、类型引用）建在它上面。
+从 arm64 机器码里读出一个镜像的函数表，以及每个函数引用了什么：直接调用与尾调用、ObjC 消息发送、`super` 发送、经桩的跨库调用、间接调用、ObjC 类引用、Swift 类型引用。读进程里加载的 `MachOImage`，也读磁盘上的 dyld shared cache 文件与独立 Mach-O 文件（「文件模式」一节），只支持 arm64 / arm64e。RuntimeViewer 的交叉引用功能（调用者、被调、类型引用）建在它上面。
 
 - 提案：[0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)（本库这一层）、[0076-objc-runtime-send-entry-points](../../Evolutions/0076-objc-runtime-send-entry-points.md)（libobjc 的发送入口）；整体设计、实测数据在 RuntimeViewer 的 [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)。
 - 依赖：MachOKit、`ARM64InstructionDecoding`；第二批起还有 `MachOObjCSection`（方法表、类的只读数据）、`MachOSwiftSection` 与 `SwiftInspection`（Swift 元数据与 `SymbolicDemangler`）、`Demangling`——给符号表没有名字的函数起名，以及认出扫描碰到的类与类型（类列表、类型描述符、mangled 名字）。不依赖 Capstone。
@@ -17,13 +17,24 @@
 
 **按镜像的缓存挂在函数表上。** 各层按镜像读的东西作为函数表的「附件」（`ImageFunctionTable.attachment(_:makingIt:)`）：核心层的导出表名字 `ExportedFunctionNames`、ObjC 层的节范围 `ObjCImageSections` 与方法名 `ObjCMethodNames`、Swift 层的元数据名字 `SwiftMetadataNames`，随表一起留下或释放，`approximateByteCount` 把它们算进表里。类索引与 Swift 类型索引仍由各层的识别器按镜像记住。
 
+## 文件模式
+
+`CrossReferenceAnalyzer(dyldCache:)` 读一个 cache 文件里的全部镜像（归档的、别的设备的），`CrossReferenceAnalyzer(machOFiles:)` 读一组独立文件（一个 app 的主程序与它自带的框架），公开 API 与进程内一样（提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 4 步）。
+
+- **镜像与 `__LINKEDIT`**：每个镜像是一个 `CodeImage`，`reader` 是 `MachOImage` 或 `MachOFile`；两种读取器的差别——slide（进程内是镜像的 slide，cache 文件里是 0）、MachOSwiftSection / MachOObjCSection 给出的 offset 落在哪个地址——只在构造它的地方定一次。符号表、间接符号、函数起点、data in code、导出树一律由 `ImageLinkEdit` 按「`__LINKEDIT` 的地址 + 表的偏移 − 段的文件偏移」经读取层读，进程内与文件里是同一个算法；镜像自带的桩按 `S_SYMBOL_STUBS` 的 `reserved1/2` 逐个读字节、按形状认。
+- **读取器专属的 API**：MachOObjCSection 的类、方法表与 MachOKit 的 objc 桩是各读取器一套，ObjC 层经 `asMachOImage` / `asMachOFile` 分两条路读；文件里方法的 `imp` 是读取器 offset，进程内是运行时地址，类在文件里从不 realize。Swift 层经 `MachOSwiftSectionRepresentableWithCache` 泛型读描述符；文件里的 mangled name 经文件的读取上下文解（进程内照旧经 `InProcessContext`）。
+- **地址**：cache 文件里地址就是未滑动地址。一组独立文件按 dyld 的做法错开：与已放下的重叠就滑到其后的下一个 MB 边界（多数框架链接在 0，所以除第一个外都会滑），对外的 `CodeLocation` 仍是各文件自己的地址。
+- **`FileCrossReferenceMemory`**：字节取自 MachOKit 打开文件时的映射（`fileBytes`）。cache 的槽按 mapping 预取的 slide info 解，v5（macOS 14 / iOS 17 起的 arm64e cache）在读取层里直接解，没有 slide info 的（模拟器 cache）与其余版本交给 MachOKit。独立文件的槽经 `SlotResolver`：bind 落到所覆盖文件导出的同名符号上（self-bind 即落到自己），没有就是导入名；链式 fixup 的 rebase 是「`__TEXT` 地址 + 偏移」；没有链式 fixup、靠 opcode rebase 的旧文件，槽里本来就是地址。按名字查，不分 bind 指名的是哪个库。
+- **读取层是值，不持有存储**：经 `any CrossReferenceMemory` 的每次读都复制一次读取层，类或持有引用的值每次复制都要计一次数——第一版这样写，整 cache 建表比进程内慢 6 倍以上。现在它以 `unowned(unsafe)` 引用存储，存储由镜像集持有，读取层只在镜像集活着时有效。
+- **只给一个 app 时的缺口**：经 GOT 槽读别的镜像的类、ivar 或数据，槽里是 bind，眼下不记任何引用（进程内会记成类引用），补在第 5 步；调用照常记成导入符号，`_objc_msgSend` / `_objc_msgSendSuper2` 按名字认成发送。一个 app 连同系统 cache 一起分析还不支持。
+
 ## 子系统
 
 | 子系统 | 文件 | 分工 |
 |---|---|---|
-| 0. 读取 | Core `Memory/CrossReferenceMemory`、`Memory/InProcessCrossReferenceMemory` | 分析器读镜像内存的唯一入口：按分析器地址空间里的地址取一段只读字节、问一个指针槽里装着什么（`slotContent(at:)`，去掉签名与标记位）、给出地址掩码；整段读槽与把一组地址换成指针各有批量接口（selector 预筛按块读，不再每个槽一次 existential 调用）。进程内实现直接读本进程内存，槽里是 dyld 已绑定的值；以后读磁盘文件的实现在槽上解 fixup。三个模块里只有进程内实现那一个文件允许把地址变成指针（`MemoryAccessScanTests`） |
+| 0. 读取 | Core `Memory/CrossReferenceMemory`、`Memory/InProcessCrossReferenceMemory` | 分析器读镜像内存的唯一入口：按分析器地址空间里的地址取一段只读字节、问一个指针槽里装着什么（`slotContent(at:)`，去掉签名与标记位）、给出地址掩码；整段读槽与把一组地址换成指针各有批量接口（selector 预筛按块读，不再每个槽一次 existential 调用）。进程内实现直接读本进程内存，槽里是 dyld 已绑定的值；`Memory/FileCrossReferenceMemory` 读文件，在槽上解 fixup（「文件模式」一节）。三个模块里只有进程内实现那一个文件允许把地址变成指针（`MemoryAccessScanTests`） |
 | 1. 指令字与跳板 | `ARM64InstructionDecoding` 模块的 `ARM64InstructionWord`、`ARM64Trampoline` | 手写读取少数几类 A64 编码；按形状认 GOT 桩、stub island 与全缓存共用的 selector 桩。与 SwiftThunkAnalysis 共用 |
-| 2. 地址空间 | Core `Images/CodeImageSet`；门面 `CrossReferenceAnalyzer` | 进程里全部镜像（整个共享缓存加缓存外已加载的镜像）、各镜像的路径与安装名、`__TEXT` 的内存区间、缓存的可执行与可读映射、运行时库里的辅助函数位置；给函数起名要用的函数表按需建一次并记住。宿主可以预先读好一个镜像起名、查类、查类型要用的一切（`prepareNames(inImageAt:)`），放掉其余镜像的（`releaseImageData(exceptForImagesAt:)`），并估算一个镜像留着多少（`approximateByteCount(ofImageDataAt:)`，`Scanning/ApproximateSize`） |
+| 2. 地址空间 | Core `Images/CodeImageSet`、`Images/CodeImage`（含 `ImageLinkEdit`）；门面 `CrossReferenceAnalyzer` | 进程里全部镜像（整个共享缓存加缓存外已加载的镜像），或一个 cache 文件、一组独立文件的镜像；各镜像的路径与安装名、`__TEXT` 的内存区间、缓存的可执行与可读映射、运行时库里的辅助函数位置；给函数起名要用的函数表按需建一次并记住。宿主可以预先读好一个镜像起名、查类、查类型要用的一切（`prepareNames(inImageAt:)`），放掉其余镜像的（`releaseImageData(exceptForImagesAt:)`），并估算一个镜像留着多少（`approximateByteCount(ofImageDataAt:)`，`Scanning/ApproximateSize`） |
 | 3. 函数表 | Core `Scanning/ImageFunctionTable` | 函数起点（`LC_FUNCTION_STARTS` 与 `__text` 里的符号取并集）、主名与代码合并留下的别名、辅助函数（名单由两个语言层给）、镜像自带的 `__stubs` / `__auth_stubs`、GOT、各段的地址区间；各层的附件 |
 | 3a. 补充名字 | Core `Scanning/ExportedFunctionNames`、ObjC `ObjCMethodNames`、Swift `Scanning/SwiftMetadataNames`；门面 `codeFunction(at:in:)` | 符号表没有名字的函数，依次从导出表、ObjC 方法表、Swift 元数据起名；起名时按镜像按需读，扫描不读 |
 | 3b. 类索引 | ObjC `ObjectiveCClassIndex`、`ObjCImageSections` | 一个镜像定义的类与元类，按地址；直接读 `__objc_classlist` 与各类的 `isa`。扫描时按需建、ObjC 识别器记住；类名只在报出引用时读。`ObjCImageSections` 是镜像的 `__objc_stubs`、selref、classref 与 superref |
@@ -41,7 +52,7 @@
 
 **镜像的路径是 dyld 加载它的路径。** 缓存里的镜像就是安装名；缓存外的取 `dladdr` 按镜像头读到的加载路径——App 的主程序与插件 bundle 没有安装名（`MachOImage.path` 为空），App 自带的框架的安装名是 `@rpath/…`，哪个都对不上宿主手里的路径（交叉引用审查 B3，2026-10-17 之前就是这样，缓存外的镜像查不到）。另有一张「安装名 → 镜像」的表给加载命令解析链接关系用：同一安装名的两份拷贝（两个插件各带一份同一框架）都算；`imageIndex(forPath:)` 先按路径、再按安装名找。用 `-bundle_loader` 链接宿主的插件经 `EXECUTABLE_ORDINAL` 绑定主程序，没有加载命令指向它，所以每个 bundle 都算作主程序的依赖方。
 
-MachOKit 在内存镜像上给出的 `FunctionStart.offset` 已经是未滑动的绝对地址（迭代器以 `__TEXT` 的 vmaddr 起算），与它的文档注释「相对 mach header 的偏移」不符；当成偏移再加一次基址，会得到范围外的地址、整张表被滤空。
+函数起点由 `ImageLinkEdit` 自己解 `LC_FUNCTION_STARTS`：ULEB128 增量从 `__TEXT` 的 vmaddr 起算，得到的就是未滑动地址。（以前经 MachOKit 在内存镜像上读，它给的 `FunctionStart.offset` 已经是绝对地址，与文档注释「相对 mach header 的偏移」不符，当成偏移再加一次基址会整张表被滤空。）
 
 ### 两种桩布局
 
@@ -216,6 +227,18 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 第 2 步相对第 1 步在 −0.5% 到 +3% 之间；整表多出的约 5% 来自第 1 步——每次读槽、读字符串都经读取层的 existential 调用。拆层第一次量时超过 5%，采样后改掉的几处见提案的决策日志：读槽先做区间排除再查认领表、调用计划不持有数组、只调用角色需要的会话方法、热路径上的类属性去掉运行时独占检查、函数表记下各节免得 ObjC 层再遍历 load command、selector 预筛按块批量读槽。
 
+**文件模式**（2026-11-19，同一台 Ultra，release，`ScanThroughputBenchmarkTests` 加 `CROSS_REFERENCE_BENCHMARK_DYLD_CACHE`，三轮取最好；第 4 步）：
+
+| 操作 | 进程内（第 4 步） | 归档的 macOS 27.2 cache 文件（外置卷） |
+|---|---|---|
+| 建分析器 | 0.055 秒 | 0.135 秒 |
+| 进程里第一次查 `makeKeyAndOrderFront:` / `init` 的调用者 | — | 0.50 / 1.89 秒 |
+| 每个镜像都建整表 | 2.48 秒（1.274 亿条） | 2.58 秒（1.263 亿条，4,114 个镜像） |
+| `init` 的调用者 | 0.033 + 1.713 秒 | 0.042 + 1.74 秒 |
+| `makeKeyAndOrderFront:` 的调用者 | 0.057 + 0.326 秒 | 0.110 + 0.335 秒 |
+
+读运行中的 cache 文件与外置卷上的归档一样快。文件模式第一版慢得多（整表 37 秒），差在每读一个槽都经 `FullDyldCache` 重新找 mapping、新建子 cache 对象、重读 slide info，以及读取层是类、每次经 existential 复制都计数——修法见「文件模式」一节与提案决策日志。第 4 步对进程内的影响在 ±3% 以内（与第 1 步交替量）。
+
 单线程解码 AppKit 约 187 MiB/s，比 Capstone 快 25–50 倍（RuntimeViewer 提案落地第一步的探针）。库比探针慢一些（4 线程扫完整个缓存，探针 4.1 秒，库 5.9–6.3 秒），多出来的是起名、建 `CodeReference` 与 selector 字符串；过滤扫描也是先建好每条引用再丢弃，按键提前跳过是能做的优化。
 
 ## 测试锚点
@@ -239,3 +262,5 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 - `RecognizerExtensionPointTests`：测试里定义的会话（代替一切调用 libobjc 的调用）接进核心的扫描，核心不改就生效；只查 selector 时 Swift 会话不建任何镜像的类型索引。`PublicNameTests`：只 `import CrossReferenceAnalysis` 也看得到下移的 `CodeLocation`、`CodeReference.Kind`、`ReceiverClassHint`、`IndirectCallEvidence`。
 - `FunctionStartOutsideTextTests`：符号表把函数起点放在 `__text` 起点之下的镜像照常扫描（第 1 步曾因此下溢陷入）。
 - 两个按环境变量启用的 A/B 套件，库里没有可存的基线：`ReferenceTableDigestTests`（AppKit、SwiftUICore、Foundation 的整表摘要，在基线检出上生成、在候选上比对，也能整表导出逐行比较）与 `ScanThroughputBenchmarkTests`（上面「读取层与拆层的代价」那张表，release 下跑）。用法写在各自的文档注释里。
+- `FileModeTests`（文件模式，提案第 4 步）：运行中的 cache 从文件读与进程内读，AppKit、SwiftUICore、Foundation 的整张引用表逐行一致，函数名、ObjC 方法表与 Swift 元数据给的名字、selector 预筛也一致；cache 的每个指针槽（v5 与没有 slide info 的模拟器 cache）解出的与 MachOKit 一致；归档 27.0、27.2 里 `UINSPasteboardWritingItemProvider` 的两个经 GOT 的调用者；iOS 26.3.1 设备 cache 里经 stub island 的发送；现编的独立文件——`-interposable` 的 dylib（self-bind 落到自己的函数、`puts` 是导入名）、Objective-C 可执行文件（`__TEXT` 在 0x100000000 时 rebase 与 objc 桩都解对）、C++ 的 `retab` 之后的异常清理代码。归档卷不在时相应用例跳过。
+- `StandaloneFileReferenceDumpTests`：按环境变量启用，把一个独立文件（universal 取 arm64e 切片）的全部引用按函数导出成文本，供与反汇编器对照。第 4 步拿它与 IDA 抽样核对过 ControlCenter 26.7。

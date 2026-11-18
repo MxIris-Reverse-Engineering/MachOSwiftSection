@@ -29,7 +29,7 @@ package final class ObjectiveCClassIndex: @unchecked Sendable {
         let isMetaclass: Bool
     }
 
-    private let image: MachOImage
+    private let image: CodeImage
     private let imageIndex: Int
     private let memory: any CrossReferenceMemory
     private let slide: Int
@@ -37,13 +37,13 @@ package final class ObjectiveCClassIndex: @unchecked Sendable {
     private let lock = NSLock()
     private var namesByClassAddress: [UInt: String?] = [:]
 
-    package init(image: MachOImage, imageIndex: Int, memory: any CrossReferenceMemory) {
+    package init(image: CodeImage, imageIndex: Int, memory: any CrossReferenceMemory) {
         self.image = image
         self.imageIndex = imageIndex
         self.memory = memory
-        self.slide = image.vmaddrSlide ?? 0
+        self.slide = image.slide
         var entries: [UInt: Entry] = [:]
-        for section in image.sections64 where section.sectionName == "__objc_classlist" {
+        for section in image.reader.sections64 where section.sectionName == "__objc_classlist" {
             let list = UInt(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide)
             for position in 0 ..< section.size / 8 {
                 guard let classAddress = memory.pointer(at: list &+ UInt(position * 8)), classAddress != 0 else { continue }
@@ -138,12 +138,17 @@ package final class ObjectiveCClassIndex: @unchecked Sendable {
         }
         lock.unlock()
         var name: String?
+        // The class object as MachOObjCSection reads it: its bytes as they
+        // stand — in a file, its pointers still fixups — at the offset the
+        // reader counts in.
         if let layout = memory.load(ObjCClass64.Layout.self, at: classAddress) {
-            let classObject = ObjCClass64(
-                layout: layout,
-                offset: Int(bitPattern: classAddress &- UInt(bitPattern: image.ptr))
-            )
-            name = Self.readOnlyData(of: classObject, in: image)?.name(in: image)
+            if let machOImage = image.reader.asMachOImage {
+                let classObject = ObjCClass64(layout: layout, offset: Int(bitPattern: classAddress &- UInt(bitPattern: machOImage.ptr)))
+                name = Self.readOnlyData(of: classObject, in: machOImage)?.name(in: machOImage)
+            } else if let machOFile = image.reader.asMachOFile, let offset = image.readerOffset(ofUnslidAddress: image.unslidAddress(ofRuntime: classAddress)) {
+                // A class in a file is never realized: its data is read-only.
+                name = ObjCClass64(layout: layout, offset: offset).classROData(in: machOFile)?.name(in: machOFile)
+            }
         }
         lock.lock()
         namesByClassAddress[classAddress] = name

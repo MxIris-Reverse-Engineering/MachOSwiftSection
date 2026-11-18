@@ -22,7 +22,7 @@ package final class ExportedFunctionNames: ImageFunctionTableAttachment, @unchec
     private init(table: ImageFunctionTable) {
         var names: [UInt64: [String]] = [:]
         var byteCount = 0
-        for symbol in table.image.exportedSymbols {
+        for symbol in table.image.reader.exportedSymbols {
             guard let offset = symbol.offset else { continue }
             names[table.address(atHeaderOffset: offset), default: []].append(symbol.name)
             byteCount += ApproximateSize.of(symbol.name)

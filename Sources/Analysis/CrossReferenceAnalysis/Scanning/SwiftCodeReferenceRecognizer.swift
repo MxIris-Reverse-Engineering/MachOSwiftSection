@@ -207,8 +207,7 @@ final class SwiftCodeReferenceRecognitionSession: CodeReferenceRecognitionSessio
     /// runtime's entry points that instantiate a type from its mangled name.
     private func typeFunction(at location: CodeLocation) -> TypeFunction? {
         if let nameRegister = recognizer.runtimeFunctions.typeByMangledNameEntries[location] { return .runtimeEntry(nameRegister: nameRegister) }
-        if let runtimeAddress = images.runtimeAddress(of: location),
-           let descriptor = typeIndex(ofImageAt: location.imageIndex).descriptorLocation(ofAccessorAt: runtimeAddress) {
+        if let descriptor = typeIndex(ofImageAt: location.imageIndex).descriptorLocation(ofAccessorAt: images.runtimeAddress(of: location)) {
             return .accessor(descriptor: descriptor)
         }
         // Accessors of generic instances and mangled-name helpers are emitted

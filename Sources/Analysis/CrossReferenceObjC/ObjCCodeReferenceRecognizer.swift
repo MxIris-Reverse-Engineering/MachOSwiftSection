@@ -240,6 +240,9 @@ package final class ObjCCodeReferenceRecognitionSession: CodeReferenceRecognitio
             }
             return nil
         case .importedSymbol(let name):
+            // libobjc reached by name: a standalone app analyzed without it.
+            if strcmp(name, "_objc_msgSend") == 0 { return addRole(.classicSend) }
+            if strcmp(name, "_objc_msgSendSuper2") == 0 { return addRole(.superSend) }
             guard let selectors = MessageSendEntryPoints.selectors(ofSymbol: name) else { return nil }
             return addRole(.entryPoint(selectors: selectors, classArgumentReturn: ObjCRuntimeFunctions.classArgumentReturn(name)))
         case .registerSettingTrampoline(let register, let value):

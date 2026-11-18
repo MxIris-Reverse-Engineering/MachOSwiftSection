@@ -354,8 +354,18 @@ let analyzer = try CrossReferenceAnalyzer(dyldCache: cache)
 ```
 
 镜像表来自 cache 头的 `imageInfos`；`imagePaths`、`imageIndex(forPath:)`、函数表、预筛、`referenceTable`
-等全部照旧可用。`location(ofRuntimeAddress:)` 在文件模式下接受的就是未滑动地址。`images: [MachOImage]` 在
-文件模式下为空，标为 deprecated 并指向 `imagePaths` / `imageCount`。
+等全部照旧可用。`location(ofRuntimeAddress:)` 在 cache 文件模式下接受的就是未滑动地址；一组独立文件里各文件
+按 dyld 的做法错开（与已放下的重叠就滑到其后的下一个 MB 边界），那时它接受的是错开后的地址。`images: [MachOImage]`
+在文件模式下为空，只在文档注释里写明，不标 deprecated（见决策日志）；`imageCount` 在两种模式下都给镜像数。
+
+实现（第 4 步）：每个镜像由核心层的 `CodeImage` 描述——`reader` 是 `MachOImage` 或 `MachOFile`，两种读取器
+的差别（slide、读取器 API 给出的 offset 落在哪个地址）只在构造它的地方定一次；`__LINKEDIT` 里的表（符号表、
+间接符号、函数起点、data in code、导出树）一律按「`__LINKEDIT` 的地址 + 表的偏移 − 段的文件偏移」经读取层
+读（`ImageLinkEdit`），进程内与文件里是同一个算法。ObjC 层与 Swift 层用到 MachOObjCSection / MachOSwiftSection
+各读取器一套的 API 时，经 `asMachOImage` / `asMachOFile` 或 `MachOSwiftSectionRepresentableWithCache` 打开。
+文件读取层 `FileCrossReferenceMemory` 是个值，以 `unowned(unsafe)` 引用由镜像集持有的存储：经 existential 的
+每次读都复制一次读取层，类或持有引用的值每次复制都要计数，整 cache 建表因此慢过 6 倍。cache 的槽按 mapping
+预取的 slide info 解：v5（macOS 14 / iOS 17 起的 arm64e cache）在读取层里直接解，其余交给 MachOKit。
 
 ### 5. 新的引用种类与引用路线
 
@@ -376,6 +386,10 @@ let analyzer = try CrossReferenceAnalyzer(dyldCache: cache)
   链接约定，不依赖 ObjC 运行时。
 - 两种字符串引用默认**不记录**：它们数量大，RuntimeViewer 常驻的索引不需要。构造分析器时用
   `recordingStringReferences: true` 打开，`swift-section refs --string` 会自动打开。
+- **对其他镜像符号的数据引用**（第 4 步核对时补进来）：只分析一个 app 而不带它链接的库时，经 GOT 槽读别的
+  镜像的类（`adrp; ldr x0, [_OBJC_CLASS_$_CALayer@GOT]`）、ivar 或数据，槽里是 bind，读出的是导入名而不是地址，
+  现在什么都不记——进程内槽里是地址，会记成类引用。改为记一条指向导入符号的 `.reference`，ObjC 层再把
+  `_OBJC_CLASS_$_<类>` 认成按名字的类引用。核心层（读槽时机拿到导入名）加 ObjC 层。
 - **引用路线**：`CodeReference` 新增 `route`，说明引用是怎么到达目标的。照 Binary Ninja 的「引用按来源种类
   建模」，但只在代码引用上加一个字段，不引入数据引用（见非目标）。
 
@@ -477,8 +491,15 @@ swift-section symbolicate 0x19012345 0x1e1226590 --dyld-shared-cache /Volumes/Dy
 | `Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift` | 修改 | GOT 桩的载入之后必须紧跟经同一寄存器的跳转 | 开头是 `adrp; ldr` 的普通函数被误认成桩 | 3 |
 | `Sources/Analysis/SwiftThunkAnalysis/Resolution/MachOThunkEnvironment.swift` | 修改 | 改用上面四个类型，行为不变 | 去重 | 3 |
 | `…/SwiftThunkAnalysis/Resolution/ThunkAddressSpace.swift` · `ThunkAddressSpace` | 删除 | 调用点改用 `ImageAddressSpace` | 已搬走 | 3 |
-| `…/CrossReferenceCore/Memory/FileCrossReferenceMemory.swift` · `FileCrossReferenceMemory` | 新增 | 映射的代码字节；经 `SlotResolver` 解 fixup | 文件模式 | 4 |
-| `…/CrossReferenceCore/Scanning/ImageFunctionTable.swift`、`…/CrossReferenceObjC/ObjectiveCClassIndex.swift` | 修改 | 文件模式的函数起点；文件模式下类名经 MachOObjCSection 的文件读取 | 文件模式 | 4 |
+| `…/CrossReferenceCore/Memory/FileCrossReferenceMemory.swift` · `FileCrossReferenceMemory` | 新增 | 值，`unowned(unsafe)` 引用镜像集持有的 `Storage`：MachOKit 映射的文件字节；cache 的槽按 mapping 预取的 slide info 解（v5 自己解，其余交给 MachOKit），独立文件的槽经 `SlotResolver`，bind 落到所覆盖文件的导出上 | 文件模式 | 4 |
+| `…/CrossReferenceCore/Images/CodeImage.swift` · `CodeImage`、`ImageLinkEdit` | 新增 | 与读取器无关的镜像描述（slide、读取器 offset 与地址的换算只在构造处定一次）；`__LINKEDIT` 的各表按地址经读取层读 | 两种模式共用一套读法 | 4 |
+| `…/CrossReferenceCore/Images/CodeImageSet.swift` | 修改 | `images: [CodeImage]`；新增 `dyldCache(_:…)` 与 `files(_:…)` 两个构造器（独立文件按 dyld 的做法错开）；持有文件读取层的存储 | 文件模式 | 4 |
+| `…/CrossReferenceCore/Scanning/ImageFunctionTable.swift`、`ExportedFunctionNames`、`RenamedReexportIndex`、`CodeImageSet+Linkage` | 修改 | 符号、间接符号、桩、函数起点、data in code、导出树、依赖都改走 `CodeImage` / `ImageLinkEdit` | 文件模式 | 4 |
+| `…/CrossReferenceObjC/ObjectiveCClassIndex.swift`、`ObjCMethodNames.swift`、`ObjCImageSections.swift`、`+Prefiltering` | 修改 | 类名、方法表、objc 桩按读取器分两条路读（MachOObjCSection 的 API 各一套，文件里 `imp` 是读取器 offset）；按名字导入的 `_objc_msgSend` 认成发送 | 文件模式 | 4 |
+| `…/CrossReferenceAnalysis/Scanning/SwiftTypeIndex.swift`、`SwiftMetadataNames.swift`、`CrossReferenceAnalyzer+SwiftTypes.swift` | 修改 | 经 `MachOSwiftSectionRepresentableWithCache` 泛型读描述符；文件里的 mangled name 经文件的读取上下文解 | 文件模式 | 4 |
+| `…/CrossReferenceAnalysis/CrossReferenceAnalyzer.swift`、`FileAnalysisError.swift` | 修改 / 新增 | `init(dyldCache:)`、`init(machOFiles:)`、`imageCount`、`FileAnalysisError` | 公开入口 | 4 |
+| `…/CodeAddressResolution/SlotResolver.swift`、`ImageAddressSpace.swift` | 修改 | 独立文件的链式 fixup 目标按 `__TEXT` 加偏移换算（`address(forHeaderOffset:)`） | 修 bug：可执行文件的槽解错 4 GiB | 4 |
+| `Tests/CrossReferenceAnalysisTests/FileModeTests.swift`、`StandaloneFileReferenceDumpTests.swift` | 新增 | 文件模式的行为测试；独立文件引用导出（按环境变量启用，供与反汇编器对照） | 验证 | 4 |
 | `Sources/Support/ARM64InstructionDecoding/ARM64InstructionWord.swift` | 修改 | `load(_:)` 之外新增 32 位 `ldr` 与 `ldrsw` 的解码 | ivar 偏移变量的读法 | 5 |
 | `…/CrossReferenceCore/Scanning/ReferenceScanner.swift`、`RegisterFile.swift` | 修改 | 记录 `route`；C 字符串与 CFString；跟踪 `ldrsw` / 32 位 `ldr` 读出的来源，交给识别器 | 引用路线；新引用种类 | 5 |
 | `…/CrossReferenceObjC/ObjCCodeReferenceRecognizer.swift` | 修改 | ivar 偏移变量 → ivar 引用；selector 优先于 C 字符串认领 | 新引用种类 | 5 |
@@ -636,10 +657,15 @@ let appAnalyzer = try CrossReferenceAnalyzer(machOFiles: files, recordingStringR
 ```swift
 extension CrossReferenceAnalyzer {
     /// Analyzes every image of a dyld shared cache read from disk, such as an archived one.
+    /// `recordingStringReferences` arrives with step 5.
     public convenience init(dyldCache: FullDyldCache, recordingStringReferences: Bool = false) throws
 
     /// Analyzes standalone Mach-O files, such as an app's executable and its embedded frameworks.
     public convenience init(machOFiles: [MachOFile], recordingStringReferences: Bool = false) throws
+
+    /// Why an analyzer could not be made from files: `Code.unsupportedArchitecture` for a cache or
+    /// a file holding no arm64 code. A struct with codes, since more may come.
+    public struct FileAnalysisError: Error, Hashable, Sendable { public let code: Code; public let path: String }
 
     /// The number of images the analyzer covers, in either mode.
     public var imageCount: Int { get }
@@ -649,8 +675,9 @@ extension CrossReferenceAnalyzer {
 }
 
 extension CrossReferenceAnalyzer {
-    @available(*, deprecated, message: "Empty for analyzers created from files; use imagePaths or imageCount")
-    public var images: [MachOImage] { get }
+    /// The in-process analyzer's images; empty for one made from files. Not deprecated: in-process
+    /// hosts read what only a `MachOImage` tells (its slide, its header).
+    public let images: [MachOImage]
 }
 
 public enum CodeReferenceTarget: Hashable, Sendable {
@@ -1041,18 +1068,23 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
    - 行为：`slotResolverResolvesStandaloneBinds`
    - 行为：`cacheImageLocatorFindsTheImageAnAddressLiesIn`
    - 行为：`aFunctionLoadingAGlobalIsNoSlotStub`（`ARM64Trampoline` 的修复，见决策日志）
-4. **文件模式的分析器** —— `FileCrossReferenceMemory`、两个新构造器、函数起点与类名的文件模式。
+4. **文件模式的分析器**（已完成） —— `CodeImage` 与 `ImageLinkEdit`、`FileCrossReferenceMemory`、两个新构造器、
+   各层按镜像读取的文件模式。
    - 行为：`fileModeMatchesInProcessReferencesOnTheRunningSystemCache`（同一个 cache 两种模式逐条比对，
      镜像取 AppKit、SwiftUICore、Foundation）
+   - 行为：`fileModeNamesFunctionsAsTheProcessDoes`、`fileModeReadsTheFallbackNameSourcesAsTheProcessDoes`
+     （函数名与 ObjC 方法表、Swift 元数据两种后备来源两种模式逐条一致）
+   - 行为：`fileModePrefiltersSelectorsAsTheProcessDoes`
+   - 行为：`fileMemoryDecodesSlotsAsMachOKitDoes`（v5 与没有 slide info 的模拟器 cache，逐槽与 MachOKit 一致）
    - 行为：`archivedCacheFindsBothCallersOfPasteboardWritingItemProvider`（27.0 与 27.2；卷不在时跳过）
    - 行为：`archivedCacheFollowsStubIslandsForSelectorSends`
    - 行为：`standaloneAppResolvesImportedAndSelfBoundSymbols`
-   - 行为：`offlineThroughputIsRecordedInTheModuleDocument`（不是断言，是把实测写进文档）
+   - 行为：`standaloneExecutableResolvesRebasesAndObjectiveCStubs`（`SlotResolver` 的修复，见决策日志）
    - 行为：`fileModeScansExceptionCleanupCodeAfterReturn`（`retab` 之后、没有函数起点的异常清理代码也要被扫到）
-   - 核对：在 Finder 26.5.2 与 ControlCenter 26.7（卷上有现成 `.i64`）上，用 2026-11-18 那次实测的做法——
-     `otool -tV` 加独立寄存器跟踪生成标准答案——比对本库文件模式的结果，并与 IDA 查到两跳的结果对照，差异
-     逐条归因后写进模块文档。Binary Ninja 经 MCP 只作补充：它没有「代码 → 数据地址」的反查，dyld cache 的
-     镜像也要先在界面里加载。
+   - 吞吐：`ScanThroughputBenchmarkTests` 加 `CROSS_REFERENCE_BENCHMARK_DYLD_CACHE`，实测写进模块文档
+   - 核对：卷上没有 Finder 26.5.2，也没有 2026-11-18 那次的标准答案与生成脚本；按原法重做要新写 `otool -tV`
+     加寄存器跟踪的脚本，留给用户看过之后再跑。改做抽样：ControlCenter 26.7 的文件模式结果
+     （`StandaloneFileReferenceDumpTests` 导出）与 IDA 逐函数对照，见决策日志。
 5. **新引用种类与路线** —— 解码器的 `ldrsw` / 32 位 `ldr`、`RegisterFile`、核心层的字符串与路线、ObjC 层的
    ivar、Swift 层的大字符串、三个 target、`Route`、表键、常驻索引编码、RuntimeViewer 的穷尽 switch。
    - 行为：`instanceVariableOffsetLoadsBecomeInstanceVariableReferences`
@@ -1112,3 +1144,9 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | 吞吐验收 | 同一台 Ultra、release、三方交替各三轮取最好：整 cache 建表 `next` 2.42 / 第 1 步 2.54 / 第 2 步 2.52 秒，`init` 调用者 1.70 / 1.71 / 1.74 秒，`makeKeyAndOrderFront:` 调用者 0.36 / 0.37 / 0.38 秒。第 2 步相对拆分前（第 1 步）在 −0.5% 到 +3% 之间，满足 5% 的验收线，不必退到泛型特化；整表多出的约 5% 来自第 1 步的读取层，记进模块文档。debug 下交叉引用全套 99 个测试通过 |
 | 2026-11-19 | 第 3 步完成 | `CodeAddressResolution` 按设计抽出，另有两处细节：它依赖 `MachOReading`（`MachOFile.readElements`，设计里说的读取层）；`CacheImageLocator` 不自带 `SharedCache`，按镜像共用一个 locator 由线程读取器在 `thunkResolution` 组里做，本模块因此不依赖 `MachOCaches`，将来能原样搬走。`SwiftThunkAnalysis` 不再直接依赖 `ARM64InstructionDecoding`。行为清单对齐实际测试：抽取前后结果不变由 `SwiftThunkAnalysisTests` 全套守着；「本镜像类对象在 GOT 里」并进 AppKit 全部 GOT 槽与进程逐个比对的测试；独立文件的 self-bind 在 `SlotResolver` 里只是名字，换成地址是第 4 步文件模式的事，那条行为由第 4 步的 `standaloneAppResolvesImportedAndSelfBoundSymbols` 覆盖 |
 | 2026-11-19 | 修掉跳板把普通函数认成 GOT 桩 | 写 `stubChainRecordsEveryStubIslandHop` 时发现：iOS 26.3.1 设备 cache 里 SwiftUI 经 stub island 调到 UIKitCore 的 `UIHostingViewBase.viewGraph` getter，它开头是 `adrp x8; ldr x8, [x8, #0xb10]; ldr x0, [x20, x8]`（读一个字段偏移），`ARM64Trampoline` 读到 `ldr` 就认定是从槽里取目标的桩，链落到 `sharedRegionStart + 0x38`。这是 `next` 上就有的旧 bug。改成载入之后必须紧跟一条经同一寄存器的非调用跳转（三种 GOT 桩都是这个形状），复现测试 `aFunctionLoadingAGlobalIsNoSlotStub` 修复前四处断言全红、修复后通过。影响面：进程内扫描器只对不落在任何镜像里的地址认跳板，结果不变；线程读取器只在调用目标落在别的镜像、又不是 accessor 或运行时入口时才走到它，原来得出 `unknown`，现在也是。真正会受影响的是第 4 步的文件模式，它经同一个解析器一跳一跳地跟，所以在这一步修掉 |
+| 2026-11-19 | 第 4 步：镜像抽象 | 每个镜像改由核心层的 `CodeImage` 描述，`__LINKEDIT` 的表经读取层按地址读（`ImageLinkEdit`），桩按 `S_SYMBOL_STUBS` 的 `reserved1/2` 与 `ARM64Trampoline` 自己读，不再经 MachOKit 各读取器一套的 `symbols64`、`stubs(in:)`、`functionStarts`。读取器专属的 API 只在 ObjC 层（MachOObjCSection）与 Swift 层（MachOSwiftSection）里经 `asMachOImage` / `asMachOFile` / `MachOSwiftSectionRepresentableWithCache` 打开。进程内结果不变：交叉引用全套 100 个测试与整表摘要照旧，吞吐与第 1 步相比 −3% 到 +3% |
+| 2026-11-19 | 第 4 步：文件读取层的形状 | `FileCrossReferenceMemory` 是值，以 `unowned(unsafe)` 引用镜像集持有的存储，区间表放在手动分配的缓冲区。第一版是类，整 cache 建表 37 秒（进程内 2.5 秒）：每次经 existential 读都复制读取层、计一次数，`FullDyldCache.cacheAndFileOffset(for:)` 每次还新建子 cache 对象、重读 slide info。按 mapping 预取 slide info、v5 在读取层里直接解之后 16.5 秒，改成值之后 2.6 秒，与进程内持平。v2、v3 的快速路径写过又删了：卷上没有能验证它们的 arm64 cache（模拟器 cache 没有 slide info），只留 v5，其余交给 MachOKit |
+| 2026-11-19 | 第 4 步：API 与设计的出入 | 两个构造器先不带 `recordingStringReferences`，第 5 步加字符串引用时一起加。失败时抛 `FileAnalysisError`（带 `Code` 的结构体，眼下只有 `unsupportedArchitecture`）。`images` 不标 deprecated：进程内的宿主与测试读的是只有 `MachOImage` 给得出的东西（slide、header），`imagePaths` / `imageCount` 替代不了，标了只会把它们推向无处可去；文件模式下它为空写在文档注释里。一组独立文件按 dyld 的做法错开地址。ObjC 层把按名字导入的 `_objc_msgSend` / `_objc_msgSendSuper2` 认成发送：不带 libobjc 分析一个 app 时它们就是这样到达的 |
+| 2026-11-19 | 修掉 `SlotResolver` 把 rebase 偏移当地址 | 抽样核对 ControlCenter 时发现：几乎所有 objc 桩都没认出 selector。MachOKitExtensions 对独立文件的链式 fixup 给的是「相对首选加载地址的偏移」，`SlotResolver`（承自线程读取器的 `rebaseTargetAddress`，注释写着「独立文件给的是目标地址」）直接当地址用——dylib 的 `__TEXT` 在 0，两者相同，夹具都是 dylib，所以没被测到；可执行文件的 `__TEXT` 在 0x100000000，槽解出 0x798 而函数在 0x100000798。改为按 `__TEXT` 加偏移（`ImageAddressSpace.address(forHeaderOffset:)`）；没有链式 fixup、靠 opcode rebase 的旧文件，MachOKitExtensions 不解，文件读取层直接用槽里的值。复现测试 `standaloneExecutableResolvesRebasesAndObjectiveCStubs` 修复前四处断言全红、修复后通过。同类排查：别处（`MachOPointers`、线程读取器的描述符读取）都把这个结果当 MachOSwiftSection 自己口径的 offset 用，是一致的。修复后 ControlCenter 的发送从 967 条到 4,909 条，无法识别的调用从 3,933 条到 1 条 |
+| 2026-11-19 | 第 4 步完成 | 吞吐（Ultra，release，归档 macOS 27.2 cache，三轮最好）：建分析器 0.14 秒，整 cache 建表 2.58 秒（1.263 亿条），`init` 调用者预筛 0.04 + 扫描 1.74 秒，`makeKeyAndOrderFront:` 0.11 + 0.34 秒；进程里第一次查询 0.5 秒与 1.9 秒。读运行中的 cache 文件与外置卷上的归档一样快，远低于愿景里「冷启动整 cache 查询超过 60 秒就提前落盘」的线。核对改为抽样：ControlCenter 26.7 的三个函数（ObjC 发送与 super 发送、Swift 元数据访问器与类型引用、`objc_allocWithZone` 与 `init`），IDA 反汇编里的直接调用与发送本库逐一都有；差异两类——经 GOT 槽读别的镜像的类（槽里是 bind）不记，补进第 5 步；直接经 GOT 槽的 `blraa` 记成间接调用，进程内同样如此。按 2026-11-18 的做法重做全面核对，需要新写生成标准答案的脚本，留给用户 |
+| 2026-11-19 | 文件读取层不掩地址 | `AddressMaskScanTests` 不许库里出现自定义的地址掩码常量。文件读取层的 `addressMask` 改为不掩（解出的槽本来就是干净地址）；slide info v5 的 34 位 `runtimeOffset` 是格式字段不是掩码，在扫描用例里加了一条只减不增、写明是哪个字段的白名单 |

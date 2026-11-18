@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import MachOKit
 import CrossReferenceAnalysis
 
 /// How long the operations the module document's throughput table lists
@@ -13,6 +14,11 @@ import CrossReferenceAnalysis
 /// (copied into an export of the baseline commit). Runs only with
 /// `CROSS_REFERENCE_BENCHMARK_OUTPUT=<file>`, where it writes one line per
 /// operation: its name and the best of three rounds, in seconds.
+///
+/// With `CROSS_REFERENCE_BENCHMARK_DYLD_CACHE=<cache file>` the analyzer is
+/// made from that cache file instead of the process, and before anything
+/// else the callers of each selector are timed once — the first query in
+/// the process, which reads the cache's pages as the system holds them.
 @Suite(
     .enabled(if: ScanThroughputBenchmarkEnvironment.outputPath != nil, "set CROSS_REFERENCE_BENCHMARK_OUTPUT"),
     .serialized
@@ -21,13 +27,34 @@ struct ScanThroughputBenchmarkTests {
     @Test func scanThroughputAfterTheLayerSplitIsRecordedInTheModuleDocument() throws {
         var lines: [String] = []
         var analyzer: CrossReferenceAnalyzer?
+        let cachePath = ScanThroughputBenchmarkEnvironment.dyldCachePath
         let analyzerTime = try Self.bestOfThree {
-            analyzer = try #require(CrossReferenceAnalyzer())
+            if let cachePath {
+                analyzer = try CrossReferenceAnalyzer(dyldCache: FullDyldCache(url: URL(fileURLWithPath: cachePath)))
+            } else {
+                analyzer = try #require(CrossReferenceAnalyzer())
+            }
         }
         let built = try #require(analyzer)
         lines.append("analyzer \(analyzerTime)")
 
         let allImages = Array(built.imagePaths.indices)
+        if cachePath != nil {
+            for selector in ["makeKeyAndOrderFront:", "init"] {
+                let start = DispatchTime.now().uptimeNanoseconds
+                let candidates = built.imageIndices(referencingSelector: selector, among: allImages)
+                nonisolated(unsafe) var senderCount = 0
+                let lock = NSLock()
+                DispatchQueue.concurrentPerform(iterations: candidates.count) { position in
+                    let count = built.references(to: [.selector(selector)], inImageAt: candidates[position]).count
+                    lock.lock()
+                    senderCount += count
+                    lock.unlock()
+                }
+                let seconds = (Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000).rounded() / 1000
+                lines.append("firstCallersOf(\(selector)) \(seconds) images=\(candidates.count) references=\(senderCount)")
+            }
+        }
         var referenceCount = 0
         let tableTime = try Self.bestOfThree {
             let counts = UnsafeMutableBufferPointer<Int>.allocate(capacity: allImages.count)
@@ -84,4 +111,6 @@ enum ScanThroughputBenchmarkEnvironment {
     /// Where to write each image's reference count, to find which images two
     /// sides disagree on when their totals differ.
     static let countsPath = ProcessInfo.processInfo.environment["CROSS_REFERENCE_BENCHMARK_COUNTS"]
+    /// A dyld shared cache file to make the analyzer from.
+    static let dyldCachePath = ProcessInfo.processInfo.environment["CROSS_REFERENCE_BENCHMARK_DYLD_CACHE"]
 }

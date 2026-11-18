@@ -19,7 +19,7 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
     private enum Source {
         /// A type's metadata accessor (`Ma`) or singleton completion function
         /// (`Mr`): the type's descriptor, and the suffix the name ends in.
-        case typeFunction(descriptor: TypeContextDescriptorWrapper, suffix: String)
+        case typeFunction(descriptor: TypeContextDescriptorWrapper, descriptorAddress: UInt64, suffix: String)
         /// A method whose descriptor's `…Tq` symbol spells its name.
         case method(descriptorAddress: UInt64)
     }
@@ -89,8 +89,7 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
     private func buildName(from source: Source) -> String? {
         let descriptorSymbols = self.descriptorSymbols()
         switch source {
-        case .typeFunction(let descriptor, let suffix):
-            let descriptorAddress = table.address(atHeaderOffset: descriptor.typeContextDescriptor.offset)
+        case .typeFunction(let descriptor, let descriptorAddress, let suffix):
             if let symbol = descriptorSymbols[descriptorAddress], let typeMangling = Self.mangling(ofSymbol: symbol, suffix: "Mn") {
                 return "$s" + typeMangling + suffix
             }
@@ -114,8 +113,18 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
     /// A type's mangling built from its descriptor, for a type no `Mn`
     /// symbol spells.
     private func typeMangling(of descriptor: TypeContextDescriptorWrapper) -> String? {
-        guard let contextNode = try? SymbolicDemangler.demangleContext(for: descriptor.asContextDescriptorWrapper, in: table.image.context) else { return nil }
+        guard let reader = table.image.swiftSectionReader else { return nil }
+        return Self.typeMangling(of: descriptor, in: reader)
+    }
+
+    private static func typeMangling(of descriptor: TypeContextDescriptorWrapper, in reader: some MachOSwiftSectionRepresentableWithCache) -> String? {
+        guard let contextNode = try? SymbolicDemangler.demangleContext(for: descriptor.asContextDescriptorWrapper, in: reader.context) else { return nil }
         return try? mangleAsString(NodeBuilder(kind: .type, children: [contextNode]).node)
+    }
+
+    /// The unslid address of an offset MachOSwiftSection hands out.
+    private func address(ofReaderOffset offset: Int) -> UInt64? {
+        table.image.unslidAddress(ofReaderOffset: offset)
     }
 
     /// Which functions the metadata names, by address.
@@ -124,16 +133,24 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
         defer { lock.unlock() }
         if let sourcesStorage { return sourcesStorage }
         var sources: [UInt64: Source] = [:]
-        let image = table.image
-        let context = image.context
+        if let reader = table.image.swiftSectionReader {
+            collectSources(in: reader, into: &sources)
+        }
+        sourcesStorage = sources
+        sourceByteCount += ApproximateSize.of(sources)
+        return sources
+    }
+
+    private func collectSources(in reader: some MachOSwiftSectionRepresentableWithCache, into sources: inout [UInt64: Source]) {
+        let context = reader.context
         let textRange = table.textStart ..< table.textEnd
-        for wrapper in (try? image.swift.typeContextDescriptors) ?? [] {
-            let descriptorOffset = wrapper.typeContextDescriptor.offset
+        for wrapper in (try? reader.swift.typeContextDescriptors) ?? [] {
+            guard let descriptorAddress = address(ofReaderOffset: wrapper.typeContextDescriptor.offset) else { continue }
             // Every type context descriptor holds its metadata accessor as a
             // relative direct pointer at +12.
-            let accessorField = table.address(atHeaderOffset: descriptorOffset) &+ 12
+            let accessorField = descriptorAddress &+ 12
             if let accessor = relativeTarget(ofFieldAt: accessorField), textRange.contains(accessor) {
-                sources[accessor] = .typeFunction(descriptor: wrapper, suffix: "Ma")
+                sources[accessor] = .typeFunction(descriptor: wrapper, descriptorAddress: descriptorAddress, suffix: "Ma")
             }
             guard let typeWrapper = try? TypeContextWrapper.forTypeContextDescriptorWrapper(wrapper, in: context) else { continue }
             var completionOffset: Int?
@@ -143,25 +160,20 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
                 for method in classType.methodDescriptors {
                     guard let implementationOffset = method.implementationOffset,
                           let implementation = codeAddress(ofImplementationAtOffset: implementationOffset),
-                          sources[implementation] == nil
+                          sources[implementation] == nil,
+                          let methodDescriptorAddress = address(ofReaderOffset: method.offset)
                     else { continue }
-                    sources[implementation] = .method(descriptorAddress: table.address(atHeaderOffset: method.offset))
+                    sources[implementation] = .method(descriptorAddress: methodDescriptorAddress)
                 }
             case .struct(let structType):
                 completionOffset = structType.singletonMetadataInitialization?.resolvedDirectOffset(from: \.completionFunction)
             case .enum(let enumType):
                 completionOffset = enumType.singletonMetadataInitialization?.resolvedDirectOffset(from: \.completionFunction)
             }
-            if let completionOffset {
-                let completion = table.address(atHeaderOffset: completionOffset)
-                if textRange.contains(completion) {
-                    sources[completion] = .typeFunction(descriptor: wrapper, suffix: "Mr")
-                }
+            if let completionOffset, let completion = address(ofReaderOffset: completionOffset), textRange.contains(completion) {
+                sources[completion] = .typeFunction(descriptor: wrapper, descriptorAddress: descriptorAddress, suffix: "Mr")
             }
         }
-        sourcesStorage = sources
-        sourceByteCount += ApproximateSize.of(sources)
-        return sources
     }
 
     /// An implementation's code: the offset itself when it lies in `__text`,
@@ -169,7 +181,7 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
     /// record (`{ rel32 function, u32 context size }`) leads to.
     private func codeAddress(ofImplementationAtOffset offset: Int) -> UInt64? {
         let textRange = table.textStart ..< table.textEnd
-        let implementation = table.address(atHeaderOffset: offset)
+        guard let implementation = address(ofReaderOffset: offset) else { return nil }
         if textRange.contains(implementation) { return implementation }
         guard let followed = relativeTarget(ofFieldAt: implementation), textRange.contains(followed) else { return nil }
         return followed
@@ -193,8 +205,8 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
         var wanted = Set<UInt64>()
         for source in sources.values {
             switch source {
-            case .typeFunction(let descriptor, _):
-                wanted.insert(table.address(atHeaderOffset: descriptor.typeContextDescriptor.offset))
+            case .typeFunction(_, let descriptorAddress, _):
+                wanted.insert(descriptorAddress)
             case .method(let descriptorAddress):
                 wanted.insert(descriptorAddress)
             }
@@ -207,14 +219,12 @@ final class SwiftMetadataNames: ImageFunctionTableAttachment, @unchecked Sendabl
             symbols[address] = name
             return true
         }
-        if let symbolTable = table.image.symbols64 {
-            for symbolIndex in 0 ..< symbolTable.numberOfSymbols {
-                let entry = symbolTable.symbols[symbolIndex]
-                // Defined in a section, not a debugging entry.
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E, wanted.contains(entry.n_value) else { continue }
-                let name = String(cString: symbolTable.stringBase.advanced(by: Int(entry.n_un.n_strx)))
-                if consider(name, at: entry.n_value) { stringByteCount += ApproximateSize.of(name) }
-            }
+        let linkEdit = ImageLinkEdit(image: table.image, memory: table.memory)
+        for symbolIndex in linkEdit.symbols.indices {
+            let entry = linkEdit.symbols[symbolIndex]
+            guard ImageLinkEdit.isDefinedInSection(entry), wanted.contains(entry.n_value), let symbolName = linkEdit.name(ofSymbolAt: symbolIndex) else { continue }
+            let name = String(cString: symbolName)
+            if consider(name, at: entry.n_value) { stringByteCount += ApproximateSize.of(name) }
         }
         for address in wanted {
             for name in exportedNames[address] ?? [] { _ = consider(name, at: address) }

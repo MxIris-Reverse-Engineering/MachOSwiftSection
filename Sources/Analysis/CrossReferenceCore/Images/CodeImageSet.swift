@@ -29,12 +29,15 @@ package struct RuntimeLibraryRules: Sendable {
 /// for its own lifetime; a whole-image scan builds its table and drops it.
 package final class CodeImageSet: @unchecked Sendable {
     /// Every image, shared cache first.
-    package let images: [MachOImage]
+    package let images: [CodeImage]
     /// Each image's path, by position in ``images``: where dyld loaded it —
     /// for a shared cache image, its install name.
     package let imagePaths: [String]
     /// Where every read of image memory goes.
     package let memory: any CrossReferenceMemory
+    /// What `memory` reads, when it refers to it without keeping it alive:
+    /// a `FileCrossReferenceMemory`'s storage, kept for the set's lifetime.
+    private let memoryOwner: AnyObject?
     package let rules: RuntimeLibraryRules
     /// The runtime libraries' helper functions; helpers the compiler emits
     /// into each image are in that image's function table.
@@ -116,9 +119,11 @@ package final class CodeImageSet: @unchecked Sendable {
             }
             images.append(image)
         }
+        let codeImages = images.enumerated().map { imageIndex, image in
+            CodeImage(image: image, path: loadedPaths[imageIndex] ?? image.path ?? "")
+        }
         return CodeImageSet(
-            images: images,
-            loadedPaths: loadedPaths,
+            images: codeImages,
             executableRanges: executableRanges,
             mappedRanges: mappedRanges,
             memory: InProcessCrossReferenceMemory(),
@@ -130,12 +135,84 @@ package final class CodeImageSet: @unchecked Sendable {
         #endif
     }
 
+    /// Every image of a dyld shared cache read from disk, at its own unslid
+    /// addresses: what an archived cache, or another device's, is analyzed
+    /// as. The images come in the cache's order — the order the in-process
+    /// set lists the running cache's images in.
+    package static func dyldCache(
+        _ cache: FullDyldCache,
+        rules: RuntimeLibraryRules,
+        visitingRuntimeLibrarySymbols visitRuntimeLibrarySymbol: (UnsafePointer<CChar>, CodeLocation) -> Void
+    ) -> CodeImageSet {
+        var executableRanges: [Range<UInt>] = []
+        var mappedRanges: [Range<UInt>] = []
+        for subcache in cache.allCaches {
+            for mapping in subcache.mappingInfos ?? [] {
+                let start = UInt(mapping.layout.address)
+                let range = start ..< start + UInt(mapping.layout.size)
+                mappedRanges.append(range)
+                if mapping.maxProtection.contains(.execute) { executableRanges.append(range) }
+            }
+        }
+        let storage = FileCrossReferenceMemory.storage(cache: cache)
+        return CodeImageSet(
+            images: cache.machOFiles().map { CodeImage(file: $0) },
+            executableRanges: executableRanges,
+            mappedRanges: mappedRanges,
+            memory: FileCrossReferenceMemory(storage: storage),
+            memoryOwner: storage,
+            rules: rules,
+            visitingRuntimeLibrarySymbols: visitRuntimeLibrarySymbol
+        )
+    }
+
+    /// Standalone Mach-O files — an app's executable and its frameworks —
+    /// each placed where its address range overlaps no other's, as dyld
+    /// would: a file overlapping one placed before it is slid to the next
+    /// megabyte past every file placed so far. Most frameworks are linked at
+    /// 0, so all but the first are slid.
+    package static func files(
+        _ files: [MachOFile],
+        rules: RuntimeLibraryRules,
+        visitingRuntimeLibrarySymbols visitRuntimeLibrarySymbol: (UnsafePointer<CChar>, CodeLocation) -> Void
+    ) -> CodeImageSet {
+        var placements: [(file: MachOFile, slide: Int)] = []
+        var occupiedRanges: [Range<UInt64>] = []
+        for file in files {
+            let segments = file.segments64.filter { $0.layout.vmsize > 0 && $0.segmentName != "__PAGEZERO" }
+            guard let lowest = segments.map({ UInt64($0.layout.vmaddr) }).min(),
+                  let highest = segments.map({ UInt64($0.layout.vmaddr) &+ UInt64($0.layout.vmsize) }).max()
+            else {
+                placements.append((file, 0))
+                continue
+            }
+            var slide = 0
+            if occupiedRanges.contains(where: { $0.overlaps(lowest ..< highest) }), let occupiedEnd = occupiedRanges.map(\.upperBound).max() {
+                let placedStart = (occupiedEnd &+ 0xF_FFFF) & ~UInt64(0xF_FFFF)
+                slide = Int(truncatingIfNeeded: Int64(bitPattern: placedStart &- lowest))
+            }
+            let slidLowest = UInt64(bitPattern: Int64(bitPattern: lowest) &+ Int64(slide))
+            occupiedRanges.append(slidLowest ..< slidLowest &+ (highest &- lowest))
+            placements.append((file, slide))
+        }
+        let storage = FileCrossReferenceMemory.storage(files: placements)
+        return CodeImageSet(
+            images: placements.map { CodeImage(file: $0.file, slide: $0.slide) },
+            executableRanges: [],
+            mappedRanges: [],
+            memory: FileCrossReferenceMemory(storage: storage),
+            memoryOwner: storage,
+            rules: rules,
+            visitingRuntimeLibrarySymbols: visitRuntimeLibrarySymbol
+        )
+    }
+
     private init(
-        images: [MachOImage],
-        loadedPaths: [Int: String],
+        images: [CodeImage],
         executableRanges: [Range<UInt>],
         mappedRanges: [Range<UInt>],
         memory: any CrossReferenceMemory,
+        memoryOwner: AnyObject? = nil,
         rules: RuntimeLibraryRules,
         visitingRuntimeLibrarySymbols visitRuntimeLibrarySymbol: (UnsafePointer<CChar>, CodeLocation) -> Void
     ) {
@@ -147,22 +224,22 @@ package final class CodeImageSet: @unchecked Sendable {
         var textRanges: [ImageAddressRange] = []
         var dataRanges: [ImageAddressRange] = []
         for (imageIndex, image) in images.enumerated() {
-            let installName = image.path
-            let path = loadedPaths[imageIndex] ?? installName ?? ""
+            let path = image.path
             imagePaths.append(path)
             if indicesByPath[path] == nil { indicesByPath[path] = imageIndex }
-            if let installName { indicesByInstallName[installName, default: []].append(imageIndex) }
-            guard let slide = image.vmaddrSlide, let text = image.segments64.first(where: { $0.segmentName == "__TEXT" }) else { continue }
-            let start = UInt(bitPattern: Int(bitPattern: UInt(text.layout.vmaddr)) &+ slide)
+            if let installName = image.installName { indicesByInstallName[installName, default: []].append(imageIndex) }
+            let segments = Array(image.reader.segments64)
+            guard let text = segments.first(where: { $0.segmentName == "__TEXT" }) else { continue }
+            let start = image.runtimeAddress(ofUnslid: UInt64(text.layout.vmaddr))
             textRanges.append(ImageAddressRange(start: start, end: start + UInt(text.layout.vmsize), imageIndex: imageIndex))
-            for segment in image.segments64 where segment.layout.vmsize > 0 && !["__TEXT", "__LINKEDIT", "__PAGEZERO"].contains(segment.segmentName) {
-                let segmentStart = UInt(bitPattern: Int(bitPattern: UInt(segment.layout.vmaddr)) &+ slide)
+            for segment in segments where segment.layout.vmsize > 0 && !["__TEXT", "__LINKEDIT", "__PAGEZERO"].contains(segment.segmentName) {
+                let segmentStart = image.runtimeAddress(ofUnslid: UInt64(segment.layout.vmaddr))
                 dataRanges.append(ImageAddressRange(start: segmentStart, end: segmentStart + UInt(segment.layout.vmsize), imageIndex: imageIndex))
             }
-            if !image.header.isInDyldCache {
+            if !image.isInSharedCache {
                 executableRanges.append(start ..< start + UInt(text.layout.vmsize))
-                for segment in image.segments64 where segment.layout.vmsize > 0 && segment.segmentName != "__PAGEZERO" {
-                    let segmentStart = UInt(bitPattern: Int(bitPattern: UInt(segment.layout.vmaddr)) &+ slide)
+                for segment in segments where segment.layout.vmsize > 0 && segment.segmentName != "__PAGEZERO" {
+                    let segmentStart = image.runtimeAddress(ofUnslid: UInt64(segment.layout.vmaddr))
                     mappedRanges.append(segmentStart ..< segmentStart + UInt(segment.layout.vmsize))
                 }
             }
@@ -179,10 +256,11 @@ package final class CodeImageSet: @unchecked Sendable {
         self.executableRanges = executableRanges
         self.mappedRanges = mappedRanges
         self.memory = memory
+        self.memoryOwner = memoryOwner
         self.rules = rules
 
         var runtimeHelperLocations = Set<CodeLocation>()
-        Self.forEachDefinedSymbol(ofImagesMatching: rules.isRuntimeLibrary, images: images, imagePaths: imagePaths) { name, location in
+        Self.forEachDefinedSymbol(ofImagesMatching: rules.isRuntimeLibrary, images: images, memory: memory) { name, location in
             if rules.isRuntimeHelperName(name) { runtimeHelperLocations.insert(location) }
             visitRuntimeLibrarySymbol(name, location)
         }
@@ -191,24 +269,27 @@ package final class CodeImageSet: @unchecked Sendable {
 
     private static func forEachDefinedSymbol(
         ofImagesMatching isWanted: (String) -> Bool,
-        images: [MachOImage],
-        imagePaths: [String],
+        images: [CodeImage],
+        memory: any CrossReferenceMemory,
         _ body: (UnsafePointer<CChar>, CodeLocation) -> Void
     ) {
-        for (imageIndex, path) in imagePaths.enumerated() where isWanted(path) {
-            if let symbols = images[imageIndex].symbols64 {
-                for symbolIndex in 0 ..< symbols.numberOfSymbols {
-                    let entry = symbols.symbols[symbolIndex]
-                    guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E else { continue }
-                    body(symbols.stringBase.advanced(by: Int(entry.n_un.n_strx)), CodeLocation(imageIndex: imageIndex, address: entry.n_value))
-                }
+        for (imageIndex, image) in images.enumerated() where isWanted(image.path) {
+            let linkEdit = ImageLinkEdit(image: image, memory: memory)
+            for symbolIndex in linkEdit.symbols.indices {
+                let entry = linkEdit.symbols[symbolIndex]
+                guard ImageLinkEdit.isDefinedInSection(entry), let name = linkEdit.name(ofSymbolAt: symbolIndex) else { continue }
+                body(name, CodeLocation(imageIndex: imageIndex, address: entry.n_value))
             }
-            guard let headerAddress = images[imageIndex].segments64.first(where: { $0.segmentName == "__TEXT" }).map({ UInt64($0.layout.vmaddr) }) else { continue }
-            for symbol in images[imageIndex].exportedSymbols {
+            for symbol in image.reader.exportedSymbols {
                 guard let offset = symbol.offset else { continue }
-                symbol.name.withCString { body($0, CodeLocation(imageIndex: imageIndex, address: UInt64(bitPattern: Int64(bitPattern: headerAddress) &+ Int64(offset)))) }
+                symbol.name.withCString { body($0, CodeLocation(imageIndex: imageIndex, address: image.unslidAddress(atHeaderOffset: offset))) }
             }
         }
+    }
+
+    /// The tables of the image's `__LINKEDIT`, read from memory.
+    package func linkEdit(ofImageAt imageIndex: Int) -> ImageLinkEdit {
+        ImageLinkEdit(image: images[imageIndex], memory: memory)
     }
 
     package func isRuntimeHelperName(_ name: UnsafePointer<CChar>) -> Bool {
@@ -227,22 +308,19 @@ package final class CodeImageSet: @unchecked Sendable {
     /// The image whose `__TEXT` segment holds the runtime address `address`,
     /// and the unslid address there.
     package func location(ofRuntimeAddress address: UInt) -> CodeLocation? {
-        guard let imageIndex = imageIndex(containingRuntimeAddress: address),
-              let slide = images[imageIndex].vmaddrSlide
-        else { return nil }
-        return CodeLocation(imageIndex: imageIndex, address: UInt64(bitPattern: Int64(Int(bitPattern: address) &- slide)))
+        guard let imageIndex = imageIndex(containingRuntimeAddress: address) else { return nil }
+        return CodeLocation(imageIndex: imageIndex, address: images[imageIndex].unslidAddress(ofRuntime: address))
     }
 
     /// What to add to an unslid address of the image at `imageIndex` to reach
     /// the analyzer's address space.
-    package func slide(ofImageAt imageIndex: Int) -> Int? {
-        images[imageIndex].vmaddrSlide
+    package func slide(ofImageAt imageIndex: Int) -> Int {
+        images[imageIndex].slide
     }
 
     /// The runtime address of `location`.
-    package func runtimeAddress(of location: CodeLocation) -> UInt? {
-        guard let slide = slide(ofImageAt: location.imageIndex) else { return nil }
-        return ImageFunctionTable.runtimeAddress(ofUnslid: location.address, slide: slide)
+    package func runtimeAddress(of location: CodeLocation) -> UInt {
+        images[location.imageIndex].runtimeAddress(ofUnslid: location.address)
     }
 
     package func imageIndex(containingRuntimeAddress address: UInt) -> Int? {
@@ -331,7 +409,7 @@ package final class CodeImageSet: @unchecked Sendable {
     }
 
     private func makeFunctionTable(ofImageAt imageIndex: Int) -> ImageFunctionTable {
-        ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], memory: memory, isRuntimeHelperName: rules.isRuntimeHelperName)
+        ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], linkEdit: linkEdit(ofImageAt: imageIndex), memory: memory, isRuntimeHelperName: rules.isRuntimeHelperName)
     }
 
     /// Drops the function tables of every image but `keptImageIndices`, and
@@ -367,13 +445,13 @@ package final class CodeImageSet: @unchecked Sendable {
         var executables: [Int] = []
         var bundles: [Int] = []
         for (imageIndex, image) in images.enumerated() {
-            switch image.header.fileType {
+            switch image.reader.header.fileType {
             case .execute?: executables.append(imageIndex)
             case .bundle?: bundles.append(imageIndex)
             default: break
             }
-            for (command, isReexport) in dylibCommands(ofImageAt: imageIndex) {
-                for dependency in imageIndices(linkedAs: command.dylib(cmdsStart: image.cmdsStartPtr).name) where dependency != imageIndex {
+            for (name, isReexport) in linkedDylibs(ofImageAt: imageIndex) {
+                for dependency in imageIndices(linkedAs: name) where dependency != imageIndex {
                     dependents[dependency, default: []].append(imageIndex)
                     if isReexport { reexporters[dependency, default: []].append(imageIndex) }
                 }
@@ -392,20 +470,11 @@ package final class CodeImageSet: @unchecked Sendable {
         return linkage
     }
 
-    /// The image's dylib load commands, in order — the order a bind's or a
-    /// re-export's library ordinal counts, from 1 — and whether each
-    /// re-exports the dylib.
-    private func dylibCommands(ofImageAt imageIndex: Int) -> [(command: DylibCommand, isReexport: Bool)] {
-        images[imageIndex].loadCommands.compactMap { command in
-            switch command {
-            case .loadDylib(let command), .loadWeakDylib(let command), .loadUpwardDylib(let command), .lazyLoadDylib(let command):
-                return (command, false)
-            case .reexportDylib(let command):
-                return (command, true)
-            default:
-                return nil
-            }
-        }
+    /// The names of the dylibs the image's load commands link, in order —
+    /// the order a bind's or a re-export's library ordinal counts, from 1 —
+    /// and whether each is re-exported.
+    private func linkedDylibs(ofImageAt imageIndex: Int) -> [(name: String, isReexport: Bool)] {
+        images[imageIndex].reader.dependencies.map { ($0.dylib.name, $0.type == .reexport) }
     }
 
     /// The images a load command's dylib name stands for: every image with
@@ -418,7 +487,7 @@ package final class CodeImageSet: @unchecked Sendable {
     /// first element for ordinal 1. An element is empty when no image the
     /// set knows is that dylib.
     package func dependencyImageIndices(ofImageAt imageIndex: Int) -> [[Int]] {
-        dylibCommands(ofImageAt: imageIndex).map { imageIndices(linkedAs: $0.command.dylib(cmdsStart: images[imageIndex].cmdsStartPtr).name) }
+        linkedDylibs(ofImageAt: imageIndex).map { imageIndices(linkedAs: $0.name) }
     }
 
     /// Built on first use and kept: every image's export trie is walked once,

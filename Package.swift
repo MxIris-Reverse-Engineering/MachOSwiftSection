@@ -663,6 +663,7 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .target(.ARM64InstructionDecoding),
+            .target(.CodeAddressResolution),
             .target(.MachOFoundation),
         ],
         path: "Sources/Analysis/CrossReferenceCore",

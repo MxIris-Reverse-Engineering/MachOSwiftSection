@@ -84,18 +84,13 @@ extension CodeImageSet {
         let wantedNames = symbolNames.map { strdup($0)! }
         defer { wantedNames.forEach { free($0) } }
         return candidates.filter { imageIndex in
-            guard let symbols = images[imageIndex].symbols64 else { return false }
-            var range = 0 ..< symbols.numberOfSymbols
-            if let dynamicSymbols = images[imageIndex].loadCommands.info(of: LoadCommand.dysymtab) {
-                let first = Int(dynamicSymbols.iundefsym)
-                let count = Int(dynamicSymbols.nundefsym)
-                if first + count <= symbols.numberOfSymbols { range = first ..< first + count }
-            }
-            for symbolIndex in range {
-                let entry = symbols.symbols[symbolIndex]
+            let linkEdit = linkEdit(ofImageAt: imageIndex)
+            for symbolIndex in linkEdit.undefinedSymbolRange ?? linkEdit.symbols.indices {
+                let entry = linkEdit.symbols[symbolIndex]
                 // An external, undefined symbol.
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0, entry.n_type & 0x01 != 0 else { continue }
-                let name = symbols.stringBase.advanced(by: Int(entry.n_un.n_strx))
+                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0, entry.n_type & 0x01 != 0,
+                      let name = linkEdit.name(ofSymbolAt: symbolIndex)
+                else { continue }
                 for wantedName in wantedNames where strcmp(name, wantedName) == 0 { return true }
             }
             return false

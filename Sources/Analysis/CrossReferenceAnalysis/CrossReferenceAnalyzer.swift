@@ -30,8 +30,14 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     let objectiveC: ObjCCodeReferenceRecognizer
     let swift: SwiftCodeReferenceRecognizer
 
-    /// Every image the analyzer knows, shared cache first.
-    public var images: [MachOImage] { imageSet.images }
+    /// Every image the analyzer knows, shared cache first — for the
+    /// in-process analyzer. Empty for one made from files, whose images are
+    /// no `MachOImage`s: ``imagePaths`` and ``imageCount`` list every image
+    /// in either kind.
+    public let images: [MachOImage]
+
+    /// How many images the analyzer covers, in either kind.
+    public var imageCount: Int { imageSet.images.count }
     /// Each image's path, by position in ``images``: where dyld loaded it —
     /// for a shared cache image, its install name.
     ///
@@ -48,18 +54,60 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
 
     /// The analyzer for the current process, or `nil` when it does not run
     /// arm64 code.
-    public init?() {
-        // The runtime's entry points, found by name in the runtime libraries.
+    public convenience init?() {
+        guard let parts = Self.makeParts(CodeImageSet.inProcess) else { return nil }
+        self.init(parts: parts)
+    }
+
+    /// Analyzes every image of a dyld shared cache read from disk, such as an
+    /// archived one or another device's: the images' code, their slots and
+    /// their metadata are read from the cache's files, where MachOKit mapped
+    /// them, and addresses in and out are the cache's own, unslid ones.
+    ///
+    /// - Throws: ``FileAnalysisError`` when the cache is not an arm64 one.
+    public convenience init(dyldCache: FullDyldCache) throws {
+        guard dyldCache.cpu.type == .arm64 else { throw FileAnalysisError(code: .unsupportedArchitecture, path: dyldCache.url.path) }
+        self.init(parts: Self.makeParts { CodeImageSet.dyldCache(dyldCache, rules: $0, visitingRuntimeLibrarySymbols: $1) }!)
+    }
+
+    /// Analyzes standalone Mach-O files, such as an app's executable and its
+    /// embedded frameworks. A file's addresses in and out are its own; the
+    /// analyzer keeps the files apart internally, as dyld would. A call into
+    /// a library none of the files is stays an imported symbol, named by the
+    /// file's bind; a bind to a symbol one of the files exports — its own,
+    /// for a self-bind — leads to it.
+    ///
+    /// - Throws: ``FileAnalysisError`` when a file is not an arm64 slice.
+    public convenience init(machOFiles: [MachOFile]) throws {
+        if let file = machOFiles.first(where: { $0.header.cpuType != .arm64 }) {
+            throw FileAnalysisError(code: .unsupportedArchitecture, path: file.url.path)
+        }
+        self.init(parts: Self.makeParts { CodeImageSet.files(machOFiles, rules: $0, visitingRuntimeLibrarySymbols: $1) }!)
+    }
+
+    /// What a set of images is analyzed with: the set, and the runtime's
+    /// entry points the language layers found by name in its runtime
+    /// libraries, in the one pass the set makes over their symbols.
+    private typealias Parts = (imageSet: CodeImageSet, objectiveCFunctions: ObjCRuntimeFunctions, swiftFunctions: SwiftRuntimeFunctions)
+
+    private static func makeParts(
+        _ makeImageSet: (RuntimeLibraryRules, (UnsafePointer<CChar>, CodeLocation) -> Void) -> CodeImageSet?
+    ) -> Parts? {
         var objectiveCFunctions = ObjCRuntimeFunctions()
         var swiftFunctions = SwiftRuntimeFunctions()
-        let imageSet = CodeImageSet.inProcess(rules: Self.runtimeLibraryRules) { name, location in
+        let imageSet = makeImageSet(runtimeLibraryRules) { name, location in
             objectiveCFunctions.consider(name, at: location)
             swiftFunctions.consider(name, at: location)
         }
         guard let imageSet else { return nil }
-        self.imageSet = imageSet
-        self.objectiveC = ObjCCodeReferenceRecognizer(images: imageSet, runtimeFunctions: objectiveCFunctions)
-        self.swift = SwiftCodeReferenceRecognizer(images: imageSet, runtimeFunctions: swiftFunctions)
+        return (imageSet, objectiveCFunctions, swiftFunctions)
+    }
+
+    private init(parts: Parts) {
+        self.imageSet = parts.imageSet
+        self.images = parts.imageSet.images.compactMap { $0.reader.asMachOImage }
+        self.objectiveC = ObjCCodeReferenceRecognizer(images: parts.imageSet, runtimeFunctions: parts.objectiveCFunctions)
+        self.swift = SwiftCodeReferenceRecognizer(images: parts.imageSet, runtimeFunctions: parts.swiftFunctions)
     }
 
     // MARK: - Images and functions

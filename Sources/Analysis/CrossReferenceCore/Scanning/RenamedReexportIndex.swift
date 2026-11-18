@@ -38,8 +38,8 @@ package struct RenamedReexportIndex {
         }
         nonisolated(unsafe) let entries = entriesByImage.baseAddress!
         let readTrie: @Sendable (Int) -> Void = { imageIndex in
-            guard let trie = images[imageIndex].exportTrie, trie.exportSize > 0 else { return }
-            (entries + imageIndex).pointee = Self.renamedReexports(inTrieAt: trie.basePointer.assumingMemoryBound(to: UInt8.self), size: trie.exportSize)
+            guard let trie = imageSet.linkEdit(ofImageAt: imageIndex).exportTrie, let base = trie.baseAddress, !trie.isEmpty else { return }
+            (entries + imageIndex).pointee = Self.renamedReexports(inTrieAt: base.assumingMemoryBound(to: UInt8.self), size: trie.count)
         }
         if concurrently {
             DispatchQueue.concurrentPerform(iterations: images.count, execute: readTrie)

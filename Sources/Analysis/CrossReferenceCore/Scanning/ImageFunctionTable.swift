@@ -5,9 +5,11 @@ import ARM64InstructionDecoding
 /// One image's functions and the sections a scan reads, collected in one pass
 /// over its load commands and symbol table.
 ///
-/// Symbol names are kept as pointers into the image's mapped `__LINKEDIT`,
-/// which stays valid for the life of the analyzer's memory; that is what
-/// makes the unchecked `Sendable` sound.
+/// Symbol names are kept as pointers into the image's `__LINKEDIT` in the
+/// analyzer's memory, which stays valid for the life of the memory; that is
+/// what makes the unchecked `Sendable` sound. Everything is read from the
+/// load commands and that memory, so a table is built the same way for an
+/// image in this process and for one in a file.
 ///
 /// Knows no language. What a language layer reads per image — the
 /// Objective-C sections, the names its metadata gives — it keeps as an
@@ -23,7 +25,7 @@ package final class ImageFunctionTable: @unchecked Sendable {
     }
 
     package let imageIndex: Int
-    package let image: MachOImage
+    package let image: CodeImage
     /// Where the image's bytes are read.
     package let memory: any CrossReferenceMemory
     /// What to add to an unslid address to reach memory.
@@ -66,13 +68,13 @@ package final class ImageFunctionTable: @unchecked Sendable {
 
     /// `isRuntimeHelperName` tells the functions a scan marks as runtime
     /// helpers by their symbols — the language layers know which.
-    package init(imageIndex: Int, image: MachOImage, memory: any CrossReferenceMemory, isRuntimeHelperName: (UnsafePointer<CChar>) -> Bool) {
+    package init(imageIndex: Int, image: CodeImage, linkEdit: ImageLinkEdit, memory: any CrossReferenceMemory, isRuntimeHelperName: (UnsafePointer<CChar>) -> Bool) {
         self.imageIndex = imageIndex
         self.image = image
         self.memory = memory
-        let slide = image.vmaddrSlide ?? 0
+        let slide = image.slide
         self.slide = slide
-        let headerAddress = image.segments64.first { $0.segmentName == "__TEXT" }.map { UInt64($0.layout.vmaddr) } ?? 0
+        let headerAddress = image.headerAddress
         self.headerAddress = headerAddress
 
         var textStart: UInt64 = 0
@@ -81,12 +83,10 @@ package final class ImageFunctionTable: @unchecked Sendable {
         var symbolStubRanges: [Range<UInt64>] = []
         var symbolStubs: [UInt64: SymbolStub] = [:]
         var globalOffsetTableRanges: [Range<UInt64>] = []
-        let symbols = image.symbols64
-        let indirectSymbols = image.indirectSymbols.map { Array($0) } ?? []
 
         var ordinal = 0
         var sections: [Section64] = []
-        for section in image.sections64 {
+        for section in image.reader.sections64 {
             sections.append(section)
             ordinal += 1
             let sectionStart = UInt64(section.address)
@@ -96,26 +96,34 @@ package final class ImageFunctionTable: @unchecked Sendable {
                 textStart = sectionRange.lowerBound
                 textEnd = sectionRange.upperBound
                 textSectionOrdinal = ordinal
-            } else if section.flags.type == .symbol_stubs, !sectionRange.isEmpty, let stubs = section.stubs(in: image) {
+            } else if section.flags.type == .symbol_stubs, !sectionRange.isEmpty, section.layout.reserved2 >= 4 {
                 symbolStubRanges.append(sectionRange)
-                for stub in stubs {
+                // `reserved2` is the size of a stub, `reserved1` the index of
+                // the first stub's entry in the indirect symbol table.
+                let stubSize = UInt64(section.layout.reserved2)
+                let wordCount = min(Int(stubSize / 4), ARM64Trampoline.maximumInstructionCount)
+                for stubPosition in 0 ..< Int(UInt64(section.size) / stubSize) {
+                    let stubAddress = sectionStart &+ UInt64(stubPosition) &* stubSize
+                    // `adrp` / `ldr` / `br`, the arm64e `adrp` / `add` / `ldr`
+                    // / `braa`, and `nop` / `ldr x16, <slot>` / `br x16` —
+                    // ld64's stub when the slot lies within a megabyte, every
+                    // stub of a third-party app linked that way. A stub the
+                    // cache builder rewrote to branch straight to its target
+                    // loads no slot.
                     var slotAddress: UInt64?
-                    if case .viaSlot(let address) = stub.branch {
-                        slotAddress = address
-                    } else if case .slotLoad(let address)? = Self.trampoline(in: stub) {
-                        // `nop` / `ldr x16, <slot>` / `br x16`: ld64's stub
-                        // when the slot lies within a megabyte, every stub of
-                        // a third-party app linked that way. MachOKit reads no
-                        // slot from it.
+                    if let words = memory.typedPointer(to: UInt32.self, at: Self.runtimeAddress(ofUnslid: stubAddress, slide: slide), length: wordCount * 4),
+                       case .slotLoad(let address)? = ARM64Trampoline(words: UnsafeBufferPointer(start: words, count: wordCount).map { UInt32(littleEndian: $0) }, at: stubAddress) {
                         slotAddress = address
                     }
                     var name: UnsafePointer<CChar>?
-                    if let indirectIndex = stub.indirectSymbolIndex, indirectIndex < indirectSymbols.count,
-                       let symbolIndex = indirectSymbols[indirectIndex].index,
-                       let symbols, symbolIndex < symbols.numberOfSymbols {
-                        name = symbols.stringBase.advanced(by: Int(symbols.symbols[symbolIndex].n_un.n_strx))
+                    let indirectIndex = Int(section.layout.reserved1) + stubPosition
+                    if indirectIndex < linkEdit.indirectSymbols.count {
+                        let symbolIndex = linkEdit.indirectSymbols[indirectIndex]
+                        if symbolIndex & (ImageLinkEdit.indirectSymbolLocal | ImageLinkEdit.indirectSymbolAbsolute) == 0, Int(symbolIndex) < linkEdit.symbols.count {
+                            name = linkEdit.name(ofSymbolAt: Int(symbolIndex))
+                        }
                     }
-                    symbolStubs[stub.address] = SymbolStub(slotAddress: slotAddress, name: name)
+                    symbolStubs[stubAddress] = SymbolStub(slotAddress: slotAddress, name: name)
                 }
             } else if !sectionRange.isEmpty, sectionName == "__got" || sectionName == "__auth_got" {
                 globalOffsetTableRanges.append(sectionRange)
@@ -132,7 +140,7 @@ package final class ImageFunctionTable: @unchecked Sendable {
         self.sections = sections
         var dataSegmentRanges: [Range<UInt64>] = []
         var segmentRanges: [Range<UInt64>] = []
-        for segment in image.segments64 where segment.layout.vmsize > 0 && segment.segmentName != "__PAGEZERO" {
+        for segment in image.reader.segments64 where segment.layout.vmsize > 0 && segment.segmentName != "__PAGEZERO" {
             let range = UInt64(segment.layout.vmaddr) ..< UInt64(segment.layout.vmaddr) + UInt64(segment.layout.vmsize)
             segmentRanges.append(range)
             if segment.segmentName != "__TEXT", segment.segmentName != "__LINKEDIT" { dataSegmentRanges.append(range) }
@@ -142,13 +150,14 @@ package final class ImageFunctionTable: @unchecked Sendable {
 
         // Symbols in __text, external ones first at each address.
         var namedAddresses: [(address: UInt64, isExternal: Bool, name: UnsafePointer<CChar>?)] = []
-        if let symbols, textSectionOrdinal > 0 {
-            namedAddresses.reserveCapacity(symbols.numberOfSymbols / 2)
-            for symbolIndex in 0 ..< symbols.numberOfSymbols {
-                let entry = symbols.symbols[symbolIndex]
+        if textSectionOrdinal > 0 {
+            namedAddresses.reserveCapacity(linkEdit.symbols.count / 2)
+            for symbolIndex in linkEdit.symbols.indices {
+                let entry = linkEdit.symbols[symbolIndex]
                 // Not a debugging entry, defined in a section, and that section is __text.
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E, Int(entry.n_sect) == textSectionOrdinal else { continue }
-                let name = symbols.stringBase.advanced(by: Int(entry.n_un.n_strx))
+                guard ImageLinkEdit.isDefinedInSection(entry), Int(entry.n_sect) == textSectionOrdinal,
+                      let name = linkEdit.name(ofSymbolAt: symbolIndex)
+                else { continue }
                 let isRedacted = strcmp(name, "<redacted>") == 0
                 namedAddresses.append((entry.n_value, entry.n_type & 0x01 != 0, isRedacted ? nil : name))
             }
@@ -158,17 +167,10 @@ package final class ImageFunctionTable: @unchecked Sendable {
         }
 
         var functionStarts: [UInt64] = []
-        if let starts = image.functionStarts {
-            // `MachOImage.FunctionStarts` seeds its running offset with
-            // __TEXT's vmaddr, so `offset` is already the unslid address,
-            // whatever its documentation says. The trailing padding of the
-            // encoding repeats the last start.
-            for functionStart in starts {
-                let address = UInt64(functionStart.offset)
-                if address >= textStart, address < textEnd, functionStarts.last != address { functionStarts.append(address) }
-            }
-            functionStarts.sort()
+        for address in linkEdit.functionStartAddresses(textAddress: headerAddress) {
+            if address >= textStart, address < textEnd, functionStarts.last != address { functionStarts.append(address) }
         }
+        functionStarts.sort()
 
         var mergedStarts: [UInt64] = []
         var primaryNameIndices: [Int32] = []
@@ -207,23 +209,12 @@ package final class ImageFunctionTable: @unchecked Sendable {
         self.runtimeHelperStarts = runtimeHelperStarts
 
         var dataInCodeRanges: [Range<UInt64>] = []
-        if let entries = image.dataInCode {
-            for entry in entries {
-                let start = headerAddress + UInt64(entry.layout.offset)
-                dataInCodeRanges.append(start ..< start + UInt64(entry.layout.length))
-            }
-            dataInCodeRanges.sort { $0.lowerBound < $1.lowerBound }
+        for entry in linkEdit.dataInCode {
+            let start = headerAddress + UInt64(entry.offset)
+            dataInCodeRanges.append(start ..< start + UInt64(entry.length))
         }
+        dataInCodeRanges.sort { $0.lowerBound < $1.lowerBound }
         self.dataInCodeRanges = dataInCodeRanges
-    }
-
-    /// The trampoline a stub's own bytes make.
-    private static func trampoline(in stub: Stub) -> ARM64Trampoline? {
-        let bytes = stub.rawData
-        let words = stride(from: 0, to: bytes.count - 3, by: 4).map { offset in
-            UInt32(littleEndian: bytes.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self) })
-        }
-        return ARM64Trampoline(words: words, at: stub.address)
     }
 
     package static func runtimeAddress(ofUnslid address: UInt64, slide: Int) -> UInt {

@@ -13,7 +13,7 @@ import Demangling
 /// `7SwiftUI4TextV` — is built only when someone asks for it: it takes
 /// demangling the descriptor's context, tens of microseconds a type.
 final class SwiftTypeIndex: @unchecked Sendable {
-    private let image: MachOImage
+    private let image: CodeImage
     private let imageIndex: Int
     private let slide: Int
     private let memory: any CrossReferenceMemory
@@ -23,16 +23,17 @@ final class SwiftTypeIndex: @unchecked Sendable {
     private var keysByDescriptor: [UInt: String?] = [:]
     private var descriptorSymbolsStorage: [UInt: String]?
 
-    init(image: MachOImage, imageIndex: Int, memory: any CrossReferenceMemory) {
+    init(image: CodeImage, imageIndex: Int, memory: any CrossReferenceMemory) {
         self.image = image
         self.imageIndex = imageIndex
         self.memory = memory
-        self.slide = image.vmaddrSlide ?? 0
+        self.slide = image.slide
         var descriptors: [UInt: TypeContextDescriptorWrapper] = [:]
         var accessors: [UInt: UInt] = [:]
-        let base = UInt(bitPattern: image.ptr)
-        for wrapper in (try? image.swift.typeContextDescriptors) ?? [] {
-            let descriptor = base &+ UInt(bitPattern: wrapper.typeContextDescriptor.offset)
+        let wrappers = image.swiftSectionReader.map { Self.typeContextDescriptors(in: $0) } ?? []
+        for wrapper in wrappers {
+            guard let unslidDescriptor = image.unslidAddress(ofReaderOffset: wrapper.typeContextDescriptor.offset) else { continue }
+            let descriptor = image.runtimeAddress(ofUnslid: unslidDescriptor)
             descriptors[descriptor] = wrapper
             // Every type context descriptor holds its metadata accessor as a
             // relative direct pointer at +12.
@@ -41,6 +42,14 @@ final class SwiftTypeIndex: @unchecked Sendable {
         }
         self.descriptorsByRuntimeAddress = descriptors
         self.descriptorsByAccessor = accessors
+    }
+
+    private static func typeContextDescriptors(in reader: some MachOSwiftSectionRepresentableWithCache) -> [TypeContextDescriptorWrapper] {
+        (try? reader.swift.typeContextDescriptors) ?? []
+    }
+
+    private static func contextNode(of wrapper: TypeContextDescriptorWrapper, in reader: some MachOSwiftSectionRepresentableWithCache) -> Node? {
+        try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: reader.context)
     }
 
     /// The descriptor of the type whose metadata accessor starts at the
@@ -86,7 +95,7 @@ final class SwiftTypeIndex: @unchecked Sendable {
         if let symbol = descriptorSymbols()[address], let node = try? demangleAsNodeTransient(symbol) {
             key = CrossReferenceAnalyzer.nominalKeys(in: node).first
         }
-        if key == nil, let contextNode = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: image.context) {
+        if key == nil, let reader = image.swiftSectionReader, let contextNode = Self.contextNode(of: wrapper, in: reader) {
             key = try? mangleAsString(NodeBuilder(kind: .type, children: [contextNode]).node)
         }
         lock.lock()
@@ -108,18 +117,15 @@ final class SwiftTypeIndex: @unchecked Sendable {
             guard length > 4, name[length - 2] == 0x4D, name[length - 1] == 0x6E else { return }
             symbols[address] = String(cString: name + 1)
         }
-        if let symbolTable = image.symbols64 {
-            for symbolIndex in 0 ..< symbolTable.numberOfSymbols {
-                let entry = symbolTable.symbols[symbolIndex]
-                // Defined in a section, not a debugging entry.
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E else { continue }
-                consider(symbolTable.stringBase.advanced(by: Int(entry.n_un.n_strx)), at: UInt(bitPattern: Int(bitPattern: UInt(entry.n_value)) &+ slide))
-            }
+        let linkEdit = ImageLinkEdit(image: image, memory: memory)
+        for symbolIndex in linkEdit.symbols.indices {
+            let entry = linkEdit.symbols[symbolIndex]
+            guard ImageLinkEdit.isDefinedInSection(entry), let name = linkEdit.name(ofSymbolAt: symbolIndex) else { continue }
+            consider(name, at: image.runtimeAddress(ofUnslid: entry.n_value))
         }
-        let base = UInt(bitPattern: image.ptr)
-        for exported in image.exportedSymbols {
+        for exported in image.reader.exportedSymbols {
             guard let offset = exported.offset, exported.name.hasSuffix("Mn") else { continue }
-            exported.name.withCString { consider($0, at: base &+ UInt(bitPattern: offset)) }
+            exported.name.withCString { consider($0, at: image.runtimeAddress(ofUnslid: image.unslidAddress(atHeaderOffset: offset))) }
         }
         descriptorSymbolsStorage = symbols
         return symbols
