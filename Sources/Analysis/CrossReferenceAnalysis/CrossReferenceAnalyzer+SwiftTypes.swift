@@ -55,7 +55,7 @@ extension CrossReferenceAnalyzer {
     /// spell out — the standard library's and the imported ones — take
     /// demangling the names to find.
     public func references(toSwiftType identity: SwiftTypeIdentity, inImageAt imageIndex: Int) -> [CodeReference] {
-        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex])
+        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], memory: memory)
         var scanner = ReferenceScanner(analyzer: self, table: table, matching: SwiftTypeQuery(identity: identity, analyzer: self))
         var references: [CodeReference] = []
         for index in table.starts.indices {
@@ -135,7 +135,7 @@ extension CrossReferenceAnalyzer {
             return Self.nominalKeys(in: node)
         case .mangledName(let location, _):
             guard let slide = images[location.imageIndex].vmaddrSlide,
-                  let pointer = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide),
+                  let pointer = memory.bytes(at: UInt(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide), length: 1)?.baseAddress,
                   let mangledName = try? MangledName.resolve(at: pointer, in: InProcessContext.shared),
                   let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledName, in: InProcessContext.shared)
             else { return [] }
@@ -249,7 +249,7 @@ final class SwiftTypeQuery {
         self.mayBeSpelledOut = Self.mayBeSpelledOut(identity.key)
         var typeName: String?
         if let slide = analyzer.images[identity.descriptorLocation.imageIndex].vmaddrSlide,
-           let name = SwiftTypeIndex.name(ofDescriptorAt: UInt(bitPattern: Int(bitPattern: UInt(identity.descriptorLocation.address)) &+ slide)) {
+           let name = SwiftTypeIndex.name(ofDescriptorAt: UInt(bitPattern: Int(bitPattern: UInt(identity.descriptorLocation.address)) &+ slide), in: analyzer.memory) {
             typeName = String(cString: name)
         }
         self.typeName = typeName
@@ -288,7 +288,7 @@ final class SwiftTypeQuery {
         var result = false
         if let slide = analyzer.images[location.imageIndex].vmaddrSlide {
             let descriptor = UInt(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide)
-            if let name = SwiftTypeIndex.name(ofDescriptorAt: descriptor), strcmp(name, typeName) == 0 {
+            if let name = SwiftTypeIndex.name(ofDescriptorAt: descriptor, in: analyzer.memory), strcmp(name, typeName) == 0 {
                 result = analyzer.swiftTypeIndex(ofImageAt: location.imageIndex).key(ofDescriptorAt: descriptor) == identity.key
             }
         }
@@ -302,24 +302,25 @@ final class SwiftTypeQuery {
             // A symbol spells every type out.
             return analyzer.swiftTypeKeys(in: name).contains(identity.key)
         case .mangledName(let location, let length):
-            guard let slide = analyzer.images[location.imageIndex].vmaddrSlide,
-                  let bytes = UnsafePointer<UInt8>(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide)
-            else { return false }
+            guard let slide = analyzer.images[location.imageIndex].vmaddrSlide else { return false }
+            let nameAddress = UInt(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide)
+            guard let bytes = analyzer.memory.typedPointer(to: UInt8.self, at: nameAddress, length: length) else { return false }
             var index = 0
             while index < length {
                 let byte = bytes[index]
                 if byte == 0x01 || byte == 0x02, index + 5 <= length {
                     // A symbolic reference to a context descriptor, direct or
                     // through a pointer.
-                    let field = UInt(bitPattern: bytes + index + 1)
+                    // The field's own address, from which the reference counts.
+                    let field = nameAddress &+ UInt(index + 1)
                     let relative = UnsafeRawPointer(bytes + index + 1).loadUnaligned(as: Int32.self)
                     var descriptor = UInt(bitPattern: Int(bitPattern: field) &+ Int(relative))
                     if byte == 0x02 {
-                        guard analyzer.isMapped(runtimeAddress: descriptor, length: 8), let slot = UnsafeRawPointer(bitPattern: descriptor) else {
+                        guard analyzer.isMapped(runtimeAddress: descriptor, length: 8), let target = analyzer.memory.pointer(at: descriptor) else {
                             index += 5
                             continue
                         }
-                        descriptor = StoredPointer.address(in: slot.loadUnaligned(as: UInt64.self))
+                        descriptor = target
                     }
                     if let descriptorLocation = analyzer.location(ofDescriptorAtRuntimeAddress: descriptor), matchesDescriptor(at: descriptorLocation) {
                         return true

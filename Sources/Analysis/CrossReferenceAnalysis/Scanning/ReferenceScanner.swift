@@ -423,8 +423,7 @@ struct ReferenceScanner {
             || (analyzer.imageIndex(containingDataAddress: runtimeSlot) == nil
                 && analyzer.imageIndex(containingRuntimeAddress: runtimeSlot) == nil
                 && analyzer.isMapped(runtimeAddress: runtimeSlot, length: 8))
-        if isReferenceSlot, let pointer = UnsafeRawPointer(bitPattern: runtimeSlot) {
-            let value = StoredPointer.address(in: pointer.loadUnaligned(as: UInt64.self))
+        if isReferenceSlot, runtimeSlot != 0, let value = analyzer.memory.pointer(at: runtimeSlot) {
             slotReference = addressReference(atRuntimeAddress: value) ?? accessorReference(atRuntimeAddress: value)
         }
         slotReferences[slot] = slotReference
@@ -442,8 +441,8 @@ struct ReferenceScanner {
 
     /// The class a slot at the runtime `slot` points at.
     private mutating func classObject(storedAt runtimeSlot: UInt) -> ObjectiveCClassObject? {
-        guard let pointer = UnsafeRawPointer(bitPattern: runtimeSlot) else { return nil }
-        return classObject(atRuntimeAddress: StoredPointer.address(in: pointer.loadUnaligned(as: UInt64.self)))
+        guard runtimeSlot != 0, let classAddress = analyzer.memory.pointer(at: runtimeSlot) else { return nil }
+        return classObject(atRuntimeAddress: classAddress)
     }
 
     private func classObject(atRuntimeAddress address: UInt) -> ObjectiveCClassObject? {
@@ -461,12 +460,10 @@ struct ReferenceScanner {
     /// `address`: a struct, an enum, an optional or an imported type, whose
     /// metadata holds its kind first and its descriptor next.
     private mutating func valueMetadataDescriptor(atRuntimeAddress address: UInt) -> CodeLocation? {
-        guard analyzer.isMapped(runtimeAddress: address, length: 16), let metadata = UnsafeRawPointer(bitPattern: address) else { return nil }
+        guard address != 0, analyzer.isMapped(runtimeAddress: address, length: 16), let kind = analyzer.memory.load(UInt64.self, at: address) else { return nil }
         // MetadataKind: struct 0x200, enum 0x201, optional 0x202, foreign
         // class 0x203, foreign reference type 0x204.
-        let kind = metadata.loadUnaligned(as: UInt64.self)
-        guard kind >= 0x200, kind <= 0x204 else { return nil }
-        let descriptor = StoredPointer.address(in: metadata.loadUnaligned(fromByteOffset: 8, as: UInt64.self))
+        guard kind >= 0x200, kind <= 0x204, let descriptor = analyzer.memory.pointer(at: address &+ 8) else { return nil }
         guard let imageIndex = analyzer.imageIndex(containingRuntimeAddress: descriptor) else { return nil }
         let index = swiftTypeIndex(ofImageAt: imageIndex)
         return index.describesType(descriptorAt: descriptor) ? index.location(ofRuntimeAddress: descriptor) : nil
@@ -506,9 +503,11 @@ struct ReferenceScanner {
     private func mangledNameInRecord(inRegister register: Int) -> SwiftTypeName? {
         guard let record = registers.builtAddress(of: register) else { return nil }
         let runtimeRecord = runtimeAddress(ofUnslid: record, slide: table.slide)
-        guard analyzer.isMapped(runtimeAddress: runtimeRecord, length: 8), let pointer = UnsafeRawPointer(bitPattern: runtimeRecord) else { return nil }
-        let offset = pointer.loadUnaligned(as: Int32.self)
-        let length = Int(pointer.loadUnaligned(fromByteOffset: 4, as: Int32.self))
+        guard runtimeRecord != 0, analyzer.isMapped(runtimeAddress: runtimeRecord, length: 8),
+              let offset = analyzer.memory.load(Int32.self, at: runtimeRecord),
+              let storedLength = analyzer.memory.load(Int32.self, at: runtimeRecord &+ 4)
+        else { return nil }
+        let length = Int(storedLength)
         return mangledName(at: ARM64InstructionWord.adding(Int64(offset), to: record), length: length)
     }
 
@@ -519,8 +518,7 @@ struct ReferenceScanner {
     private func mangledNameInCacheVariable(inRegister register: Int) -> SwiftTypeName? {
         guard let cache = registers.builtAddress(of: register) else { return nil }
         let runtimeCache = runtimeAddress(ofUnslid: cache, slide: table.slide)
-        guard analyzer.isMapped(runtimeAddress: runtimeCache, length: 8), let pointer = UnsafeRawPointer(bitPattern: runtimeCache) else { return nil }
-        let value = pointer.loadUnaligned(as: Int64.self)
+        guard runtimeCache != 0, analyzer.isMapped(runtimeAddress: runtimeCache, length: 8), let value = analyzer.memory.load(Int64.self, at: runtimeCache) else { return nil }
         guard value < 0 else { return nil }
         return mangledName(at: ARM64InstructionWord.adding(Int64(Int32(truncatingIfNeeded: value)), to: cache), length: -Int(Int32(truncatingIfNeeded: value >> 32)))
     }
@@ -532,7 +530,7 @@ struct ReferenceScanner {
         guard let name = registers.builtAddress(of: register) else { return nil }
         let runtimeName = runtimeAddress(ofUnslid: name, slide: table.slide)
         let readableLength = Int(min(analyzer.mappedLength(fromRuntimeAddress: runtimeName), UInt(Self.maximumMangledNameLength)))
-        guard readableLength > 0, let bytes = UnsafePointer<UInt8>(bitPattern: runtimeName) else { return nil }
+        guard readableLength > 0, runtimeName != 0, let bytes = analyzer.memory.typedPointer(to: UInt8.self, at: runtimeName, length: readableLength) else { return nil }
         var length = 0
         while length < readableLength {
             let byte = bytes[length]
@@ -585,7 +583,7 @@ struct ReferenceScanner {
     private mutating func selectorInSelectorRegister() -> String? {
         if let slotAddress = registers.slotAddress(of: 1) {
             guard let range = table.selectorReferenceRange, range.contains(slotAddress),
-                  let selector = ImageFunctionTable.selectorString(inSlotAt: slotAddress, slide: table.slide)
+                  let selector = ImageFunctionTable.selectorString(inSlotAt: slotAddress, slide: table.slide, in: analyzer.memory)
             else { return nil }
             return selectorName(selector)
         }
@@ -604,7 +602,7 @@ struct ReferenceScanner {
     /// convention only, and a string runs to wherever its terminator is.
     private func selectorString(atRuntimeAddress address: UInt) -> UnsafePointer<CChar>? {
         let readableLength = min(analyzer.mappedLength(fromRuntimeAddress: address), UInt(Self.maximumSelectorLength))
-        guard readableLength > 0, let bytes = UnsafePointer<UInt8>(bitPattern: address) else { return nil }
+        guard readableLength > 0, address != 0, let bytes = analyzer.memory.typedPointer(to: UInt8.self, at: address, length: Int(readableLength)) else { return nil }
         for index in 0 ..< Int(readableLength) {
             let byte = bytes[index]
             if byte == 0 {
@@ -720,14 +718,15 @@ struct ReferenceScanner {
         }
         // Between images: a stub or island the cache builder put there.
         guard hops < Self.maximumTrampolineHops,
+              address != 0,
               analyzer.isExecutable(runtimeAddress: address, length: UInt(ARM64Trampoline.maximumInstructionCount * 4)),
-              let pointer = UnsafeRawPointer(bitPattern: address),
+              let pointer = analyzer.memory.bytes(at: address, length: ARM64Trampoline.maximumInstructionCount * 4)?.baseAddress,
               let trampoline = ARM64Trampoline(readingAt: pointer, address: UInt64(address))
         else { return .unrecognized }
         switch trampoline {
         case .selectorStub(let selectorAddress, _):
-            guard analyzer.isMapped(runtimeAddress: UInt(selectorAddress), length: 1),
-                  let selector = UnsafePointer<CChar>(bitPattern: UInt(selectorAddress))
+            guard selectorAddress != 0, analyzer.isMapped(runtimeAddress: UInt(selectorAddress), length: 1),
+                  let selector = analyzer.memory.typedPointer(to: CChar.self, at: UInt(selectorAddress), length: 1)
             else { return .unrecognized }
             return .selector(selector)
         case .slotLoad(let slotAddress):
@@ -740,11 +739,9 @@ struct ReferenceScanner {
     /// Follows the pointer a GOT slot holds — dyld or the cache builder bound
     /// it already.
     private func resolveSlot(atRuntimeAddress slotAddress: UInt, hops: Int, detectsTypeFunctions: Bool) -> ResolvedTarget? {
-        guard analyzer.isMapped(runtimeAddress: slotAddress, length: 8),
-              let slot = UnsafeRawPointer(bitPattern: slotAddress)
+        guard slotAddress != 0, analyzer.isMapped(runtimeAddress: slotAddress, length: 8),
+              let target = analyzer.memory.pointer(at: slotAddress), target != 0
         else { return nil }
-        let target = StoredPointer.address(in: slot.loadUnaligned(as: UInt64.self))
-        guard target != 0 else { return nil }
         return resolve(runtimeAddress: target, hops: hops, detectsTypeFunctions: detectsTypeFunctions)
     }
 

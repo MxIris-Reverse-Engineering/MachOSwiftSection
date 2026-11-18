@@ -30,24 +30,25 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
 
     private let image: MachOImage
     private let imageIndex: Int
+    private let memory: any CrossReferenceMemory
     private let slide: Int
     private let entriesByRuntimeAddress: [UInt: Entry]
     private let lock = NSLock()
     private var namesByClassAddress: [UInt: String?] = [:]
 
-    init(image: MachOImage, imageIndex: Int) {
+    init(image: MachOImage, imageIndex: Int, memory: any CrossReferenceMemory) {
         self.image = image
         self.imageIndex = imageIndex
+        self.memory = memory
         self.slide = image.vmaddrSlide ?? 0
         var entries: [UInt: Entry] = [:]
         for section in image.sections64 where section.sectionName == "__objc_classlist" {
-            guard let list = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide) else { continue }
+            let list = UInt(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide)
             for position in 0 ..< section.size / 8 {
-                let classAddress = StoredPointer.address(in: list.loadUnaligned(fromByteOffset: position * 8, as: UInt64.self))
-                guard let classObject = UnsafeRawPointer(bitPattern: classAddress) else { continue }
+                guard let classAddress = memory.pointer(at: list &+ UInt(position * 8)), classAddress != 0 else { continue }
                 entries[classAddress] = Entry(classAddress: classAddress, isMetaclass: false)
                 // A class's `isa` is its metaclass.
-                let metaclassAddress = StoredPointer.address(in: classObject.loadUnaligned(as: UInt64.self))
+                guard let metaclassAddress = memory.pointer(at: classAddress) else { continue }
                 if metaclassAddress != 0, entries[metaclassAddress] == nil {
                     entries[metaclassAddress] = Entry(classAddress: classAddress, isMetaclass: true)
                 }
@@ -105,8 +106,8 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
     /// low bits of its data word (+0x20) is set.
     func isSwiftClass(at classLocation: CodeLocation) -> Bool {
         let classAddress = UInt(bitPattern: Int(bitPattern: UInt(classLocation.address)) &+ slide)
-        guard entriesByRuntimeAddress[classAddress] != nil, let classObject = UnsafeRawPointer(bitPattern: classAddress) else { return false }
-        return classObject.loadUnaligned(fromByteOffset: 0x20, as: UInt64.self) & 0x3 != 0
+        guard entriesByRuntimeAddress[classAddress] != nil, let dataWord = memory.load(UInt64.self, at: classAddress &+ 0x20) else { return false }
+        return dataWord & 0x3 != 0
     }
 
     /// The Swift class whose type context descriptor lies at the runtime
@@ -114,9 +115,9 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
     /// sets one of the two low bits of its data word (+0x20).
     func swiftClassObject(describedBy descriptor: UInt) -> ObjectiveCClassObject? {
         for (address, entry) in entriesByRuntimeAddress where !entry.isMetaclass {
-            guard let classObject = UnsafeRawPointer(bitPattern: address),
-                  classObject.loadUnaligned(fromByteOffset: 0x20, as: UInt64.self) & 0x3 != 0,
-                  StoredPointer.address(in: classObject.loadUnaligned(fromByteOffset: 0x40, as: UInt64.self)) == descriptor,
+            guard let dataWord = memory.load(UInt64.self, at: address &+ 0x20),
+                  dataWord & 0x3 != 0,
+                  memory.pointer(at: address &+ 0x40) == descriptor,
                   let name = name(ofClassAt: address)
             else { continue }
             return ObjectiveCClassObject(name: name, location: location(ofRuntimeAddress: address))
@@ -136,9 +137,9 @@ final class ObjectiveCClassIndex: @unchecked Sendable {
         }
         lock.unlock()
         var name: String?
-        if let pointer = UnsafeRawPointer(bitPattern: classAddress) {
+        if let layout = memory.load(ObjCClass64.Layout.self, at: classAddress) {
             let classObject = ObjCClass64(
-                layout: pointer.assumingMemoryBound(to: ObjCClass64.Layout.self).pointee,
+                layout: layout,
                 offset: Int(bitPattern: classAddress &- UInt(bitPattern: image.ptr))
             )
             name = Self.readOnlyData(of: classObject, in: image)?.name(in: image)

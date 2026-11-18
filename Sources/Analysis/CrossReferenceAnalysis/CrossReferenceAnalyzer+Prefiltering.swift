@@ -64,13 +64,13 @@ extension CrossReferenceAnalyzer {
                 let image = images[imageIndex]
                 guard let slide = image.vmaddrSlide,
                       let section = image.sections64.first(where: { $0.sectionName == "__objc_selrefs" }),
-                      section.size > 0,
-                      let slots = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide)
+                      section.size > 0
                 else { return false }
+                let slots = UInt(bitPattern: Int(bitPattern: UInt(section.address)) &+ slide)
                 for slotIndex in 0 ..< section.size / 8 {
-                    let string = StoredPointer.address(in: slots.loadUnaligned(fromByteOffset: slotIndex * 8, as: UInt64.self))
+                    guard let string = memory.pointer(at: slots &+ UInt(slotIndex * 8)) else { continue }
                     if string == matchedString { return true }
-                    guard let pointer = UnsafePointer<CChar>(bitPattern: string) else { continue }
+                    guard string != 0, let pointer = memory.typedPointer(to: CChar.self, at: string, length: 1) else { continue }
                     if strcmp(pointer, wantedSelector) == 0 {
                         matchedString = string
                         return true

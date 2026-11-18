@@ -64,6 +64,9 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// name, and the register each takes the name in: `x0`, or `x1` for the
     /// `…InMetadataState` forms, whose first argument is the state.
     let typeByMangledNameEntries: [CodeLocation: Int]
+    /// Where every read of image memory goes: the process's own memory for
+    /// an in-process analyzer.
+    let memory: any CrossReferenceMemory
 
     private let indicesByPath: [String: Int]
     /// Every image an install name names: the name load commands link an
@@ -157,6 +160,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         self.dataRanges = dataRanges
         self.executableRanges = executableRanges
         self.mappedRanges = mappedRanges
+        self.memory = InProcessCrossReferenceMemory()
 
         // The runtime's entry points, found by name in the runtime libraries.
         var messageSendLocations = Set<CodeLocation>()
@@ -275,7 +279,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     public func functions(containing locations: some Sequence<CodeLocation>) -> [CodeLocation: CodeFunction] {
         var functions: [CodeLocation: CodeFunction] = [:]
         for (imageIndex, imageLocations) in Dictionary(grouping: locations, by: \.imageIndex) {
-            let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex])
+            let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], memory: memory)
             for location in imageLocations {
                 guard let index = table.functionIndex(containing: location.address) else { continue }
                 functions[location] = table.codeFunction(at: index)
@@ -312,7 +316,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// thousands of images, and keeping every table it touched held 1.5 GB
     /// after a scan of a macOS 27.2 cache.
     public func referenceTable(ofImageAt imageIndex: Int) -> CodeReferenceTable {
-        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex])
+        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], memory: memory)
         var scanner = ReferenceScanner(analyzer: self, table: table)
         var references: [CodeReference] = []
         for index in table.starts.indices {
@@ -447,7 +451,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     /// cross-image query scans thousands of images at once; building them all
     /// is what sets the scan's peak memory.
     public func references(to keys: Set<CodeReferenceTable.Key>, inImageAt imageIndex: Int) -> [CodeReference] {
-        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex])
+        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], memory: memory)
         var scanner = ReferenceScanner(analyzer: self, table: table, keeping: keys)
         var references: [CodeReference] = []
         for index in table.starts.indices {
@@ -490,7 +494,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         lock.unlock()
         // Built outside the lock: two threads may build the same table once
         // each, and the first one stored wins.
-        let table = ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex])
+        let table = ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex], memory: memory)
         lock.lock()
         defer { lock.unlock() }
         if let stored = functionTables[imageIndex] { return stored }
@@ -541,7 +545,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
             return index
         }
         lock.unlock()
-        let index = ObjectiveCClassIndex(image: images[imageIndex], imageIndex: imageIndex)
+        let index = ObjectiveCClassIndex(image: images[imageIndex], imageIndex: imageIndex, memory: memory)
         lock.lock()
         defer { lock.unlock() }
         if let stored = classIndexes[imageIndex] { return stored }
@@ -659,7 +663,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
             return index
         }
         lock.unlock()
-        let index = SwiftTypeIndex(image: images[imageIndex], imageIndex: imageIndex)
+        let index = SwiftTypeIndex(image: images[imageIndex], imageIndex: imageIndex, memory: memory)
         lock.lock()
         defer { lock.unlock() }
         if let stored = swiftTypeIndexes[imageIndex] { return stored }

@@ -19,6 +19,8 @@ final class ImageFunctionTable: @unchecked Sendable {
 
     let imageIndex: Int
     let image: MachOImage
+    /// Where the image's bytes are read.
+    let memory: any CrossReferenceMemory
     /// What to add to an unslid address to reach memory.
     let slide: Int
     let textStart: UInt64
@@ -52,13 +54,16 @@ final class ImageFunctionTable: @unchecked Sendable {
     let dataInCodeRanges: [Range<UInt64>]
     /// The unslid address of the Mach header — `__TEXT`'s vmaddr.
     let headerAddress: UInt64
+    /// The instructions of `__text`, from `textStart` on.
+    private let instructions: UnsafePointer<UInt32>?
 
     private let fallbackNamesLock = NSLock()
     private var fallbackNamesStorage: ImageFallbackNames?
 
-    init(imageIndex: Int, image: MachOImage) {
+    init(imageIndex: Int, image: MachOImage, memory: any CrossReferenceMemory) {
         self.imageIndex = imageIndex
         self.image = image
+        self.memory = memory
         let slide = image.vmaddrSlide ?? 0
         self.slide = slide
         let headerAddress = image.segments64.first { $0.segmentName == "__TEXT" }.map { UInt64($0.layout.vmaddr) } ?? 0
@@ -91,7 +96,7 @@ final class ImageFunctionTable: @unchecked Sendable {
                 objectiveCStubRange = sectionRange
                 for objectiveCStub in stubs {
                     guard let selectorReference = objectiveCStub.selectorReference,
-                          let selector = Self.selectorString(inSlotAt: selectorReference, slide: slide)
+                          let selector = Self.selectorString(inSlotAt: selectorReference, slide: slide, in: memory)
                     else { continue }
                     objectiveCStubSelectors[objectiveCStub.stub.address] = selector
                 }
@@ -126,6 +131,9 @@ final class ImageFunctionTable: @unchecked Sendable {
         }
         self.textStart = textStart
         self.textEnd = textEnd
+        self.instructions = textEnd > textStart
+            ? memory.typedPointer(to: UInt32.self, at: Self.runtimeAddress(ofUnslid: textStart, slide: slide), length: Int(textEnd - textStart))
+            : nil
         self.objectiveCStubRange = objectiveCStubRange
         self.objectiveCStubSelectors = objectiveCStubSelectors
         self.symbolStubRanges = symbolStubRanges
@@ -229,11 +237,16 @@ final class ImageFunctionTable: @unchecked Sendable {
         return ARM64Trampoline(words: words, at: stub.address)
     }
 
-    /// The selector string a selector reference slot points at, read from
-    /// memory — the cache builder and dyld have already bound it.
-    static func selectorString(inSlotAt slotAddress: UInt64, slide: Int) -> UnsafePointer<CChar>? {
-        guard let slot = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(slotAddress)) &+ slide) else { return nil }
-        return UnsafePointer<CChar>(bitPattern: StoredPointer.address(in: slot.loadUnaligned(as: UInt64.self)))
+    /// The selector string a selector reference slot points at — the slot
+    /// the cache builder or dyld has bound. Its length is not checked: a
+    /// selector reference always points at a selector name.
+    static func selectorString(inSlotAt slotAddress: UInt64, slide: Int, in memory: any CrossReferenceMemory) -> UnsafePointer<CChar>? {
+        guard let selector = memory.pointer(at: runtimeAddress(ofUnslid: slotAddress, slide: slide)), selector != 0 else { return nil }
+        return memory.typedPointer(to: CChar.self, at: selector, length: 1)
+    }
+
+    static func runtimeAddress(ofUnslid address: UInt64, slide: Int) -> UInt {
+        UInt(bitPattern: Int(bitPattern: UInt(address)) &+ slide)
     }
 
     /// The index in `starts` of the function containing `address`.
@@ -271,9 +284,10 @@ final class ImageFunctionTable: @unchecked Sendable {
         return name[0] == 0x2B && name[1] == 0x5B
     }
 
-    /// The memory holding the instruction at the unslid `address`.
+    /// The memory holding the instruction at the unslid `address`, which
+    /// lies in `__text`.
     func instructionPointer(at address: UInt64) -> UnsafePointer<UInt32> {
-        UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(address)) &+ slide)!.assumingMemoryBound(to: UInt32.self)
+        instructions!.advanced(by: Int((address - textStart) / 4))
     }
 
     func isInDataInCode(_ address: UInt64) -> Bool {
@@ -304,7 +318,7 @@ final class ImageFunctionTable: @unchecked Sendable {
         fallbackNamesLock.lock()
         defer { fallbackNamesLock.unlock() }
         if let fallbackNamesStorage { return fallbackNamesStorage }
-        let fallbackNames = ImageFallbackNames(image: image, headerAddress: headerAddress, slide: slide, textRange: textStart ..< textEnd)
+        let fallbackNames = ImageFallbackNames(image: image, headerAddress: headerAddress, slide: slide, textRange: textStart ..< textEnd, memory: memory)
         fallbackNamesStorage = fallbackNames
         return fallbackNames
     }

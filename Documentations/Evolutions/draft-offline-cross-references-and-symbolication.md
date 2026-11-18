@@ -1,9 +1,9 @@
 # Draft - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-18
-- **最后更新**: 2026-11-18
+- **最后更新**: 2026-11-19
 - **所属愿景**: [不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)（第 1 阶段）
 - **关联提案**:
   - [0072 cross-reference-analysis](0072-cross-reference-analysis.md)：进程内的交叉引用分析，本提案在它上面扩展。
@@ -841,20 +841,21 @@ package protocol SwiftCodeReferenceRecording: CodeReferenceRecording {
 
 ```swift
 package protocol CrossReferenceMemory: Sendable {
-    /// Read-only bytes of an image range, contiguous, for the scanner's decode loop.
-    func bytes(inImageAt imageIndex: Int, unslidRange: Range<UInt64>) -> UnsafeRawBufferPointer?
-    /// What a pointer slot holds: an address in some image, or an imported symbol name.
-    func slotContent(at unslidAddress: UInt64, inImageAt imageIndex: Int) -> SlotContent?
-    /// A NUL-terminated C string at the address, if it is printable to the end.
-    func cString(at unslidAddress: UInt64) -> String?
-    /// Mask that strips pointer-authentication and tag bits.
-    var addressMask: UInt64 { get }
+    /// The `length` bytes from `address` on — an address in the analyzer's own
+    /// address space — contiguous and read-only, or nil when they cannot be read.
+    func bytes(at address: UInt, length: Int) -> UnsafeRawBufferPointer?
+    /// What the pointer slot at `address` holds, its signature and tag bits stripped.
+    func slotContent(at address: UInt) -> SlotContent?
+    /// The bits of a stored pointer that are its address.
+    var addressMask: UInt { get }
 }
 
 package enum SlotContent: Hashable, Sendable {
-    case address(UInt64)
+    case address(UInt)
     case importedSymbol(String)
 }
+
+// load(_:at:), pointer(at:), typedPointer(to:at:length:) are extension helpers.
 ```
 
 并发：分析器今天是 `@unchecked Sendable` 加手写锁（裁决 A62）。`FileCrossReferenceMemory` 的读取是对只读
@@ -999,7 +1000,7 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 
 ## 落地步骤
 
-1. **读取抽象，行为不变** —— 改动地图里的 `CrossReferenceMemory`、`InProcessCrossReferenceMemory`、分析器与
+1. **读取抽象，行为不变**（已完成） —— 改动地图里的 `CrossReferenceMemory`、`InProcessCrossReferenceMemory`、分析器与
    各扫描文件的读取改造、`StoredPointer`、`Package.swift`。
    - 行为：`inProcessReferenceTablesAreUnchangedForAppKitSwiftUICoreAndFoundation`（改造前后逐条比对整表）
    - 行为：`crossReferenceAnalysisReadsMemoryOnlyThroughCrossReferenceMemory`（源码扫描：分析模块里不再有
@@ -1091,3 +1092,4 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-18 | 实测后改用 IDA 核对 | 在 Finder 与 ControlCenter 上实测：代码引用召回 IDA 两跳 99.4%、Binary Ninja 经 MCP 67.6%。第 3 步的核对改以独立生成的标准答案为准、IDA 对照、Binary Ninja 补充；双方的三处盲点（页对齐类对象、Swift 大字符串、`retab` 后的清理代码）加成测试 |
 | 2026-11-18 | 改为按层拆分、分两步迁移 | 用户提出把核心放进 MachOKitExtensions、ObjC 与 Swift 各管自己的部分。核实了两份 MachOKitExtensions 迁移提案都已 Accepted，核心层要的依赖届时都在那里；难点在扫描器里 ObjC 与 Swift 的识别穿插在五个时机。用户在「一步到位写进三个仓库」与「先在本库拆层、量完再迁」之间选了后者。本提案因此新增第 2 步：拆成 `CrossReferenceCore`、`CrossReferenceObjC`、`CrossReferenceAnalysis` 三个模块，经识别器与记录协议相接，核心不认识任何语言，源码扫描守住 import 边界，公开模型与 API 留在顶层不变；`MachOAddressResolution` 改名 `CodeAddressResolution`，下层模块在本库里的名字刻意不同于落脚处，避开同名模块与 `MachO` 前缀两条约束；`Route` 去掉按节区分的两个 case。原第 2–8 步顺延为第 3–9 步（上面几行里的「第 3 步」指现在的第 4 步）。真正的搬迁另写迁移提案 |
 | 2026-11-18 | Accepted | 用户批准，开始实现 |
+| 2026-11-19 | 第 1 步完成 | 读取协议按分析器地址空间里的地址读（进程内就是运行时地址），而不是原设计的「未滑动地址 + 镜像下标」：现有代码处处用运行时地址，这样改动最小，文件模式给每个镜像定一个滑动量即可。进程内实现不检查映射，信任调用方——此前的直接读也不检查，可能读到未映射地址的地方本来就先问 `isMapped`。「整表不变」做成靠环境变量驱动的 A/B 测试（`ReferenceTableDigestTests`）：基线用 `git archive` 导出、拷入同一个测试文件生成摘要，候选与之比对；两边都要带 `USING_LOCAL_DEPENDENCIES=1`，因为 `next` 已用到 swift-demangling 未发版的 API。2026-11-19 在 Ultra 上 AppKit、SwiftUICore、Foundation 三个镜像逐条一致 |

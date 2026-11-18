@@ -35,6 +35,7 @@ final class ImageFallbackNames: @unchecked Sendable {
     private let headerAddress: UInt64
     private let slide: Int
     private let textRange: Range<UInt64>
+    private let memory: any CrossReferenceMemory
 
     private let lock = NSLock()
     private var exportedNamesStorage: [UInt64: [String]]?
@@ -46,11 +47,12 @@ final class ImageFallbackNames: @unchecked Sendable {
     /// What the sources read so far take, counted as each is read.
     private var sourceByteCount = 0
 
-    init(image: MachOImage, headerAddress: UInt64, slide: Int, textRange: Range<UInt64>) {
+    init(image: MachOImage, headerAddress: UInt64, slide: Int, textRange: Range<UInt64>, memory: any CrossReferenceMemory) {
         self.image = image
         self.headerAddress = headerAddress
         self.slide = slide
         self.textRange = textRange
+        self.memory = memory
     }
 
     /// The name of the function at the unslid `address`, and the other names
@@ -287,9 +289,7 @@ final class ImageFallbackNames: @unchecked Sendable {
     /// The target of a 32-bit relative pointer stored at the unslid `field`,
     /// or `nil` when it is zero.
     private func relativeTarget(ofFieldAt field: UInt64) -> UInt64? {
-        guard let pointer = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(field)) &+ slide) else { return nil }
-        let relative = pointer.loadUnaligned(as: Int32.self)
-        guard relative != 0 else { return nil }
+        guard let relative = memory.load(Int32.self, at: UInt(bitPattern: Int(bitPattern: UInt(field)) &+ slide)), relative != 0 else { return nil }
         return UInt64(bitPattern: Int64(bitPattern: field) &+ Int64(relative))
     }
 
@@ -336,7 +336,7 @@ final class ImageFallbackNames: @unchecked Sendable {
     }
 
     private func unslidAddress(ofRuntime runtimeAddress: UInt64) -> UInt64 {
-        let address = UInt64(StoredPointer.address(in: runtimeAddress))
+        let address = UInt64(UInt(truncatingIfNeeded: runtimeAddress) & memory.addressMask)
         return UInt64(bitPattern: Int64(bitPattern: address) &- Int64(slide))
     }
 }

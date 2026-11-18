@@ -9,6 +9,7 @@
 
 | 子系统 | 文件 | 分工 |
 |---|---|---|
+| 0. 读取 | `Memory/CrossReferenceMemory`、`Memory/InProcessCrossReferenceMemory` | 分析器读镜像内存的唯一入口：按分析器地址空间里的地址取一段只读字节、问一个指针槽里装着什么（`slotContent(at:)`，去掉签名与标记位）、给出地址掩码。进程内实现直接读本进程内存，槽里是 dyld 已绑定的值；以后读磁盘文件的实现在槽上解 fixup。模块里只有进程内实现那一个文件允许把地址变成指针（`MemoryAccessScanTests`），提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 1 步 |
 | 1. 指令字与跳板 | `ARM64InstructionDecoding` 模块的 `ARM64InstructionWord`、`ARM64Trampoline` | 手写读取少数几类 A64 编码；按形状认 GOT 桩、stub island 与全缓存共用的 selector 桩。与 SwiftThunkAnalysis 共用 |
 | 2. 地址空间 | `CrossReferenceAnalyzer` | 进程里全部镜像（整个共享缓存加缓存外已加载的镜像）、各镜像的路径与安装名、`__TEXT` 的内存区间、缓存的可执行与可读映射、`objc_msgSend` 与运行时辅助函数的位置；给函数起名要用的函数表按需建一次并记住。宿主可以预先读好一个镜像起名、查类、查类型要用的一切（`prepareNames(inImageAt:)`），放掉其余镜像的（`releaseImageData(exceptForImagesAt:)`），并估算一个镜像留着多少（`approximateByteCount(ofImageDataAt:)`，`Scanning/ApproximateSize`） |
 | 3. 函数表 | `Scanning/ImageFunctionTable` | 函数起点（`LC_FUNCTION_STARTS` 与 `__text` 里的符号取并集）、主名与代码合并留下的别名、辅助函数、镜像自带的 `__objc_stubs` / `__stubs` / `__auth_stubs`、`__objc_selrefs`、放类引用的槽（`__got`、`__auth_got`、`__objc_classrefs`）与 `__objc_superrefs`、各段的地址区间 |
@@ -41,7 +42,7 @@ macOS 27 / iOS 27 起的那种见术语表 [cache-shared stub（全缓存共用�
 
 同一个 selector 在不同子缓存里各有一份共用桩（macOS 27.2：被调用的 155 万个桩只对应 104 万个字符串），所以 selector 以字符串为键，不以桩地址为键。GOT 槽在进程内已经绑定，读出指针、去掉指针认证位就是目标；读之前先确认槽位落在缓存的映射里。
 
-**去掉哪些位按平台定。** 从进程内存读出的指针（GOT 槽、selector 引用、类列表与 `isa`、Swift 类元数据 +0x40 与值类型元数据 +8 的描述符）一律经 `StoredPointer.address(in:)`，用 `InProcessContext.addressMask`，即 MachOKitExtensions 按镜像平台给的 `vmaddrMask`。Mac 的用户地址是 47 位，iPhone 等真机是 36 位，arm64e 的签名从地址宽度之上开始，iPhone 上从第 39 位开始。0.24.0 在六处写死了 Mac 的 47 位掩码，在 iOS、tvOS、watchOS、visionOS 真机上会把签名的第 39–46 位留在地址里，带签名的槽位全都跟不过去（第二轮审查 N1）；`AddressMaskScanTests` 扫遍库的源码，不许再出现这种常量。
+**去掉哪些位按平台定。** 从进程内存读出的指针（GOT 槽、selector 引用、类列表与 `isa`、Swift 类元数据 +0x40 与值类型元数据 +8 的描述符）一律经读取层的 `slotContent(at:)` / `pointer(at:)`，进程内用 `InProcessContext.addressMask`，即 MachOKitExtensions 按镜像平台给的 `vmaddrMask`。Mac 的用户地址是 47 位，iPhone 等真机是 36 位，arm64e 的签名从地址宽度之上开始，iPhone 上从第 39 位开始。0.24.0 在六处写死了 Mac 的 47 位掩码，在 iOS、tvOS、watchOS、visionOS 真机上会把签名的第 39–46 位留在地址里，带签名的槽位全都跟不过去（第二轮审查 N1）；`AddressMaskScanTests` 扫遍库的源码，不许再出现这种常量。
 
 不经桩、直接 `bl` / `b` 到 `objc_msgSend` 的传统写法还有第三种形态：缓存构建器把读 selector 引用的 `adrp` / `ldr` 改写成了 `adrp` / `add` 出字符串本身的地址，指令里只剩字符串地址。macOS 27.2 的 `-[NSObject debugDescription]` 就是 `adrp x8; add x1, x8, #…; b _objc_msgSend`（`objc_msgSend` 在 `/usr/lib/objc/libobjcMsgSend.dylib` 里）。所以传统发送的 selector 两处都要认：`x1` 从本镜像的 `__objc_selrefs` 读来，或 `x1` 是 `adrp` / `add` 算出的地址；后者要确认它落在映射里、到结尾为止是不含空格的可打印字符（最长 1,024 字节），不满足就不当作发送。第一批漏了后一种，这些发送全被当成对 `objc_msgSend` 的普通调用；RuntimeViewer 第 3 步查 `-[NSObject description]` 的调用者时发现。
 
