@@ -37,6 +37,10 @@
 - **对导入符号的数据引用**：从引用槽（GOT 等）读到一个 bind，而它绑到的符号不在分析器覆盖的镜像里——只给一个 app 时读 `_OBJC_CLASS_$_CALayer`、ivar、全局量都是这样——记成 `.importedSymbol(name:)`、`kind == .reference`。进程内槽里都是地址，不会出现。查一个类的全部引用时，调用方还要查 `_OBJC_CLASS_$_<类>` 这个导入名。
 - **路线**：`CodeReference.route`（`CodeReferenceRoute`，核心层定义）说明这条引用是怎么到达目标的，不说明目标是什么。`direct`（`bl` / `b` 直达）、`imageStub`（本镜像的 `__stubs`、`__auth_stubs`、`__objc_stubs`）、`stubIsland`（cache 镜像之间的 stub island，可多跳）、`cacheSharedStub`（macOS / iOS 27 整个 cache 共用的 selector 桩与 GOT 桩）、`pointerSlot`（经指针槽载入：GOT、ObjC 引用节、ivar 偏移变量）、`addressMaterialization`（`adrp; add` 或 `adr` 算地址）、`literalLoad`（字面量 `ldr`）、`indirect`（经寄存器的调用与跳转，认证与否看证据）。调用的路线由 `CallTargetResolver.resolveWithRoute(_:)` 给出，经多跳时取第一种跳板；会话认领的目标按地址落在哪定（本镜像代码直达、本镜像其他节经本镜像桩、镜像之外经 cache 共用桩）。常驻索引把路线存在每条记录 `flags` 的第 5–7 位。
 
+## 地址符号化
+
+`symbolication(of:)` 回答「这个未滑动地址是什么」（第 6 步）：在哪个镜像、段与节，以及在那里的意思——函数体里（起点、名字、偏移；名字的来源与 `functions(inImageAt:)` 相同，含 ObjC 方法表与 Swift 元数据的后备名）、桩或跳板（经过的每一跳与最终目标）、指针槽（种类与里面装的东西）、字符串、最近的符号加偏移、映射着但什么都不是（`.data`），或没有映射。核心层的 `AddressPlace`（`CrossReferenceCore/Symbolication/`）判断结构：先找镜像（按各镜像用到的 slide 逐一试，cache 优先），再看节——`__text` 是函数，`S_SYMBOL_STUBS` 是本镜像的桩（经 `CallTargetResolver` 解目标），镜像之间的可执行映射是跳板链（逐跳读 `ARM64Trampoline`），GOT、懒指针与语言层报上来的引用节是槽（经读取层解槽），C 字符串节与 `__cfstring` 是字符串，其余给最近的符号。门面再补语言层知道的：`__objc_stubs` 的 selector、槽里的类与 Swift 类型、selector 引用的 selector、protocol 引用的名字、`__objc_ivar` 的 ivar。一组独立文件各留自己的地址，两个文件都有的地址取第一个，`symbolication(of:inImageAt:)` 指定镜像。符号化用留存的函数表：地址很少只问一个。
+
 ## 子系统
 
 | 子系统 | 文件 | 分工 |
@@ -242,7 +246,7 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 |---|---|---|
 | 建分析器 | 0.055 秒 | 0.135 秒 |
 | 进程里第一次查 `makeKeyAndOrderFront:` / `init` 的调用者 | — | 0.50 / 1.89 秒 |
-| 每个镜像都建整表 | 2.48 秒（1.274 亿条） | 2.58 秒（1.263 亿条，4,114 个镜像） |
+| 每个镜像都建整表 | 2.48 秒（1.274 亿条；第 5、6 步之后 2.57–2.66 秒、1.292 亿条，多出的是 ivar 引用） | 2.58 秒（1.263 亿条，4,114 个镜像） |
 | `init` 的调用者 | 0.033 + 1.713 秒 | 0.042 + 1.74 秒 |
 | `makeKeyAndOrderFront:` 的调用者 | 0.057 + 0.326 秒 | 0.110 + 0.335 秒 |
 
@@ -274,3 +278,4 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 - `FileModeTests`（文件模式，提案第 4 步）：运行中的 cache 从文件读与进程内读，AppKit、SwiftUICore、Foundation 的整张引用表逐行一致，函数名、ObjC 方法表与 Swift 元数据给的名字、selector 预筛也一致；cache 的每个指针槽（v5 与没有 slide info 的模拟器 cache）解出的与 MachOKit 一致；归档 27.0、27.2 里 `UINSPasteboardWritingItemProvider` 的两个经 GOT 的调用者；iOS 26.3.1 设备 cache 里经 stub island 的发送；现编的独立文件——`-interposable` 的 dylib（self-bind 落到自己的函数、`puts` 是导入名）、Objective-C 可执行文件（`__TEXT` 在 0x100000000 时 rebase 与 objc 桩都解对）、C++ 的 `retab` 之后的异常清理代码。归档卷不在时相应用例跳过。
 - `StandaloneFileReferenceDumpTests`：按环境变量启用，把一个独立文件（universal 取 arm64e 切片）的全部引用按函数导出成文本，供与反汇编器对照。第 4 步拿它与 IDA 抽样核对过 ControlCenter 26.7。
 - `ReferenceKindAndRouteTests`（第 5 步）：现编的 ObjC 库里，读 ivar 的两个方法各有一条 ivar 引用（带符号与剥了符号两种）；字符串只在打开时或查字符串键时记；8 位与 UTF-16 的 `CFString` 常量带字符；Swift 大字符串只在 `add` 处记一条；调用、经本镜像桩的调用与发送、字符串的路线；常驻索引与整表对新种类与路线一致；运行中的 cache 里 AppKit 的路线覆盖直达、经槽、算地址、间接与桩；cache 里有一个恰好页对齐的类对象由 `adrp; add #0` 引用。`ARM64InstructionWordTests.decoderDecodesThirtyTwoBitLoadAndLoadSignedWord` 核对 32 位载入的解码，Capstone 对拍。
+- `SymbolicationTests`（第 6 步）：26.7 SwiftUICore 的全部 `__auth_stubs` 都解到函数或导入名，其中 5 个经 `ipsw` 独立核对、间接符号表给错名的桩解对；macOS 27 AppKit 经 cache 共用桩的发送，桩要么是 selector 桩（selector 与发送一致），要么是通向 libobjc 入口的 GOT 桩；现编库的 GOT 槽给出导入名与 self-bind 的函数；Matter 里只有方法表起名的函数，地址落在函数体里；cache 文件里 0x10 与 0x7FFF00000000 没有映射；现编库的 C 字符串、`CFString` 与 ivar 偏移变量。

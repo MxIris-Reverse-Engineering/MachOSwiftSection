@@ -758,6 +758,8 @@ public struct AddressSymbolication: Hashable, Sendable {
         case constantString(String)
         /// None of the above: the nearest preceding symbol.
         case symbol(name: String, offset: UInt64)
+        /// Mapped by an image, but none of the above and no symbol at or below it.
+        case data
         /// Not inside any mapped image.
         case unmapped
     }
@@ -1099,13 +1101,16 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
    - 行为：`pageAlignedClassObjectMaterializationIsAReference`（`adrp; add #0`，在运行中的 cache 里找）
    - 行为：`swiftLargeStringLiteralPointsAtItsCharacters`（`adrp; add; sub #0x20`）
    - 对导入符号的数据引用由 ControlCenter 的导出核对（`_OBJC_CLASS_$_CALayer` 一类）
-6. **地址符号化** —— `AddressSymbolication` 与 `symbolication(of:)`。
-   - 行为：`symbolicatesEverySwiftUICoreAuthStubToItsIndirectSymbol`（对照 MachOKit 的
-     `Stub.indirectSymbolIndex`，正是 `dyld_info` 标错的那批）
+6. **地址符号化**（已完成） —— `AddressSymbolication` 与 `symbolication(of:)`、`symbolication(of:inImageAt:)`；
+   核心层的 `AddressPlace` 判断结构，门面补含义。
+   - 行为：`symbolicatesSwiftUICoreAuthStubsByTheirSlotsNotTheirIndirectSymbols`（26.7 SwiftUICore 的全部
+     `__auth_stubs` 都解到函数或导入名；其中 5 个经 `ipsw dyld macho --stubs` 独立核对的桩，间接符号表给的是
+     错名，正是 `dyld_info` 标错的那批）
    - 行为：`symbolicatesCacheSharedMessageSendStubToItsSelector`
    - 行为：`symbolicatesGlobalOffsetTableSlotToItsBoundSymbol`
    - 行为：`symbolicatesAnAddressInsideAnUnnamedFunctionWithItsFallbackName`
    - 行为：`symbolicatesAnUnmappedAddressAsUnmapped`
+   - 行为：`symbolicatesStringsAndObjectiveCSlots`（C 字符串、`CFString`、`__objc_ivar` 的偏移变量）
 7. **`swift-section refs` 与 `symbolicate`** —— SwiftSectionKit 的三个类型、两个命令、选项组、登记、README、
    skill。
    - 行为：`refsListsCallerRowsForASelectorInAnArchivedCache`
@@ -1155,3 +1160,5 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | 第 4 步完成 | 吞吐（Ultra，release，归档 macOS 27.2 cache，三轮最好）：建分析器 0.14 秒，整 cache 建表 2.58 秒（1.263 亿条），`init` 调用者预筛 0.04 + 扫描 1.74 秒，`makeKeyAndOrderFront:` 0.11 + 0.34 秒；进程里第一次查询 0.5 秒与 1.9 秒。读运行中的 cache 文件与外置卷上的归档一样快，远低于愿景里「冷启动整 cache 查询超过 60 秒就提前落盘」的线。核对改为抽样：ControlCenter 26.7 的三个函数（ObjC 发送与 super 发送、Swift 元数据访问器与类型引用、`objc_allocWithZone` 与 `init`），IDA 反汇编里的直接调用与发送本库逐一都有；差异两类——经 GOT 槽读别的镜像的类（槽里是 bind）不记，补进第 5 步；直接经 GOT 槽的 `blraa` 记成间接调用，进程内同样如此。按 2026-11-18 的做法重做全面核对，需要新写生成标准答案的脚本，留给用户 |
 | 2026-11-19 | 文件读取层不掩地址 | `AddressMaskScanTests` 不许库里出现自定义的地址掩码常量。文件读取层的 `addressMask` 改为不掩（解出的槽本来就是干净地址）；slide info v5 的 34 位 `runtimeOffset` 是格式字段不是掩码，在扫描用例里加了一条只减不增、写明是哪个字段的白名单 |
 | 2026-11-19 | 第 5 步完成 | 与设计的出入：路线的最后一种叫 `indirect`，不叫 `authenticatedIndirect`——不带认证的 `blr` / `br` 也得有路线，认证与否已在 `IndirectCallEvidence` 里。Swift 大字符串不需要 Swift 层专门认：`add` 算出的正是字符串起点，核心在那里记下；只是「减法算出的地址」从不当作字符串，否则 `sub #0x20` 之后的地址会落进前一个字符串中间。ivar 只认 `__objc_ivar` 里的偏移变量，即父类不在本镜像的 ObjC 类（父类是 `NSObject` 时 clang 用常量偏移、根本不载入）；Swift 类经 ObjC ivar 列表登记的偏移变量是 `__data` 里的 Swift 字段偏移全局量，不在 `__objc_ivar`，没有收（ControlCenter 的 `BentoBackdrop.maskLayer` 就是这样），留作后续。对导入符号的数据引用记成 `.importedSymbol(name:)`、`kind == .reference`，不另外按名字认成 ObjC 类引用：类引用的 target 要带位置，导入的类没有；查一个类的全部引用时，调用方同时查 `_OBJC_CLASS_$_<类>`。查询里含字符串键时，那次扫描照样找字符串，不受分析器开关限制。32 位载入另认 ld64 改写出的字面量形式（`ldrsw xt, label`）。RuntimeViewer 的穷尽 switch 挪到第 8 步：它经远端版本依赖本库，本库发版之前不受影响 |
+| 2026-11-19 | 第 6 步完成 | 与设计的出入：另有 `symbolication(of:inImageAt:)`——一组独立文件各留自己的地址，两个文件可能都有同一个未滑动地址（进程内，链接在 0 的测试 bundle 就占着 0x10），不指定镜像时取第一个有它的镜像，cache 优先。`Meaning` 多一个 `.data`：映射着、但不是函数、桩、槽、字符串，其下也没有符号，不能说成未映射。槽里的东西按节说：selector 引用给 `.messageSend(selector:receiver: .unknown)`（目标类型里没有单独的 selector），protocol 引用给协议名 `.cString`，GOT 给函数、类、Swift 类型或导入名，`__objc_ivar` 给 ivar。结构由核心层的 `AddressPlace` 判断（函数体、本镜像的桩、镜像之间的跳板链、槽、字符串、最近的符号），ObjC 层的 selector 桩、类与 ivar、Swift 类型与无符号函数的名字在门面补上。符号化用留存的函数表（第一版用不留存的，问 26.7 SwiftUICore 的全部桩花了 207 秒，改后 0.9 秒）。原计划的「对照 MachOKit 的 `Stub.indirectSymbolIndex`」不成立：那批桩上 MachOKit 读间接符号表与 `dyld_info` 一样标错，改为用 `ipsw` 独立核对的 5 个桩钉住、其余全部桩都要解出目标 |
+| 2026-11-19 | ivar 名字改经读取层读 | 第 5 步的 ivar 名字第二来源经 MachOObjCSection 遍历类，每个类都重走一遍加载命令，整 cache 建表因此慢了 30%（3.25 秒）。改为从 `__objc_classlist` 起经读取层读 `class_ro_t` 与 ivar 列表（已 realize 的类经 `class_rw_t` 的第二个字，指针剥签名），两种读取器一套代码；整表回到 2.57–2.66 秒，比第 4 步多约 4%，多出的正是 182 万条 ivar 引用。两条路给的名字有 23 条之差（共约 182 万条），没有逐条追 |
