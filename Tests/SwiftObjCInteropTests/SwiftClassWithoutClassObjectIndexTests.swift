@@ -2,9 +2,10 @@ import Foundation
 import Testing
 import MachOKit
 import MachOFoundation
+import SwiftSymbols
 @testable import MachOSwiftSection
 import MachOObjCSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 @_spi(Internals) @testable import SwiftInspection
 @_spi(Internals) @testable import SwiftObjCInterop
 

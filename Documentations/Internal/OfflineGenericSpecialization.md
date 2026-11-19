@@ -90,7 +90,7 @@ extension 上下文有一处有意与运行时不同。运行时只给被扩展�
 
 ## 验证
 
-`GenericSpecializationFixture`（MachOTestingSupport）现场编译一个 dylib，同一个文件按 `MachOFile` 读（离线）、`dlopen` 后按 `MachOImage` 读（在线）。`OfflineSpecializationParityTests` 对 struct、final class、泛型父类的 class、单 payload 与多 payload 泛型 enum、关联类型字段、非声明层下的嵌套泛型、派生的嵌套类型、自带参数的嵌套泛型、私有类型和 `.boundGeneric` 实参，两条路径分别特化、打开全部布局注释后打印，要求逐字节相同。
+`GenericSpecializationFixture`（SwiftSectionTestingSupport）现场编译一个 dylib，同一个文件按 `MachOFile` 读（离线）、`dlopen` 后按 `MachOImage` 读（在线）。`OfflineSpecializationParityTests` 对 struct、final class、泛型父类的 class、单 payload 与多 payload 泛型 enum、关联类型字段、非声明层下的嵌套泛型、派生的嵌套类型、自带参数的嵌套泛型、私有类型和 `.boundGeneric` 实参，两条路径分别特化、打开全部布局注释后打印，要求逐字节相同。
 
 有三处两条路径按设计就不同，未特化的类型也一样，对照的形状避开了它们：
 

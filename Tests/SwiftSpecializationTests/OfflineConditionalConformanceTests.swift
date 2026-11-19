@@ -5,7 +5,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// A conformance the indexed images record under a generic type's unbound
 /// name may hold only under conditions — `Array: Hashable where Element:

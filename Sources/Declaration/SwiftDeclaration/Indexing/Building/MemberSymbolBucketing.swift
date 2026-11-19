@@ -1,8 +1,8 @@
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import OrderedCollections
 
 extension Definition {
-    func addSymbol(_ symbol: MemberSymbol, memberSymbolsByKind: inout OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]>, inExtension: Bool) {
+    func addSymbol(_ symbol: MemberSymbol, memberSymbolsByKind: inout OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [MemberSymbol]>, inExtension: Bool) {
         let node = symbol.demangledNode.memberSubtree
         if node.contains(.variable) {
             if node.contains(.static) {
@@ -33,7 +33,7 @@ extension Definition {
 }
 
 extension MutableDefinition {
-    func setDefinitions(for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]>, inExtension: Bool) {
+    func setDefinitions(for memberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [MemberSymbol]>, inExtension: Bool) {
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
             case .variable(inExtension, let isStatic, false):

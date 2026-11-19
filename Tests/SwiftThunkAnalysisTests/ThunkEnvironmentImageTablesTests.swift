@@ -1,10 +1,10 @@
 import Foundation
 import Testing
 import MachOKit
-import CodeAddressResolution
+@_spi(Internals) import MachOAddressResolution
 import MachOFoundation
 import MachOSwiftSection
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import SwiftThunkAnalysis
 
 /// `AccessorThunkReader.read` makes a new thunk environment for every thunk,

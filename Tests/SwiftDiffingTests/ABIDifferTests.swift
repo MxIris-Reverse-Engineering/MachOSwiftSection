@@ -4,7 +4,7 @@ import MachOFoundation
 import Testing
 import Foundation
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 // MARK: - Core three-way set-diff algorithm
 //

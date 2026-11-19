@@ -1,7 +1,7 @@
 import MachOSwiftSection
 import Demangling
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 /// Matches a class's method descriptors to the symbols of the members they
@@ -57,7 +57,7 @@ package enum OverrideSymbolMatcher {
     ) -> DemangledSymbol? {
         guard let typeClassNode = typeNode.first(of: .class) else { return nil }
         for symbol in symbols {
-            if let node = SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO),
+            if let node = SwiftSymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO),
                let declarationContextNode = node.declarationContextNode,
                declarationContextNode.structurallyEquals(typeClassNode),
                !visitedNodes.contains(StructuralNodeReferenceKey(node)) {

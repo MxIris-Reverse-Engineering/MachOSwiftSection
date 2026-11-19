@@ -7,7 +7,7 @@ import MachOReading
 import MachOSwiftSection
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Per-image index of the classes implemented through `@objc @implementation`
 /// (evolution proposal `objc-implementation-class-recognition`), keyed by
@@ -37,7 +37,7 @@ import MachOSwiftSection
 package final class ObjCImplementationClassIndex: @unchecked Sendable {
     package static let shared = ObjCImplementationClassIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .objcImplementationClasses, follows: [.symbolStore])
+    private let cache = SharedCache<Storage>(evictionGroup: .objcImplementationClasses, follows: [.swiftSymbolStore])
 
     private init() {}
 
@@ -136,7 +136,7 @@ package final class ObjCImplementationClassIndex: @unchecked Sendable {
 
         static func collect(in machO: some ObjCImplementationClassReading) -> SwiftSideEvidence {
             var evidence = SwiftSideEvidence()
-            let symbolIndexStore = SymbolIndexStore.shared
+            let symbolIndexStore = SwiftSymbolIndexStore.shared
 
             // `$sSo<Name>CMa`: global(typeMetadataAccessFunction(type(class(module, identifier)))).
             // Only an EXPORTED accessor counts. An imported ObjC class has

@@ -43,11 +43,9 @@ struct AddressMaskScanTests {
 
     /// Fields of a fixup format that look like an address mask and are none:
     /// decoding a file reads them, and no process pointer is stripped with
-    /// them. Shrink-only; each entry says which field it is.
-    private static let fixupFormatFields: [String: [String]] = [
-        // `dyld_cache_slide_pointer5.runtimeOffset`, 34 bits (slide info v5).
-        "FileCrossReferenceMemory.swift": ["raw & 0x3_FFFF_FFFF"],
-    ]
+    /// them. Shrink-only; each entry says which field it is. Empty since the
+    /// file readers moved to MachOKitExtensions, whose scan keeps its own.
+    private static let fixupFormatFields: [String: [String]] = [:]
 
     private static let hexadecimalLiteral = try! NSRegularExpression(pattern: #"\b0x[0-9A-Fa-f_]+\b"#)
 

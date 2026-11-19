@@ -6,7 +6,7 @@ import MachOSwiftSection
 import SwiftPrinting
 import SwiftInterface
 import Semantic
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The interface of the declaration shapes Swift 6.4 introduced (evolution
 /// proposal `borrow-accessors-and-suppressed-associated-types`). The expected

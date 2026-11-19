@@ -90,7 +90,8 @@
    本库的 `CodeLocation` 是「镜像下标 + 未滑动地址」，RuntimeViewer 已经按它建了一层查询。
 6. **新能力放在哪一层。** MachOKit 是 p-x9 上游的 fork，fork 已落后上游 33 个提交，越加越难合；
    MachOKitExtensions 是自有的通用层，正在接收本库的读取层（MachOKitExtensions 草案
-   `move-reading-and-resolving-modules`）；本库的 Analysis 层离使用方最近，但通用的东西放这里，别的仓库
+   `move-reading-and-resolving-modules`，之后又接收了整个 Mach-O 层，见下文「我们选的方向」第 6 条）；
+   本库的 Analysis 层离使用方最近，但通用的东西放这里，别的仓库
    （MachOKitUI、swift-decompiler）拿不到。
 7. **正确性的标准答案用谁。** 反汇编有 `otool -tV` / `llvm-objdump`；fixup 有 `dyld_info -fixups`（只读本机
    cache）；交叉引用没有天然的地面真值，IDA 自己就会漏，Binary Ninja 更全但只能在它的界面里跑。
@@ -148,13 +149,7 @@
    读几个 GB 的 cache 若明显拖慢重复查询，持久化再作为独立阶段提出。
 5. **保留按镜像的 `CodeLocation`，另给一张全 cache 的地址符号化表。** 统一地址空间里最有价值的是「任何地址
    都能说出它是什么」，这一点用符号化器单独提供，不推翻已有的模型和 RuntimeViewer 的查询层。
-6. **分层：与语言无关的部分最终归 MachOKitExtensions，ObjC 专属的归 MachOObjCSection，Swift 专属的与命令入口
-   留在本库。** 与语言无关的包括读取、地址换算、桩与槽的解析，也包括分析本身的核心——指令扫描、函数表、字符串、
-   符号化；ObjC 专属的是消息发送、类引用、ivar、方法列表这类识别。核心经扩展点接纳各语言层的识别，不认识任何
-   一种语言，对新语言封闭、对扩展开放。新代码先在本库按这几层写成独立模块，用源码扫描守住每层能 import 什么
-   （只许 import 将来落脚处也有的模块），量过、跑稳之后另写迁移提案整体搬过去，走法照 `MachOReading` 那次迁移；
-   本库里的模块名刻意不同于落脚处的名字，免得与已发布版本的同名模块冲突。除了修 bug，不往 MachOKit fork 里加
-   新能力。
+6. **分层：与语言无关的部分归 MachOKitExtensions，ObjC 专属的归 MachOObjCSection，Swift 专属的与命令入口留在本库。** 与语言无关的包括读取、地址换算、桩与槽的解析，也包括分析本身的核心——指令扫描、函数表、字符串、符号化；ObjC 专属的是消息发送、类引用、ivar、方法列表这类识别。核心经扩展点接纳各语言层的识别，不认识任何一种语言，对新语言封闭、对扩展开放。自 MachOKitExtensions 2.0.0 起，本库原来的整个 Mach-O 层（读取、指针、按镜像的缓存、依赖闭包、符号表与采集，外加一个 C/C++ 符号索引）都在那里，本库的 `Sources/MachO/` 分组已经没有了（MachOKitExtensions 草案 `move-macho-infrastructure-modules`）；不依赖 Swift 元数据的新通用代码直接写进 MachOKitExtensions。交叉引用是先在本库按这几层写成独立模块、用源码扫描守住每层能 import 什么、量过之后再整体搬过去的（0097 拆层，提案 [0098 move-cross-reference-layers](../Evolutions/0098-move-cross-reference-layers.md) 搬家）；本库里的模块名刻意不同于落脚处的名字，免得与已发布版本的同名模块冲突。除了修 bug，不往 MachOKit fork 里加新能力。
 7. **标准答案**：反汇编对 `otool -tV`；fixup 对本机 cache 的 `dyld_info -fixups`；交叉引用以 IDA（查到两跳）
    为主要参照，Binary Ninja 为辅——第 1 条的实测里，IDA 两跳的召回是 99.4%，Binary Ninja 经 MCP 是 67.6%。
    最可靠的仍是 `otool -tV` 加独立寄存器跟踪生成的标准答案，那次实测就是这样做的。
@@ -201,7 +196,7 @@
 | 提案 | 状态 | 它推进了愿景的哪一部分 |
 |------|------|------------------------|
 | [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md) | Implemented | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP；顺带把交叉引用按「我们选的方向」第 6 条拆成核心、ObjC、Swift 三层（真正迁出本库另写提案） |
-| [draft-move-cross-reference-layers](../Evolutions/draft-move-cross-reference-layers.md) | Accepted | 「我们选的方向」第 6 条：把 0097 拆出的核心层与地址解析、ARM64 解码搬进 MachOKitExtensions，ObjC 层搬进 MachOObjCSection，随本库 0.25.0 落地 |
+| [0098 move-cross-reference-layers](../Evolutions/0098-move-cross-reference-layers.md) | Accepted | 「我们选的方向」第 6 条：把 0097 拆出的核心层与地址解析、ARM64 解码搬进 MachOKitExtensions，ObjC 层搬进 MachOObjCSection，随本库 0.25.0 落地 |
 
 ---
 

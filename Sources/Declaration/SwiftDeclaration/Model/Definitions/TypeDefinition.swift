@@ -1,7 +1,7 @@
 import MachOSwiftSection
 import SwiftInspection
 import SwiftObjCInterop
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// A nominal type of an image, as the declaration model holds it.
 ///
@@ -49,7 +49,7 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     ///
     /// Resolving it queries the image's symbol index, so constructing a
     /// definition through `init(type:in:)` for an image whose index has not
-    /// been built yet builds it (`SymbolIndexStore.storage(in:)` is
+    /// been built yet builds it (`SwiftSymbolIndexStore.storage(in:)` is
     /// get-or-build). Through `SwiftDeclarationIndexer.prepare()` — the
     /// normal path — the index is already up by the time definitions are
     /// constructed, which is why the whole sweep costs well under 1% of
@@ -295,11 +295,6 @@ public final class TypeDefinition: Definition, @unchecked Sendable {
     /// browse order, the memory the descriptor slimming reclaimed.
     public func materializedTypeContext(in context: some ReadingContext) throws -> TypeContextWrapper {
         try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: materializedTypeContext(in: machO.context).")
-    public func materializedTypeContext(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextWrapper {
-        try materializedTypeContext(in: machO.context)
     }
 
     /// What a type-level attribute prints in parentheses, or `nil` when it

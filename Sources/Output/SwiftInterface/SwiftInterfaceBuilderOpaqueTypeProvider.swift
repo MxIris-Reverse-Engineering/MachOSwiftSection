@@ -6,7 +6,7 @@ import FoundationToolbox
 import MachOKit
 import MachOSwiftSection
 import Dependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import SwiftStdlibToolbox
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
@@ -90,7 +90,7 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
 
     public func opaqueType(forNode node: Node, index: Int?, spellingOptions: DemangleOptions) async -> String? {
         do {
-            @Dependency(\.symbolIndexStore)
+            @Dependency(\.swiftSymbolIndexStore)
             var symbolIndexStore
             guard let opaqueTypeDescriptorSymbol = symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
 

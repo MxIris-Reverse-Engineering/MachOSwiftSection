@@ -12,7 +12,7 @@ import SwiftInterface
 import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The ObjC member recovery over the shared `@objc @implementation` fixture
 /// (evolution proposals `objc-ancestor-override-recovery` and

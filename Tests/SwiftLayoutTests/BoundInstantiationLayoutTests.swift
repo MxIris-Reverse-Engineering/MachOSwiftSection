@@ -5,7 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 import Demangling
 
 /// Layouts of instantiations a `GenericArgumentBinding` describes — an

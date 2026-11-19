@@ -6,7 +6,7 @@ import Testing
 import MachOKit
 import Demangling
 @testable import MachOSwiftSection
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// `GenericSpecializer` names each parameter by its `(depth, index)` — `A`,
 /// `B`, `A1`, … — and collects the parameter's requirements by matching that

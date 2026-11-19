@@ -1,10 +1,10 @@
 import Demangling
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Cross-references `@objc` / `@nonobjc` / `distributed` thunk attribute
 /// members (pre-extracted and bucketed by parent type name inside
-/// `SymbolIndexStore`) with already-built member definitions, appending the
+/// `SwiftSymbolIndexStore`) with already-built member definitions, appending the
 /// matching attribute to each affected member. Shared by `TypeDefinition`
 /// and `ExtensionDefinition` — the sweep unwraps extension contexts when it
 /// buckets a thunk, so an extension's members are filed under the extended
@@ -19,7 +19,7 @@ package enum ThunkAttributeMatcher {
     ]
 
     package static func applyThunkAttributes(
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         typeName: String,
         typeNode: NodeReference,
         in machO: some MachORepresentableWithCache,
@@ -63,7 +63,7 @@ package enum ThunkAttributeMatcher {
         toFunctionsNamed name: String,
         withThunkSuffix mangledSuffix: String,
         in definitions: inout [FunctionDefinition],
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         in machO: some MachORepresentableWithCache
     ) {
         for definitionIndex in definitions.indices where definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
@@ -106,7 +106,7 @@ package enum ThunkAttributeMatcher {
         _ attribute: SwiftAttribute,
         toAllocatorsWithThunkSuffix mangledSuffix: String,
         in definitions: inout [FunctionDefinition],
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         in machO: some MachORepresentableWithCache
     ) {
         for definitionIndex in definitions.indices where !definitions[definitionIndex].attributes.contains(attribute) {

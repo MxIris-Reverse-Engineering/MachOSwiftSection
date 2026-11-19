@@ -5,7 +5,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// A specialized definition shares its generic definition's descriptor, so it
 /// must carry the same `exportStatus` (evolution proposal

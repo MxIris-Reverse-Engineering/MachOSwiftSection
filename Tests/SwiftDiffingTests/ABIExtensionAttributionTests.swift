@@ -5,7 +5,7 @@ import Testing
 import Foundation
 import Demangling
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 // MARK: - Per-conformance / per-where-block attribution
 //

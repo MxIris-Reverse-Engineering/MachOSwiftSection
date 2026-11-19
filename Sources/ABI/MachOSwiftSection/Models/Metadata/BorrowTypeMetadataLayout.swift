@@ -1,5 +1,6 @@
 import Foundation
 import MachOBase
+import Utilities
 
 /// The layout of `Builtin.Borrow<T>` metadata (`TargetBorrowTypeMetadata`,
 /// Swift 6.4): the common metadata header followed by one pointer to the

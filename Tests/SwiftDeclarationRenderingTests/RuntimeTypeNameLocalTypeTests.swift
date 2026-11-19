@@ -3,7 +3,7 @@ import Testing
 import MachOKit
 @testable import Demangling
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 @testable @_spi(Internals) import SwiftInspection
 @testable import SwiftDeclarationRendering
 

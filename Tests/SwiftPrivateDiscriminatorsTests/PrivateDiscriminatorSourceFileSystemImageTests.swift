@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
 @_spi(Support) import SwiftPrivateDiscriminators

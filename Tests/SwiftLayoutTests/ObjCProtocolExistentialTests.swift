@@ -5,8 +5,8 @@ import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftLayout
 @testable import SwiftInspection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Covers existentials over imported Objective-C protocols (`any NSCopying`),
 /// which have no Swift protocol descriptor. An ObjC protocol is always

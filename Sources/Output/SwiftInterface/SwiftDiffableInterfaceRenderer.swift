@@ -8,7 +8,7 @@ import MachOSwiftSection
 import Semantic
 import Demangling
 import OrderedCollections
-import MachOSymbols
+import SwiftSymbols
 
 /// Renders a **full Swift interface annotated with diff markers** — a git-diff
 /// style view of how the new binary's ABI surface differs from the old.

@@ -5,8 +5,8 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A C-imported (foreign) struct's Swift field records do not describe its
 /// real C layout — bitfields and padding are invisible to reflection — so the

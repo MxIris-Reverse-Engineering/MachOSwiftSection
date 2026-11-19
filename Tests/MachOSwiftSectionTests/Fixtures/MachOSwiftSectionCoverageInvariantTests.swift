@@ -1,7 +1,7 @@
 import Foundation
 import Testing
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Static-vs-runtime invariant guard for fixture-based test coverage.
 ///

@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum ProtocolConformanceBaseline {
-    static let registeredTestMethodNames: Set<String> = ["conditionalPackShapeDescriptors", "conditionalRequirements", "descriptor", "flags", "genericWitnessTable", "globalActorReference", "init(descriptor:)", "init(descriptor:in:)", "protocol", "resilientWitnesses", "resilientWitnessesHeader", "retroactiveContextDescriptor", "typeReference", "witnessTablePattern"]
+    static let registeredTestMethodNames: Set<String> = ["conditionalPackShapeDescriptors", "conditionalRequirements", "descriptor", "flags", "genericWitnessTable", "globalActorReference", "init(descriptor:in:)", "protocol", "resilientWitnesses", "resilientWitnessesHeader", "retroactiveContextDescriptor", "typeReference", "witnessTablePattern"]
 
     struct Entry {
         let descriptorOffset: Int

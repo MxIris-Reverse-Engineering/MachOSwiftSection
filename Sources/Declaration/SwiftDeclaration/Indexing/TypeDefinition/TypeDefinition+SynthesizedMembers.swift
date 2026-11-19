@@ -1,5 +1,5 @@
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 extension TypeDefinition {
     /// Drops body-side copies of members that Swift auto-synthesizes for

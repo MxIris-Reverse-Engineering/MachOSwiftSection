@@ -1,10 +1,10 @@
 import Foundation
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import MachOKit
 import MachOKitExtensions
 import MachODependencies
 import Testing
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 @testable import SwiftInterface
 
 /// Pins what `SwiftInterfaceBuilderDependencies` promises now that it is a

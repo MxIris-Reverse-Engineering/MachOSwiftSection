@@ -6,7 +6,7 @@ import Testing
 import MachOKit
 import Demangling
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 import SwiftDump
 
 // MARK: - In-process fixture

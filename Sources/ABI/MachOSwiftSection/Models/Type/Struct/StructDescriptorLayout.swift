@@ -1,4 +1,5 @@
 import Foundation
+import Utilities
 
 @Layout
 public protocol StructDescriptorLayout: TypeContextDescriptorLayout {

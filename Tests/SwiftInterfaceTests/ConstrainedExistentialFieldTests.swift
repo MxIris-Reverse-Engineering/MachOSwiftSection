@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 import MachOSwiftSection
 import SwiftDiffing
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable import SwiftInterface
 
 /// A stored property of a constrained existential type (`any Boxed<Int>`)

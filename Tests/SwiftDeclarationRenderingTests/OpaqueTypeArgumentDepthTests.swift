@@ -6,7 +6,7 @@ import MachOFoundation
 @testable import SwiftDeclarationRendering
 import Demangling
 @_spi(Internals) import SwiftInspection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// An opaque type reference spells its generic arguments as one list per
 /// declaration around the opaque result, outermost first, and the mangler
@@ -134,7 +134,7 @@ struct OpaqueTypeArgumentDepthTests {
     /// The offset of the opaque type descriptor of the declaration named
     /// `declarationName`, found by its demangled symbol.
     private func opaqueTypeDescriptorOffset(ofDeclarationNamed declarationName: String, in machOFile: MachOFile) throws -> Int {
-        let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machOFile)
+        let symbols = SwiftSymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machOFile)
         let symbol = symbols.first { $0.demangledNode.materialize().print(using: .default).contains(declarationName) }
         return try #require(symbol, "no opaque type descriptor names \(declarationName): \(symbols.map { $0.demangledNode.materialize().print(using: .default) })").offset
     }

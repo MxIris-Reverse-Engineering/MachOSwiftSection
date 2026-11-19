@@ -1,7 +1,7 @@
 @_spi(Internals) import Demangling
 import SwiftDeclarationRendering
 import SwiftInspection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// The node-level rules of wrapped-property recovery, kept free of any
 /// image so they can be pinned on hand-built trees.

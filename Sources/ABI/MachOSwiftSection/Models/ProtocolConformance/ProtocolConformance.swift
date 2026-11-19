@@ -111,17 +111,3 @@ extension ProtocolConformance {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension ProtocolConformance {
-    @available(*, deprecated, message: "Pass a ReadingContext: ProtocolConformance(descriptor:in: machO.context).")
-    public init(descriptor: ProtocolConformanceDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: ProtocolConformance(descriptor:in: .inProcess).")
-    public init(descriptor: ProtocolConformanceDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

@@ -2,7 +2,9 @@ import Foundation
 import Testing
 import MachOKit
 import Demangling
-import ARM64InstructionDecoding
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
+@_spi(Internals) import ARM64InstructionDecoding
 @testable import CrossReferenceAnalysis
 
 /// Swift type references: calls to a type's metadata accessor and the

@@ -1,21 +1,18 @@
 import Foundation
 import Testing
 
-/// Every read of image memory in the cross-reference analysis — its core,
-/// its Objective-C layer and `CrossReferenceAnalysis` — goes through
-/// `CrossReferenceMemory`, so that an analyzer can read images that were
-/// never loaded: an address turned into a pointer anywhere else reads the
-/// process's memory whatever the analyzer was made from.
+/// Every read of image memory in `CrossReferenceAnalysis`, the Swift layer of
+/// the cross-reference analysis, goes through `CrossReferenceMemory`, so that
+/// an analyzer can read images that were never loaded. The one reader that
+/// turns an address into a pointer, `InProcessCrossReferenceMemory`, lives in
+/// MachOKitExtensions with the core; it and MachOObjCSection's
+/// `ObjCCodeReferences` keep scans of their own.
 @Suite
 struct MemoryAccessScanTests {
-    /// The one file allowed to turn an address into a pointer.
-    static let inProcessMemoryFileName = "InProcessCrossReferenceMemory.swift"
-
     @Test func crossReferenceAnalysisReadsMemoryOnlyThroughCrossReferenceMemory() throws {
         var offendingLines: [String] = []
         let files = try Self.moduleSourceFiles()
-        #expect(files.contains { $0.lastPathComponent == Self.inProcessMemoryFileName }, "the scan does not see \(Self.inProcessMemoryFileName)")
-        for fileURL in files where fileURL.lastPathComponent != Self.inProcessMemoryFileName {
+        for fileURL in files {
             let contents = try String(contentsOf: fileURL, encoding: .utf8)
             for (lineNumber, line) in contents.components(separatedBy: .newlines).enumerated() {
                 let code = line.trimmingCharacters(in: .whitespaces)
@@ -43,7 +40,7 @@ struct MemoryAccessScanTests {
         pointerFromAddress.firstMatch(in: code, range: NSRange(code.startIndex..., in: code)) != nil
     }
 
-    /// Every Swift file of the three cross-reference modules.
+    /// Every Swift file of `CrossReferenceAnalysis`.
     private static func moduleSourceFiles() throws -> [URL] {
         let analysisDirectory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()  // CrossReferenceAnalysisTests
@@ -51,14 +48,14 @@ struct MemoryAccessScanTests {
             .deletingLastPathComponent()  // package root
             .appendingPathComponent("Sources/Analysis")
         var files: [URL] = []
-        for moduleName in ["CrossReferenceCore", "CrossReferenceObjC", "CrossReferenceAnalysis"] {
+        for moduleName in ["CrossReferenceAnalysis"] {
             let moduleDirectory = analysisDirectory.appendingPathComponent(moduleName)
             let enumerator = try #require(FileManager.default.enumerator(at: moduleDirectory, includingPropertiesForKeys: nil))
             for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
                 files.append(fileURL)
             }
         }
-        #expect(files.count > 25, "found only \(files.count) sources under \(analysisDirectory.path)")
+        #expect(files.count > 10, "found only \(files.count) sources under \(analysisDirectory.path)")
         return files
     }
 }

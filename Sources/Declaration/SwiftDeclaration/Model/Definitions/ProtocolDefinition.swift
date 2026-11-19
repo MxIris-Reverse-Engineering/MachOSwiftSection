@@ -5,7 +5,7 @@ import OrderedCollections
 import Demangling
 import Semantic
 import SwiftStdlibToolbox
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 /// A protocol of an image, as the declaration model holds it.
@@ -151,10 +151,5 @@ public final class ProtocolDefinition: Definition, MutableDefinition, @unchecked
     /// not cached.
     public func materializedProtocol(in context: some ReadingContext) throws -> MachOSwiftSection.`Protocol` {
         try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: materializedProtocol(in: machO.context).")
-    public func materializedProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MachOSwiftSection.`Protocol` {
-        try materializedProtocol(in: machO.context)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 import ArgumentParser
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 @main
 @available(macOS 12, macCatalyst 15, iOS 15, tvOS 15, watchOS 8, *)

@@ -13,7 +13,7 @@ import SwiftStdlibToolbox
 import MachOKit
 import Dependencies
 import Utilities
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 
 public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sendable {
@@ -357,7 +357,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
 
     private func collectModules() async throws {
         eventDispatcher.dispatch(.moduleCollectionStarted)
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         var usedModules: OrderedSet<String> = []

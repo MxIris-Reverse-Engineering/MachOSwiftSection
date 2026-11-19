@@ -5,8 +5,8 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A generic multi-payload enum whose layout is argument-independent is laid
 /// out **statically with the spare-bits strategy** — the compiler bakes the

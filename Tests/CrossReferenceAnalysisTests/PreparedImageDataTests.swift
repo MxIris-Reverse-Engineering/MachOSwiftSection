@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// What a host prepares ahead of its queries — an image's names, the
 /// prefilters' tables — is what a query would otherwise read first, and stays

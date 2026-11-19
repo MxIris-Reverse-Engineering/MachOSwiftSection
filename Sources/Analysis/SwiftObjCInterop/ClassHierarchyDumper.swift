@@ -60,7 +60,7 @@ extension ObjCClass64: @retroactive Equatable {
     }
 }
 
-extension ObjCClass64: @retroactive LocatableLayoutWrapper, Resolvable, @unchecked @retroactive Sendable {}
+extension ObjCClass64: @retroactive LocatableLayoutWrapper, @retroactive Resolvable, @unchecked @retroactive Sendable {}
 
 extension ObjCClass64.Layout: @retroactive Equatable {
     public static func == (left: ObjCClass64.Layout, right: ObjCClass64.Layout) -> Bool {

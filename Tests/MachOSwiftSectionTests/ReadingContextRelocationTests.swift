@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A `ReadingContext` over a file has to read a pointer slot the way dyld
 /// leaves it at load time, not the way the file stores it: a rebased slot

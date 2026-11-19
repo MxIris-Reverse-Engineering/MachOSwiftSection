@@ -4,8 +4,8 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The dump printed a stored property of a constrained existential type
 /// (`any Boxed<Int>`) as the symbolic reference its field record holds —

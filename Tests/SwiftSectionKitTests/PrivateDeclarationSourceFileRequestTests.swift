@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 import SwiftSectionKit
 
 /// `dump` and `interface` naming the source file of each private declaration

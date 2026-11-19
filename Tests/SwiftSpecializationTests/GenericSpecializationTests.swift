@@ -6,12 +6,12 @@ import Foundation
 import Testing
 import MachOKit
 import Dependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable import SwiftDump
 @testable @_spi(Internals) import SwiftInspection
 @testable import Demangling

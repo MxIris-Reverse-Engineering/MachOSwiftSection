@@ -1,13 +1,13 @@
 import Foundation
 import Testing
 import MachOKit
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 import SwiftDeclarationRendering
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 import Dependencies
 
@@ -46,7 +46,7 @@ extension MachOImageDumpTests {
     }
 
     @Test func symbols() async throws {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         let symbols = symbolIndexStore.allSymbols(in: machOImage)

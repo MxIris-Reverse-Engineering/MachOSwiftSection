@@ -5,8 +5,8 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 import SwiftDeclarationRendering
-@_spi(Internals) @testable import MachOSymbols
-@testable import MachOTestingSupport
+@_spi(Internals) @testable import SwiftSymbols
+@testable import SwiftSectionTestingSupport
 
 /// Vtable slot attribution under identical code folding.
 ///

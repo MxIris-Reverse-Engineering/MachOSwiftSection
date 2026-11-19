@@ -5,7 +5,7 @@ import MachOSwiftSection
 import Utilities
 import Dependencies
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis
@@ -24,7 +24,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package let machO: MachO
 
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
@@ -466,7 +466,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 .flatMap { NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: $0) }
                 .flatMap { ObjCMembers.table(forSwiftClassQualifiedName: $0, in: machO) }
 
-            let memberSymbolsByKind = SymbolIndexStore.MemberKind.allCases.map { kind in
+            let memberSymbolsByKind = SwiftSymbolIndexStore.MemberKind.allCases.map { kind in
                 if let contextNode {
                     (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO))
                 } else {
@@ -527,7 +527,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             // optimizer inlined the Swift body into the thunk and deleted the
             // Swift entry point, so no member symbol above names them
             // (evolution proposal `thunk-only-objc-members`).
-            for kind in SymbolIndexStore.MemberKind.allCases {
+            for kind in SwiftSymbolIndexStore.MemberKind.allCases {
                 let thunkSymbols = if let contextNode {
                     symbolIndexStore.objcThunkMemberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
                 } else {
@@ -567,7 +567,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 }
             }
 
-            for kind in SymbolIndexStore.MemberKind.allCases {
+            for kind in SwiftSymbolIndexStore.MemberKind.allCases {
                 let methodDescriptorSymbols = if let contextNode {
                     symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
                 } else {
@@ -772,7 +772,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 names.insert(variableName)
             }
         }
-        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let variableKind: SwiftSymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
         let descriptorSymbols = if let contextNode {
             symbolIndexStore.methodDescriptorMemberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
         } else {
@@ -794,7 +794,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     /// `TypeDefinition.index`).
     private func storedAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
         var names: Set<String> = []
-        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let variableKind: SwiftSymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
         let accessorSymbols = if let contextNode {
             symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
         } else {

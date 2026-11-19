@@ -5,7 +5,7 @@ import MachOFoundation
 import SwiftStdlibToolbox
 import MachOSwiftSection
 @_spi(Internals) import MachOCaches
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Demangles with the symbolic references resolved against a Mach-O image.
 ///
@@ -45,7 +45,7 @@ extension SymbolicDemangler {
     public static let isCacheEnabled: Bool = true
 
     public static func demangleSymbol(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
-        return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
+        return SwiftSymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
     }
 
     /// Store-backed variant of `demangleSymbol(for:in:)`: returns a
@@ -53,7 +53,7 @@ extension SymbolicDemangler {
     /// mini store for symbols outside the build sweep) without materializing
     /// a `Node` tree.
     public static func demangleSymbolReference(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) -> NodeReference? {
-        return SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
+        return SwiftSymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
     }
 
     /// Drops the per-image demangle memo so the next query rebuilds it.
@@ -1253,79 +1253,5 @@ private final class SymbolicDemanglerCache: @unchecked Sendable {
             storage.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0, in: context) }, forKey: key)
             return node
         }
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension SymbolicDemangler {
-    @available(*, deprecated, message: "Pass a ReadingContext: demangleType(for:in: machO.context).")
-    public static func demangleType(for mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
-        try demangleType(for: mangledName, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: demangleType(for:in: machO.context).")
-    public static func demangleType(for symbol: Symbol, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
-        try demangleType(for: symbol, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: demangleContext(for:in: machO.context).")
-    public static func demangleContext(for context: ContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
-        try demangleContext(for: context, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: buildGenericSignature(for:in: machO.context).")
-    public static func buildGenericSignature(for requirement: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
-        try buildGenericSignature(for: [requirement], in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: buildGenericSignature(for:in: machO.context).")
-    public static func buildGenericSignature(for requirements: GenericRequirementDescriptor..., in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
-        try buildGenericSignature(for: requirements, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: buildGenericSignature(for:in: machO.context).")
-    public static func buildGenericSignature(for requirements: [GenericRequirementDescriptor], in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
-        try buildGenericSignature(for: requirements, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: extendedTypeContextDescriptor(forExtendedContext:in: machO.context).")
-    public static func extendedTypeContextDescriptor(forExtendedContext mangledName: MangledName, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextDescriptorWrapper? {
-        try extendedTypeContextDescriptor(forExtendedContext: mangledName, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: demangleType(for:in: .inProcess).")
-    public static func demangleType(for mangledName: MangledName) throws -> Node {
-        try demangleType(for: mangledName, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: demangleTypeUncached(for:in: .inProcess).")
-    public static func demangleTypeUncached(for mangledName: MangledName) throws -> Node {
-        try demangleTypeUncached(for: mangledName, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: demangleType(for:in: .inProcess).")
-    public static func demangleType(for symbol: Symbol) throws -> Node? {
-        try demangleType(for: symbol, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: demangleContext(for:in: .inProcess).")
-    public static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
-        try demangleContext(for: context, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: buildGenericSignature(for:in: .inProcess).")
-    public static func buildGenericSignature(for requirement: GenericRequirementDescriptor) throws -> Node? {
-        try buildGenericSignature(for: [requirement], in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: buildGenericSignature(for:in: .inProcess).")
-    public static func buildGenericSignature(for requirements: GenericRequirementDescriptor...) throws -> Node? {
-        try buildGenericSignature(for: requirements, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: buildGenericSignature(for:in: .inProcess).")
-    public static func buildGenericSignature(for requirements: [GenericRequirementDescriptor]) throws -> Node? {
-        try buildGenericSignature(for: requirements, in: InProcessContext.shared)
     }
 }

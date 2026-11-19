@@ -6,7 +6,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 // MARK: - Fixtures
 //

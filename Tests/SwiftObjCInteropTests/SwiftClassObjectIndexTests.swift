@@ -4,8 +4,8 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 import MachOObjCSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @_spi(Internals) @testable import SwiftInspection
 @_spi(Internals) @testable import SwiftObjCInterop
 

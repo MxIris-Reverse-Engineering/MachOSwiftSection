@@ -1,15 +1,15 @@
 import Demangling
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 extension TypeDefinition {
     /// Cross-references `@objc` / `@nonobjc` thunk attribute members (pre-extracted
-    /// and bucketed by parent type name inside `SymbolIndexStore`) with the
+    /// and bucketed by parent type name inside `SwiftSymbolIndexStore`) with the
     /// already-built member definitions of this type, appending the matching
     /// attribute to each affected member. The matching itself lives in
     /// `ThunkAttributeMatcher`, shared with `ExtensionDefinition`.
     func applyThunkAttributes(
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         typeName: String,
         typeNode: NodeReference,
         in machO: some MachORepresentableWithCache

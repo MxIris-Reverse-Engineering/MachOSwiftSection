@@ -50,7 +50,7 @@
 
 宏的声明文件在 `Sources/OSToolbox/Macros/LoggableMacro.swift`，所以第一反应是给 target 加 `OSToolbox` product 依赖 —— SPM 报 `product 'OSToolbox' … not found`，据此很容易误判成「这里用不了 `@Loggable`」。
 
-**实际上项目里所有用法都是经 `FoundationToolbox` 拿到宏的**（`RuntimeFieldLayoutBackend`、`SymbolIndexStore` 都只 import 它）。加 `.product(name: "FoundationToolbox", package: "FrameworkToolbox")` 即可。
+**实际上项目里所有用法都是经 `FoundationToolbox` 拿到宏的**（`RuntimeFieldLayoutBackend`、`SwiftSymbolIndexStore` 都只 import 它）。加 `.product(name: "FoundationToolbox", package: "FrameworkToolbox")` 即可。
 
 这也顺带解决了部署下限问题：本包部署到 **macOS 10.15 / iOS 13**，低于 `os.Logger` 的 macOS 11 / iOS 14，而 `@Loggable` 展开时自带 `#available` 回退到 `os_log`。所以**不要**为了绕开下限而手写 `os.Logger` 或裸 `os_log`。
 
@@ -102,7 +102,7 @@ private final class OpaqueTypeRewriter<MachO: …>: Node.Rewriter, OpaqueTypeRew
 
 而且只要有别的 suite 往 stdout 写一个字节，捕获断言就假失败。
 
-改为**源码扫描**：遍历 `Sources/` 下所有非宿主模块（`swift-section` / `MachOTestingSupport` 除外 —— CLI 是宿主，stderr/stdout 都是它的合法通道），匹配 `FileHandle.standardError` / `FileHandle.standardOutput` / 裸 `fputs(` / 裸 `print(`。
+改为**源码扫描**：遍历 `Sources/` 下所有非宿主模块（`swift-section` / `SwiftSectionTestingSupport` 除外 —— CLI 是宿主，stderr/stdout 都是它的合法通道），匹配 `FileHandle.standardError` / `FileHandle.standardOutput` / 裸 `fputs(` / 裸 `print(`。
 
 **扫描必须能识别「裸调用」**：`node.print(using:)` 是本库的渲染 API，`printer.printRoot(...)` 也是 —— 简单 `contains("print(")` 会大面积误伤。`containsBareCall(to:in:)` 检查 `print(` 前一个字符不是字母/数字/`.`/`_`。配套的 `theStreamWriteScannerDiscriminates` 同时钉正例和反例，因为**一个只会返回「没找到」的扫描器等于没有扫描器**。
 

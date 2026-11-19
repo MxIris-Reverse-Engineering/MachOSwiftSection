@@ -5,7 +5,7 @@ import Foundation
 import MachOSwiftSection
 import MachOKit
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 #if canImport(ObjectiveC)
 import ObjectiveC

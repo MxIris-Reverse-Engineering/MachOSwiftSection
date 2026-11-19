@@ -6,8 +6,8 @@ import MachOFoundation
 @_spi(Internals) import SwiftInspection
 @testable import SwiftDeclarationRendering
 import Demangling
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The in-process nested field-offset expansion reads byte for byte the same
 /// with its per-metatype memo as without it (evolution proposal

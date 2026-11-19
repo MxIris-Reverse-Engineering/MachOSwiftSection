@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOFoundation
+import SwiftSymbols
 import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection

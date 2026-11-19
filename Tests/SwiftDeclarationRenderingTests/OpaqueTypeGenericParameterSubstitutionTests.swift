@@ -6,8 +6,8 @@ import OrderedCollections
 @testable import MachOSwiftSection
 @testable import SwiftDeclarationRendering
 import Demangling
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The opaque-type rewriter's substitution contract: a
 /// `dependentGenericParamType` that resolves against the opaque type's type

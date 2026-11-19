@@ -8,7 +8,7 @@ import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The interface opens a property's accessor block with its SE-0400 `init`
 /// (evolution proposal `init-accessor-recovery`): `@storageRestrictions(initializes: _x) init`

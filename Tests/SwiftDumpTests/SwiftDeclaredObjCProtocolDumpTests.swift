@@ -7,7 +7,7 @@ import MachOSwiftSection
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
 @_spi(Internals) import SwiftObjCInterop
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The dump of an `@objc` protocol declared in Swift (evolution proposal
 /// `swift-declared-objc-protocols`): each requirement as a Swift declaration

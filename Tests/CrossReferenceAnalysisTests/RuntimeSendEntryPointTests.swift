@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// clang compiles `[[Foo alloc] init]`, `[x isKindOfClass:c]` and six more
 /// sends into calls to libobjc entry points of their own — `objc_alloc_init`,

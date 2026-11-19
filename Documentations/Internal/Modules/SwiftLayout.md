@@ -88,4 +88,4 @@ libswiftCore 的 builtin 段还多一类记录：编译器 builtin 叶子类型�
 - [NestedFieldOffsetCycleGuard.md](../NestedFieldOffsetCycleGuard.md)——嵌套展开的环路保护。
 - [EnumLayoutAuditFixes.md](../EnumLayoutAuditFixes.md)——枚举布局逐行审计（`SwiftInspection` 侧，本模块复用其计算器）。
 - [FieldLayoutRendererReaderSpecialization.md](../FieldLayoutRendererReaderSpecialization.md)——渲染层如何按 reader 分叉消费本模块。
-- [Modules/MachODependencies.md](MachODependencies.md)——依赖闭包本体。
+- MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md)——依赖闭包本体（`MachODependencies` 自 0.25.0 起由 MachOKitExtensions 提供）。

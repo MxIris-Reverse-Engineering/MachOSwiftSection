@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftThunkAnalysis
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// An accessor thunk reads its owner's generic arguments out of one buffer,
 /// and `AccessorThunkOwnerLayout` names the k-th word as the parameter it

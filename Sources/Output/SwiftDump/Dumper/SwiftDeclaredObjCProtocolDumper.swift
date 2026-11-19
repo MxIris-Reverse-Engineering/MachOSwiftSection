@@ -4,7 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis

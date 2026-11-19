@@ -8,8 +8,8 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The shapes RuntimeViewer draws its comment tags and folds from (evolution
 /// proposal `comment-structure`), read from the table a marked print of the

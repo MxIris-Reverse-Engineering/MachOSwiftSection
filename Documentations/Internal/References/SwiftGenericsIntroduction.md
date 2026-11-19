@@ -99,7 +99,7 @@ Generic signature 连同解析好的参数类型与返回类型，被打包成�
 <τ_0_0> (τ_0_0) -> τ_0_0
 ```
 
-> 译注：「名字不重要、depth 与 index 才是身份」这条事实，在二进制里表现得最直白——mangled name 只编码 depth 与 index，generic parameter 的源码名字根本没有落盘。本库的 demangler 把符号解回 `Node` 树时拿到的就是这套坐标，随后按位置重新取名 `A`、`B`……见 [Modules/MachOSymbols.md](../Modules/MachOSymbols.md)。
+> 译注：「名字不重要、depth 与 index 才是身份」这条事实，在二进制里表现得最直白——mangled name 只编码 depth 与 index，generic parameter 的源码名字根本没有落盘。本库的 demangler 把符号解回 `Node` 树时拿到的就是这套坐标，随后按位置重新取名 `A`、`B`……见 [Modules/SwiftSymbols.md](../Modules/SwiftSymbols.md)。
 
 **Interface type** 完整描述了「引用一个声明」这件事在类型检查中的行为。算出函数的 interface type 之后，type checker 转向函数体。`return` 语句里表达式的类型必须与函数声明的返回类型匹配。类型检查 `return` 后面的表达式 `x` 时，我们用 name lookup 找到参数声明 `_ x: T`。这条参数声明的 interface type 是 generic parameter type `T`，它要相对于函数的 generic signature 来理解。但赋给这个表达式的类型，是 `T` 所对应的 **archetype**，记作 `⟦T⟧`。我们后面会学到，archetype 是 type parameter 的一种自描述形式，它的行为像一个具体类型。
 

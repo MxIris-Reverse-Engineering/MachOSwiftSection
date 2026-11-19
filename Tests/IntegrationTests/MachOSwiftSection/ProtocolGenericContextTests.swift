@@ -1,8 +1,8 @@
 import Foundation
 import Testing
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 import SwiftInspection
 
 final class ProtocolGenericContextTests: MachOFileTests, @unchecked Sendable {

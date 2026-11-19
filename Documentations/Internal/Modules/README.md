@@ -22,10 +22,10 @@
 | SwiftSpecialization | — | 待写 |
 | SwiftThunkAnalysis | [SwiftThunkAnalysis.md](SwiftThunkAnalysis.md) | ✅ 已写（入门：[AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)） |
 | CrossReferenceAnalysis | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（提案 [0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)） |
-| ARM64InstructionDecoding | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（与 CrossReferenceAnalysis 同篇：手写的指令字读取与跳板形状，SwiftThunkAnalysis 也用） |
-| CodeAddressResolution | [CodeAddressResolution.md](CodeAddressResolution.md) | ✅ 已写（离线的地址空间、桩链、槽解析与 cache 镜像定位，线程读取与交叉引用文件模式共用，将来迁进 MachOKitExtensions） |
-| CrossReferenceCore | [CrossReferenceCore.md](CrossReferenceCore.md) | ✅ 已写（交叉引用与语言无关的核心层，将来迁进 MachOKitExtensions） |
-| CrossReferenceObjC | [CrossReferenceObjC.md](CrossReferenceObjC.md) | ✅ 已写（交叉引用的 ObjC 层，将来迁进 MachOObjCSection） |
+| ARM64InstructionDecoding | MachOKitExtensions 的 [ARM64InstructionDecoding.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/ARM64InstructionDecoding.md) | 已搬去 MachOKitExtensions（提案 `move-cross-reference-layers`）：手写的指令字读取与跳板形状，CrossReferenceAnalysis 与 SwiftThunkAnalysis 经 `@_spi(Internals)` 用 |
+| MachOAddressResolution（原 CodeAddressResolution） | MachOKitExtensions 的 [MachOAddressResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOAddressResolution.md) | 已搬去 MachOKitExtensions：离线的地址空间、桩链、槽解析与 cache 镜像定位，线程读取与交叉引用文件模式共用 |
+| MachOCodeReferences（原 CrossReferenceCore） | MachOKitExtensions 的 [MachOCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md) | 已搬去 MachOKitExtensions：交叉引用与语言无关的核心层；总说明仍在 [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) |
+| ObjCCodeReferences（原 CrossReferenceObjC） | MachOObjCSection 的 [ObjCCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/next/Documentations/Internal/ObjCCodeReferences.md) | 已搬去 MachOObjCSection：交叉引用的 ObjC 层；总说明仍在 [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) |
 | SwiftAttributeInference | — | 待写 |
 | SwiftDeclaration | [SwiftDeclaration.md](SwiftDeclaration.md) | ✅ 已写 |
 | SwiftDeclarationRendering | — | 待写 |
@@ -37,16 +37,17 @@
 | TypeIndexing | — | 待写（专题：[TypeIndexingPipeline.md](../TypeIndexingPipeline.md)） |
 | SwiftOutputTransformer | — | 待写（专题：[OutputTransformerMigration.md](../OutputTransformerMigration.md)） |
 | MachOSwiftSection | — | 待写 |
-| MachOFoundation | — | 待写 |
-| MachOSymbols | [MachOSymbols.md](MachOSymbols.md) | ✅ 已写（专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
-| MachOBase | — | 待写（伞模块：ABI 层允许看到的全部——reading / resolving / pointers；见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
-| MachOPointers | — | 待写（`SymbolOrElementPointer` 自 `MachOSymbolPointers` 并入，见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
-| MachOReading / MachOResolving | — | 待写 |
-| MachOCaches | [MachOCaches.md](MachOCaches.md) | ✅ 已写 |
-| MachODependencies | [MachODependencies.md](MachODependencies.md) | ✅ 已写 |
+| MachOFoundation | — | 由 MachOKitExtensions 提供（2.0.0 起，同名 product）：再导出 `MachOBase`、`MachOSymbols`、`MachODependencies` |
+| SwiftSymbols | [SwiftSymbols.md](SwiftSymbols.md) | ✅ 已写（Swift 符号索引 `SwiftSymbolIndexStore`；专题：[SymbolIndexStoreMemoryOptimization.md](../SymbolIndexStoreMemoryOptimization.md)） |
+| MachOSymbols | — | 由 MachOKitExtensions 提供（2.0.0 起）：符号表、采集与 C/C++ 符号索引，实现说明 [SymbolIndex.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SymbolIndex.md) |
+| MachOBase | — | 由 MachOKitExtensions 提供（2.0.0 起）：伞模块，ABI 层允许看到的全部——reading / resolving / pointers，不再再导出 `Utilities`（ABI 模块 `MachOSwiftSection` 自己再导出）；边界见 [SelfContainedABILayer.md](../SelfContainedABILayer.md) |
+| MachOPointers | — | 由 MachOKitExtensions 提供（2.0.0 起）：相对 / 间接指针与 `SymbolOrElementPointer`（自 `MachOSymbolPointers` 并入的来历见 [SelfContainedABILayer.md](../SelfContainedABILayer.md)） |
+| MachOReading / MachOResolving | — | 0.25.0 起是 MachOKitExtensions 包的模块（2.0.0 起，同名），实现说明在该包的 `Documentations/Internal/ReadingContextAbstraction.md`；本库怎么用它们见 [ReadingContextAbstraction.md](../ReadingContextAbstraction.md) |
+| MachOCaches | — | 由 MachOKitExtensions 提供（2.0.0 起），实现说明 [SharedCache.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SharedCache.md) |
+| MachODependencies | — | 由 MachOKitExtensions 提供（2.0.0 起），实现说明 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md) |
 | MachOSwiftSectionC | — | 待写 |
-| MachOMacros | — | 待写 |
+| SwiftSectionMacros | — | 待写 |
 | Utilities | — | 待写 |
-| MachOFixtureSupport / MachOTestingSupport(C) / baseline-generator | — | 待写（测试基础设施，可合并成一篇） |
+| SwiftSectionFixtureSupport / SwiftSectionTestingSupport(C) / baseline-generator | — | 待写（测试基础设施，可合并成一篇） |
 
-（`Demangling` / `Semantic` 来自上游包 swift-demangling / swift-semantic-string，`MachOKitExtensions` / `MachOObjCSection` 是 sibling 外部包，文档归各自仓库。）
+（`Demangling` / `Semantic` 来自上游包 swift-demangling / swift-semantic-string，`MachOKitExtensions` / `MachOObjCSection` 是 sibling 外部包，文档归各自仓库——上表标「由 MachOKitExtensions 提供」的模块也一样。）

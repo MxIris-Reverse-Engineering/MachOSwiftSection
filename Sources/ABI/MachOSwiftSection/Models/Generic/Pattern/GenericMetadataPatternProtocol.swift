@@ -68,17 +68,3 @@ extension GenericMetadataPatternProtocol {
         return try partialPatterns(in: context).first
     }
 }
-
-// MARK: - Deprecated Mach-O form
-
-extension GenericMetadataPatternProtocol {
-    @available(*, deprecated, message: "Pass a ReadingContext: partialPatterns(in: machO.context).")
-    public func partialPatterns(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericMetadataPartialPattern] {
-        try partialPatterns(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: extraDataPattern(in: machO.context).")
-    public func extraDataPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
-        try extraDataPattern(in: machO.context)
-    }
-}

@@ -2,8 +2,8 @@ import Foundation
 import Testing
 import MachOFoundation
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based Suite for `BuiltinType` (the high-level wrapper around
 /// `BuiltinTypeDescriptor`).

@@ -1,4 +1,6 @@
 import Foundation
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// One image's references, filed by what they reference and stored small
 /// enough for a host to keep for every image it has open: a name is stored

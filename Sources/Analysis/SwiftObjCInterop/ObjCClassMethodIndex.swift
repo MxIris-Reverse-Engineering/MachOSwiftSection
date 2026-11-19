@@ -4,7 +4,7 @@ import MachOKit
 import MachOKitExtensions
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import MachOReading
 import SwiftInspection
 
@@ -46,7 +46,7 @@ import SwiftInspection
 package final class ObjCClassMethodIndex: @unchecked Sendable {
     package static let shared = ObjCClassMethodIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.symbolStore])
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.swiftSymbolStore])
 
     private init() {}
 

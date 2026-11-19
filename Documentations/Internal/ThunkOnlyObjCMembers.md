@@ -15,7 +15,7 @@
 
 | 层 | 文件 | 做什么 |
 |---|---|---|
-| MachOSymbols | `SymbolIndexStore.swift` | 扫描时，以 `objCAttribute` 开头的符号照旧进 thunk 属性的标记表，此外经 `processMemberSymbol` 按它进入的成员归类，存进第四个成员索引 `objcThunkMemberSymbolRowsByKind`。它与实现符号、`Tq`、protocol witness 三个索引并列，键同样是「成员类别 → 类型名 → 类型节点」，存的是 thunk 自己的行。查询是 `objcThunkMemberSymbols(of:for:in:)`、两个带 node 的重载和 `objcThunkMemberSymbols(of:excluding:in:)`。 |
+| SwiftSymbols | `SwiftSymbolIndexStore.swift` | 扫描时，以 `objCAttribute` 开头的符号照旧进 thunk 属性的标记表，此外经 `processMemberSymbol` 按它进入的成员归类，存进第四个成员索引 `objcThunkMemberSymbolRowsByKind`。它与实现符号、`Tq`、protocol witness 三个索引并列，键同样是「成员类别 → 类型名 → 类型节点」，存的是 thunk 自己的行。查询是 `objcThunkMemberSymbols(of:for:in:)`、两个带 node 的重载和 `objcThunkMemberSymbols(of:excluding:in:)`。 |
 | SwiftDeclaration | `Indexing/Building/StandInMemberSymbolBuilder.swift` | 造替身与去重：`memberStandIn(forObjCThunkSymbol:in:)`、`allocatorStandIn(forInitializerSymbol:in:)`、`supplementing(_:with:)`、`declaredEntityKey(of:)`（从 `ClassDispatchLookups` 挪过来，0054 的 `Tq` 替身也用它），以及造之前按名字预筛的 `imageKeepsTheMemberSymbol(replacedBy:symbolIndexStore:in:)`。`TypeMembers` 是一个类型自己成员的替身表，`supplementingExtensionMembers(_:symbolIndexStore:in:)` 补 extension 成员。 |
 | SwiftDeclaration | `TypeDefinition+MemberIndexing.swift` | 七类成员的 builder 输入都按「真实符号 → `Tq` 替身 → 这两种替身」的顺序拼起来。 |
 | SwiftIndexing | `SwiftDeclarationIndexer.indexExtensions()` | 按类型分组之前先补替身；成员全是替身的类型也会得到 extension。 |
@@ -64,7 +64,7 @@ Swift 6.4 的 `-O -wmo` 对 internal 类的 initializer 又多做一步：alloca
 
 ## 验证
 
-- `ThunkOnlyMemberFixture`（MachOTestingSupport）把同一份源码编两次：`-Onone` 保留每个入口，是独立的事实；`-O -wmo` 复现 app 的 Release 构建。内部类的 ObjC 覆写（`description`、`isEqual(_:)`、`init()`）、`@objc` 方法与 `@objc class func`、同模块 extension 里的 `@objc` 方法、`NSObject` extension 里的 `@objc` 方法、泛型类的覆写与它合成的 `init()`，以及只剩 `fc` 的 `init(values:)`。
+- `ThunkOnlyMemberFixture`（SwiftSectionTestingSupport）把同一份源码编两次：`-Onone` 保留每个入口，是独立的事实；`-O -wmo` 复现 app 的 Release 构建。内部类的 ObjC 覆写（`description`、`isEqual(_:)`、`init()`）、`@objc` 方法与 `@objc class func`、同模块 extension 里的 `@objc` 方法、`NSObject` extension 里的 `@objc` 方法、泛型类的覆写与它合成的 `init()`，以及只剩 `fc` 的 `init(values:)`。
 - `ThunkOnlyObjCMemberTests`（SwiftInterfaceTests）：先钉住前提（优化版里 `isEqual(_:)` 只有 thunk、`init(values:)` 只有 `fc`，否则后面的断言会在不再删 entry point 的编译器上空过）；两份构建打印出的各声明块成员集合相同；`@objc` / `override` 按 ObjC 方法表给出，泛型类只有 `@objc`；替身的地址是 thunk 或 `fc` 的地址；进程内 `MachOImage` 与文件打印相同。
 - `ThunkOnlyObjCMemberDumpTests`（SwiftDumpTests）：优化版的 dump 有 `[ObjC Thunk]` 各节和方法表注释，未优化版没有这一节，泛型类的 thunk 行不带 ObjC 注释。
 - 修复前先跑（JHs-Mac-Studio-Ultra，Xcode 26.6，远端依赖）：只有测试的提交上，7 个暴露问题的测试全部失败（24 处），3 个只核对前提的测试通过；`@objc` 误标的两条测试在各自的修复之前，两种构建都失败，印出的正是 `@objc init(tags: [Swift.String])` 与 `@objc func handleTick(count: Swift.Int) -> Swift.Int`。

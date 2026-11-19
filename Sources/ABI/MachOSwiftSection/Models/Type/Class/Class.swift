@@ -168,17 +168,3 @@ extension Class {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension Class {
-    @available(*, deprecated, message: "Pass a ReadingContext: Class(descriptor:in: machO.context).")
-    public init(descriptor: ClassDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: Class(descriptor:in: .inProcess).")
-    public init(descriptor: ClassDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

@@ -6,7 +6,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 import SwiftDeclarationRendering
 
 /// An archived iOS simulator cache: the dependency closure an iOS simulator

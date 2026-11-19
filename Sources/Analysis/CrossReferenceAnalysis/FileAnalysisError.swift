@@ -1,3 +1,6 @@
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
+
 extension CrossReferenceAnalyzer {
     /// Why an analyzer could not be made from files.
     public struct FileAnalysisError: Error, Hashable, Sendable {

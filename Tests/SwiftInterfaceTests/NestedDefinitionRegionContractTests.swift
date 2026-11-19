@@ -12,8 +12,8 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// With `SwiftDeclarationPrintConfiguration.marksNestedDefinitions`, every
 /// nested type and protocol taken out of its parent's print —

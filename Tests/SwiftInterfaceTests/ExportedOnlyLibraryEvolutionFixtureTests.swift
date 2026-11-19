@@ -2,13 +2,13 @@ import Foundation
 import Testing
 import MachOKit
 import Semantic
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @testable import MachOSwiftSection
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// The exported-only filter (evolution proposal
 /// `exported-only-interface`) over `internal` declarations, on the
@@ -39,10 +39,10 @@ struct ExportedOnlyLibraryEvolutionFixtureTests {
     /// in the trie — the store must answer `false` / `true`, never `nil`.
     @Test func fixtureExportsExactlyItsPublicDescriptors() async throws {
         let (_, machOFile) = try await buildOutput(exportedOnly: false)
-        #expect(SymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture11PublicShapeVMn", in: machOFile) == true)
-        #expect(SymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture13InternalShapeVMn", in: machOFile) == false)
-        #expect(SymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture14PublicContractMp", in: machOFile) == true)
-        #expect(SymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture16InternalContractMp", in: machOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture11PublicShapeVMn", in: machOFile) == true)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture13InternalShapeVMn", in: machOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture14PublicContractMp", in: machOFile) == true)
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: "_$s19ExportedOnlyFixture16InternalContractMp", in: machOFile) == false)
     }
 
     @Test func internalTypesAreDroppedAtEveryNestingLevel() async throws {

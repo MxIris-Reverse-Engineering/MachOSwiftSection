@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 // MARK: - Specialized mangled-name resolution
 
@@ -11,7 +11,7 @@ import MachOKit
 /// `Any.Type` by deriving the descriptor pointer and the inline
 /// generic-arguments array from a specialized in-process metadata.
 ///
-/// Fixtures come from `MachOTestingSupport.SpecializedMangledNameFixtures` so
+/// Fixtures come from `SwiftSectionTestingSupport.SpecializedMangledNameFixtures` so
 /// the descriptors live in the shared support module and stay reusable across
 /// future suites. Each test still touches `T<U>.self` before reading the
 /// metadata back so the runtime materializes the per-instantiation metadata.

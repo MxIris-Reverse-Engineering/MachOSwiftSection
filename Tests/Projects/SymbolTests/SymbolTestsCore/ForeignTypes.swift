@@ -10,7 +10,7 @@ import CoreFoundation
 // the metadata is reliably mapped into the test process. The real
 // `ForeignClassMetadata` carrier is reached via
 // `unsafeBitCast(CFString.self, to: UnsafeRawPointer.self)` from the
-// `MachOFixtureSupport` `InProcessMetadataPicker`.
+// `SwiftSectionFixtureSupport` `InProcessMetadataPicker`.
 //
 // `ForeignReferenceTypeMetadata` requires C++ interop import
 // (`SWIFT_SHARED_REFERENCE`); SymbolTestsCore does not enable C++

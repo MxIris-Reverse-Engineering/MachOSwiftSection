@@ -5,8 +5,8 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 @Suite(.serialized, .snapshots(record: .missing))
 final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTests, @unchecked Sendable {

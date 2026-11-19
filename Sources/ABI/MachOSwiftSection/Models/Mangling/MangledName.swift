@@ -174,20 +174,6 @@ extension MangledName: Resolvable {
     }
 }
 
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension MangledName {
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try resolve(at: ptr, in: InProcessContext.shared)
-    }
-}
-
 extension MangledName: CustomStringConvertible {
     public var description: String {
         var lines: [String] = []

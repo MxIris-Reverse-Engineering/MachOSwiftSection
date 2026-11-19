@@ -33,7 +33,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.24.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.25.0"),
 ],
 targets: [
     .target(
@@ -41,7 +41,7 @@ targets: [
         dependencies: [
             .product(name: "MachOSwiftSection", package: "MachOSwiftSection"),
             // Optional higher-level products:
-            .product(name: "MachOFoundation", package: "MachOSwiftSection"),
+            .product(name: "SwiftSymbols", package: "MachOSwiftSection"),
             .product(name: "SwiftInspection", package: "MachOSwiftSection"),
             .product(name: "SwiftDump", package: "MachOSwiftSection"),
             .product(name: "SwiftInterface", package: "MachOSwiftSection"),
@@ -50,16 +50,18 @@ targets: [
 ]
 ```
 
-Declare every product whose module you import. In particular, `MachOSwiftSection` no longer re-exports the symbol index (since 0.19.0): a file that uses `SymbolIndexStore`, `DemangledSymbol` or `DependencyClosure` needs `import MachOFoundation` **and** the `MachOFoundation` product on its target.
+Declare every product whose module you import. In particular, `MachOSwiftSection` does not re-export the symbol index (since 0.19.0): a file that uses `SwiftSymbolIndexStore` or `DemangledSymbol` needs `import SwiftSymbols` **and** the `SwiftSymbols` product on its target.
+
+Since 0.25.0 the Mach-O layer underneath — `MachOBase`, `MachOFoundation`, `MachODependencies`, `MachOSymbols`, `MachOCaches`, `MachOPointers`, `MachOReading`, `MachOResolving` — comes from [MachOKitExtensions](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions) 2.0.0 and later, under the same module names. Code that uses one of them directly (`DependencyClosure`, for instance, is in `MachODependencies`) declares that product with `package: "MachOKitExtensions"`.
 
 **The ABI model and the Mach-O layer**
 
 | Product | Purpose |
 | --- | --- |
 | `MachOSwiftSection` | The ABI model: the `__swift5_*` sections, every descriptor in them, and the wrappers built from them (`Struct`, `Enum`, `Class`, `Protocol`, `ProtocolConformance`, …). Depends on `MachOBase` only — no symbol index, no demangler. |
-| `MachOBase` | Reading, address resolution and relative pointers — everything the ABI model sees. Re-exported by `MachOSwiftSection`. |
-| `MachOFoundation` | `MachOBase` plus the symbol index, demangling, and dependency resolution. |
-| `MachODependencies` | Resolves the images a binary links, in process or from files and dyld shared caches. |
+| `SwiftSymbols` | The Swift symbol index: `SwiftSymbolIndexStore` demangles and classifies an image's Swift symbols, queried by offset, by name and by type member. |
+
+`MachOSwiftSection` re-exports MachOKitExtensions' `MachOBase` (reading, address resolution and relative pointers — everything the ABI model sees). `MachOBase`, `MachOFoundation` and `MachODependencies` used to be products of this package; since 0.25.0 they are provided by MachOKitExtensions.
 
 **Analysis**
 

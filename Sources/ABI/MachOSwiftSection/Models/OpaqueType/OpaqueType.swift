@@ -46,17 +46,3 @@ extension OpaqueType {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension OpaqueType {
-    @available(*, deprecated, message: "Pass a ReadingContext: OpaqueType(descriptor:in: machO.context).")
-    public init(descriptor: OpaqueTypeDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: OpaqueType(descriptor:in: .inProcess).")
-    public init(descriptor: OpaqueTypeDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

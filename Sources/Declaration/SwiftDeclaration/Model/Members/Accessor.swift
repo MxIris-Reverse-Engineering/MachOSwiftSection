@@ -1,5 +1,5 @@
 import MemberwiseInit
-import MachOSymbols
+import SwiftSymbols
 import MachOSwiftSection
 import SwiftInspection
 import SwiftObjCInterop

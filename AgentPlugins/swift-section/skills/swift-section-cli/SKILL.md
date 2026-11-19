@@ -47,8 +47,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
 `evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
 / `dump --enable-module-selectors`, from 0.24.0
-`interface --requirements-on-associated-types` and `--emit-private-source-files`, and after
-0.24.0 `objc evolution --interface` / `--emit-available` / `--platform`,
+`interface --requirements-on-associated-types` and `--emit-private-source-files`, and from
+0.25.0 `objc evolution --interface` / `--emit-available` / `--platform`,
 `objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`,
 `interface --expand-macros` and the `refs` and `symbolicate` subcommands.
 When one is
@@ -170,7 +170,7 @@ SE-0491 module selectors — `Swift::Int` instead of `Swift.Int`, the spelling a
 too: `interface --module-selectors`, `dump --enable-module-selectors` (one of the demangler
 switches below).
 
-Existential types carry the `any` keyword by default in both outputs (after 0.24.0), as the
+Existential types carry the `any` keyword by default in both outputs (from 0.25.0), as the
 compiler writes a `.swiftinterface`: `any P`, `(any P)?`, `any P.Type` for the existential
 metatype, `(any P).Type` for the metatype of the existential (older builds print `P.Protocol`),
 and `any Any.Type` — a lone `Any` or `AnyObject` stays bare. Older builds print every
@@ -181,7 +181,7 @@ constrained existential type (`any Boxed<Int>`) printed in older builds as its a
 so read such a line from an older build as a constrained existential of unknown protocol, not
 as the type it names.
 
-A class the `@Observable` macro expanded prints the way its source reads (after 0.24.0):
+A class the `@Observable` macro expanded prints the way its source reads (from 0.25.0):
 `@Observation.Observable` above the class, each tracked property as the stored `var x: T` it
 was declared as, a stored `var` the macro left alone under `@Observation.ObservationIgnored`
 on a line of its own (a property wrapper's attribute gets a line of its own too), and no registrar, no `access(keyPath:)` / `withMutation(keyPath:_:)` / `shouldNotifyObservers`, no
@@ -389,7 +389,7 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   (`extension P where Element: ~Copyable`), which only a primary associated type
   (`protocol P<Element>`) can.
 - **`@storageRestrictions(initializes: _x) init` in an accessor block is inferred, not read**
-  (after 0.24.0). No binary records the attribute (SE-0400 init accessors): it is printed when
+  (from 0.25.0). No binary records the attribute (SE-0400 init accessors): it is printed when
   the type has a stored property `_x` of the property's own type — what `@Observable` and most
   hand-written storage do — and it never lists `accesses:`. Otherwise a bare `init` prints under
   `// init accessor: the binary does not record which stored properties it initializes`. **No

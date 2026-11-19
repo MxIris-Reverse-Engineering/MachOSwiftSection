@@ -6,7 +6,7 @@ import SwiftDiffing
 import MachOSwiftSection
 import Semantic
 import SwiftStdlibToolbox
-import MachOSymbols
+import SwiftSymbols
 
 /// Renders one module's ABI across N ≥ 2 ordered binary versions as a single
 /// **union interface with lifecycle annotations** — the N-way, human-readable

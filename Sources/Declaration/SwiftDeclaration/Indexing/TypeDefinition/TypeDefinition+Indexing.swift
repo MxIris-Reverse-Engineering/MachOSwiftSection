@@ -4,7 +4,7 @@ import MachOSwiftSection
 import SwiftDeclarationRendering
 import SwiftStdlibToolbox
 import SwiftThunkAnalysis
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 
@@ -31,7 +31,7 @@ extension TypeDefinition: OnceIndexedDefinition {
     /// wrapped-property recovery (needs both the folded fields and the member
     /// variables).
     private func runIndexingPass(in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         var indexedFields = try indexedFieldDefinitions(in: machO)

@@ -1,7 +1,7 @@
 import Demangling
 import MachOSwiftSection
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 extension ExtensionDefinition: OnceIndexedDefinition {
@@ -44,7 +44,7 @@ extension ExtensionDefinition: OnceIndexedDefinition {
         // store-identity equality would let the same implementation symbol be
         // claimed by two witnesses.
         func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
-            for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: typeName, ownerKind: .conformingType, printedWith: .interfaceTypeBuilderOnly, in: machO) {
+            for candidate in SwiftSymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: typeName, ownerKind: .conformingType, printedWith: .interfaceTypeBuilderOnly, in: machO) {
                 if !visitedNodes.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
                     return candidate
                 }
@@ -52,7 +52,7 @@ extension ExtensionDefinition: OnceIndexedDefinition {
             return nil
         }
         var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-        var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
+        var memberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [MemberSymbol]> = [:]
         var defaultImplementationSymbolNames: Set<String> = []
 
         for resilientWitness in protocolConformance.resilientWitnesses {

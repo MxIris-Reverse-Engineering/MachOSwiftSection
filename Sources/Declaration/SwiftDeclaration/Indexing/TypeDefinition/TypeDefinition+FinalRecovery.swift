@@ -1,6 +1,6 @@
 import Demangling
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 extension TypeDefinition {
     /// `final` recovery (evolution proposal 0006) — the mirror image of the
@@ -19,7 +19,7 @@ extension TypeDefinition {
     /// before `orderedMembers` is built (which copies the member values).
     func recoverFinalMembers(
         fields: inout [FieldDefinition],
-        symbolIndexStore: SymbolIndexStore,
+        symbolIndexStore: SwiftSymbolIndexStore,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) {
         let name = typeName.name
@@ -39,7 +39,7 @@ extension TypeDefinition {
         // a vtable entry — never `final`, even when the join missed it.
         var methodDescriptorSymbolMemberNames: Set<String> = []
         var subscriptMethodDescriptorNodeKeys: Set<StructuralNodeReferenceKey> = []
-        let instanceMemberKinds: [SymbolIndexStore.MemberKind] = [
+        let instanceMemberKinds: [SwiftSymbolIndexStore.MemberKind] = [
             .function(inExtension: false, isStatic: false),
             .variable(inExtension: false, isStatic: false, isStorage: false),
             .subscript(inExtension: false, isStatic: false),

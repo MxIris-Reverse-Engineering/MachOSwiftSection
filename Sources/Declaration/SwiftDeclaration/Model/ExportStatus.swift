@@ -2,7 +2,7 @@ import Foundation
 import Dependencies
 import MachOSwiftSection
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Whether a declaration's own descriptor symbol has an entry in the image's
 /// export trie — the fact evolution proposal 0008 annotates with
@@ -80,7 +80,7 @@ public enum ExportStatus: Sendable, Hashable {
 
 extension ExportStatus {
     /// The tri-state projection, shaped exactly like
-    /// `SymbolIndexStore.isExported(name:in:)`: `nil` for every non-verdict
+    /// `SwiftSymbolIndexStore.isExported(name:in:)`: `nil` for every non-verdict
     /// case. Use it where the caller only distinguishes "provably not
     /// exported" from everything else.
     public var isExported: Bool? {
@@ -209,7 +209,7 @@ extension ExportStatus {
         descriptorSymbolSuffix: String,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) -> ExportStatus {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         if let symbolsAtDescriptor = symbolIndexStore.symbols(for: descriptorOffset, in: machO),
@@ -226,7 +226,7 @@ extension ExportStatus {
     /// its own to judge by: ``notExported`` in an image that has export
     /// information, ``imageHasNoExportInformation`` in one that has none.
     private static func statusOfPrivateOrLocalDeclaration(in machO: some MachOSwiftSectionRepresentableWithCache) -> ExportStatus {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
         return symbolIndexStore.hasExportInformation(in: machO) ? .notExported : .imageHasNoExportInformation
     }

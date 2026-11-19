@@ -2,11 +2,11 @@ import Foundation
 import Testing
 import MachOKit
 @_spi(Internals) @testable import Demangling
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 import SwiftInterface
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The export verdict of declarations in extensions of another module's
 /// types, in images that keep no symbol at a non-exported descriptor
@@ -91,10 +91,10 @@ struct ExtensionContextExportStatusTests {
             let name = typeDefinition.typeName.declaredNameForTesting
             guard Self.declarationsInUnconstrainedExtensions.contains(name) else { continue }
             let descriptorOffset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-            let descriptorSymbol = SymbolIndexStore.shared.symbols(for: descriptorOffset, in: machOFile)?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mn") }
+            let descriptorSymbol = SwiftSymbolIndexStore.shared.symbols(for: descriptorOffset, in: machOFile)?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mn") }
             #expect((descriptorSymbol != nil) == (variant == .unstripped), "\(name) in \(variant)")
         }
-        #expect(SymbolIndexStore.shared.hasExportInformation(in: machOFile))
+        #expect(SwiftSymbolIndexStore.shared.hasExportInformation(in: machOFile))
     }
 
     @Test(arguments: Variant.allCases)
@@ -129,7 +129,7 @@ struct ExtensionContextExportStatusTests {
             guard contexts.unconstrained > 0, contexts.constrained == 0 else { continue }
             let descriptorOffset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
             let descriptorSymbolName = try #require(
-                SymbolIndexStore.shared.symbols(for: descriptorOffset, in: machOFile)?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mn") }?.name,
+                SwiftSymbolIndexStore.shared.symbols(for: descriptorOffset, in: machOFile)?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mn") }?.name,
                 "\(typeDefinition.typeName.name) has no descriptor symbol"
             )
             #expect(ExportStatus.descriptorSymbolName(for: typeDefinition.typeName.node, descriptorKind: .nominalTypeDescriptor) == descriptorSymbolName, "\(typeDefinition.typeName.name)")
@@ -139,7 +139,7 @@ struct ExtensionContextExportStatusTests {
             let contexts = Self.extensionContexts(of: protocolDefinition.protocolName.node)
             guard contexts.unconstrained > 0, contexts.constrained == 0 else { continue }
             let descriptorSymbolName = try #require(
-                SymbolIndexStore.shared.symbols(for: protocolDefinition.protocolDescriptor.offset, in: machOFile)?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mp") }?.name,
+                SwiftSymbolIndexStore.shared.symbols(for: protocolDefinition.protocolDescriptor.offset, in: machOFile)?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mp") }?.name,
                 "\(protocolDefinition.protocolName.name) has no descriptor symbol"
             )
             #expect(ExportStatus.descriptorSymbolName(for: protocolDefinition.protocolName.node, descriptorKind: .protocolDescriptor) == descriptorSymbolName, "\(protocolDefinition.protocolName.name)")

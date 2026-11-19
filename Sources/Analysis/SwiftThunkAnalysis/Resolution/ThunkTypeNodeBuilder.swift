@@ -1,8 +1,9 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
-import CodeAddressResolution
+@_spi(Internals) import MachOAddressResolution
 import MachOFoundation
+import SwiftSymbols
 import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection

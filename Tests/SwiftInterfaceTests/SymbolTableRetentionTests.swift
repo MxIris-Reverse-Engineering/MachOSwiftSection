@@ -1,19 +1,20 @@
+@_spi(Internals) import MachOSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 import Foundation
 import Testing
 import MachOKit
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A `DemangledSymbol` stored in the declaration model must not keep the
 /// shared per-image symbol table alive.
 ///
-/// `SymbolIndexStore` vends values that share one `[Symbol]` buffer, which
+/// `SwiftSymbolIndexStore` vends values that share one `[Symbol]` buffer, which
 /// keeps each of the hundreds of thousands it produces at 32 bytes. Those
 /// values are meant to be dropped when the query result is; a few thousand of
 /// them are instead stored in the model (accessors, functions, deallocators)
@@ -39,7 +40,7 @@ final class SymbolTableRetentionTests: MachOFileTests, @unchecked Sendable {
         try await builder.prepare()
         _ = try await builder.printRoot()
 
-        let storage = try #require(SymbolIndexStore.shared.storage(in: machOFile))
+        let storage = try #require(SwiftSymbolIndexStore.shared.storage(in: machOFile))
         let sharedTableRowCount = storage.symbolTable.rowCount
         // Otherwise the assertion below cannot distinguish a detached value
         // from a shared one.

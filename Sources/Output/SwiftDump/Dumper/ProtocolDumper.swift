@@ -5,7 +5,7 @@ import Semantic
 import Utilities
 import Demangling
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
@@ -175,7 +175,7 @@ package struct ProtocolDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
     /// `symbols` is what the index listed at its offset.
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
-        for candidate in SymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: currentInterfaceName, ownerKind: .protocol, printedWith: .interfaceType, in: machO) {
+        for candidate in SwiftSymbolIndexStore.shared.symbols(for: symbols.offset, ownedBy: currentInterfaceName, ownerKind: .protocol, printedWith: .interfaceType, in: machO) {
             if !visitedNode.contains(StructuralNodeReferenceKey(candidate.demangledNode)) {
                 return candidate.demangledNode
             }

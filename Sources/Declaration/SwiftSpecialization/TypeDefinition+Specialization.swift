@@ -3,7 +3,7 @@ import SwiftDeclaration
 import MachOSwiftSection
 import MachOKit
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import FoundationToolbox
 import AssociatedObject
 @_spi(Internals) import SwiftInspection

@@ -1,5 +1,6 @@
 import MachOKit
 import MachOFoundation
+import SwiftSymbols
 import MachOSwiftSection
 
 // Symbol attribution for the ABI layer's implementation pointers.

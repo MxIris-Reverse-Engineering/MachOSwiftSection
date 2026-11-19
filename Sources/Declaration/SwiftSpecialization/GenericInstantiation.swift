@@ -4,7 +4,7 @@ import MachOKit
 import MachOSwiftSection
 import SwiftDeclaration
 import SwiftDeclarationRendering
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 /// The arguments of every parameter of one instantiation of a generic type,

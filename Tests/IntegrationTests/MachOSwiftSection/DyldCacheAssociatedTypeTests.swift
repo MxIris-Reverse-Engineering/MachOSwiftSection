@@ -2,9 +2,9 @@ import Foundation
 import Testing
 import Demangling
 @testable import SwiftDump
-@testable import MachOTestingSupport
-import MachOFixtureSupport
-@_spi(Internals) @testable import MachOSymbols
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
+@_spi(Internals) @testable import SwiftSymbols
 @testable @_spi(Internals) import SwiftInspection
 
 final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {

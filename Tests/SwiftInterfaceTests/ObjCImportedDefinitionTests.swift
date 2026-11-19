@@ -9,7 +9,7 @@ import MachOFoundation
 import SwiftDeclarationRendering
 import SwiftObjCInterop
 import Semantic
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The Objective-C declarations as Swift imports them (evolution proposal
 /// `objc-imported-declarations`), over the shared `@objc @implementation`

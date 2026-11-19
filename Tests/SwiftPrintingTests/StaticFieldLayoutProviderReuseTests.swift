@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftPrinting
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// `updateConfiguration(_:)` keeps the memoized static field-layout provider
 /// while the provider's inputs stay the same, and rebuilds it when they

@@ -6,7 +6,7 @@ import Testing
 import MachOKit
 import Demangling
 @testable import MachOSwiftSection
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// `specialize(...)` appends the new definition to the generic definition's
 /// `specializedChildren`: an associated object, retained non-atomically, read,

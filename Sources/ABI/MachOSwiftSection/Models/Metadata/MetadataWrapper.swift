@@ -181,34 +181,3 @@ extension MetadataWrapper {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension MetadataWrapper {
-    @available(*, deprecated, message: "Pass a ReadingContext: anyMetadata.asMetadata(in: .inProcess).")
-    public var metadata: Metadata {
-        get throws {
-            try anyMetadata.asMetadata(in: InProcessContext.shared)
-        }
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: valueWitnessTable(in: machO.context).")
-    public func valueWitnessTable(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ValueWitnessTable {
-        try valueWitnessTable(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: valueWitnessTable(in: .inProcess).")
-    public func valueWitnessTable() throws -> ValueWitnessTable {
-        try valueWitnessTable(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: offset, in: machO.context).")
-    public static func resolve(from offset: Int, in machO: some MachORepresentableWithCache & Readable) throws -> Self {
-        try resolve(at: offset, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolve(at: pointer, in: .inProcess).")
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try resolve(at: ptr, in: InProcessContext.shared)
-    }
-}

@@ -1,3 +1,6 @@
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
+
 /// Every reference the functions of one image make, grouped by what they
 /// reference.
 ///

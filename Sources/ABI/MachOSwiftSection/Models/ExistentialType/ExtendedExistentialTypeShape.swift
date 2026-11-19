@@ -20,20 +20,6 @@ extension ExtendedExistentialTypeShape {
     }
 }
 
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension ExtendedExistentialTypeShape {
-    @available(*, deprecated, message: "Pass a ReadingContext: existentialType(in: machO.context).")
-    public func existentialType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try existentialType(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: existentialType(in: .inProcess).")
-    public func existentialType() throws -> MangledName {
-        try existentialType(in: InProcessContext.shared)
-    }
-}
-
 public struct ExtendedExistentialTypeShapeFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 

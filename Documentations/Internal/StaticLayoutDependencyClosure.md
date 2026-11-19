@@ -4,7 +4,7 @@
 >
 > **状态：已落地。** 下文设计/步骤为原始计划，末尾「落地实测」记录与计划的差异；与实现冲突处以「落地实测」为准。
 >
-> **2026-09-02 更新**：本文描述的定位器（`MachOFileDependencyLocator`）、BFS 遍历与 `LayoutDependencySearchPath` 已下沉为共享模块 `MachODependencies`（提案 [0017](../Evolutions/0017-macho-dependencies-module.md)）；`ImageUniverse.dependencyClosure(root:…)` 工厂现在是 `DependencyClosure` 的薄包装，cache 的 bare name 匹配也从「枚举顺序首写者胜」改为「install path 精确优先、排序兜底」。现行契约以 [Modules/MachODependencies.md](Modules/MachODependencies.md) 为准，本文保留为阶段 3 的设计与实测记录。
+> **2026-09-02 更新**：本文描述的定位器（`MachOFileDependencyLocator`）、BFS 遍历与 `LayoutDependencySearchPath` 已下沉为共享模块 `MachODependencies`（提案 [0017](../Evolutions/0017-macho-dependencies-module.md)）；`ImageUniverse.dependencyClosure(root:…)` 工厂现在是 `DependencyClosure` 的薄包装，cache 的 bare name 匹配也从「枚举顺序首写者胜」改为「install path 精确优先、排序兜底」。现行契约以 MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md) 为准（`MachODependencies` 自 0.25.0 起由 MachOKitExtensions 2.0.0 提供），本文保留为阶段 3 的设计与实测记录。
 
 ## 背景与目标
 
@@ -97,7 +97,7 @@ extension ImageUniverse {
 1. **`ImageReference` 索引可复用化**：把「从一个 machO 建 type/protocol 索引」抽成可被多镜像聚合调用的形式（当前 `init` 已是单镜像版，加一个把多个 `ImageReference` 合并的入口）。
 2. **`ImageUniverse` 多镜像化**：`rootImage` + `dependencyImages`，全局表合并，`resolveType` / `resolveProtocolClassConstraint` 改查全局表（root 优先）。加 `dependencyClosure(root:dependencyImages:)` 底层工厂。单测：手工塞两个镜像，验证跨镜像解析。
 3. **`MachOImage` 便利工厂**：`dependencyClosure(root: MachOImage)` 经 `MachOImage(name:)` 递归 + 防环。用 fixture（`machOImage`）验证 `DistributedActorTest` 经 vector 完全解析、`ResilientChild` 字段偏移可算。
-4. **`MachOFile` 便利工厂**：`dependencyClosure(root: MachOFile, searchPaths:)` 经 `FullDyldCache.cachedHost` + 显式路径。2026-10-08 起，从 dyld cache 里读出来的 root 先在自己所在的 cache 里找依赖，再查这些路径（[Modules/MachODependencies.md](Modules/MachODependencies.md) §3）。
+4. **`MachOFile` 便利工厂**：`dependencyClosure(root: MachOFile, searchPaths:)` 经 `FullDyldCache.cachedHost` + 显式路径。2026-10-08 起，从 dyld cache 里读出来的 root 先在自己所在的 cache 里找依赖，再查这些路径（MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md) §3）。
 5. **resilient 验证扩展**（见下）。
 6. **文档**：更新 `StaticLayoutEngine.md`（移除阶段 3 残留项）、本文「实测」回填、`Documentations/README.md`。
 

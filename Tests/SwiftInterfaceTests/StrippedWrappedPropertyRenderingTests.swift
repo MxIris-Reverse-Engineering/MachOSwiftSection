@@ -8,7 +8,7 @@ import SwiftPrinting
 // Scoped: the module's `Error` component would shadow `Swift.Error` here.
 import struct Semantic.SemanticString
 import struct Semantic.FrozenSemanticString
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// The interface side of wrapped-property recovery for the two cases the
 /// same-image suite (`PropertyWrapperSynthesizedMemberTests`) cannot show:

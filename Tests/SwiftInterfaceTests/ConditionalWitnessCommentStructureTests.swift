@@ -12,7 +12,7 @@ import struct Semantic.FrozenSemanticString
 import struct Semantic.AnnotationRegionTable
 import struct Semantic.AnnotationRegion
 import struct Semantic.AnnotationSegment
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// The comment above an availability-conditional witness (SE-0360) — the
 /// associated type's line and one line per branch — marked as one

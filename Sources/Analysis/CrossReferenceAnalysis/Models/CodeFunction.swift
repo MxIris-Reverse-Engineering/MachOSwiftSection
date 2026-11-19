@@ -1,3 +1,6 @@
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
+
 /// A function of an image, bounded by `LC_FUNCTION_STARTS` and the symbol
 /// table.
 ///

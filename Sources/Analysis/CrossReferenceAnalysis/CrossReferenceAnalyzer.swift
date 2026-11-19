@@ -1,5 +1,7 @@
 import Foundation
 import MachOKit
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// Reads what each function of an image references, from its arm64
 /// machine code, inside the current process.
@@ -17,8 +19,9 @@ import MachOKit
 /// as it wants. Drop the analyzer to release the function tables.
 ///
 /// The facade over three layers: the language-free core
-/// (`CrossReferenceCore`: images, function tables, the instruction scan),
-/// the Objective-C layer (`CrossReferenceObjC`) and the Swift layer, this
+/// (MachOKitExtensions' `MachOCodeReferences`: images, function tables,
+/// the instruction scan), the Objective-C layer (MachOObjCSection's
+/// `ObjCCodeReferences`) and the Swift layer, this
 /// module. The two language layers plug into the core's scan as recognizers;
 /// the analyzer builds a session of each for every scan and turns what they
 /// record into ``CodeReference``s.

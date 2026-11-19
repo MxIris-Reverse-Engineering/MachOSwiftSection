@@ -1,8 +1,9 @@
+@_spi(Internals) import MachOSymbols
 import Foundation
 import Testing
 import MachOKit
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable @_spi(Internals) import SwiftInspection
 @testable @_spi(Internals) import SwiftObjCInterop
 
@@ -110,7 +111,7 @@ struct MalformedSymbolValueTests {
         let machOFile = try Self.fixtureFile()
         // Read through the symbol store, which collects the symbol without
         // reading what it points at — asking the index would build it.
-        let collectedSymbols = try #require(SymbolIndexStore.shared.symbolicManglingSymbols(in: machOFile))
+        let collectedSymbols = try #require(SwiftSymbolIndexStore.shared.symbolicManglingSymbols(in: machOFile))
         let malformedPosition = try #require(collectedSymbols.position(ofSymbolNamed: Self.malformedSymbolicManglingSymbolName), "the premise: the linker kept the malformed symbol")
         try #require(collectedSymbols[malformedPosition].offset < 0, "the premise: MachOKit hands the value back as a negative offset")
 
@@ -126,7 +127,7 @@ struct MalformedSymbolValueTests {
     func fieldOffsetSymbolWhoseValueIsNoOffsetIsSkipped() throws {
         let machOFile = try Self.fixtureFile()
         let malformedSymbol = try #require(
-            SymbolIndexStore.shared.symbols(of: .fieldOffset, in: machOFile).first { $0.symbol.name == Self.malformedFieldOffsetSymbolName },
+            SwiftSymbolIndexStore.shared.symbols(of: .fieldOffset, in: machOFile).first { $0.symbol.name == Self.malformedFieldOffsetSymbolName },
             "the premise: the symbol index demangles the malformed field offset symbol"
         )
         try #require(malformedSymbol.offset < 0, "the premise: MachOKit hands the value back as a negative offset")

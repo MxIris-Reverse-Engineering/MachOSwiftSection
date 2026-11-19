@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// A protocol's same-type or superclass requirement whose right-hand side is
 /// a composite type prints that type (evolution proposal

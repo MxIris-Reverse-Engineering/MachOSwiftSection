@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 @testable import Demangling
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 
 #if canImport(SwiftUI)

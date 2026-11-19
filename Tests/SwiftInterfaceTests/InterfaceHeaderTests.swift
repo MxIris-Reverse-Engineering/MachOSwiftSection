@@ -4,8 +4,8 @@ import MachOKit
 import Semantic
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Coverage for the interface header block (evolution proposal 0008):
 /// pure-value rendering (line composition, per-field omission, the

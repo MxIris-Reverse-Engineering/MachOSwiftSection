@@ -75,15 +75,6 @@ enum CrossReferenceFormatting {
         }
     }
 
-    static func name(of table: IndirectCallEvidence.Table) -> String {
-        switch table {
-        case .classVirtualTable: "classVirtualTable"
-        case .protocolWitnessTable: "protocolWitnessTable"
-        case .valueWitnessTable: "valueWitnessTable"
-        case .none: "none"
-        }
-    }
-
     static func name(of slotKind: AddressSymbolication.PointerSlotKind) -> String {
         switch slotKind {
         case .globalOffsetTable: "globalOffsetTable"
@@ -205,7 +196,6 @@ final class CrossReferenceTargetNaming {
             return .object(["constantString": .string(characters)])
         case .indirect(let evidence):
             return .object(["indirect": .object([
-                "table": .string(CrossReferenceFormatting.name(of: evidence.table)),
                 "tableOffset": evidence.tableOffset.map { .integer(Int($0)) } ?? .null,
                 "pointerAuthenticationConstant": evidence.pointerAuthenticationConstant.map { .address(UInt64($0)) } ?? .null,
                 "isAddressBlended": .bool(evidence.isAddressBlended),
@@ -246,7 +236,6 @@ final class CrossReferenceTargetNaming {
             return "CFString @\(CrossReferenceFormatting.quoted(characters))"
         case .indirect(let evidence):
             var text = "indirect"
-            if evidence.table != IndirectCallEvidence.Table.none { text += " through \(CrossReferenceFormatting.name(of: evidence.table))" }
             if let tableOffset = evidence.tableOffset { text += " at offset \(tableOffset)" }
             return text
         case .unrecognized(let address):

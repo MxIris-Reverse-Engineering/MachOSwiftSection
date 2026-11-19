@@ -1,8 +1,10 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
-import CodeAddressResolution
+@_spi(Internals) import MachOAddressResolution
+@_spi(Internals) import MachOSymbols
 import MachOFoundation
+import SwiftSymbols
 import MachOSwiftSection
 import Demangling
 @_spi(Internals) import SwiftInspection
@@ -77,7 +79,7 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     private let accessorIndex: MetadataAccessorIndex
     private let searchPathsOverride: [DependencySearchPath]?
     /// The file's pointer slots and trampolines, read through the shared
-    /// resolvers (`CodeAddressResolution`, which the cross-reference analysis
+    /// resolvers (MachOKitExtensions' `MachOAddressResolution`, which the cross-reference analysis
     /// reads files through as well).
     private let slots: SlotResolver
     private let stubs: StubChainResolver

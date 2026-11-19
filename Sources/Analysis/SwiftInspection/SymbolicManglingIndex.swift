@@ -5,7 +5,7 @@ import FoundationToolbox
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Internals) import MachOCaches
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// One symbolic reference in a mangled name that a symbolic-mangling symbol
 /// names, paired with the referent that symbol spells for it.
@@ -103,7 +103,7 @@ package struct SymbolicManglingReference: Hashable, Sendable {
 /// position of its symbol and the index of its referent, and the referent is
 /// demangled, transiently, when asked for.
 ///
-/// Built once per image, lazily, from what `SymbolIndexStore` collected, and
+/// Built once per image, lazily, from what `SwiftSymbolIndexStore` collected, and
 /// evicted with that store (`SwiftDeclarationIndexer`'s symbol-store claim):
 /// the storage holds the store's symbolic-mangling table. This module sits
 /// below the event layer, so symbols that do not pair are reported through
@@ -112,7 +112,7 @@ package struct SymbolicManglingReference: Hashable, Sendable {
 package final class SymbolicManglingIndex: @unchecked Sendable {
     package static let shared = SymbolicManglingIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .symbolicMangling, follows: [.symbolStore])
+    private let cache = SharedCache<Storage>(evictionGroup: .symbolicMangling, follows: [.swiftSymbolStore])
 
     private init() {}
 
@@ -265,7 +265,7 @@ package final class SymbolicManglingIndex: @unchecked Sendable {
     // MARK: - Build
 
     private static func build(in machO: some MachOSwiftSectionRepresentableWithCache) -> Storage? {
-        guard let symbols = SymbolIndexStore.shared.symbolicManglingSymbols(in: machO) else { return nil }
+        guard let symbols = SwiftSymbolIndexStore.shared.symbolicManglingSymbols(in: machO) else { return nil }
         var references: [SymbolicManglingReference] = []
         var unpairedSymbolCount = 0
         for symbolPosition in symbols.indices {

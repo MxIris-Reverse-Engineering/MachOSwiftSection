@@ -1,7 +1,9 @@
 import Foundation
 import Testing
 import MachOKit
-import ARM64InstructionDecoding
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
+@_spi(Internals) import ARM64InstructionDecoding
 @testable import CrossReferenceAnalysis
 
 /// The references step 5 of the offline cross-references proposal adds —

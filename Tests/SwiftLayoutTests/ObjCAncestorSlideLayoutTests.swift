@@ -5,8 +5,8 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A statically-emitted Swift subclass of an ObjC class does **not** start its
 /// fields at the ancestor's raw instance size: the compiler lays the ivars

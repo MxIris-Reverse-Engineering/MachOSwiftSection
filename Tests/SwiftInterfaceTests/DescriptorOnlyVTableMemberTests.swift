@@ -5,7 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDeclarationRendering
 import SwiftInterface
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// An on-the-fly fixture for class members whose only symbol is their method
 /// descriptor, compiled twice over: `.full` keeps every symbol, and

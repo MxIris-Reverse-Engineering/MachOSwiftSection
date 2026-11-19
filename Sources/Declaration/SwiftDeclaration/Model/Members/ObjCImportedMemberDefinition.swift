@@ -1,7 +1,7 @@
 import Foundation
 import MachOSwiftSection
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// One member of an Objective-C class or category as Swift imports it
 /// (evolution proposal `objc-imported-declarations`): a Swift declaration

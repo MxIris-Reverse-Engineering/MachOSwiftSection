@@ -27,12 +27,3 @@ extension ProtocolRecord {
         try layout.protocol.resolve(at: try context.addressFromOffset(offset(of: \.protocol)), in: context)
     }
 }
-
-// MARK: - Deprecated Mach-O form
-
-extension ProtocolRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: protocolDescriptor(in: machO.context).")
-    public func protocolDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor? {
-        try protocolDescriptor(in: machO.context)
-    }
-}

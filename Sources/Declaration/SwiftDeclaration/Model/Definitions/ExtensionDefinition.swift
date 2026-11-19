@@ -5,7 +5,7 @@ import OrderedCollections
 import Demangling
 import Semantic
 import SwiftStdlibToolbox
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 
@@ -183,11 +183,6 @@ public final class ExtensionDefinition: Definition, MutableDefinition, @unchecke
     /// local variable — the result is deliberately not cached.
     public func materializedProtocolConformance(in context: some ReadingContext) throws -> ProtocolConformance? {
         try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: context) }
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: materializedProtocolConformance(in: machO.context).")
-    public func materializedProtocolConformance(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolConformance? {
-        try materializedProtocolConformance(in: machO.context)
     }
 
     /// Folds another definition's associated types (and their frozen witness

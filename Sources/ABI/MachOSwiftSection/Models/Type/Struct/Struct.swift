@@ -81,17 +81,3 @@ extension Struct {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension Struct {
-    @available(*, deprecated, message: "Pass a ReadingContext: Struct(descriptor:in: machO.context).")
-    public init(descriptor: StructDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: Struct(descriptor:in: .inProcess).")
-    public init(descriptor: StructDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

@@ -5,8 +5,8 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The whole-type companion to `StaticLayoutVsRuntimeTests`: for every
 /// non-generic **struct/enum** defined in the fixture module, materialize the

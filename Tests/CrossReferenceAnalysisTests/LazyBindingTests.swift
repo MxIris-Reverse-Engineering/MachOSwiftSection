@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// A binary built for macOS 11 or earlier binds through lazy pointers and a
 /// `__stub_helper`. dyld still binds every such slot when it loads the image

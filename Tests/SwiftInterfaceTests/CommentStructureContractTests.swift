@@ -11,8 +11,8 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// With `SwiftDeclarationPrintConfiguration.marksCommentStructure`, every
 /// definition of the SymbolTestsCore fixture separates to exactly its print

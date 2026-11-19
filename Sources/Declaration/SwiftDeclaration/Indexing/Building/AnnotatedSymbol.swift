@@ -1,5 +1,5 @@
 import MemberwiseInit
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// A `DemangledSymbol` carried through the build path together with one extra
 /// value whose meaning belongs to the path, not to the symbol itself.

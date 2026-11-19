@@ -1,14 +1,14 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
-import CodeAddressResolution
+@_spi(Internals) import MachOAddressResolution
 import MachOSwiftSection
 import Demangling
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
 import SwiftThunkAnalysis
 import MachODependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Carries the logging floor onto the rewriter.
 ///
@@ -371,7 +371,7 @@ extension Node {
                 return try ReadOpaqueType(OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: offset, in: machO.context), in: machO.context), in: machO.context)
             }
             if reference.isKind(of: .opaqueReturnTypeOf), let memberNode = reference.firstChild,
-               let descriptorSymbol = SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
+               let descriptorSymbol = SwiftSymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
                 return try ReadOpaqueType(OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: descriptorSymbol.offset, in: machO.context), in: machO.context), in: machO.context)
             }
             return nil

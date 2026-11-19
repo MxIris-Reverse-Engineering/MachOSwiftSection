@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 import SwiftDump
 import SwiftDeclarationRendering
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The dump path's rendering of an `@objc @implementation` class (evolution
 /// proposal `objc-implementation-class-recognition`): everything the binary

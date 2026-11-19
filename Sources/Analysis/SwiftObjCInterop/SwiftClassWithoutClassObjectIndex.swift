@@ -7,7 +7,7 @@ import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Core) import MachOObjCSection
 @_spi(Internals) import MachOCaches
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 /// A Swift class the image keeps no class object for (evolution proposal
@@ -147,7 +147,7 @@ extension SwiftClassWithoutClassObject {
 package final class SwiftClassWithoutClassObjectIndex: @unchecked Sendable {
     package static let shared = SwiftClassWithoutClassObjectIndex()
 
-    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.symbolStore])
+    private let cache = SharedCache<Storage>(evictionGroup: .objcHierarchy, follows: [.swiftSymbolStore])
 
     private init() {}
 
@@ -417,7 +417,7 @@ package final class SwiftClassWithoutClassObjectIndex: @unchecked Sendable {
     /// keeps none, and the stub goes unnamed.
     private static func singletonClassStubOffset(of descriptor: ClassDescriptor, in machO: some MachORepresentableWithCache) -> Int? {
         guard let descriptorSymbolName = machO.symbols(offset: descriptor.offset)?.first(where: { $0.name.hasSuffix("CMn") })?.name,
-              let fullStubOffset = SymbolIndexStore.shared.offset(ofSymbolNamed: String(descriptorSymbolName.dropLast()) + "t", in: machO)
+              let fullStubOffset = SwiftSymbolIndexStore.shared.offset(ofSymbolNamed: String(descriptorSymbolName.dropLast()) + "t", in: machO)
         else { return nil }
         return fullStubOffset + MemoryLayout<UInt64>.size
     }

@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
-import CrossReferenceCore
-import CrossReferenceObjC
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 extension CrossReferenceAnalyzer {
     /// What the unslid `address` is: inside which function, a stub and

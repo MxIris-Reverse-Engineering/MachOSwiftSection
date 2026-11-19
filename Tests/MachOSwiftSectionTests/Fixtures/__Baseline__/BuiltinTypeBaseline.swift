@@ -8,7 +8,7 @@
 // `hasMangledName` flag and equality of the descriptor offset.
 
 enum BuiltinTypeBaseline {
-    static let registeredTestMethodNames: Set<String> = ["descriptor", "init(descriptor:)", "init(descriptor:in:)", "typeName"]
+    static let registeredTestMethodNames: Set<String> = ["descriptor", "init(descriptor:in:)", "typeName"]
 
     struct Entry {
         let descriptorOffset: Int

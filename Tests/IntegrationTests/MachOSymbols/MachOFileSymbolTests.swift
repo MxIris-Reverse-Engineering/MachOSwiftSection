@@ -1,9 +1,9 @@
 import Foundation
 import Testing
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 final class MachOFileSymbolTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .iOS_18_5_Simulator_SwiftUI }
@@ -18,12 +18,12 @@ final class MachOFileSymbolTests: MachOFileTests, @unchecked Sendable {
 //            symbol.name.print()
 //        }
         
-//        for symbol in SymbolIndexStore.shared.allSymbols(in: machOFile) {
+//        for symbol in SwiftSymbolIndexStore.shared.allSymbols(in: machOFile) {
 //            symbol.demangledNode.print().print()
 //        }
         
         let duration = ContinuousClock().measure {
-            _ = SymbolIndexStore.shared.allSymbols(in: machOFile)
+            _ = SwiftSymbolIndexStore.shared.allSymbols(in: machOFile)
         }
         print(duration)
         
@@ -43,12 +43,12 @@ final class MachOImageSymbolTests: MachOImageTests, @unchecked Sendable {
 //            symbol.name.print()
 //        }
         
-//        for symbol in SymbolIndexStore.shared.allSymbols(in: machOFile) {
+//        for symbol in SwiftSymbolIndexStore.shared.allSymbols(in: machOFile) {
 //            symbol.demangledNode.print().print()
 //        }
         
         let duration = ContinuousClock().measure {
-            _ = SymbolIndexStore.shared.allSymbols(in: machOImage)
+            _ = SwiftSymbolIndexStore.shared.allSymbols(in: machOImage)
         }
         print(duration)
         

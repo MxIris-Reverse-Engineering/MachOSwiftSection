@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum ExtensionContextBaseline {
-    static let registeredTestMethodNames: Set<String> = ["descriptor", "extendedContextMangledName", "genericContext", "init(descriptor:)", "init(descriptor:in:)"]
+    static let registeredTestMethodNames: Set<String> = ["descriptor", "extendedContextMangledName", "genericContext", "init(descriptor:in:)"]
 
     struct Entry {
         let descriptorOffset: Int

@@ -1,3 +1,6 @@
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
+
 /// What one instruction references.
 public enum CodeReferenceTarget: Hashable, Sendable {
     /// A function: in the same image, in another, or wherever a stub, a GOT

@@ -96,7 +96,6 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
 
     .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
-    .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.17.0"),
 
     .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
@@ -171,7 +170,9 @@ extension Package.Dependency {
             // threads reading a new file for the first time each stored their
             // own, freeing the value another thread was still reading, and
             // `SharedCacheKey` reads the identifier on every lookup.
-            from: "1.3.2",
+            // 2.0.0 carries MachOReading and MachOResolving, which used to be
+            // targets of this package; earlier releases do not have them.
+            from: "2.0.0",
         ),
     )
 
@@ -214,7 +215,9 @@ extension Package.Dependency {
             // header index lies in through tables built once per cache file,
             // where reading a protocol list walked every image of the cache
             // for each pointer.
-            "0.8.206" ..< "0.9.0",
+            // 0.8.207 holds `ObjCCodeReferences`, the Objective-C layer of the
+            // cross-reference analysis, and takes MachOKitExtensions 2.0.0.
+            "0.8.207" ..< "0.9.0",
         ),
     )
 }
@@ -237,7 +240,10 @@ extension Package.Dependency {
             // visiting every slot of its hash cache on the way out: building
             // a symbol index on several threads spent 2.3 times its
             // single-threaded CPU time on those copies.
-            "0.7.3" ..< "0.8.0",
+            // 0.7.4 spells existentials with `any` on request
+            // (`DemangleOptions.useExistentialAny`), which `interface` and
+            // `dump` print with by default.
+            "0.7.4" ..< "0.8.0",
         ),
     )
 
@@ -290,8 +296,63 @@ extension Target.Dependency {
         name: "MachOObjCSection",
         package: "MachOObjCSection",
     )
+    static let ObjCCodeReferences = Target.Dependency.product(
+        name: "ObjCCodeReferences",
+        package: "MachOObjCSection",
+    )
     static let MachOKitExtensions = Target.Dependency.product(
         name: "MachOKitExtensions",
+        package: "MachOKitExtensions",
+    )
+    // The reading layer: targets of this package until MachOKitExtensions
+    // 2.0.0 took them over under the same names.
+    static let MachOReading = Target.Dependency.product(
+        name: "MachOReading",
+        package: "MachOKitExtensions",
+    )
+    static let MachOResolving = Target.Dependency.product(
+        name: "MachOResolving",
+        package: "MachOKitExtensions",
+    )
+    // The rest of the Mach-O layer, which MachOKitExtensions 2.0.0 took over
+    // under the same names. `MachOSymbols` there is the language-neutral
+    // half of what was this package's `MachOSymbols`: the symbol table, the
+    // sweep and the C, C++ and Objective-C symbol index; the Swift half is
+    // `SwiftSymbols` below.
+    static let MachOPointers = Target.Dependency.product(
+        name: "MachOPointers",
+        package: "MachOKitExtensions",
+    )
+    static let MachOCaches = Target.Dependency.product(
+        name: "MachOCaches",
+        package: "MachOKitExtensions",
+    )
+    static let MachODependencies = Target.Dependency.product(
+        name: "MachODependencies",
+        package: "MachOKitExtensions",
+    )
+    static let MachOSymbols = Target.Dependency.product(
+        name: "MachOSymbols",
+        package: "MachOKitExtensions",
+    )
+    static let ARM64InstructionDecoding = Target.Dependency.product(
+        name: "ARM64InstructionDecoding",
+        package: "MachOKitExtensions",
+    )
+    static let MachOAddressResolution = Target.Dependency.product(
+        name: "MachOAddressResolution",
+        package: "MachOKitExtensions",
+    )
+    static let MachOCodeReferences = Target.Dependency.product(
+        name: "MachOCodeReferences",
+        package: "MachOKitExtensions",
+    )
+    static let MachOBase = Target.Dependency.product(
+        name: "MachOBase",
+        package: "MachOKitExtensions",
+    )
+    static let MachOFoundation = Target.Dependency.product(
+        name: "MachOFoundation",
         package: "MachOKitExtensions",
     )
     static let MachOKitMain = Target.Dependency.product(
@@ -357,7 +418,7 @@ extension Target {
     static let Utilities = Target.target(
         name: "Utilities",
         dependencies: [
-            .target(.MachOMacros),
+            .target(.SwiftSectionMacros),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .product(name: "AssociatedObject", package: "AssociatedObject"),
             .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
@@ -368,110 +429,22 @@ extension Target {
         path: "Sources/Support/Utilities",
     )
 
-    /// Hand decoding of the few A64 encodings the analyses read, and the
-    /// trampoline shapes the linker and the dyld cache builder emit. Shared
-    /// by `SwiftThunkAnalysis` and `CrossReferenceAnalysis`.
-    static let ARM64InstructionDecoding = Target.target(
-        name: "ARM64InstructionDecoding",
-        path: "Sources/Support/ARM64InstructionDecoding",
-    )
-
-    static let MachOCaches = Target.target(
-        name: "MachOCaches",
+    /// The Swift symbol index: every Swift name of an image demangled and
+    /// classified (members, types, witnesses, thunks), on top of
+    /// MachOKitExtensions' `MachOSymbols`, whose sweep collects the names.
+    static let SwiftSymbols = Target.target(
+        name: "SwiftSymbols",
         dependencies: [
             .product(.MachOKit),
             .product(.MachOKitExtensions),
-            .target(.Utilities),
-        ],
-        path: "Sources/MachO/MachOCaches",
-    )
-
-    /// Dependency resolution shared by every feature that needs a binary's
-    /// linked images (evolution proposal macho-dependencies-module):
-    /// search paths, the in-process / on-disk locators, and the direct or
-    /// transitive `DependencyClosure` walk over `LC_LOAD_DYLIB`. Knows nothing
-    /// about Swift metadata, so it sits with the other MachO* leaf targets and
-    /// is re-exported by `MachOFoundation`.
-    static let MachODependencies = Target.target(
-        name: "MachODependencies",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-        ],
-        path: "Sources/MachO/MachODependencies",
-    )
-
-    static let MachOReading = Target.target(
-        name: "MachOReading",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-            .target(.Utilities),
-            .product(name: "FileIO", package: "swift-fileio"),
-        ],
-        path: "Sources/MachO/MachOReading",
-    )
-
-    static let MachOResolving = Target.target(
-        name: "MachOResolving",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-            .target(.MachOReading),
-        ],
-        path: "Sources/MachO/MachOResolving",
-    )
-
-    static let MachOSymbols = Target.target(
-        name: "MachOSymbols",
-        dependencies: [
-            .product(.MachOKit),
             .product(.Demangling),
-            .target(.MachOReading),
-            .target(.MachOResolving),
-            .target(.Utilities),
-            .target(.MachOCaches),
-        ],
-        path: "Sources/MachO/MachOSymbols",
-    )
-
-    static let MachOPointers = Target.target(
-        name: "MachOPointers",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOReading),
+            .product(.MachOResolving),
+            .product(.MachOSymbols),
+            .product(.MachOCaches),
             .target(.Utilities),
         ],
-        path: "Sources/MachO/MachOPointers",
-    )
-
-    /// The reader / resolver / pointer layer as one import: everything the
-    /// ABI model is allowed to depend on. `MachOFoundation` adds the symbol
-    /// index and dependency resolution on top (evolution proposal
-    /// `self-contained-abi-layer`).
-    static let MachOBase = Target.target(
-        name: "MachOBase",
-        dependencies: [
-            .product(.MachOKitExtensions),
-            .target(.MachOReading),
-            .target(.MachOResolving),
-            .target(.MachOPointers),
-            .target(.Utilities),
-        ],
-        path: "Sources/MachO/MachOBase",
-    )
-
-    static let MachOFoundation = Target.target(
-        name: "MachOFoundation",
-        dependencies: [
-            .product(.MachOKit),
-            .target(.MachOBase),
-            .target(.MachOSymbols),
-            .target(.MachODependencies),
-        ],
-        path: "Sources/MachO/MachOFoundation",
+        path: "Sources/Symbols/SwiftSymbols",
     )
 
     static let MachOSwiftSectionC = Target.target(
@@ -486,10 +459,10 @@ extension Target {
         name: "MachOSwiftSection",
         dependencies: [
             .product(.MachOKit),
-            .target(.MachOBase),
+            .product(.MachOBase),
             .target(.Utilities),
             .target(.MachOSwiftSectionC),
-            .target(.MachOMacros),
+            .target(.SwiftSectionMacros),
         ],
         path: "Sources/ABI/MachOSwiftSection",
     )
@@ -522,8 +495,9 @@ extension Target {
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
-            .target(.MachOCaches),
-            .target(.MachOFoundation),
+            .product(.MachOCaches),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.MachOSwiftSectionC),
             .target(.SwiftOutputTransformer),
@@ -546,8 +520,9 @@ extension Target {
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
-            .target(.MachOCaches),
-            .target(.MachOFoundation),
+            .product(.MachOCaches),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
         ],
@@ -567,9 +542,10 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Demangling),
             .target(.Utilities),
-            .target(.MachOCaches),
-            .target(.MachODependencies),
-            .target(.MachOFoundation),
+            .product(.MachOCaches),
+            .product(.MachODependencies),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
@@ -592,16 +568,17 @@ extension Target {
             .product(.Demangling),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
-            .target(.MachOCaches),
-            .target(.MachODependencies),
-            .target(.MachOFoundation),
+            .product(.MachOCaches),
+            .product(.MachODependencies),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
             .target(.SwiftLayout),
             .target(.SwiftThunkAnalysis),
-            .target(.CodeAddressResolution),
+            .product(.MachOAddressResolution),
         ],
         path: "Sources/Output/SwiftDeclarationRendering",
     )
@@ -620,68 +597,21 @@ extension Target {
     static let SwiftThunkAnalysis = Target.target(
         name: "SwiftThunkAnalysis",
         dependencies: [
-            .target(.CodeAddressResolution),
+            .product(.MachOAddressResolution),
             .product(.MachOKit),
             .product(.MachOKitExtensions),
             .product(.Demangling),
             .product(.Capstone),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
-            .target(.MachOCaches),
-            .target(.MachOFoundation),
+            .product(.MachOCaches),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
         ],
         path: "Sources/Analysis/SwiftThunkAnalysis",
-    )
-
-    /// One image's address space and the stubs and pointer slots on the way
-    /// to a function, read from a Mach-O file: what the accessor-thunk reader
-    /// and the cross-reference analysis share. Moves to MachOKitExtensions
-    /// later as `MachOAddressResolution` (evolution proposal
-    /// `offline-cross-references-and-symbolication`).
-    static let CodeAddressResolution = Target.target(
-        name: "CodeAddressResolution",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-            .target(.MachOReading),
-            .target(.ARM64InstructionDecoding),
-        ],
-        path: "Sources/Analysis/CodeAddressResolution",
-    )
-
-    /// The language-free core of the cross-reference analysis: image
-    /// memory, function tables, the instruction scan and the recognizer
-    /// extension point. May depend only on what MachOKitExtensions will
-    /// hold — it moves there later as `MachOCodeReferences` (evolution
-    /// proposal `offline-cross-references-and-symbolication`,
-    /// `CrossReferenceLayerBoundaryTests`).
-    static let CrossReferenceCore = Target.target(
-        name: "CrossReferenceCore",
-        dependencies: [
-            .product(.MachOKit),
-            .target(.ARM64InstructionDecoding),
-            .target(.CodeAddressResolution),
-            .target(.MachOFoundation),
-        ],
-        path: "Sources/Analysis/CrossReferenceCore",
-    )
-
-    /// The Objective-C layer of the cross-reference analysis: message
-    /// sends, class references, method names. Moves to MachOObjCSection
-    /// later as `ObjCCodeReferences`.
-    static let CrossReferenceObjC = Target.target(
-        name: "CrossReferenceObjC",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOObjCSection),
-            .target(.ARM64InstructionDecoding),
-            .target(.MachOFoundation),
-            .target(.CrossReferenceCore),
-        ],
-        path: "Sources/Analysis/CrossReferenceObjC",
     )
 
     /// What each function of an image references, read from its arm64
@@ -694,14 +624,15 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
-            .target(.ARM64InstructionDecoding),
-            .target(.MachOFoundation),
+            .product(.ARM64InstructionDecoding),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             // `SymbolicDemangler`: a type's name from its descriptor when no
             // symbol spells it.
             .target(.SwiftInspection),
-            .target(.CrossReferenceCore),
-            .target(.CrossReferenceObjC),
+            .product(.MachOCodeReferences),
+            .product(.ObjCCodeReferences),
         ],
         path: "Sources/Analysis/CrossReferenceAnalysis",
     )
@@ -714,7 +645,8 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.Utilities),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
@@ -742,7 +674,8 @@ extension Target {
             // deploys to macOS 10.15, below `Logger`'s macOS 11.
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
@@ -768,7 +701,8 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.Utilities),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
@@ -790,7 +724,8 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclaration),
@@ -844,7 +779,8 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.Utilities),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
@@ -869,7 +805,7 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.Utilities),
-            .target(.MachOSymbols),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             // The host's runtime names for `.metatype` arguments and the
@@ -892,8 +828,9 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.Utilities),
-            .target(.MachODependencies),
-            .target(.MachOFoundation),
+            .product(.MachODependencies),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
@@ -936,7 +873,8 @@ extension Target {
     static let SwiftSectionKit = Target.target(
         name: "SwiftSectionKit",
         dependencies: [
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftDump),
             .target(.SwiftInspection),
@@ -980,7 +918,8 @@ extension Target {
             // library's requests: `DependencySearchPath`, `DemangleOptions`,
             // `Transformer.SwiftConfiguration`, `ConsoleEventHandler`, the
             // ObjC generation options and C type presets.
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.SwiftDump),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
@@ -1002,7 +941,8 @@ extension Target {
         name: "reader-benchmark",
         dependencies: [
             .target(.SwiftSectionKit),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftInterface),
@@ -1016,7 +956,7 @@ extension Target {
     static let baseline_generator = Target.executableTarget(
         name: "baseline-generator",
         dependencies: [
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionFixtureSupport),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
         path: "Sources/Executables/baseline-generator",
@@ -1048,15 +988,15 @@ extension Target {
 
     // MARK: - Macros
 
-    static let MachOMacros = Target.macro(
-        name: "MachOMacros",
+    static let SwiftSectionMacros = Target.macro(
+        name: "SwiftSectionMacros",
         dependencies: [
             .product(.SwiftSyntax),
             .product(.SwiftSyntaxMacros),
             .product(.SwiftCompilerPlugin),
             .product(.SwiftSyntaxBuilder),
         ],
-        path: "Sources/Support/MachOMacros",
+        path: "Sources/Support/SwiftSectionMacros",
     )
 
     // MARK: - Testing
@@ -1064,42 +1004,44 @@ extension Target {
     /// Fixture-loading helpers, baseline generators, coverage scanners, and
     /// non-Testing-dependent code. Importable from non-test targets (e.g.
     /// `baseline-generator`) without dragging in `Testing.framework`.
-    static let MachOFixtureSupport = Target.target(
-        name: "MachOFixtureSupport",
+    static let SwiftSectionFixtureSupport = Target.target(
+        name: "SwiftSectionFixtureSupport",
         dependencies: [
             .product(.MachOKit),
-            .target(.MachOFoundation),
-            .target(.MachOReading),
-            .target(.MachOResolving),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
+            .product(.MachOReading),
+            .product(.MachOResolving),
             .target(.MachOSwiftSectionC),
             .target(.SwiftDump),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftInterface),
-            .target(.MachOTestingSupportC),
+            .target(.SwiftSectionTestingSupportC),
             .product(.Demangling),
             .product(.SwiftSyntax),
             .product(.SwiftParser),
             .product(.SwiftSyntaxBuilder),
         ],
-        path: "Sources/TestSupport/MachOFixtureSupport",
+        path: "Sources/TestSupport/SwiftSectionFixtureSupport",
         swiftSettings: testSettings,
     )
 
     /// `swift-testing` base classes (`MachOFileTests`, `MachOImageTests`,
     /// `DyldCacheTests`, `XcodeMachOFileTests`, `MachOSwiftSectionFixtureTests`).
-    /// Splitting this out from `MachOFixtureSupport` keeps `Testing.framework`
+    /// Splitting this out from `SwiftSectionFixtureSupport` keeps `Testing.framework`
     /// out of the link line for non-test targets.
-    static let MachOTestingSupport = Target.target(
-        name: "MachOTestingSupport",
+    static let SwiftSectionTestingSupport = Target.target(
+        name: "SwiftSectionTestingSupport",
         dependencies: [
             .product(.MachOKit),
             .product(.Demangling),
-            .target(.MachOFoundation),
-            .target(.MachOReading),
-            .target(.MachOResolving),
-            .target(.MachOFixtureSupport),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
+            .product(.MachOReading),
+            .product(.MachOResolving),
+            .target(.SwiftSectionFixtureSupport),
             .target(.MachOSwiftSection),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
@@ -1108,26 +1050,26 @@ extension Target {
             .target(.SwiftInterface),
             .product(.Semantic),
         ],
-        path: "Sources/TestSupport/MachOTestingSupport",
+        path: "Sources/TestSupport/SwiftSectionTestingSupport",
         swiftSettings: testSettings,
     )
 
-    static let MachOTestingSupportC = Target.target(
-        name: "MachOTestingSupportC",
+    static let SwiftSectionTestingSupportC = Target.target(
+        name: "SwiftSectionTestingSupportC",
         dependencies: [
         ],
-        path: "Sources/TestSupport/MachOTestingSupportC",
+        path: "Sources/TestSupport/SwiftSectionTestingSupportC",
         swiftSettings: testSettings,
     )
 
-    static let MachOSymbolsTests = Target.testTarget(
-        name: "MachOSymbolsTests",
+    static let SwiftSymbolsTests = Target.testTarget(
+        name: "SwiftSymbolsTests",
         dependencies: [
-            .target(.MachOSymbols),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSymbols),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .product(.Demangling),
-            .target(.MachOResolving),
+            .product(.MachOResolving),
         ],
         swiftSettings: testSettings,
     )
@@ -1136,36 +1078,17 @@ extension Target {
         name: "MachOSwiftSectionTests",
         dependencies: [
             .target(.MachOSwiftSection),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .target(.SwiftDump),
             .target(.SwiftInspection),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .product(.Demangling),
         ],
         swiftSettings: testSettings,
     )
 
-    static let MachOCachesTests = Target.testTarget(
-        name: "MachOCachesTests",
-        dependencies: [
-            .target(.MachOCaches),
-            .product(.MachOKitExtensions),
-        ],
-        swiftSettings: testSettings,
-    )
-
-    static let MachODependenciesTests = Target.testTarget(
-        name: "MachODependenciesTests",
-        dependencies: [
-            .target(.MachODependencies),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
-        ],
-        swiftSettings: testSettings,
-    )
 
     static let SwiftOutputTransformerTests = Target.testTarget(
         name: "SwiftOutputTransformerTests",
@@ -1179,8 +1102,8 @@ extension Target {
         name: "SwiftInspectionTests",
         dependencies: [
             .target(.MachOSwiftSection),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             // The suites that read ObjC classes through
@@ -1194,8 +1117,8 @@ extension Target {
         name: "SwiftObjCInteropTests",
         dependencies: [
             .target(.MachOSwiftSection),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
         ],
@@ -1208,10 +1131,11 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftLayout),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .product(.Demangling),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         swiftSettings: testSettings,
     )
@@ -1222,13 +1146,14 @@ extension Target {
             .target(.SwiftThunkAnalysis),
             .target(.SwiftDump),
             .target(.SwiftObjCInterop),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         exclude: ["Snapshots/__Snapshots__"],
         swiftSettings: testSettings,
@@ -1257,10 +1182,11 @@ extension Target {
             // The nested-definition contract with source-file comments on.
             .target(.SwiftPrivateDiscriminators),
             .product(.MachOKitExtensions),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         exclude: ["Snapshots/__Snapshots__"],
         swiftSettings: testSettings,
@@ -1273,9 +1199,10 @@ extension Target {
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftDump),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
-            .target(.MachOFoundation),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         swiftSettings: testSettings,
     )
@@ -1289,11 +1216,12 @@ extension Target {
             .target(.SwiftLayout),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftThunkAnalysis),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .product(.Semantic),
             .product(.Demangling),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         swiftSettings: testSettings,
     )
@@ -1301,13 +1229,14 @@ extension Target {
     static let SwiftThunkAnalysisTests = Target.testTarget(
         name: "SwiftThunkAnalysisTests",
         dependencies: [
-            .target(.CodeAddressResolution),
+            .product(.MachOAddressResolution),
             .target(.SwiftThunkAnalysis),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftDump),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
-            .target(.MachOFoundation),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .product(.Demangling),
         ],
         swiftSettings: testSettings,
@@ -1317,28 +1246,17 @@ extension Target {
         name: "CrossReferenceAnalysisTests",
         dependencies: [
             .target(.CrossReferenceAnalysis),
-            .target(.CrossReferenceCore),
-            .target(.CrossReferenceObjC),
-            .target(.ARM64InstructionDecoding),
+            .product(.MachOCodeReferences),
+            .product(.MachOAddressResolution),
+            .product(.ObjCCodeReferences),
+            .product(.ARM64InstructionDecoding),
             .product(.MachOKit),
             .product(.Capstone),
             .product(.Demangling),
             .target(.MachOSwiftSection),
-            .target(.MachOReading),
+            .product(.MachOReading),
             .target(.SwiftInspection),
-        ],
-        swiftSettings: testSettings,
-    )
-
-    static let CodeAddressResolutionTests = Target.testTarget(
-        name: "CodeAddressResolutionTests",
-        dependencies: [
-            .target(.CodeAddressResolution),
-            .target(.CrossReferenceAnalysis),
-            .target(.ARM64InstructionDecoding),
-            .target(.MachOFixtureSupport),
-            .product(.MachOKit),
-            .product(.MachOKitExtensions),
+            .target(.SwiftSectionFixtureSupport),
         ],
         swiftSettings: testSettings,
     )
@@ -1349,9 +1267,10 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftAttributeInference),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
-            .target(.MachOFoundation),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         swiftSettings: testSettings,
     )
@@ -1361,7 +1280,8 @@ extension Target {
         dependencies: [
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         swiftSettings: testSettings,
     )
@@ -1371,7 +1291,8 @@ extension Target {
         dependencies: [
             .target(.swift_section),
             .target(.SwiftSectionKit),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftPrinting),
@@ -1388,10 +1309,11 @@ extension Target {
         name: "SwiftSectionKitTests",
         dependencies: [
             .target(.SwiftSectionKit),
-            .target(.MachOFoundation),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
             // `LocalTypeFixture` and `ExclusiveImageAccess`, for the source
             // files of a public type's private members.
-            .target(.MachOTestingSupport),
+            .target(.SwiftSectionTestingSupport),
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),
@@ -1413,8 +1335,8 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
-            .target(.MachOFixtureSupport),
-            .target(.MachOTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
         ],
         swiftSettings: testSettings,
     )
@@ -1428,9 +1350,10 @@ extension Target {
             .target(.SwiftAttributeInference),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
-            .target(.MachOFoundation),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         swiftSettings: testSettings,
     )
@@ -1442,18 +1365,19 @@ extension Target {
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
-            .target(.MachOFoundation),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
+            .product(.MachOFoundation),
+            .target(.SwiftSymbols),
         ],
         swiftSettings: testSettings,
     )
 
-    static let MachOTestingSupportTests = Target.testTarget(
-        name: "MachOTestingSupportTests",
+    static let SwiftSectionTestingSupportTests = Target.testTarget(
+        name: "SwiftSectionTestingSupportTests",
         dependencies: [
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .target(.SwiftDeclaration),
             .product(.Demangling),
         ],
@@ -1468,12 +1392,12 @@ extension Target {
         name: "IntegrationTests",
         dependencies: [
             .product(.MachOKitExtensions),
-            .target(.MachOCaches),
-            .target(.MachOReading),
-            .target(.MachOResolving),
-            .target(.MachOSymbols),
-            .target(.MachOPointers),
-            .target(.MachOFoundation),
+            .product(.MachOCaches),
+            .product(.MachOReading),
+            .product(.MachOResolving),
+            .target(.SwiftSymbols),
+            .product(.MachOPointers),
+            .product(.MachOFoundation),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftObjCInterop),
@@ -1484,8 +1408,8 @@ extension Target {
             .target(.SwiftInterface),
             .target(.SwiftDiffing),
             .target(.TypeIndexing),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
+            .target(.SwiftSectionTestingSupport),
+            .target(.SwiftSectionFixtureSupport),
             .product(.MachOKit),
             .product(.MachOObjCSection),
             // The ObjC API evolution dumps run the `swift-section objc
@@ -1507,13 +1431,12 @@ let package = Package(
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
     products: [
         .library(.MachOSwiftSection),
-        // The ABI model no longer re-exports the symbol index (evolution
+        // The ABI model does not re-export the symbol index (evolution
         // proposal `self-contained-abi-layer`), so a downstream target that
-        // uses `SymbolIndexStore` / `DemangledSymbol` / `DependencyClosure`
-        // depends on `MachOFoundation` (or the lower `MachOBase`) explicitly.
-        .library(.MachOBase),
-        .library(.MachOFoundation),
-        .library(.MachODependencies),
+        // uses `SwiftSymbolIndexStore` / `DemangledSymbol` depends on
+        // `SwiftSymbols` explicitly; `MachOBase`, `MachOFoundation` and
+        // `MachODependencies` are products of MachOKitExtensions.
+        .library(.SwiftSymbols),
         .library(.SwiftOutputTransformer),
         .library(.SwiftInspection),
         .library(.SwiftObjCInterop),
@@ -1538,16 +1461,8 @@ let package = Package(
     targets: [
         // Library
         .Utilities,
-        .ARM64InstructionDecoding,
         .SwiftOutputTransformer,
-        .MachOCaches,
-        .MachODependencies,
-        .MachOReading,
-        .MachOResolving,
-        .MachOSymbols,
-        .MachOPointers,
-        .MachOBase,
-        .MachOFoundation,
+        .SwiftSymbols,
         .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,
@@ -1555,9 +1470,6 @@ let package = Package(
         .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftThunkAnalysis,
-        .CodeAddressResolution,
-        .CrossReferenceCore,
-        .CrossReferenceObjC,
         .CrossReferenceAnalysis,
         .SwiftDump,
         .SwiftDeclaration,
@@ -1570,10 +1482,10 @@ let package = Package(
         .SwiftInterface,
         .TypeIndexing,
         .SwiftSectionKit,
-        .MachOMacros,
-        .MachOFixtureSupport,
-        .MachOTestingSupport,
-        .MachOTestingSupportC,
+        .SwiftSectionMacros,
+        .SwiftSectionFixtureSupport,
+        .SwiftSectionTestingSupport,
+        .SwiftSectionTestingSupportC,
 
         // Executable
         .swift_section,
@@ -1584,10 +1496,8 @@ let package = Package(
         .RegenerateBaselinesPlugin,
 
         // Testing
-        .MachOSymbolsTests,
+        .SwiftSymbolsTests,
         .MachOSwiftSectionTests,
-        .MachOCachesTests,
-        .MachODependenciesTests,
         .SwiftInspectionTests,
         .SwiftObjCInteropTests,
         .SwiftOutputTransformerTests,
@@ -1598,7 +1508,6 @@ let package = Package(
         .SwiftDeclarationRenderingTests,
         .SwiftThunkAnalysisTests,
         .CrossReferenceAnalysisTests,
-        .CodeAddressResolutionTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,
@@ -1607,7 +1516,7 @@ let package = Package(
         .SwiftPrivateDiscriminatorsTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
-        .MachOTestingSupportTests,
+        .SwiftSectionTestingSupportTests,
         .IntegrationTests,
     ],
 )

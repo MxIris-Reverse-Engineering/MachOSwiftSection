@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum StructBaseline {
-    static let registeredTestMethodNames: Set<String> = ["canonicalSpecializedMetadatas", "canonicalSpecializedMetadatasCachingOnceToken", "canonicalSpecializedMetadatasListCount", "descriptor", "foreignMetadataInitialization", "genericContext", "init(descriptor:)", "init(descriptor:in:)", "invertibleProtocolSet", "singletonMetadataInitialization", "singletonMetadataPointer"]
+    static let registeredTestMethodNames: Set<String> = ["canonicalSpecializedMetadatas", "canonicalSpecializedMetadatasCachingOnceToken", "canonicalSpecializedMetadatasListCount", "descriptor", "foreignMetadataInitialization", "genericContext", "init(descriptor:in:)", "invertibleProtocolSet", "singletonMetadataInitialization", "singletonMetadataPointer"]
 
     struct Entry {
         let descriptorOffset: Int

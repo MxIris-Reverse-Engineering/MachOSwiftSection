@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import Demangling
 import MachOResolving
-import MachOSymbols
+import SwiftSymbols
 import SwiftDeclaration
 
 /// `StandInMemberSymbolBuilder.specializedInitializerName(of:)`: the name of

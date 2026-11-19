@@ -5,15 +5,15 @@
 /// cache that holds the reference.
 extension SharedCacheEvictionGroup {
     /// `ObjCImplementationClassIndex`: holds `NodeReference`s into the
-    /// symbol store's arena, so it follows `symbolStore`.
+    /// symbol store's arena, so it follows `swiftSymbolStore`.
     package static let objcImplementationClasses = SharedCacheEvictionGroup("objcImplementationClasses")
 
     /// `ObjCClassMethodIndex`, `SwiftClassObjectIndex` and the host's
     /// `ObjCClassHierarchyProviderStore` registration: ObjC-side per-image
-    /// state of the symbol store's lifetime, so it follows `symbolStore`.
+    /// state of the symbol store's lifetime, so it follows `swiftSymbolStore`.
     package static let objcHierarchy = SharedCacheEvictionGroup("objcHierarchy")
 
     /// `ObjCAncestorResolverStore`: holds the file's dependency images once
-    /// it has resolved them; same lifetime, follows `symbolStore`.
+    /// it has resolved them; same lifetime, follows `swiftSymbolStore`.
     package static let objcAncestorResolver = SharedCacheEvictionGroup("objcAncestorResolver")
 }

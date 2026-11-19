@@ -7,7 +7,7 @@
 
 三件事，一个共同契约（两个 flag 默认关，默认输出字节不变）：
 
-1. **导出集**（`MachOSymbols`）：`SymbolIndexStore.Storage` 在构建扫描的 export trie 循环里旁路收集导出事实，公开 `isExported(name:in:)` 与 `isExportedIncludingDerivedSymbols(name:in:)`。
+1. **导出集**（`SwiftSymbols`，采集在 MachOKitExtensions 的 `MachOSymbols`）：`SwiftSymbolIndexStore.Storage` 持有构建扫描在 export trie 循环里旁路收集的导出事实，公开 `isExported(name:in:)` 与 `isExportedIncludingDerivedSymbols(name:in:)`。
 2. **头部组件**（`SwiftPrinting`）：`InterfaceHeaderInfo`（纯值）+ `InterfaceHeaderBlock`（public 组件）+ 从 `MachORepresentableWithCache` 读事实的工厂。CLI 经 `--emit-header` 接线（interface 走 `SwiftInterfaceBuilderConfiguration.interfaceHeaderInfo`，dump 在首个声明前打一次）；RuntimeViewer 的 per-type 导出可独立调用组件。
 3. **`// not exported` 标注**：interface 的 `renderMember` 与 dump 三个 Dumper 的 member-symbol 循环，`--emit-export-status` 门控。
 
@@ -46,7 +46,7 @@ issue #106 作者的验证法是「该成员的**任何**符号在导出表零�
 修正后的 dump 侧豁免（`ClassDumper` 专属——struct/enum 成员无 override 无 `@objc`）不依赖模型，从符号层面直接判定：
 
 - **override**：`methodOverrideDescriptors` + `methodDefaultOverrideDescriptors` 的 implementation 符号名集合（`collectOverrideImplementationSymbolNames()`，仅 flag 开启时收集），成员区同名符号跳过标注。
-- **`@objc`**：`@objc` 成员的 ObjC 入口是实现符号名追加 `To` 后缀，查 `SymbolIndexStore.containsSymbol(named: name + "To")`（一次 permutation 二分）即可识别，无需 demangle。
+- **`@objc`**：`@objc` 成员的 ObjC 入口是实现符号名追加 `To` 后缀，查 `SwiftSymbolIndexStore.containsSymbol(named: name + "To")`（一次 permutation 二分）即可识别，无需 demangle。
 
 `methodDescriptorMemberSymbols`（`[Method]` 区）的行是 `Tq` 数据符号，查询前**剥掉 `Tq` 后缀**再走派生形态扩展——对 `…Tq` 名字追加 `Tj`/`Tu` 得到的 `…TqTj` 等从不存在，等于退化回本提案自己否掉的裸名查询。实证注：SourceEditor 与 fixture 上「`Tq` local 而成员任何形态导出」的组合均为空集（`Tq` 的导出跟随成员的 public-ness），所以修复前无假阳性实证——但该伴随性质无任何规范保证（`-exported_symbols_list` 手工导出清单即可打破），修复以正确性为准。「修复前失败」形态的复现测试因此不可构造（需要非常规导出清单的 fixture，不值得为此扩展 fixture 矩阵），守护测试钉的是修复后的行为不变性。
 
@@ -81,7 +81,7 @@ issue #106 作者的验证法是「该成员的**任何**符号在导出表零�
 
 ## 测试地图
 
-- `ExportedSymbolFactsTests`（MachOSymbolsTests）：全量 trie 名 sweeping、本地符号阴性、thunk-only public 成员经派生查询转阳、internal 合成 init 全形态阴性、非 nil 契约。
+- `ExportedSymbolFactsTests`（SwiftSymbolsTests）：全量 trie 名 sweeping、本地符号阴性、thunk-only public 成员经派生查询转阳、internal 合成 init 全形态阴性、非 nil 契约。
 - `InterfaceHeaderTests`（SwiftInterfaceTests）：逐行渲染、字段省略、`not detected` 措辞、日期缺席字节稳定、工厂读 Mach-O 事实、`printRoot` 接线 + 默认无头部。
 - `ExportStatusAnnotationTests`（SwiftInterfaceTests）：三类假阳性各一钉（thunk-only public / `@objc` / `override`），每条负向断言配 store 层正向前提（先证成员确实全形态 trie-miss / thunk-only，「未标注」才必然是豁免的功劳而非 fixture 偶然）；true positive 限定在 `AsyncIterator` 块内按精确 trim 行匹配；默认输出零标注。
 - `ExportStatusDumpAnnotationTests`（SwiftDumpTests）：dump 侧两类假阳性的复现钉（override 实现符号 / `@objc dynamic`，修复前的标注输出留档在任务报告）、`Tq` 行 true positive 保持、默认零标注。

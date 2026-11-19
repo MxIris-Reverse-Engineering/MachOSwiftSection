@@ -19,17 +19,3 @@ extension GenericRequirement {
         self.content = try descriptor.resolvedContent(in: context)
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension GenericRequirement {
-    @available(*, deprecated, message: "Pass a ReadingContext: GenericRequirement(descriptor:in: machO.context).")
-    public init(descriptor: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: GenericRequirement(descriptor:in: .inProcess).")
-    public init(descriptor: GenericRequirementDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

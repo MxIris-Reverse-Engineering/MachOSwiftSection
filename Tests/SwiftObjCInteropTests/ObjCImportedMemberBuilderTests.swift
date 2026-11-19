@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOFoundation
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 @_spi(Internals) import Demangling
 @testable import MachOSwiftSection
 @_spi(Internals) @testable import SwiftInspection
