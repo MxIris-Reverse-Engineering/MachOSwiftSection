@@ -101,7 +101,7 @@ swift-capstone 7 见[提案](../../Evolutions/0071-swift-capstone-7.md)。
 
 ### 环境每个 thunk 一个，镜像级的事实按镜像缓存
 
-`AccessorThunkReader.read` 每读一个 thunk 就新建一个 `MachOThunkEnvironment`，环境里记下的调用目标、解码过的函数只活到这次读完。所以凡是只取决于镜像、又要扫一遍大表的东西，都不能挂在环境上，要放进 `thunkResolution` 组的按镜像缓存：`MetadataAccessorIndex`（扫 `__swift5_types`）、`DependencyImageResolver`、`CacheImageLocator`（cache 里全部镜像的地址表，加上已打开的目标镜像与它们导出的运行时入口；类型在 MachOKitExtensions 的 MachOAddressResolution，按镜像的缓存在这里），以及给调用目标起名用的镜像自带运行时符号（`__swift_instantiateConcreteTypeFromMangledNameV2` 一类，从原始符号表里挑出来）。后两样原先挂在环境上，于是每读一个 thunk 就把整张符号表重扫一遍、把 cache 里约四千个镜像的路径重读一遍、把调用到的镜像重开一遍：离线读 SwiftUI 的 interface，约六分之一的时间花在这上面。`CacheImageLocator` 会被多个环境共用，所以它记下的已打开镜像与导出入口表加了锁，查找在锁外做、先存者胜。回归测试 `ThunkEnvironmentImageTablesTests` 拿直接读一遍对应大表的耗时当尺子，新环境第一次查调用目标必须远快于它。
+`AccessorThunkReader.read` 每读一个 thunk 就新建一个 `MachOThunkEnvironment`，环境里记下的调用目标、解码过的函数只活到这次读完。所以凡是只取决于镜像、又要扫一遍大表的东西，都不能挂在环境上，要放进 `thunkResolution` 组的按镜像缓存：`MetadataAccessorIndex`（扫 `__swift5_types`）、`DependencyImageResolver`、`CacheImageLocator`（cache 里全部镜像的地址表，加上已打开的目标镜像与它们导出的运行时入口；类型在 MachOKitExtensions 的 MachOAddressResolution，按镜像的缓存在这里），以及给调用目标起名用的镜像自带运行时符号（`__swift_instantiateConcreteTypeFromMangledNameV2` 一类，从原始符号表里挑出来）。后两样原先挂在环境上，于是每读一个 thunk 就把整张符号表重扫一遍、把 cache 里约四千个镜像的路径重读一遍、把调用到的镜像重开一遍：离线读 SwiftUI 的 interface，约六分之一的时间花在这上面。`CacheImageLocator` 会被多个环境共用，所以它记下的已打开镜像与导出入口表加了锁，查找在锁外做、先存者胜。回归测试 `ThunkEnvironmentImageTablesTests` 拿直接读一遍对应大表的耗时当尺子，新环境第一次查调用目标必须比它快 5 倍以上。两边交替各量 10 轮、各取最快的一轮再比：只量一次时，CI 的 3 核机器上被一次偶然变慢的测量打红过。
 
 ## 测试注意
 

@@ -19,7 +19,8 @@ import SwiftThunkAnalysis
 /// After one environment has named a target, a fresh environment must name
 /// it with lookups, not by reading the table again. Reading the table is
 /// timed directly as the yardstick, so the comparison holds on a busy machine
-/// as well as an idle one.
+/// as well as an idle one. Each side keeps the fastest of several rounds, so
+/// one slow round — a preempted thread, a page fault — does not decide it.
 @Suite("Thunk environment image tables")
 struct ThunkEnvironmentImageTablesTests {
     @Test("A fresh environment does not walk the symbol table again")
@@ -35,18 +36,20 @@ struct ThunkEnvironmentImageTablesTests {
         // index, the symbol index — and pages the symbol table in.
         _ = MachOThunkEnvironment(machO: machOFile).callee(at: address)
 
-        let symbolTableWalkNanoseconds = Self.nanoseconds {
-            var nameByteCount = 0
-            for symbol in machOFile.symbols {
-                nameByteCount &+= symbol.name.utf8.count
+        let fastestRounds = Self.fastestRounds(
+            yardstick: {
+                var nameByteCount = 0
+                for symbol in machOFile.symbols {
+                    nameByteCount &+= symbol.name.utf8.count
+                }
+                #expect(nameByteCount > 0)
+            },
+            measured: {
+                _ = MachOThunkEnvironment(machO: machOFile).callee(at: address)
             }
-            #expect(nameByteCount > 0)
-        }
-        let freshEnvironmentLookupNanoseconds = Self.nanoseconds {
-            _ = MachOThunkEnvironment(machO: machOFile).callee(at: address)
-        }
+        )
 
-        #expect(freshEnvironmentLookupNanoseconds * 5 < symbolTableWalkNanoseconds)
+        #expect(fastestRounds.measuredNanoseconds * 5 < fastestRounds.yardstickNanoseconds)
     }
 
     @Test("A fresh environment does not read the cache's image list again")
@@ -64,20 +67,41 @@ struct ThunkEnvironmentImageTablesTests {
 
         let mainCache = cache.mainCache ?? cache
         let imageInfos = try #require(mainCache.imageInfos)
-        let imageListReadNanoseconds = Self.nanoseconds {
-            var pathByteCount = 0
-            for imageInfo in imageInfos {
-                pathByteCount &+= imageInfo.path(in: mainCache)?.utf8.count ?? 0
-            }
-            #expect(pathByteCount > 0)
-        }
         var freshEnvironmentCallee: ThunkCallee?
-        let freshEnvironmentLookupNanoseconds = Self.nanoseconds {
-            freshEnvironmentCallee = MachOThunkEnvironment(machO: machOFile).callee(at: address)
-        }
+        let fastestRounds = Self.fastestRounds(
+            yardstick: {
+                var pathByteCount = 0
+                for imageInfo in imageInfos {
+                    pathByteCount &+= imageInfo.path(in: mainCache)?.utf8.count ?? 0
+                }
+                #expect(pathByteCount > 0)
+            },
+            measured: {
+                freshEnvironmentCallee = MachOThunkEnvironment(machO: machOFile).callee(at: address)
+            }
+        )
 
         #expect(freshEnvironmentCallee == .witnessTableLookup)
-        #expect(freshEnvironmentLookupNanoseconds * 5 < imageListReadNanoseconds)
+        #expect(fastestRounds.measuredNanoseconds * 5 < fastestRounds.yardstickNanoseconds)
+    }
+
+    /// The fastest of `roundCount` timings of each body, the two taken in
+    /// turn so a stretch of load slows both alike. One timing of each could
+    /// fail on noise alone: on a three-core CI runner five times one
+    /// fresh-environment lookup came to 1.06 ms against a 0.63 ms image-list
+    /// read, and the rerun passed.
+    private static func fastestRounds(
+        roundCount: Int = 10,
+        yardstick: () -> Void,
+        measured: () -> Void
+    ) -> (yardstickNanoseconds: UInt64, measuredNanoseconds: UInt64) {
+        var yardstickNanoseconds = UInt64.max
+        var measuredNanoseconds = UInt64.max
+        for _ in 0 ..< roundCount {
+            yardstickNanoseconds = min(yardstickNanoseconds, nanoseconds(of: yardstick))
+            measuredNanoseconds = min(measuredNanoseconds, nanoseconds(of: measured))
+        }
+        return (yardstickNanoseconds, measuredNanoseconds)
     }
 
     private static func nanoseconds(of body: () -> Void) -> UInt64 {
