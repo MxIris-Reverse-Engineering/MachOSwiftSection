@@ -28,6 +28,15 @@ struct SwiftSymbolTableRoutingTests {
         #expect(table(forSymbolNamed: "_OBJC_CLASS_$__TtC7SwiftUI14NSHostingView") == nil)
     }
 
+    /// The routing reads names with this package's own rules, whatever
+    /// language the sweep's registry handed it.
+    @Test func swiftRoutingDoesNotDependOnTheRegisteredLanguage() {
+        let swiftTable = "_$s7SwiftUI4TextVMn".withCString { routing.table(forSymbolNamed: $0, language: .c) }
+        #expect(swiftTable == .swift)
+        let cTable = "_malloc".withCString { routing.table(forSymbolNamed: $0, language: .swift) }
+        #expect(cTable == nil)
+    }
+
     @Test func onlyTheSwiftTableIsIndexedByOffset() {
         #expect(routing.offsetIndexing(in: .swift) == .byOffset)
         #expect(routing.offsetIndexing(in: .symbolicMangling) == .nameOnly)

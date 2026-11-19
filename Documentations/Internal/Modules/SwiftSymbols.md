@@ -8,7 +8,7 @@
 
 SwiftSymbols 是 **Swift 符号索引**层：在 MachOKitExtensions `MachOSymbols` 的一趟采集上取出一个镜像的 Swift 符号，把每个 Swift 符号 demangle 成节点树存起来，按成员、类型、witness、thunk 归类，供上层按偏移、按名字、按类型成员反查。入口类型是 `SwiftSymbolIndexStore`。
 
-与语言无关的底层——16 字节的紧凑符号表、按偏移分桶、符号值到偏移的换算、对符号表与导出表的单趟采集（`SymbolSweep`）、语言判断（`SymbolLanguage`）——在 MachOKitExtensions 的 `MachOSymbols` 里，说明见它的 [SymbolIndex.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SymbolIndex.md)。那边还有一个只收 C、C++、Objective-C 名字的 `SymbolIndexStore`；它与本模块的 `SwiftSymbolIndexStore` 查询方法同名，但互不相干（见「关键契约」）。
+与语言无关的底层——16 字节的紧凑符号表、按偏移分桶、符号值到偏移的换算、对符号表与导出表的单趟采集（`SymbolSweep`）、语言判断与注册（`SymbolLanguage`、`SymbolLanguageRegistry`）——在 MachOKitExtensions 的 `MachOSymbols` 里，说明见它的 [SymbolIndex.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SymbolIndex.md)。那边还有一个只收 C 与 C++ 名字的 `SymbolIndexStore`（已注册语言的符号只留偏移作边界）；它与本模块的 `SwiftSymbolIndexStore` 查询方法同名，但互不相干（见「关键契约」）。
 
 它坐在 ABI 模型**上面一层**。`MachOSwiftSection` 够不到它（演进提案 `self-contained-abi-layer` 的边界）：描述符只暴露实现偏移，把偏移归属到符号名是 `SwiftInspection` 的事。符号的**值类型**（`Symbol` / `Symbols` / `SymbolOrElement`）住在 `MachOResolving`（MachOKitExtensions），不在这里——「这个偏移上有哪些符号」是一次针对索引的**查询**，不是一次读取，所以 `Symbols` 故意不是 `Resolvable`。
 
@@ -24,9 +24,17 @@ SwiftSymbols 是 **Swift 符号索引**层：在 MachOKitExtensions `MachOSymbol
 | 4. 大栈执行器接入 | `LargeStackTaskExecution` |
 | 5. `_symbolic` 符号表 | `SymbolicManglingSymbols` |
 
+## `SymbolLanguage.swift` 与加载时注册
+
+`SymbolLanguage.swift` 定义在本模块（`SymbolLanguage+Swift.swift`），不在 MachOKitExtensions：Swift 名字怎么认归本包管（MachOKitExtensions 提案 [split-symbol-language](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/draft-split-symbol-language.md)）。
+
+- **识别**：`SwiftSymbolNameRecognition.recognizes` 只看名字开头的字节——`$s` `_$s` `$S` `_$S` `$e` `_$e` `_T0` `@__swiftmacro_`，以及链接器去重名 `_symbolic `、`_default assoc type `。前缀集合必须与 swift-demangling 的 `isSwiftSymbol` 一致，`SymbolTableEquivalenceTests.swiftRecognitionMatchesDemanglingIsSwiftSymbol` 在真实符号表上钉住。
+- **注册**：C target `SwiftSymbolsRegistration` 里的 `__attribute__((constructor))` 在镜像加载时调用本模块用 `@c` 导出的 `swift_symbols_register_symbol_language`，向 `SymbolLanguageRegistry.shared` 登记 `.swift`。`SwiftSymbols` 依赖这个 C target，链接 `SwiftSymbols` 就带上了 constructor，调用方什么都不用做。Swift 自己没有加载时初始化：SE-0492 的 `@section` 写进 `__mod_init_func` 在 Swift 6.4.2 上链接失败，所以用 C target。
+- **效果**：注册之后，MachOKitExtensions 的 C/C++ 索引不再收 Swift 名字，只留它们的偏移，地址落在 Swift 函数里时 `closestSymbols` 答 `nil`。`SwiftSymbolLanguageRegistrationTests` 钉住这三件事。
+
 ## 子系统 1：索引本体
 
-**采集交给 MachOKitExtensions**。建索引的第一段（见下文「建索引分两段」）由 `SymbolSweep(sweeping:routing: SwiftSymbolTableRouting())` 一趟扫完符号表与导出表：`SymbolLanguage` 判为 Swift 的名字里，`_symbolic ` / `_default assoc type ` 开头的进 `.symbolicMangling` 表（`.nameOnly`，不建偏移索引），其余进 `.swift` 表（`.byOffset`）；非 Swift 名字不收。routing 声明了 `mayReferenceStringTablesOfLoadedImages`（dyld 不卸载带 Swift 内容的镜像），所以 `MachOImage` 的行直接指进镜像的字符串表。采集的通用规则——每个唯一名字一行 16 字节、名字的两种来源（零拷贝的字符串表或私有缓冲）、规范化偏移的口径与 `SymbolValueOffsetConverter`、STABS 调试条目只占行不定偏移、导出事实与本地符号事实的采集——都写在 MachOKitExtensions 的 [SymbolIndex.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SymbolIndex.md)，这里不复述。对本模块要记住的只有两条后果：`MachOKit` 给 `MachOFile` 符号的 `offset` 是原始 `n_value`（虚拟地址，不是它文档注释说的文件偏移），进索引一律经换算，主可执行文件（`__TEXT` 在 0x100000000）上弄错会让每个成员地址都高出一个基址（`ExecutableImageSymbolOffsetTests` 钉住）；调试条目保留占位行是为了让行序跟着调试映射走，即源码顺序——打印器按行序列成员，丢掉它们会让 SymbolTestsCore 的 42 个快照变化。
+**采集交给 MachOKitExtensions**。建索引的第一段（见下文「建索引分两段」）由 `SymbolSweep(sweeping:routing: SwiftSymbolTableRouting())` 一趟扫完符号表与导出表：本模块的 `SwiftSymbolNameRecognition` 认作 Swift 的名字里（routing 直接用它，不看注册表给的语言，Swift 索引不会因为注册没发生而变空），`_symbolic ` / `_default assoc type ` 开头的进 `.symbolicMangling` 表（`.nameOnly`，不建偏移索引），其余进 `.swift` 表（`.byOffset`）；非 Swift 名字不收。routing 声明了 `mayReferenceStringTablesOfLoadedImages`（dyld 不卸载带 Swift 内容的镜像），所以 `MachOImage` 的行直接指进镜像的字符串表。采集的通用规则——每个唯一名字一行 16 字节、名字的两种来源（零拷贝的字符串表或私有缓冲）、规范化偏移的口径与 `SymbolValueOffsetConverter`、STABS 调试条目只占行不定偏移、导出事实与本地符号事实的采集——都写在 MachOKitExtensions 的 [SymbolIndex.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SymbolIndex.md)，这里不复述。对本模块要记住的只有两条后果：`MachOKit` 给 `MachOFile` 符号的 `offset` 是原始 `n_value`（虚拟地址，不是它文档注释说的文件偏移），进索引一律经换算，主可执行文件（`__TEXT` 在 0x100000000）上弄错会让每个成员地址都高出一个基址（`ExecutableImageSymbolOffsetTests` 钉住）；调试条目保留占位行是为了让行序跟着调试映射走，即源码顺序——打印器按行序列成员，丢掉它们会让 SymbolTestsCore 的 42 个快照变化。
 
 `SwiftSymbolIndexStore.Storage` 里**不驻留 `Node` 类树，也不驻留符号名 `String`**。建索引时每个符号 demangle 到一棵临时树上，分类完就 intern 进这个镜像的 `NodeStoreBuilder`；全局 `NodeCache` 全程不参与，`Storage` 一放，整个镜像的内存占用就跟着走。
 

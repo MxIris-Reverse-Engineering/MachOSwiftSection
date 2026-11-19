@@ -172,7 +172,10 @@ extension Package.Dependency {
             // `SharedCacheKey` reads the identifier on every lookup.
             // 2.0.0 carries MachOReading and MachOResolving, which used to be
             // targets of this package; earlier releases do not have them.
-            from: "2.0.0",
+            // 3.0.0 leaves Swift symbol names to this package: `SwiftSymbols`
+            // defines `SymbolLanguage.swift` and registers it when the image
+            // loads (proposal split-symbol-language).
+            from: "3.0.0",
         ),
     )
 
@@ -443,8 +446,18 @@ extension Target {
             .product(.MachOSymbols),
             .product(.MachOCaches),
             .target(.Utilities),
+            .target(.SwiftSymbolsRegistration),
         ],
         path: "Sources/Symbols/SwiftSymbols",
+    )
+
+    /// Registers `SymbolLanguage.swift` with MachOKitExtensions' symbol
+    /// language registry when the image loads: a constructor that calls the
+    /// `@c` function `SwiftSymbols` exports. Swift has no load-time
+    /// initializers of its own; linking `SwiftSymbols` links this target.
+    static let SwiftSymbolsRegistration = Target.target(
+        name: "SwiftSymbolsRegistration",
+        path: "Sources/Symbols/SwiftSymbolsRegistration",
     )
 
     static let MachOSwiftSectionC = Target.target(
@@ -1463,6 +1476,7 @@ let package = Package(
         .Utilities,
         .SwiftOutputTransformer,
         .SwiftSymbols,
+        .SwiftSymbolsRegistration,
         .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,
