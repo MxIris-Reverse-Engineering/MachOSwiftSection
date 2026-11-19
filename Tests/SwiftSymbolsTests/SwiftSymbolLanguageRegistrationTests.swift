@@ -32,7 +32,7 @@ struct SwiftSymbolLanguageRegistrationTests {
     @Test func cAndCPlusPlusStoreLeavesSwiftNamesOut() throws {
         let (swiftCore, swiftSymbols, otherSymbols) = try Self.swiftCoreSymbols()
         try #require(!swiftSymbols.isEmpty && !otherSymbols.isEmpty)
-        let store = SymbolIndexStore.shared
+        let store = MachOSymbols.SymbolIndexStore.shared
         #expect(swiftSymbols.filter { store.containsSymbol(named: $0.name, in: swiftCore) }.isEmpty)
         // Every other name is C or C++ — or a language another package
         // linked into this test process registered; those stay out too.
@@ -44,7 +44,7 @@ struct SwiftSymbolLanguageRegistrationTests {
     /// answers `nil` rather than the C function before it.
     @Test func cAndCPlusPlusStoreAnswersNilInsideASwiftFunction() throws {
         let (swiftCore, swiftSymbols, _) = try Self.swiftCoreSymbols()
-        let store = SymbolIndexStore.shared
+        let store = MachOSymbols.SymbolIndexStore.shared
         let swiftOnlyOffsets = Set(swiftSymbols.map(\.offset)).sorted().prefix(2000).filter { store.symbols(for: $0, in: swiftCore) == nil }
         try #require(!swiftOnlyOffsets.isEmpty)
         let answeredOffsets = swiftOnlyOffsets.filter { store.closestSymbols(at: $0, in: swiftCore) != nil }
