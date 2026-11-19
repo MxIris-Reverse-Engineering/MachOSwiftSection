@@ -3390,6 +3390,41 @@
 - **关联文档**：[Changelogs/0.25.0.md](../../Changelogs/0.25.0.md)。
 - **对应版本**：0.25.0。
 
+## 141. 符号语言的判断归各自的包
+
+- **时间段**：2026-11-19，三个仓库同名的分支 `feature/split-symbol-language`，各从 `next` 切出。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上构建与测试。
+- **动机**：MachOKitExtensions 的 `SymbolLanguage` 硬编码了 Swift 与 Objective-C 的判断。Swift 的前缀表要与 swift-demangling 的 `isSwiftSymbol` 一致，MachOKitExtensions 却不依赖 demangler，只能靠本库的测试跨包钉住；任何一门语言的规则要改，都得去发 MachOKitExtensions 的版本。改为语言的定义与判断归拥有它的包。
+- **关键决策**：
+  - `.swift` 与 Swift 名字的判断搬进 `SwiftSymbols`（`SymbolLanguage+Swift.swift`）。新 C target `SwiftSymbolsRegistration` 的 constructor 在镜像加载时调用 `@c` 导出的注册函数，向 MachOKitExtensions 的 `SymbolLanguageRegistry` 登记 `.swift`；纯 Swift 用 `@section` 写进 `__mod_init_func` 的做法实测链接失败。
+  - `SwiftSymbolTableRouting` 直接用本库的判断，不经注册表：Swift 索引不依赖注册是否发生。
+  - 命名扫描 `SymbolIndexStoreNamingScanTests` 放行带模块名的 `MachOSymbols.SymbolIndexStore`（新测试要验证 C/C++ 索引不收 Swift 名字），不带前缀的照旧禁止，`AGENTS.md` 同步。
+  - 与 MachOKitExtensions 的 C++ 结构化归类（它的 0005）合成一个 3.0.0，只切一次大版本。本库要求 MachOKitExtensions 3.0.0 与 MachOObjCSection 0.8.208（后者定义 `.objectiveC` 并同样在加载时注册）。
+- **落地**：功能分支先并入 `next` 的两个提交（第 140 节「发版后的两处收尾」），撤掉联调时临时指向沙盒的依赖路径，MachOObjCSection 的下限抬到 0.8.208，再合入 `next`。
+- **文档**：MachOKitExtensions 提案 [0004 split-symbol-language](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0004-split-symbol-language.md)（唯一提案，提案索引加跨仓库行）；`Modules/SwiftSymbols.md`、`AGENTS.md`。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上，Xcode 27.2；落地时的结果见第 142 节。实现期间的全量测试与 84 对渲染 A/B 记在提案的决策日志。
+- **对应版本**：0.26.0（MachOKitExtensions 3.0.0、MachOObjCSection 0.8.208）。
+
+## 142. 0.26.0 发版
+
+- **时间段**：2026-11-19。
+- **动机**：第 141 节要求 MachOKitExtensions 3.0.0，按提案与 MachOKitExtensions 3.0.0、MachOObjCSection 0.8.208 同日发布。
+- **关键决策**：
+  - **① 发版顺序**：MachOKitExtensions 3.0.0 → MachOObjCSection 0.8.208 → 本库 0.26.0 → RuntimeViewer 抬钉。每一步依赖前一步的 tag。
+  - **② MachOObjCSection 的 CI 没跑成**：推 `main` 触发的 CI 三次都没领到 GitHub 的 macOS 托管机器（容量不足），一个测试都没跑。改在本机用 Xcode 26.6 照 CI 的步骤（`swift build`、`swift test --skip MachOObjCSectionTests`）跑，343 个测试通过；用户据此同意打 0.8.208。
+  - **③ 版本号**：`Version.swift` 与两个 `plugin.json` 改为 0.26.0；插件 skill 里没有需要改的版本标注。Changelog 334 字符。
+  - **④ 下游**：
+    - RuntimeViewer 跟本库与 MachOObjCSection 的 `next`，要同日把 MachOKitExtensions 的下限改为 3.0.0、更新 `Package.resolved`，由它自己的会话做。
+    - swift-decompiler 跟本库的 `next`，不用 `SymbolLanguage`。
+    - MachOKitUI 锁在本库 0.24 与 MachOKitExtensions 1.x，不受影响。
+- **落地模块**：`Package.swift`（MachOObjCSection 的下限）、`Sources/Executables/swift-section/Version.swift`、`AgentPlugins/swift-section/` 的两个 `plugin.json`、`Changelogs/0.26.0.md`、本账本。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上，Xcode 27.2，只走远端依赖（MachOKitExtensions 3.0.0、MachOObjCSection 0.8.208、swift-demangling 0.7.4），scratch 是新的。
+  - debug 全量 `swift test --skip IntegrationTests`：2,905 个测试全部通过，原始退出码 0。
+  - release 全量：只有 `SpecializedRuntimeTypeNameTests` 的 5 条失败，是已知的 release 必红（第 139 节）。
+  - 渲染 A/B：基线是 `next`（依赖 MachOKitExtensions 2.0.0、MachOObjCSection 0.8.207），候选是发版提交（上面三个远端版本）；两侧 release 预构建后带 `--skip-build`、`--no-baseline-cache` 跑，84 对逐字节一致。脚本要 Python 3.10 以上，系统自带的 3.9 跑不起来，用的是 Homebrew 的 3.14。
+  - `claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过。
+- **关联文档**：[Changelogs/0.26.0.md](../../Changelogs/0.26.0.md)。
+- **对应版本**：0.26.0。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

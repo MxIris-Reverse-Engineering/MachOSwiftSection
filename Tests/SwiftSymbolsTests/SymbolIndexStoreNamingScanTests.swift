@@ -1,13 +1,14 @@
 import Foundation
 import Testing
 
-/// `SymbolIndexStore` is MachOKitExtensions' C, C++ and Objective-C symbol
-/// index; this package's Swift one is `SwiftSymbolIndexStore`. The two share
-/// their query names (`symbols(for:in:)`, `isExported(name:in:)`,
+/// `SymbolIndexStore` is MachOKitExtensions' C and C++ symbol index; this
+/// package's Swift one is `SwiftSymbolIndexStore`. The two share their query
+/// names (`symbols(for:in:)`, `isExported(name:in:)`,
 /// `containsSymbol(named:in:)`, `offset(ofSymbolNamed:in:)`), so code that
 /// still spells the old name compiles against the wrong store and quietly
-/// answers with no Swift name at all. Nothing in this package means the C
-/// store, so the bare name may not appear in code.
+/// answers with no Swift name at all. The bare name may not appear in code;
+/// code that does mean the C/C++ store — a test checking that it leaves Swift
+/// names out — spells it module-qualified, `MachOSymbols.SymbolIndexStore`.
 @Suite
 struct SymbolIndexStoreNamingScanTests {
     private static let packageRoot = URL(fileURLWithPath: #filePath)
@@ -16,7 +17,7 @@ struct SymbolIndexStoreNamingScanTests {
         .deletingLastPathComponent()
 
     // Spelled in two pieces so that this file does not match itself.
-    private static let bareNamePattern = try! NSRegularExpression(pattern: "(?<![A-Za-z0-9_])Symbol" + "IndexStore(?![A-Za-z0-9_])")
+    private static let bareNamePattern = try! NSRegularExpression(pattern: "(?<![A-Za-z0-9_])(?<!MachOSymbols\\.)Symbol" + "IndexStore(?![A-Za-z0-9_])")
 
     @Test func noUnrenamedSymbolIndexStoreInSourcesOrTests() throws {
         var scannedFileCount = 0
