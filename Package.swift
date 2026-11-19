@@ -215,7 +215,9 @@ extension Package.Dependency {
             // header index lies in through tables built once per cache file,
             // where reading a protocol list walked every image of the cache
             // for each pointer.
-            "0.8.206" ..< "0.9.0",
+            // 0.8.207 holds `ObjCCodeReferences`, the Objective-C layer of the
+            // cross-reference analysis, and takes MachOKitExtensions 2.0.0.
+            "0.8.207" ..< "0.9.0",
         ),
     )
 }
@@ -238,7 +240,10 @@ extension Package.Dependency {
             // visiting every slot of its hash cache on the way out: building
             // a symbol index on several threads spent 2.3 times its
             // single-threaded CPU time on those copies.
-            "0.7.3" ..< "0.8.0",
+            // 0.7.4 spells existentials with `any` on request
+            // (`DemangleOptions.useExistentialAny`), which `interface` and
+            // `dump` print with by default.
+            "0.7.4" ..< "0.8.0",
         ),
     )
 
