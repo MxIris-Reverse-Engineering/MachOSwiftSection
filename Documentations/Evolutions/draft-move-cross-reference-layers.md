@@ -206,6 +206,7 @@
 | `Sources/Analysis/CrossReferenceAnalysis/Exports.swift` | 修改 | `@_exported import MachOCodeReferences`、`@_exported import ObjCCodeReferences` | 门面的公开类型照旧可见 | 3、4 |
 | `Sources/Analysis/CrossReferenceAnalysis/` 其余文件 | 修改 | import 改名，用到内部接口的加 `@_spi(Internals) import`；构造 `IndirectCallEvidence` 处去掉 `table:`（若有） | 第 2、3 节 | 3、4 |
 | `Sources/Commands/SwiftSectionKit/CrossReferences/CrossReferenceFormatting.swift` | 修改 | 删 `name(of:)`、`refs --json` 的 `table` 键与文本输出里的「through …」 | 第 3 节 | 3 |
+| `AgentPlugins/swift-section/skills/swift-section-cli/references/cross-references.md` | 修改 | 间接调用照实际输出描述，不再说带哪张表 | CLI 输出变了，skill 同批改 | 3 |
 | `Tests/CrossReferenceAnalysisTests/MalformedExportTrieTests.swift` | 删除 | 搬到 MachOKitExtensions | 第 5 节 | 3 |
 | `Tests/CrossReferenceAnalysisTests/RecognizerExtensionPointTests.swift` | 修改 | 第一条搬走，`selectorQueriesLookUpNoSwiftType` 留下 | 第 5 节 | 3 |
 | `Tests/CrossReferenceAnalysisTests/CrossReferenceLayerBoundaryTests.swift` | 删除 | 两条白名单不再需要，运行时名字扫描搬到 MachOKitExtensions | 第 5 节 | 3 |
@@ -479,23 +480,23 @@ import MachOReading
 
 ## 落地步骤
 
-0. **把基线备好** —— 改动地图里本库的「`feature/move-macho-infrastructure-modules`（分支）」一行。把 `origin/next` 合进这条分支（merge，不 rebase、不强推），解冲突，按基础设施搬迁提案改名测试支持模块；先告诉在用这两条搬迁分支的会话。三个仓库从这里切出 `feature/move-cross-reference-layers`。
+0. **把基线备好**（已完成） —— 改动地图里本库的「`feature/move-macho-infrastructure-modules`（分支）」一行。把 `origin/next` 合进这条分支（merge，不 rebase、不强推），解冲突，按基础设施搬迁提案改名测试支持模块；先告诉在用这两条搬迁分支的会话。三个仓库从这里切出 `feature/move-cross-reference-layers`。
    - 行为：基础设施搬迁分支合入 `next` 后本库全量测试（跳过 IntegrationTests）通过，`ReferenceTableDigestTests` 与 `next` 逐条一致
-1. **登记提案** —— 本提案状态改 Accepted；三个仓库的提案索引、两份搬迁提案的决策日志（ARM64 也搬、落地顺序）、愿景的相关提案表。
+1. **登记提案**（已完成） —— 本提案状态改 Accepted；三个仓库的提案索引、两份搬迁提案的决策日志（ARM64 也搬、落地顺序）、愿景的相关提案表。
    - 行为：无代码改动
-2. **解码与地址解析搬进 MachOKitExtensions** —— 改动地图里步骤列为 2 的各行。
+2. **解码与地址解析搬进 MachOKitExtensions**（已完成，与第 3 步合并） —— 改动地图里步骤列为 2 的各行。
    - 行为：`SwiftThunkAnalysisTests` 全套照旧通过（线程读取经新模块，结果不变）
    - 行为：`stubChainCarriesTheSelectorRegisterConstantOfACacheSharedSelectorStub`、`slotResolverMatchesTheProcessForEveryGlobalOffsetTableSlotOfAppKit`、`cacheImageLocatorFindsTheImageAnAddressLiesIn`、`stubChainRecordsEveryStubIslandHop` 在 MachOKitExtensions 里通过，且不依赖本库
    - 行为：`slotResolverResolvesStandaloneBinds` 在本库的 `CrossReferenceAnalysisTests` 里通过
    - 行为：`ARM64InstructionDecodingTests`、`RegisterFileTests` 经 `@_spi(Internals) import` 照旧通过
-3. **核心层搬进 MachOKitExtensions** —— 步骤列为 3 的各行。
+3. **核心层搬进 MachOKitExtensions**（已完成） —— 步骤列为 3 的各行。
    - 行为：`theCoreScansWithOnlyARecognizerFromTests`（MachOKitExtensions 里，只装测试的识别器，扫出它认领的调用）
    - 行为：`aTerminalSizePastTheTrieEndsTheNodeWithoutTrapping` 在 MachOKitExtensions 里通过
    - 行为：`coreSpellsNoRuntimeSymbolName`、`onlyInProcessMemoryTurnsAddressesIntoPointers`、`coreDefinesNoAddressMaskConstant`（MachOKitExtensions 的源码扫描）
    - 行为：`indirectCallEvidenceCarriesNoTable`（`IndirectCallEvidence` 只有偏移、常量与是否混入地址三项）
    - 行为：`inProcessReferenceTablesAreUnchangedForAppKitSwiftUICoreAndFoundation`（整表 A/B，基线为开工时的 `next`）
    - 行为：`publicNamesStillResolveThroughCrossReferenceAnalysis`（只 `import CrossReferenceAnalysis` 的测试文件仍能用 `CodeLocation`、`CodeReferenceKind.call`、`ReceiverClassHint.methodReceiver`）
-4. **ObjC 层搬进 MachOObjCSection** —— 步骤列为 4 的各行。
+4. **ObjC 层搬进 MachOObjCSection**（已完成） —— 步骤列为 4 的各行。
    - 行为：`objectiveCLayerReadsMemoryOnlyThroughCrossReferenceMemory`、`objectiveCLayerSpellsNoSwiftRuntimeName`（MachOObjCSection 的源码扫描）
    - 行为：整表 A/B 照旧逐条一致；`selectorQueriesLookUpNoSwiftType` 照旧通过
 5. **文档与验收** —— 步骤列为 5 的各行；吞吐、渲染 A/B、三个仓库的全量测试、RuntimeViewer 沙盒构建。
@@ -528,3 +529,7 @@ import MachOReading
 | 2026-11-19 | `refs --json` 去掉 `table` 键 | 调研漏了一个读者：SwiftSectionKit 的 `CrossReferenceFormatting` 把 `IndirectCallEvidence.table` 写进 `refs --json`（永远是 `"none"`），文本输出里的「through …」从来不会出现。`refs` 是 0.25.0 才有的命令、还没发布，插件 skill 与 README 也没写这个键，所以随 `table` 一起删掉 |
 | 2026-11-19 | 地址解析测试换了对照 | `stubChainCarriesTheSelectorRegisterConstantOfACacheSharedSelectorStub` 原来对照门面在同一条指令上认出的发送，搬进 MachOKitExtensions 后没有门面，改成对照进程内存里同一地址（加上 cache 的 slide）上的 selector 字符串；GOT 槽那条直接读进程里的槽、掩码取 `InProcessContext.addressMask`；镜像定位那条从 MachOKit 的 cache 里取 libobjc |
 | 2026-11-19 | 路径更正 | `SwiftDeclarationRendering` 在 `Sources/Output/`；MachOKitExtensions 的实现说明平放在 `Documentations/Internal/`，没有 `Modules/` 子目录 |
+| 2026-11-19 | 第 0 步验证通过，基础设施搬迁分支已推送 | JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 26.6，本地兄弟依赖；MachOKitExtensions 与 MachOObjCSection 经 agent 沙盒 `LocalDependencies/MoveCrossReferenceLayers` 的副本接入，`Package.swift` 那处本地改动不提交）：合并后全量测试（跳过 IntegrationTests）2,910 个通过。随后把合并提交快进推到 `feature/move-macho-infrastructure-modules`；渲染 A/B 与本提案的候选一起跑 |
+| 2026-11-19 | 第 2–4 步验证通过 | 同一台 Ultra、同样的工具链：MachOKitExtensions 全量 161 个测试通过（搬来的测试改了两处：本库测试支持里的 `DyldCache(path: .current)` 那边没有，改按 cache 文件路径打开；cache 里按名字找不到 `libobjc.A.dylib`，改按路径找）；MachOObjCSection 照 CI 跳过 `MachOObjCSectionTests` 跑，343 个通过；本库全量 2,901 个通过（比第 0 步少 9 个、2 个套件，正是搬走与删掉的那几组）。整表 A/B：基线是 `origin/next`（`9d5c0310`），AppKit、SwiftUICore、Foundation 三个镜像的引用表摘要逐个一致 |
+| 2026-11-19 | 两侧共用的测试文件不 import SPI | `ReferenceTableDigestTests` 与 `ScanThroughputBenchmarkTests` 要原样拷到基线上跑，`PublicNameTests` 证明只 import 门面就够，三者都只用公开 API；批量给测试加 SPI import 时把它们排除。整表对照的归一化多去掉两样：新的模块名前缀，以及基线输出里永远是 `.none` 的 `table` 字段 |
+| 2026-11-19 | 插件 skill 同步 | `references/cross-references.md` 原来说间接调用显示 `indirect through …` 并带上哪张表，与实际输出不符（「through」从来不出现，表的信息已删），改成照实际输出描述 |
