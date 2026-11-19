@@ -109,3 +109,4 @@
 | [0097](0097-offline-cross-references-and-symbolication.md) | 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
+| draft | [交叉引用的核心层与 ObjC 层迁出本库](draft-move-cross-reference-layers.md)（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Accepted |

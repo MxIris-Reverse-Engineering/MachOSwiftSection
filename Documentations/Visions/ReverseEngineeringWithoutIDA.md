@@ -201,6 +201,7 @@
 | 提案 | 状态 | 它推进了愿景的哪一部分 |
 |------|------|------------------------|
 | [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md) | Implemented | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP；顺带把交叉引用按「我们选的方向」第 6 条拆成核心、ObjC、Swift 三层（真正迁出本库另写提案） |
+| [draft-move-cross-reference-layers](../Evolutions/draft-move-cross-reference-layers.md) | Accepted | 「我们选的方向」第 6 条：把 0097 拆出的核心层与地址解析、ARM64 解码搬进 MachOKitExtensions，ObjC 层搬进 MachOObjCSection，随本库 0.25.0 落地 |
 
 ---
 
