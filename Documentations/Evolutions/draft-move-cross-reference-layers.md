@@ -1,6 +1,6 @@
 # Draft - 交叉引用的核心层与 ObjC 层迁出本库
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-19
 - **最后更新**: 2026-11-19
@@ -51,7 +51,7 @@
   - `ARM64InstructionDecoding` → 核心与 `CodeAddressResolution`：`ARM64InstructionWord` 几乎全部、`ARM64Trampoline`（搬家后同包）；→ `CrossReferenceAnalysis`：`ARM64InstructionWord` 的 `adding`、`branchTarget`、`callTarget`、`load`（跨包）。
   - MachOReading → 核心：`InProcessContext.addressMask` 在本库是 `package`（`Sources/MachO/MachOReading/ReadingContext/InProcessContext.swift:62`）；MachOKitExtensions 那份已是 public（读取层搬迁提案第 286 行就是为它改的），搬过去同包，不成问题。
 - **只有在 Darwin 上才编得过的代码都在核心层的进程内部分。** `CodeImageSet.inProcess(...)`（`Images/CodeImageSet.swift:86-130`）只有 `#if arch(arm64)`，却用了 `DyldCacheLoaded.current`（:90，MachOKit 里在 `#if canImport(Darwin)` 内，`DyldCacheLoaded+static.swift:9-20`）、`_dyld_image_count` / `_dyld_get_image_header`（:112-113）、`MachOImage(ptr:)`（:114）、`dladdr`（:116-117）。`InProcessCrossReferenceMemory` 是唯一把地址变成指针的地方（`UnsafeRawPointer(bitPattern:)` 在 :14、:19、:25、:29），它的掩码来自 `InProcessContext.addressMask`，而 MachOKitExtensions 的 `InProcessContext` 整个在 `#if canImport(Darwin)` 里（`Sources/MachOReading/ReadingContext/InProcessContext.swift:7`）。ObjC 层在 `ObjectiveCClassIndex.swift:146`、`ObjCMethodNames.swift:52-78`、`ObjCImageSections.swift:46` 按 `asMachOImage` 分支，用的是类型而不是 dyld 调用；MachOKit 在 Linux 上也有 `MachOImage`，这几处大概能编，没有在 Linux 上验证过。锁都是 `NSLock`，没有 `Mutex` 或 FrameworkToolbox。
-- **`IndirectCallEvidence.table` 从来只写 `.none`，也没人读。** 枚举在 `Models/IndirectCallEvidence.swift:4-9`（`classVirtualTable`、`protocolWitnessTable`、`valueWitnessTable`、`none`），扫描器唯一的写入点给的是 `.none`（`Scanning/ReferenceScanner.swift:355`）。本库没有读 `.table` 的代码；RuntimeViewer 只读 `tableOffset` 与 `pointerAuthenticationConstant`（`RuntimeViewerCore/Sources/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift:118`、`:977`）。
+- **`IndirectCallEvidence.table` 从来只写 `.none`，也没人读。** 枚举在 `Models/IndirectCallEvidence.swift:4-9`（`classVirtualTable`、`protocolWitnessTable`、`valueWitnessTable`、`none`），扫描器唯一的写入点给的是 `.none`（`Scanning/ReferenceScanner.swift:355`）。本库只有 SwiftSectionKit 的 `CrossReferenceFormatting` 读它：写进 `refs --json`（永远是 `"none"`），文本输出里的「through …」从来不会出现（调研时漏了这一处，见决策日志）；RuntimeViewer 只读 `tableOffset` 与 `pointerAuthenticationConstant`（`RuntimeViewerCore/Sources/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift:118`、`:977`）。
 - **使用方。** `CrossReferenceAnalysis` 是 library product（`Package.swift:1523`），经 `Sources/Analysis/CrossReferenceAnalysis/Exports.swift` 的 `@_exported import` 把两个下层的公开类型带出去。本库里 SwiftSectionKit 的 `refs` / `symbolicate`（`Sources/Commands/SwiftSectionKit/CrossReferences/` 的四个文件）用门面。RuntimeViewer 只有 `RuntimeViewerCore` 的 `RuntimeViewerCrossReferences` 一个 target import `CrossReferenceAnalysis`（`Analysis/` 下 9 个文件、3 个测试），用到下层的公开类型只有 `CodeLocation`（13 处）与 `ReceiverClassHint`（`CrossReferenceQuery.swift:764`、`ObjectiveCSendMatching.swift:28,41-65`）。MachOKitUI 与 swift-decompiler 都不用这几个模块。四个要搬的模块都不是本库的 product（product 列表 `Package.swift:1508-1536`）。
 
 ### 上游或依赖是否已具备能力
@@ -101,7 +101,7 @@
 
 ### 3. 删掉 `IndirectCallEvidence.table`
 
-`IndirectCallEvidence` 只保留与语言无关的事实：`tableOffset`、`pointerAuthenticationConstant`、`isAddressBlended`。`Table` 枚举与 `table` 属性删掉，构造器去掉 `table:` 参数，扫描器的写入点（`ReferenceScanner.swift:355`）跟着改。将来要区分 vtable、协议见证表、值见证表时，由 Swift 层在门面里另加，不回到核心层。这是本库公开 API 的破坏性改动，随 0.25.0 发布，写进 changelog 的 Breaking 一节；没有使用方（本库、RuntimeViewer、MachOKitUI、swift-decompiler 都查过），不留废弃期。
+`IndirectCallEvidence` 只保留与语言无关的事实：`tableOffset`、`pointerAuthenticationConstant`、`isAddressBlended`。`Table` 枚举与 `table` 属性删掉，构造器去掉 `table:` 参数，扫描器的写入点（`ReferenceScanner.swift:355`）跟着改。将来要区分 vtable、协议见证表、值见证表时，由 Swift 层在门面里另加，不回到核心层。这是本库公开 API 的破坏性改动，随 0.25.0 发布，写进 changelog 的 Breaking 一节；本库之外没有使用方（RuntimeViewer、MachOKitUI、swift-decompiler 都查过），不留废弃期。`refs --json` 里永远是 `"none"` 的 `table` 键一起删掉：`refs` 是 0.25.0 才有的命令，还没发布。
 
 ### 4. Linux：文件模式能编，进程内部分用 `#if` 包住
 
@@ -175,7 +175,8 @@
 | `Tests/MachOCodeReferencesTests/CoreOnlyScanTests.swift` | 新增 | `theCoreScansWithOnlyARecognizerFromTests`：只装测试里的识别器，驱动 `ReferenceScanner` | 证明核心在 MachOKitExtensions 里不靠语言层也能扫 | 3 |
 | `Tests/MachOCodeReferencesTests/SourceScanTests.swift` | 新增（搬入并合并） | 不写 `objc_` / `swift_` 字面量、只有 `InProcessCrossReferenceMemory` 把地址变成指针、不写自定义地址掩码常量（含 slide info 白名单） | 第 5 节 | 3 |
 | `README.md` | 修改 | 模块列表加三个模块，写明 SPI 只给 MachOSwiftSection 用、Linux 上进程内部分不可用 | 文档 | 5 |
-| `Documentations/Internal/Modules/MachOCodeReferences.md`、`MachOAddressResolution.md`、`ARM64InstructionDecoding.md` | 新增（从本库搬入并改写） | 本库同名模块文档的内容，加 SPI 与 Linux 说明 | 文档跟代码走 | 5 |
+| `Documentations/Internal/MachOCodeReferences.md`、`MachOAddressResolution.md`、`ARM64InstructionDecoding.md` | 新增（从本库搬入并改写） | 本库同名模块文档的内容，加 SPI 与 Linux 说明 | 文档跟代码走 | 5 |
+| `Documentations/Internal/SharedCache.md` | 修改 | `thunkResolution` 组那一行的 `CacheImageResolver` 改成 `CacheImageLocator`（类型在 `MachOAddressResolution`） | 0097 改了本库那份 `MachOCaches.md`，而它在基础设施搬迁里已搬来这里；第 0 步合并时本库那份保持删除 | 2 |
 | `Documentations/Evolutions/README.md` | 修改 | 加 cross-repository draft 一行指向本提案 | 跨仓库提案的登记方式 | 1 |
 | `Documentations/Evolutions/draft-move-macho-infrastructure-modules.md` | 修改 | 第 109 行与第 189 行的图改为 `ARM64InstructionDecoding` 也搬；决策日志加一行；落地清单的顺序改成第 6 节 | 第 1、6 节 | 1 |
 | `Documentations/Evolutions/draft-move-reading-and-resolving-modules.md` | 修改 | 决策日志加一行：落地顺序改成 MachOKitExtensions 2.0.0 先于 MachOObjCSection 的 tag | 第 6 节 | 1 |
@@ -201,9 +202,10 @@
 | `Sources/Analysis/CrossReferenceCore/` | 删除 | 搬到 MachOKitExtensions | 第 1 节 | 3 |
 | `Sources/Analysis/CrossReferenceObjC/` | 删除 | 搬到 MachOObjCSection | 第 1 节 | 4 |
 | `Sources/Analysis/SwiftThunkAnalysis/`（`AccessorThunkReader`、`DependencyImageResolver`、`MachOThunkEnvironment`、`ThunkTypeNodeBuilder`、`ObjCMethodThunkReferences`） | 修改 | `import CodeAddressResolution` 改 `@_spi(Internals) import MachOAddressResolution`；用到解码器的改 `@_spi(Internals) import ARM64InstructionDecoding` | 第 2 节 | 2 |
-| `Sources/Declaration/SwiftDeclarationRendering/Extensions/Node+OpaqueType.swift` | 修改 | 同上 | 第 2 节 | 2 |
+| `Sources/Output/SwiftDeclarationRendering/Extensions/Node+OpaqueType.swift` | 修改 | 同上 | 第 2 节 | 2 |
 | `Sources/Analysis/CrossReferenceAnalysis/Exports.swift` | 修改 | `@_exported import MachOCodeReferences`、`@_exported import ObjCCodeReferences` | 门面的公开类型照旧可见 | 3、4 |
 | `Sources/Analysis/CrossReferenceAnalysis/` 其余文件 | 修改 | import 改名，用到内部接口的加 `@_spi(Internals) import`；构造 `IndirectCallEvidence` 处去掉 `table:`（若有） | 第 2、3 节 | 3、4 |
+| `Sources/Commands/SwiftSectionKit/CrossReferences/CrossReferenceFormatting.swift` | 修改 | 删 `name(of:)`、`refs --json` 的 `table` 键与文本输出里的「through …」 | 第 3 节 | 3 |
 | `Tests/CrossReferenceAnalysisTests/MalformedExportTrieTests.swift` | 删除 | 搬到 MachOKitExtensions | 第 5 节 | 3 |
 | `Tests/CrossReferenceAnalysisTests/RecognizerExtensionPointTests.swift` | 修改 | 第一条搬走，`selectorQueriesLookUpNoSwiftType` 留下 | 第 5 节 | 3 |
 | `Tests/CrossReferenceAnalysisTests/CrossReferenceLayerBoundaryTests.swift` | 删除 | 两条白名单不再需要，运行时名字扫描搬到 MachOKitExtensions | 第 5 节 | 3 |
@@ -520,3 +522,9 @@ import MachOReading
 | 2026-11-19 | Capstone 对照测试留在本库 | 用户选了留在本库、经 SPI 测搬走的解码器，作为「测试跟代码走」的例外；否掉了给 MachOKitExtensions 加测试专用的 swift-capstone 依赖与改成写死的期望值 |
 | 2026-11-19 | 其余按默认定 | 沿用 0097 定好的名字；ObjC 层在 MachOObjCSection 里另起 target；SPI 分组统一叫 `Internals`；MachOObjCSection 发 0.8.207（`0.9.0` 是上游的 tag）；核心层改为直接依赖 `MachOReading`；落地顺序改为 MachOKitExtensions 2.0.0 先于 MachOObjCSection 的 tag；开工第一步把 `next` 合进基础设施搬迁分支；验收沿用 0097 的标准。用户确认了这些决定 |
 | 2026-11-19 | Accepted | 用户看过简报后批准，开始实现 |
+| 2026-11-19 | 第 0 步：`next` 合进基础设施搬迁分支 | 用 merge、不 rebase，合并提交 `cf232949`。冲突七处：`Package.swift`（`SwiftThunkAnalysis` 的依赖取两边之交：搬迁分支的 product 写法加 `SwiftSymbols`，`next` 去掉了对 `ARM64InstructionDecoding` 的直接依赖），`MachOThunkEnvironment.swift`（两边的 import 都留），`AGENTS.md`（符号索引改名与 `ImageAddressSpace` 两处都留），`AccessorThunkResolutionExplained.md` 与 `SwiftSectionKit.md`（`next` 新加的内容套用测试支持模块的改名），愿景第 6 条（两边的意思合成一条，并指向本提案），`MachOCaches.md`（修改/删除：它已搬去 MachOKitExtensions，本库保持删除，那一行改动补到 MachOKitExtensions 的 `SharedCache.md`）。`next` 带进来的代码里只有 `CodeAddressResolutionTests` 还 import 改名前的 `MachOFixtureSupport`。MachOKitExtensions 那边负责搬迁的会话确认两条分支都没有未推送的工作；基础设施搬迁提案记了一行「冲突已解、要重新验证」 |
+| 2026-11-19 | 第 2、3 步合成一步 | 三个与语言无关的模块一次搬进 MachOKitExtensions、一起验证：分开搬时，第 2 步结束的中间状态里核心层还在本库、却要跨包用 `ARM64InstructionDecoding` 的几乎全部接口，第 3 步再把其中大半收回包内，白改一遍；远程构建一轮也要二三十分钟 |
+| 2026-11-19 | 搬走的 `package` 一律改成 `@_spi(Internals) public` | 更正第 2 节「同包内用到的保持 `package`」：一个 SPI 声明的签名里出现的类型也得是 public 或 SPI，按「跨包用到才改」逐个挑会一路连锁到几乎全部；SPI 本来不承诺稳定，两种做法对使用方没有区别。共 291 处 |
+| 2026-11-19 | `refs --json` 去掉 `table` 键 | 调研漏了一个读者：SwiftSectionKit 的 `CrossReferenceFormatting` 把 `IndirectCallEvidence.table` 写进 `refs --json`（永远是 `"none"`），文本输出里的「through …」从来不会出现。`refs` 是 0.25.0 才有的命令、还没发布，插件 skill 与 README 也没写这个键，所以随 `table` 一起删掉 |
+| 2026-11-19 | 地址解析测试换了对照 | `stubChainCarriesTheSelectorRegisterConstantOfACacheSharedSelectorStub` 原来对照门面在同一条指令上认出的发送，搬进 MachOKitExtensions 后没有门面，改成对照进程内存里同一地址（加上 cache 的 slide）上的 selector 字符串；GOT 槽那条直接读进程里的槽、掩码取 `InProcessContext.addressMask`；镜像定位那条从 MachOKit 的 cache 里取 libobjc |
+| 2026-11-19 | 路径更正 | `SwiftDeclarationRendering` 在 `Sources/Output/`；MachOKitExtensions 的实现说明平放在 `Documentations/Internal/`，没有 `Modules/` 子目录 |
