@@ -220,7 +220,10 @@ extension Package.Dependency {
             // for each pointer.
             // 0.8.207 holds `ObjCCodeReferences`, the Objective-C layer of the
             // cross-reference analysis, and takes MachOKitExtensions 2.0.0.
-            "0.8.207" ..< "0.9.0",
+            // 0.8.208 defines `SymbolLanguage.objectiveC` and registers it when
+            // its image loads, and takes MachOKitExtensions 3.0.0, which this
+            // package requires (proposal split-symbol-language).
+            "0.8.208" ..< "0.9.0",
         ),
     )
 }
