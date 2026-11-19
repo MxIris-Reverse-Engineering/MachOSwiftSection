@@ -214,6 +214,7 @@
 | `Tests/CrossReferenceAnalysisTests/ARM64InstructionDecodingTests.swift`、`RegisterFileTests.swift`、`InstructionEncoding.swift` | 修改 | `@_spi(Internals) import` 搬走的模块 | Capstone 对照留在本库 | 2、3 |
 | `Tests/CrossReferenceAnalysisTests/StandaloneBindSlotTests.swift` | 新增（从 `CodeAddressResolutionTests` 挪入） | `slotResolverResolvesStandaloneBinds` | 要 SymbolTestsCore 夹具 | 2 |
 | `Tests/CodeAddressResolutionTests/` | 删除 | 四条搬走、一条挪入 `CrossReferenceAnalysisTests` | 第 5 节 | 2 |
+| `Tests/SwiftSymbolsTests/SymbolTableEquivalenceTests.swift` | 修改 | 前缀判断先算进局部变量，不放在 `&&` 的自动闭包里 | 基础设施搬迁带来的测试在 Xcode 26.6 的 release 下编不过 | 5 |
 | `Tests/CrossReferenceAnalysisTests/` 其余用到内部接口的文件、`Tests/SwiftThunkAnalysisTests/ThunkEnvironmentImageTablesTests.swift` | 修改 | `@_spi(Internals) import` | `package` 不再跨包 | 2、3、4 |
 | `AGENTS.md` | 修改 | 模块依赖图；`CrossReferenceAnalysis`、`ARM64InstructionDecoding`、`CodeAddressResolution` 三条改写 | 第 7 节 | 5 |
 | `Documentations/Internal/Modules/CrossReferenceCore.md`、`CrossReferenceObjC.md`、`CodeAddressResolution.md` | 删除 | 搬到另外两个仓库 | 第 7 节 | 5 |
@@ -228,6 +229,7 @@
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
 |---|---|---|---|---|
 | 五个提交进仓库的 `Package.resolved` | 修改 | 落地后抬本库与 MachOObjCSection 的 `next` revision | 惯例 | 6 |
+| `RuntimeViewerCore/Package.swift` | 修改 | `MachODependencies` 改从 MachOKitExtensions 取，并加它为直接依赖 | 基础设施搬迁要求，落地那天与本库 `next` 同日改 | 6 |
 
 ## 架构图
 
@@ -502,7 +504,7 @@ import MachOReading
 5. **文档与验收**（已完成） —— 步骤列为 5 的各行；吞吐、渲染 A/B、三个仓库的全量测试、RuntimeViewer 沙盒构建。
    - 行为：`scanThroughputAfterTheMoveIsRecordedInTheModuleDocument`（不是断言：整 cache 建表与两条查询的耗时写进 `MachOCodeReferences.md`，相对基线超过 +5% 先查原因再落地）
    - 行为：渲染 A/B 三条读取路径逐字节一致
-6. **落地（随 0.25.0）** —— 第 6 节的顺序：MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 `"0.8.207"..<"0.9.0"`）→ RuntimeViewer 抬钉；本提案取号、改 Implemented，`Changelogs/0.25.0.md` 写 Breaking，账本加一节。
+6. **落地（随 0.25.0）** —— 第 6 节的顺序：MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 `"0.8.207"..<"0.9.0"`）→ RuntimeViewer 抬钉，并照基础设施搬迁提案改 `RuntimeViewerCore/Package.swift`（`MachODependencies` 改从 MachOKitExtensions 取）；本提案取号、改 Implemented，`Changelogs/0.25.0.md` 写 Breaking，账本加一节。
    - 行为：用远端依赖（不设 `USING_LOCAL_DEPENDENCIES`）、Xcode 26.6 编过本库并跑完 CI 名单里的套件
    - 行为：三个仓库除 debug 全量测试外，都再用 `swift test -c release` 跑一次（本库加 `--skip IntegrationTests`，与 CI 的 release 任务一致）；之前三个仓库的测试都只在 debug 下跑过
 
@@ -534,3 +536,8 @@ import MachOReading
 | 2026-11-19 | 第 2–4 步验证通过 | 同一台 Ultra、同样的工具链：MachOKitExtensions 全量 161 个测试通过（搬来的测试改了两处：本库测试支持里的 `DyldCache(path: .current)` 那边没有，改按 cache 文件路径打开；cache 里按名字找不到 `libobjc.A.dylib`，改按路径找）；MachOObjCSection 照 CI 跳过 `MachOObjCSectionTests` 跑，343 个通过；本库全量 2,901 个通过（比第 0 步少 9 个、2 个套件，正是搬走与删掉的那几组）。整表 A/B：基线是 `origin/next`（`9d5c0310`），AppKit、SwiftUICore、Foundation 三个镜像的引用表摘要逐个一致 |
 | 2026-11-19 | 两侧共用的测试文件不 import SPI | `ReferenceTableDigestTests` 与 `ScanThroughputBenchmarkTests` 要原样拷到基线上跑，`PublicNameTests` 证明只 import 门面就够，三者都只用公开 API；批量给测试加 SPI import 时把它们排除。整表对照的归一化多去掉两样：新的模块名前缀，以及基线输出里永远是 `.none` 的 `table` 字段 |
 | 2026-11-19 | 插件 skill 同步 | `references/cross-references.md` 原来说间接调用显示 `indirect through …` 并带上哪张表，与实际输出不符（「through」从来不出现，表的信息已删），改成照实际输出描述 |
+| 2026-11-19 | release 下的测试编译错误，修在本分支 | 两侧预编 release 测试时，候选报 `SymbolTableEquivalenceTests.swift` 里「sending 'nameC' risks causing data races」：基础设施搬迁分支带来的测试里，`&&` 右侧的自动闭包捕获了非 Sendable 的指针，只有 Xcode 26.6 的 release 才报，debug 能过，0.25.0 合进 `main` 时 CI 的 release 任务也会卡在这里。先把前缀判断算进局部变量，行为不变；同样的写法全库只有这一处。用户决定修复只留在本分支，两份搬迁提案的落地清单都加一步「用 `swift test -c release` 跑一次」（决策日志在本提案的 MachOKitExtensions 分支上） |
+| 2026-11-19 | 吞吐：不慢反快 | Ultra、Xcode 26.6、release，两侧交替各三轮取最好：进程内整 cache 建表 2.67 → 2.53 秒，`init` 调用者扫描 1.71 → 1.53 秒，`makeKeyAndOrderFront:` 0.317 → 0.293 秒；归档 macOS 27.2 cache 文件整表 2.75 → 2.51 秒（128,120,075 条引用，两侧相同）。各项快 1% 到 11%，满足「不超过 +5%」；候选同时包含两份搬迁提案，没有追是哪一处更快。进程内整表的引用数差 18,250 条，来自测试进程自己的镜像（两侧的测试二进制不同）。逐项数字在 MachOKitExtensions 的 `MachOCodeReferences.md` |
+| 2026-11-19 | 渲染 A/B 全部一致 | 基线 `origin/next`（`9d5c0310`），候选是本提案的分支（同时包含两份搬迁提案，所以这一轮也补上了基础设施搬迁欠的 A/B）：归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 26.5 模拟器、进程内，共 84 对 dump 与 interface 逐字节一致，没有缺失与跳过 |
+| 2026-11-19 | RuntimeViewer 验证 | 沙盒里导出 RuntimeViewer 的 `next`（`6cb25e09`）与本提案的分支，MachOKitExtensions、MachOObjCSection 用本提案分支的副本：Core（含测试）、CLI、MCP 三个包都编过，RuntimeViewer 的源码一行没改；交叉引用测试 82 个通过（1 个预先标记的已知问题）。第一轮跑到一半退出码 1、没有汇总也没有崩溃报告，原样重跑一遍全过，原因没查明。另发现基础设施搬迁要求 RuntimeViewer 改清单：`RuntimeViewerCore/Package.swift:269` 从本库取 `MachODependencies`，搬迁后这个 product 只在 MachOKitExtensions，解析失败；沙盒里临时改成从 MachOKitExtensions 取才编得下去。用户决定落地那天再改 RuntimeViewer，记在基础设施搬迁提案（本提案的 MachOKitExtensions 分支上）与第 6 步 |
+| 2026-11-19 | 实现完成，待用户看过后收尾 | 第 0 到 5 步都已完成，第 6 步（落地）随 0.25.0。功能分支没有合进任何常驻检出：两份搬迁提案定了它们的分支只推送、不合进常驻检出，本提案叠在它们上面，照同样的规矩（MachOKitExtensions 的 `main` 一合，本库主检出与 MachOKitUI 就报模块重名）。文档判断：不另写使用指南，调用方契约没变（门面不变）；实现说明写在 MachOKitExtensions 的 `MachOCodeReferences.md`、`MachOAddressResolution.md`、`ARM64InstructionDecoding.md` 与 MachOObjCSection 的 `ObjCCodeReferences.md`，本库的 `Modules/CrossReferenceAnalysis.md` 仍是三层的总说明；没有新术语，术语表只改了链接。Ultra 上候选 worktree 的 `Package.swift` 有一处不提交的改动，把两个兄弟依赖指向 agent 沙盒 `LocalDependencies/MoveCrossReferenceLayers`，拉新代码前要先还原 |
