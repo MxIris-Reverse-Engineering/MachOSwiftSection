@@ -2,8 +2,6 @@ import Foundation
 import Testing
 import CryptoKit
 import CrossReferenceAnalysis
-@_spi(Internals) import MachOCodeReferences
-@_spi(Internals) import ObjCCodeReferences
 
 /// Whole reference tables of a few large images, reduced to a count and a
 /// SHA-256 per image, so that a refactoring of the analyzer can be shown to
@@ -68,7 +66,7 @@ struct ReferenceTableDigestTests {
     /// reference is spelled the way `String(describing:)` spells it, which
     /// covers every stored property — with the modules of the
     /// cross-reference layers taken out: it qualifies a type nested in an
-    /// enum's payload with its module (`CrossReferenceCore.CodeLocation`),
+    /// enum's payload with its module (`CrossReferenceCore.CodeLocation`, `MachOCodeReferences.CodeLocation` since the core moved),
     /// and moving a type between the layers is no change to a reference.
     static func digest(of table: CodeReferenceTable) -> String {
         var hasher = SHA256()
@@ -104,11 +102,15 @@ struct ReferenceTableDigestTests {
         let description = String(describing: reference).replacingOccurrences(of: "CodeReference.Kind.", with: "CodeReferenceKind.")
         let unqualified = moduleQualifier.stringByReplacingMatches(in: description, range: NSRange(location: 0, length: description.utf16.count), withTemplate: "")
         // The route came with step 5; a baseline from before has none.
-        return routeField.stringByReplacingMatches(in: unqualified, range: NSRange(location: 0, length: unqualified.utf16.count), withTemplate: "")
+        let withoutRoute = routeField.stringByReplacingMatches(in: unqualified, range: NSRange(location: 0, length: unqualified.utf16.count), withTemplate: "")
+        // `IndirectCallEvidence.table` only ever held `.none` and went away when
+        // the core moved to MachOKitExtensions (`move-cross-reference-layers`).
+        return tableField.stringByReplacingMatches(in: withoutRoute, range: NSRange(location: 0, length: withoutRoute.utf16.count), withTemplate: "")
     }
 
-    private static let moduleQualifier = try! NSRegularExpression(pattern: #"\b(CrossReferenceCore|CrossReferenceObjC|CrossReferenceAnalysis)\."#)
+    private static let moduleQualifier = try! NSRegularExpression(pattern: #"\b(CrossReferenceCore|CrossReferenceObjC|CrossReferenceAnalysis|MachOCodeReferences|ObjCCodeReferences|MachOAddressResolution|ARM64InstructionDecoding)\."#)
     private static let routeField = try! NSRegularExpression(pattern: #", route: CodeReferenceRoute\.[A-Za-z]+"#)
+    private static let tableField = try! NSRegularExpression(pattern: #"table: IndirectCallEvidence\.Table\.[A-Za-z]+, "#)
 }
 
 /// Where the digests go, and where the baseline's are: outside the suite's

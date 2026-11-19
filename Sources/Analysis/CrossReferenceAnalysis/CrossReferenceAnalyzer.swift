@@ -19,8 +19,9 @@ import MachOKit
 /// as it wants. Drop the analyzer to release the function tables.
 ///
 /// The facade over three layers: the language-free core
-/// (`CrossReferenceCore`: images, function tables, the instruction scan),
-/// the Objective-C layer (`CrossReferenceObjC`) and the Swift layer, this
+/// (MachOKitExtensions' `MachOCodeReferences`: images, function tables,
+/// the instruction scan), the Objective-C layer (MachOObjCSection's
+/// `ObjCCodeReferences`) and the Swift layer, this
 /// module. The two language layers plug into the core's scan as recognizers;
 /// the analyzer builds a session of each for every scan and turns what they
 /// record into ``CodeReference``s.

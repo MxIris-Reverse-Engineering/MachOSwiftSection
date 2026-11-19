@@ -40,7 +40,7 @@ struct MemoryAccessScanTests {
         pointerFromAddress.firstMatch(in: code, range: NSRange(code.startIndex..., in: code)) != nil
     }
 
-    /// Every Swift file of .
+    /// Every Swift file of `CrossReferenceAnalysis`.
     private static func moduleSourceFiles() throws -> [URL] {
         let analysisDirectory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()  // CrossReferenceAnalysisTests
