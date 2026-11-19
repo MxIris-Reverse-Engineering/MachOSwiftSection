@@ -1,10 +1,10 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
+import CodeAddressResolution
 import MachOFoundation
 import MachOSwiftSection
 import Demangling
-import ARM64InstructionDecoding
 @_spi(Internals) import SwiftInspection
 @_spi(Internals) import MachOCaches
 
@@ -73,10 +73,15 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     }
 
     package let machO: MachOFile
-    package let addressSpace: ThunkAddressSpace
+    package let addressSpace: ImageAddressSpace
     private let accessorIndex: MetadataAccessorIndex
     private let searchPathsOverride: [DependencySearchPath]?
-    private lazy var cacheImages: CacheImageResolver? = CacheImageResolver.resolver(cacheOf: machO)
+    /// The file's pointer slots and trampolines, read through the shared
+    /// resolvers (`CodeAddressResolution`, which the cross-reference analysis
+    /// reads files through as well).
+    private let slots: SlotResolver
+    private let stubs: StubChainResolver
+    private lazy var cacheImages: CacheImageLocator? = Self.cacheImageLocator(cacheOf: machO)
     private lazy var dependencyImages: DependencyImageResolver = DependencyImageResolver.resolver(for: machO)
     private var calleesByAddress: [UInt64: ThunkCallee] = [:]
     private var calleesBySlotAddress: [UInt64: ThunkCallee] = [:]
@@ -92,7 +97,10 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     /// found; `nil` means ``defaultSearchPaths(for:)``.
     package init(machO: MachOFile, searchPaths: [DependencySearchPath]? = nil) {
         self.machO = machO
-        self.addressSpace = ThunkAddressSpace(of: machO)
+        let addressSpace = ImageAddressSpace(of: machO)
+        self.addressSpace = addressSpace
+        self.slots = SlotResolver(machO: machO, addressSpace: addressSpace)
+        self.stubs = StubChainResolver(machO: machO, addressSpace: addressSpace)
         self.accessorIndex = MetadataAccessorIndex.index(for: machO)
         self.searchPathsOverride = searchPaths
     }
@@ -140,7 +148,7 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     private static let ownRuntimeSymbolNamesCache = SharedCache<[UInt64: String]>(evictionGroup: .thunkResolution)
 
     private static func ownRuntimeSymbolNamesByAddress(in machO: MachOFile) -> [UInt64: String] {
-        let addressSpace = ThunkAddressSpace(of: machO)
+        let addressSpace = ImageAddressSpace(of: machO)
         var namesByAddress: [UInt64: String] = [:]
         let wanted = Set(namedRuntimeSymbols)
         // A symbol table entry's value is already the address the thunk's
@@ -157,6 +165,18 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
         return namesByAddress
     }
 
+    /// The locator for the cache `machO` was read from, one per image and
+    /// shared by every environment of it; `nil` for a file not read out of a
+    /// cache. `AccessorThunkReader.read` makes a new environment for each
+    /// thunk, and a locator per environment read the paths of all the
+    /// cache's images and opened the target image again for every thunk.
+    private static func cacheImageLocator(cacheOf machO: MachOFile) -> CacheImageLocator? {
+        guard machO.isLoadedFromDyldCache else { return nil }
+        return cacheImageLocators.storage(in: machO) { machO in CacheImageLocator(cacheOf: machO) }
+    }
+
+    private static let cacheImageLocators = SharedCache<CacheImageLocator>(evictionGroup: .thunkResolution)
+
     // MARK: - ThunkEvaluationEnvironment
 
     package func callee(at address: UInt64) -> ThunkCallee {
@@ -165,10 +185,6 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
         calleesByAddress[address] = callee
         return callee
     }
-
-    /// How many chained stub islands are followed before giving up: one is
-    /// the norm, a hop per subcache crossed the worst case seen described.
-    private static let maximumIslandHops = 8
 
     package func callee(boundInSlotAt slotAddress: UInt64) -> ThunkCallee {
         if let known = calleesBySlotAddress[slotAddress] { return known }
@@ -208,27 +224,18 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
     }
 
     package func pointer(at address: UInt64) -> UInt64? {
-        guard let offset = addressSpace.offset(forAddress: address),
-              let target = machO.resolveRebase(fileOffset: offset)
-        else { return nil }
-        return rebaseTargetAddress(target)
+        slots.rebaseTarget(ofSlotAt: address)
     }
 
     package func slotSymbolName(at address: UInt64) -> String? {
-        guard let offset = addressSpace.offset(forAddress: address) else { return nil }
-        if let bindName = machO.resolveBind(fileOffset: offset) { return bindName }
-        guard let target = machO.resolveRebase(fileOffset: offset),
-              let targetAddress = rebaseTargetAddress(target)
-        else { return nil }
-        return symbolName(atAddress: targetAddress)
-    }
-
-    /// `MachOKitExtensions.resolveRebase(fileOffset:)` answers in two
-    /// accountings: for a cache image the target minus `sharedRegionStart`
-    /// (this module's offset), for a standalone file the target's own
-    /// address.
-    private func rebaseTargetAddress(_ target: UInt64) -> UInt64? {
-        machO.cache != nil ? addressSpace.address(forOffset: Int(target)) : target
+        switch slots.content(ofSlotAt: address) {
+        case .boundSymbol(let bindName)?:
+            return bindName
+        case .address(let targetAddress)?:
+            return symbolName(atAddress: targetAddress)
+        case nil:
+            return nil
+        }
     }
 
     /// The name of the symbol at `address` — in this image through its
@@ -265,7 +272,7 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
             // function reached through a rebased pointer, or a trampoline on
             // the way to one. The segment test is deliberate — a cache
             // image's offset conversion answers for the whole cache (see
-            // `ThunkAddressSpace.containsAddress`).
+            // `ImageAddressSpace.containsAddress`).
             let foreign = foreignCallee(at: address, targetAddress: address)
             if case .unknown = foreign {} else { return foreign }
         }
@@ -274,27 +281,30 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
         // regions no image's segments cover. A GOT-loading stub names a
         // slot; an island computes its target. Either way the target is
         // classified again, up to a fixed number of hops.
-        guard islandHops < Self.maximumIslandHops else { return .unknown }
-        if let slotAddress = stubSlotAddress(at: address), let slotOffset = addressSpace.offset(forAddress: slotAddress) {
-            if let bindName = machO.resolveBind(fileOffset: slotOffset) {
+        guard islandHops < StubChainResolver.maximumHops else { return .unknown }
+        switch stubs.hop(at: address) {
+        case .slotLoad(_, let slotAddress)?:
+            switch slots.content(ofSlotAt: slotAddress) {
+            case .boundSymbol(let bindName)?:
                 if let runtimeEntryPoint = Self.runtimeEntryPoint(named: bindName) { return runtimeEntryPoint }
                 return dependencyCallee(at: address, bindName: bindName)
+            case .address(let targetAddress)?:
+                return hopping(from: address, to: targetAddress, islandHops: islandHops)
+            case nil:
+                return .unknown
             }
-            guard let target = machO.resolveRebase(fileOffset: slotOffset), let targetAddress = rebaseTargetAddress(target) else { return .unknown }
-            return hopping(from: address, to: targetAddress, islandHops: islandHops)
+        case .island(_, let target)?:
+            return hopping(from: address, to: target, islandHops: islandHops)
+        case .registerSettingStub?, nil:
+            // A cache-shared selector stub sends a message; no thunk calls one.
+            return .unknown
         }
-        if let islandTarget = stubIslandTarget(at: address) {
-            return hopping(from: address, to: islandTarget, islandHops: islandHops)
-        }
-        return .unknown
     }
 
     /// What a GOT slot that binds by name refers to: a runtime entry point,
     /// or another image's accessor located through the search paths.
     private func resolveBoundCallee(inSlotAt slotAddress: UInt64) -> ThunkCallee {
-        guard let slotOffset = addressSpace.offset(forAddress: slotAddress),
-              let bindName = machO.resolveBind(fileOffset: slotOffset)
-        else { return .unknown }
+        guard let bindName = slots.boundSymbolName(ofSlotAt: slotAddress) else { return .unknown }
         if let runtimeEntryPoint = Self.runtimeEntryPoint(named: bindName) { return runtimeEntryPoint }
         return dependencyCallee(at: slotAddress, bindName: bindName)
     }
@@ -309,34 +319,6 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
             return .metadataAccessor(address: trampolineAddress, argumentSlots: argumentSlots)
         }
         return callee
-    }
-
-    /// The address a stub island at `address` jumps to, when the code there
-    /// has an island's shape: the target computed into a register by
-    /// `adrp` / `add` alone — no load, no call — and a register jump.
-    private func stubIslandTarget(at address: UInt64) -> UInt64? {
-        guard case .computed(let target)? = trampoline(at: address) else { return nil }
-        return target
-    }
-
-    /// The GOT slot a stub at `address` loads its target from.
-    private func stubSlotAddress(at address: UInt64) -> UInt64? {
-        guard case .slotLoad(let slotAddress)? = trampoline(at: address) else { return nil }
-        return slotAddress
-    }
-
-    /// The trampoline at `address`, read from the file. The shapes are
-    /// recognized by `ARM64Trampoline`, which `CrossReferenceAnalysis`
-    /// shares (evolution proposal `cross-reference-analysis`).
-    private func trampoline(at address: UInt64) -> ARM64Trampoline? {
-        let byteCount = ARM64Trampoline.maximumInstructionCount * 4
-        guard let offset = addressSpace.offset(forAddress: address),
-              let bytes: [UInt8] = try? machO.readElements(offset: offset, numberOfElements: byteCount),
-              bytes.count == byteCount
-        else { return nil }
-        return bytes.withUnsafeBytes { buffer in
-            ARM64Trampoline(readingAt: buffer.baseAddress!, address: address)
-        }
     }
 
     /// The symbol at `offset` when it is a lazily specialized metadata
@@ -393,7 +375,7 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
             return .unknown
         }
         let image = location.image
-        let imageAddressSpace = ThunkAddressSpace(of: image)
+        let imageAddressSpace = ImageAddressSpace(of: image)
         guard let exportedAddress = imageAddressSpace.address(forExportedSymbolOffset: location.exportedSymbolOffset),
               let exportedOffset = imageAddressSpace.offset(forAddress: exportedAddress)
         else { return .unknown }
@@ -406,7 +388,7 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
 
     private func foreignCallee(at address: UInt64, targetAddress: UInt64) -> ThunkCallee {
         guard let cacheImages, let foreignImage = cacheImages.image(containing: targetAddress) else { return .unknown }
-        let foreignAddressSpace = ThunkAddressSpace(of: foreignImage)
+        let foreignAddressSpace = ImageAddressSpace(of: foreignImage)
         guard let foreignOffset = foreignAddressSpace.offset(forAddress: targetAddress) else { return .unknown }
         if let descriptorOffset = MetadataAccessorIndex.index(for: foreignImage).descriptorOffset(forAccessorOffset: foreignOffset) {
             return metadataAccessor(at: address, descriptorOffset: descriptorOffset, in: foreignImage)
@@ -447,105 +429,5 @@ package final class MachOThunkEnvironment: ThunkEvaluationEnvironment, MachOThun
             #log(.info, "could not read the generic context of the descriptor at \(descriptorOffset, privacy: .public): \(String(describing: error), privacy: .public)")
             return nil
         }
-    }
-}
-
-/// Finds, inside a dyld shared cache, the image an address belongs to.
-///
-/// The main cache header lists every image with its load address; the image
-/// whose address is the greatest one not above the target is the one that
-/// contains it (`__TEXT` segments are laid out contiguously in address
-/// order). Images are opened on first use and kept, because one thunk
-/// typically calls into the same two images (`SwiftUICore`, `libswiftCore`)
-/// many times.
-///
-/// One resolver serves every environment of an image (``resolver(cacheOf:)``).
-/// `AccessorThunkReader.read` makes a new environment for each thunk, and a
-/// resolver per environment read the paths of all the cache's images and
-/// opened the target image again for every thunk.
-package final class CacheImageResolver: @unchecked Sendable {
-    private let cache: DyldCache
-    private let imagesByAddress: [(address: UInt64, path: String)]
-    @Mutex
-    private var openedImagesByPath: [String: MachOFile?] = [:]
-    @Mutex
-    private var entryPointAddressesByImagePath: [String: [UInt64: String]] = [:]
-
-    /// The resolver for the cache `machO` was read from, built once per
-    /// image; `nil` for a file not read out of a cache.
-    package static func resolver(cacheOf machO: MachOFile) -> CacheImageResolver? {
-        guard machO.isLoadedFromDyldCache else { return nil }
-        return resolvers.storage(in: machO) { machO in CacheImageResolver(cacheOf: machO) }
-    }
-
-    private static let resolvers = SharedCache<CacheImageResolver>(evictionGroup: .thunkResolution)
-
-    package init?(cacheOf machO: MachOFile) {
-        guard let cache = machO.cache else { return nil }
-        let mainCache = cache.mainCache ?? cache
-        guard let imageInfos = mainCache.imageInfos else { return nil }
-        var images: [(address: UInt64, path: String)] = []
-        for imageInfo in imageInfos {
-            guard let path = imageInfo.path(in: mainCache) else { continue }
-            images.append((address: UInt64(imageInfo.layout.address), path: path))
-        }
-        guard !images.isEmpty else { return nil }
-        self.cache = cache
-        self.imagesByAddress = images.sorted { $0.address < $1.address }
-    }
-
-    package func image(containing address: UInt64) -> MachOFile? {
-        // Greatest load address not above the target.
-        var low = 0
-        var high = imagesByAddress.count
-        while low < high {
-            let middle = (low + high) / 2
-            if imagesByAddress[middle].address <= address { low = middle + 1 } else { high = middle }
-        }
-        guard low > 0 else { return nil }
-        let path = imagesByAddress[low - 1].path
-        if let opened = openedImagesByPath[path] { return opened }
-        // Opened outside the lock; the first one stored is the one every
-        // caller gets, so they share its caches.
-        let opened = cache.machOFile(by: .path(path))
-        return _openedImagesByPath.withLock { openedImagesByPath in
-            if let alreadyOpened = openedImagesByPath[path] { return alreadyOpened }
-            openedImagesByPath[path] = opened
-            return opened
-        }
-    }
-
-    /// Which of `names` — runtime symbols, by their exported spelling — the
-    /// address in `image` is, if any.
-    ///
-    /// The export trie's offsets are header-relative
-    /// (``ThunkAddressSpace/address(forExportedSymbolOffset:)``). Until the
-    /// standalone-file batch this went through the file-offset conversion,
-    /// which for a cache image lands in `__LINKEDIT`, so the table held
-    /// wrong addresses and never matched; the cache readings survived only
-    /// because a witness-table call's result is skipped by the name and a
-    /// capability flag's unnamed pointer still reads as non-zero.
-    package func exportedName(atAddress address: UInt64, in image: MachOFile, among names: some Sequence<String>) -> String? {
-        let path = image.imagePath
-        if let addressesByName = entryPointAddressesByImagePath[path] {
-            return addressesByName[address]
-        }
-        // Searched outside the lock: the answer is a function of the image,
-        // so whichever caller stores it first stores the same table.
-        var addressesByName: [UInt64: String] = [:]
-        let addressSpace = ThunkAddressSpace(of: image)
-        for name in names {
-            guard let exported = image.exportTrie?.search(by: name),
-                  let exportedSymbolOffset = exported.offset,
-                  let exportedAddress = addressSpace.address(forExportedSymbolOffset: exportedSymbolOffset)
-            else { continue }
-            addressesByName[exportedAddress] = name
-        }
-        _entryPointAddressesByImagePath.withLock { entryPointAddressesByImagePath in
-            if entryPointAddressesByImagePath[path] == nil {
-                entryPointAddressesByImagePath[path] = addressesByName
-            }
-        }
-        return addressesByName[address]
     }
 }

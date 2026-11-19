@@ -20,6 +20,17 @@ public struct CodeFunction: Hashable, Sendable {
         /// completion function (`…Mr`), or a method whose descriptor's
         /// `…Tq` symbol spells it. Demangles like a symbol.
         case swiftMetadata(mangledName: String)
+
+        /// The name as one string: a symbol as it is spelled, a method as
+        /// `-[Class selector]` or `+[Class selector]`, a rebuilt Swift name
+        /// mangled.
+        public var spelling: String {
+            switch self {
+            case .symbol(let symbol): symbol
+            case .objectiveCMethod(let className, let selector, let isClassMethod): "\(isClassMethod ? "+" : "-")[\(className) \(selector)]"
+            case .swiftMetadata(let mangledName): mangledName
+            }
+        }
     }
 
     /// The first instruction.

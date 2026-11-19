@@ -2,11 +2,11 @@ import Foundation
 import MachOKit
 
 /// A symbol one image re-exports under a name of its own.
-struct RenamedReexport: Hashable {
+package struct RenamedReexport: Hashable {
     /// The re-exporting image.
-    let imageIndex: Int
+    package let imageIndex: Int
     /// The name it exports the symbol under.
-    let name: String
+    package let name: String
 }
 
 /// Every symbol an image re-exports under another name, by the image it
@@ -21,15 +21,15 @@ struct RenamedReexport: Hashable {
 ///
 /// Read from every image's export trie, once; only the renamed re-exports
 /// are kept.
-struct RenamedReexportIndex {
+package struct RenamedReexportIndex {
     /// By the image re-exported from, then by the symbol's name there.
-    let reexportsByProvider: [Int: [String: [RenamedReexport]]]
+    package let reexportsByProvider: [Int: [String: [RenamedReexport]]]
 
     /// `concurrently` reads the tries on every core; otherwise on the calling
     /// thread alone, which a debug build finishes about as soon (3.9 s against
     /// 3.4 on 28 cores for the macOS 27.2 cache's 144 MiB of tries).
-    init(analyzer: CrossReferenceAnalyzer, concurrently: Bool = true) {
-        let images = analyzer.images
+    package init(images imageSet: CodeImageSet, concurrently: Bool = true) {
+        let images = imageSet.images
         let entriesByImage = UnsafeMutableBufferPointer<[TrieEntry]>.allocate(capacity: images.count)
         entriesByImage.initialize(repeating: [])
         defer {
@@ -38,8 +38,8 @@ struct RenamedReexportIndex {
         }
         nonisolated(unsafe) let entries = entriesByImage.baseAddress!
         let readTrie: @Sendable (Int) -> Void = { imageIndex in
-            guard let trie = images[imageIndex].exportTrie, trie.exportSize > 0 else { return }
-            (entries + imageIndex).pointee = Self.renamedReexports(inTrieAt: trie.basePointer.assumingMemoryBound(to: UInt8.self), size: trie.exportSize)
+            guard let trie = imageSet.linkEdit(ofImageAt: imageIndex).exportTrie, let base = trie.baseAddress, !trie.isEmpty else { return }
+            (entries + imageIndex).pointee = Self.renamedReexports(inTrieAt: base.assumingMemoryBound(to: UInt8.self), size: trie.count)
         }
         if concurrently {
             DispatchQueue.concurrentPerform(iterations: images.count, execute: readTrie)
@@ -50,7 +50,7 @@ struct RenamedReexportIndex {
         for imageIndex in images.indices where !entriesByImage[imageIndex].isEmpty {
             // An entry names the image it re-exports from by its ordinal
             // among the image's dylib load commands, from 1.
-            let dependencies = analyzer.dependencyImageIndices(ofImageAt: imageIndex)
+            let dependencies = imageSet.dependencyImageIndices(ofImageAt: imageIndex)
             for entry in entriesByImage[imageIndex] {
                 guard entry.ordinal >= 1, entry.ordinal <= UInt64(dependencies.count) else { continue }
                 let reexport = RenamedReexport(imageIndex: imageIndex, name: entry.name)
@@ -62,10 +62,10 @@ struct RenamedReexportIndex {
         self.reexportsByProvider = reexportsByProvider
     }
 
-    struct TrieEntry {
-        let name: String
-        let ordinal: UInt64
-        let importedName: String
+    package struct TrieEntry {
+        package let name: String
+        package let ordinal: UInt64
+        package let importedName: String
     }
 
     /// `EXPORT_SYMBOL_FLAGS_REEXPORT`.
@@ -73,7 +73,7 @@ struct RenamedReexportIndex {
 
     /// The renamed re-exports among the entries of the export trie at
     /// `base`: walks every node, and spells out the names of those alone.
-    static func renamedReexports(inTrieAt base: UnsafePointer<UInt8>, size: Int) -> [TrieEntry] {
+    package static func renamedReexports(inTrieAt base: UnsafePointer<UInt8>, size: Int) -> [TrieEntry] {
         var result: [TrieEntry] = []
         var name: [UInt8] = []
         // A node still to visit, with how long its parent's name is and the

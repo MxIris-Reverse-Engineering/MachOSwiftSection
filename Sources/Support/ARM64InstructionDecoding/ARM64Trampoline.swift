@@ -52,10 +52,19 @@ package enum ARM64Trampoline: Equatable, Sendable {
         }
 
         // A GOT stub or an island: address arithmetic, then a load or a jump
-        // through the register the arithmetic produced.
+        // through the register the arithmetic produced. A load counts only
+        // when the very next instruction jumps through what it loaded: a
+        // function that starts by loading a global — a Swift field offset —
+        // begins the same way and then uses the value.
         var registerValues: [Int: UInt64] = [:]
+        var loadedSlot: (register: Int, slotAddress: UInt64)?
         for (index, word) in instructions.enumerated() {
             let instructionAddress = address &+ UInt64(index * 4)
+            if let loadedSlot {
+                guard let branch = ARM64InstructionWord.registerBranch(word), !branch.isCall, branch.target == loadedSlot.register else { return nil }
+                self = .slotLoad(slotAddress: loadedSlot.slotAddress)
+                return
+            }
             if let materialization = ARM64InstructionWord.addressMaterialization(word, at: instructionAddress) {
                 registerValues[materialization.destination] = materialization.address
             } else if let arithmetic = ARM64InstructionWord.addImmediate(word) {
@@ -63,11 +72,9 @@ package enum ARM64Trampoline: Equatable, Sendable {
                 registerValues[arithmetic.destination] = ARM64InstructionWord.adding(arithmetic.addend, to: source)
             } else if let load = ARM64InstructionWord.load(word) {
                 guard !load.writesBack, let base = registerValues[load.base] else { return nil }
-                self = .slotLoad(slotAddress: ARM64InstructionWord.adding(load.displacement, to: base))
-                return
+                loadedSlot = (load.destination, ARM64InstructionWord.adding(load.displacement, to: base))
             } else if let literal = ARM64InstructionWord.loadLiteral(word, at: instructionAddress) {
-                self = .slotLoad(slotAddress: literal.slotAddress)
-                return
+                loadedSlot = (literal.destination, literal.slotAddress)
             } else if let branch = ARM64InstructionWord.registerBranch(word), !branch.isCall {
                 guard let target = registerValues[branch.target] else { return nil }
                 self = .computed(target: target)

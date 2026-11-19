@@ -1,10 +1,11 @@
 import Foundation
 import MachOKit
-import MachOFoundation
-import MachOSwiftSection
 
 /// Converts between the offsets `MachOSwiftSection` uses and the virtual
-/// addresses a disassembler needs.
+/// addresses a disassembler needs: one image's address space, as the offline
+/// analyses — the accessor-thunk reader, the cross-reference analysis — read
+/// it. Was `ThunkAddressSpace` in `SwiftThunkAnalysis` (evolution proposal
+/// `offline-cross-references-and-symbolication`).
 ///
 /// ## Why this type exists at all
 ///
@@ -39,7 +40,7 @@ import MachOSwiftSection
 /// candidate addresses *computable and wrong*, pointing into a neighbouring
 /// image's segments. Measured symptom: SwiftUI's candidates appearing to live
 /// in `TextRecognition`'s `__AUTH_CONST`.
-package struct ThunkAddressSpace: Sendable {
+package struct ImageAddressSpace: Sendable {
     /// `sharedRegionStart` when the image lives in a shared cache; `nil` for a
     /// standalone file, where offsets are ordinary file offsets.
     private let sharedRegionStart: UInt64?
@@ -99,7 +100,15 @@ package struct ThunkAddressSpace: Sendable {
     /// is `__TEXT`'s plus the offset, which is also right for a standalone
     /// dylib (`__TEXT` at 0) and an executable (`__TEXT` at 0x100000000).
     package func address(forExportedSymbolOffset offset: Int) -> UInt64? {
-        textSegmentAddress.map { $0 &+ UInt64(offset) }
+        address(forHeaderOffset: offset)
+    }
+
+    /// The address `offset` bytes from the Mach header — the first byte of
+    /// `__TEXT`. What an export trie's offsets count from, and a standalone
+    /// file's chained fixups: their rebase targets are offsets from the
+    /// image's preferred load address, which is `__TEXT`'s.
+    package func address(forHeaderOffset offset: Int) -> UInt64? {
+        textSegmentAddress.map { UInt64(bitPattern: Int64(bitPattern: $0) &+ Int64(offset)) }
     }
 
     package func address(forOffset offset: Int) -> UInt64? {

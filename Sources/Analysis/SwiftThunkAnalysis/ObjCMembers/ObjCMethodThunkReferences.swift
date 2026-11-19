@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import CodeAddressResolution
 import MachOKitExtensions
 @_spi(Internals) import MachOSymbols
 
@@ -39,7 +40,7 @@ package enum ObjCMethodThunkReferences {
 
     private static func referencedSwiftSymbolNames(atImplementationOffset implementationOffset: Int, in machO: MachOFile) -> [String] {
         guard machO.header.cpuType == .arm64 else { return [] }
-        let addressSpace = ThunkAddressSpace(of: machO)
+        let addressSpace = ImageAddressSpace(of: machO)
         guard let startAddress = addressSpace.address(forOffset: implementationOffset),
               addressSpace.isInTextSegment(startAddress),
               let bytes: [UInt8] = try? machO.readElements(offset: implementationOffset, numberOfElements: windowSize)

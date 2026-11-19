@@ -59,10 +59,12 @@ if outcome.hasBreakingChange == true {
 | `ObjCDumpRequest` | `swift-section objc dump` | `ObjCDumpRequest.Outcome` (what was found) |
 | `ObjCInterfaceRequest` | `swift-section objc interface` | — |
 | `ObjCAPISnapshotRequest`, `ObjCAPIDiffRequest`, `ObjCAPIEvolutionRequest` | `swift-section objc snapshot / diff / evolution` | the document / an outcome |
+| `ReferencesRequest` | `swift-section refs` | `ReferencesResult` (the references, how many images were scanned, whether `limit` cut them short) |
+| `SymbolicateRequest` | `swift-section symbolicate` | `[AddressSymbolication]`, one an address, in order |
 
 Options that exclude each other are one enum rather than several flags: an `ABIDiffRequest.Report` is a change list, a summary, JSON or an annotated interface, never two at once. Where the command line has a flag that implies another (`--emit-expanded-field-offsets` implies field offsets), the request has one value covering both (`FieldOffsetComments.expanded`).
 
-A binary is named by a `MachOSource` — a thin or fat file, an image inside a dyld shared cache file, or an image of the running system's cache. `snapshot`, `diff` and `evolution` take `SnapshotSource.path`, which may name a binary or a snapshot document; the file's first non-whitespace byte tells them apart, as on the command line.
+A binary is named by a `MachOSource` — a thin or fat file, an image inside a dyld shared cache file, or an image of the running system's cache. `refs` and `symbolicate` read machine code across many images, so they take a `CrossReferenceInput` instead: a set of files read together, a whole cache file, or the whole running system's cache, read from its files. Their results carry `CrossReferenceAnalysis` types (`CodeReference`, `AddressSymbolication`); import that module to inspect them. `snapshot`, `diff` and `evolution` take `SnapshotSource.path`, which may name a binary or a snapshot document; the file's first non-whitespace byte tells them apart, as on the command line.
 
 ## The output contract
 
@@ -83,7 +85,7 @@ Where the command line prints a diagnostic is the command line's business: it wr
 
 ## Errors
 
-Thrown errors are worded without naming command-line options: `MachOSourceError` (a fat binary without an architecture, a missing slice, a cache image that is not there), `SnapshotSourceError.binaryRequired(path:)` (a snapshot document handed to an annotated interface), `AvailabilityPlatformInferenceError` (an annotated evolution asked to infer its `@available` platform, when an input's platform has no `@available` name or the inputs' platforms differ), `ObjCDeclarationLookupError`. Errors from the layers below — a missing file, a snapshot document of an unsupported format version, `ABIEvolutionError.labelCountMismatch` — pass through unchanged.
+Thrown errors are worded without naming command-line options: `MachOSourceError` (a fat binary without an architecture, a missing slice, a cache image that is not there), `SnapshotSourceError.binaryRequired(path:)` (a snapshot document handed to an annotated interface), `AvailabilityPlatformInferenceError` (an annotated evolution asked to infer its `@available` platform, when an input's platform has no `@available` name or the inputs' platforms differ), `ObjCDeclarationLookupError`, `CrossReferenceRequestError` (an image, a symbol, a class or a function the analyzed images do not have, an address two files both hold, a file with no arm64 code). Errors from the layers below — a missing file, a snapshot document of an unsupported format version, `ABIEvolutionError.labelCountMismatch` — pass through unchanged.
 
 `swift-section` translates the first group back into the wording it has always printed, and reports a usage mistake as a validation error (exit code 64). A host that wants its own wording does the same.
 

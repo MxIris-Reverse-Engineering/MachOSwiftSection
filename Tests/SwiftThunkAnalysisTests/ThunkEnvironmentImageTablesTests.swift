@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import CodeAddressResolution
 import MachOFoundation
 import MachOSwiftSection
 import MachOFixtureSupport
@@ -28,7 +29,7 @@ struct ThunkEnvironmentImageTablesTests {
         // A type descriptor: inside the image and not a metadata accessor,
         // so a lookup gets as far as the image's own runtime symbols.
         let descriptor = try #require(try machOFile.swift.typeContextDescriptors.first)
-        let address = try #require(ThunkAddressSpace(of: machOFile).address(forOffset: descriptor.typeContextDescriptor.offset))
+        let address = try #require(ImageAddressSpace(of: machOFile).address(forOffset: descriptor.typeContextDescriptor.offset))
 
         // Builds everything the environment shares per image — the accessor
         // index, the symbol index — and pages the symbol table in.
@@ -57,7 +58,7 @@ struct ThunkEnvironmentImageTablesTests {
         // goes through the table of the cache's images.
         let exportedSymbol = try #require(swiftCore.exportTrie?.search(by: "_swift_getWitnessTable"))
         let exportedSymbolOffset = try #require(exportedSymbol.offset)
-        let address = try #require(ThunkAddressSpace(of: swiftCore).address(forExportedSymbolOffset: exportedSymbolOffset))
+        let address = try #require(ImageAddressSpace(of: swiftCore).address(forExportedSymbolOffset: exportedSymbolOffset))
 
         #expect(MachOThunkEnvironment(machO: machOFile).callee(at: address) == .witnessTableLookup)
 

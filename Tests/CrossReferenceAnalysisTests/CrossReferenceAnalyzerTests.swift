@@ -29,7 +29,7 @@ struct CrossReferenceAnalyzerTests {
         #expect(analyzer.images.count > 1000)
         #expect(analyzer.imagePaths.contains { $0.hasSuffix("/libobjc.A.dylib") })
         #expect(!analyzer.messageSendLocations.isEmpty)
-        #expect(!analyzer.runtimeHelperLocations.isEmpty)
+        #expect(!analyzer.imageSet.runtimeHelperLocations.isEmpty)
     }
 
     /// The three messages this method sends — through the image's own

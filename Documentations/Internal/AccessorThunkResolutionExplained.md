@@ -121,7 +121,7 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 - **认不出、但在本镜像 `__TEXT` 里的函数**：不放弃，把它的指令也解码出来交给第三步跟进去算（见「被调函数没名字怎么办」）。
 - 其余认不出的：不猜，让那一支降级。
 
-这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。同一个减法还有另一面：它对整个 cache 里的任何地址都算得出偏移，所以「这个地址在不在本镜像」不能靠它答，要按段范围判断（`ThunkAddressSpace.containsAddress`）——合并 accessor 那批第一版在 cache 上没解出来，就是把 rebase 出来的 libswiftSynchronization 地址当成了本镜像地址。
+这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。同一个减法还有另一面：它对整个 cache 里的任何地址都算得出偏移，所以「这个地址在不在本镜像」不能靠它答，要按段范围判断（`ImageAddressSpace.containsAddress`，原名 `ThunkAddressSpace`，现在在 `CodeAddressResolution` 模块）——合并 accessor 那批第一版在 cache 上没解出来，就是把 rebase 出来的 libswiftSynchronization 地址当成了本镜像地址。
 
 ### 第三步：符号求值——寄存器里装的不是数，是「类型表达式」
 
@@ -216,9 +216,14 @@ Sources/Analysis/SwiftThunkAnalysis/
     ├── MachOThunkEnvironment.swift             # 第二步：给调用目标起名（accessor 索引、本地符号、stub、槽位、跨镜像、bind 槽 → 函数引用）；解码被跟进的函数
     ├── DependencyImageResolver.swift           # 独立文件：bind 名 → 按搜索路径找到的依赖镜像 → 它导出表里的位置（按根镜像共享）
     ├── MetadataAccessorIndex.swift             # accessor 地址 → 类型描述符（按镜像缓存）
-    ├── ThunkAddressSpace.swift                 # 共享缓存偏移与地址的换算（三套账的坑就在这里收口；导出表偏移是第四套：相对 mach header）
     ├── ThunkTypeNodeBuilder.swift              # 第四步：表达式 → 类型名节点
     └── AccessorThunkOwnerLayout.swift          # thunk 主人的泛型参数布局（argument(k) 对应哪个参数）
+
+Sources/Analysis/CodeAddressResolution/         # 从 SwiftThunkAnalysis 抽出，交叉引用的文件模式共用
+├── ImageAddressSpace.swift                     # 共享缓存偏移与地址的换算（三套账的坑就在这里收口；导出表偏移是第四套：相对 mach header）
+├── StubChainResolver.swift                     # 桩、stub island、cache 共用 selector 桩：一跳一跳读
+├── SlotResolver.swift                          # 指针槽里装着谁：bind 名或 rebase 目标
+└── CacheImageLocator.swift                     # cache 里按地址找镜像、读它导出的名字
 
 Sources/MachO/MachODependencies/
 ├── DependencySearchPath.swift                  # 搜索路径的四种（含 system root）、从文件位置推断、按形状归类
