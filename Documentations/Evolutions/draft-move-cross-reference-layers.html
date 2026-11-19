@@ -562,13 +562,13 @@ IndirectCallEvidence(tableOffset: offset, pointerAuthenticationConstant: constan
       <li>行为：<code>objectiveCLayerReadsMemoryOnlyThroughCrossReferenceMemory</code>、<code>objectiveCLayerSpellsNoSwiftRuntimeName</code>（MachOObjCSection 的源码扫描）</li>
       <li>行为：整表 A/B 照旧逐条一致；<code>selectorQueriesLookUpNoSwiftType</code> 照旧通过</li>
     </ul></li>
-  <li><b>文档与验收</b> —— 吞吐、渲染 A/B、三个仓库的全量测试、RuntimeViewer 沙盒构建。
+  <li><b>文档与验收</b>（已完成） —— 吞吐、渲染 A/B、三个仓库的全量测试、RuntimeViewer 沙盒构建。
     <ul>
       <li>行为：<code>scanThroughputAfterTheMoveIsRecordedInTheModuleDocument</code>（不是断言：整 cache 建表与两条查询的耗时写进 <code>MachOCodeReferences.md</code>，相对基线超过 +5% 先查原因再落地）</li>
       <li>行为：渲染 A/B 三条读取路径逐字节一致</li>
     </ul></li>
   <li><b>落地（随 0.25.0）</b> —— MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 <code>"0.8.207"..&lt;"0.9.0"</code>）→ RuntimeViewer 抬钉；本提案取号、改 Implemented，<code>Changelogs/0.25.0.md</code> 写 Breaking，账本加一节。
-    <ul><li>行为：用远端依赖（不设 <code>USING_LOCAL_DEPENDENCIES</code>）、Xcode 26.6 编过本库并跑完 CI 名单里的套件</li></ul></li>
+    <ul><li>行为：用远端依赖（不设 <code>USING_LOCAL_DEPENDENCIES</code>）、Xcode 26.6 编过本库并跑完 CI 名单里的套件</li><li>行为：三个仓库除 debug 全量测试外，都再用 <code>swift test -c release</code> 跑一次（本库加 <code>--skip IntegrationTests</code>，与 CI 的 release 任务一致）；之前三个仓库的测试都只在 debug 下跑过</li></ul></li>
 </ol>
 <p><b>收尾时必须判断两件事</b>（判断结果写进决策日志，不允许沉默跳过）：</p>
 <ul>

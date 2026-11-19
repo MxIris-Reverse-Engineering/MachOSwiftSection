@@ -499,11 +499,12 @@ import MachOReading
 4. **ObjC 层搬进 MachOObjCSection**（已完成） —— 步骤列为 4 的各行。
    - 行为：`objectiveCLayerReadsMemoryOnlyThroughCrossReferenceMemory`、`objectiveCLayerSpellsNoSwiftRuntimeName`（MachOObjCSection 的源码扫描）
    - 行为：整表 A/B 照旧逐条一致；`selectorQueriesLookUpNoSwiftType` 照旧通过
-5. **文档与验收** —— 步骤列为 5 的各行；吞吐、渲染 A/B、三个仓库的全量测试、RuntimeViewer 沙盒构建。
+5. **文档与验收**（已完成） —— 步骤列为 5 的各行；吞吐、渲染 A/B、三个仓库的全量测试、RuntimeViewer 沙盒构建。
    - 行为：`scanThroughputAfterTheMoveIsRecordedInTheModuleDocument`（不是断言：整 cache 建表与两条查询的耗时写进 `MachOCodeReferences.md`，相对基线超过 +5% 先查原因再落地）
    - 行为：渲染 A/B 三条读取路径逐字节一致
 6. **落地（随 0.25.0）** —— 第 6 节的顺序：MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 `"0.8.207"..<"0.9.0"`）→ RuntimeViewer 抬钉；本提案取号、改 Implemented，`Changelogs/0.25.0.md` 写 Breaking，账本加一节。
    - 行为：用远端依赖（不设 `USING_LOCAL_DEPENDENCIES`）、Xcode 26.6 编过本库并跑完 CI 名单里的套件
+   - 行为：三个仓库除 debug 全量测试外，都再用 `swift test -c release` 跑一次（本库加 `--skip IntegrationTests`，与 CI 的 release 任务一致）；之前三个仓库的测试都只在 debug 下跑过
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 

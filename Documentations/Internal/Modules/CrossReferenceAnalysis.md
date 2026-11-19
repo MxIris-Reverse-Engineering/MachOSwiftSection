@@ -254,6 +254,8 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 单线程解码 AppKit 约 187 MiB/s，比 Capstone 快 25–50 倍（RuntimeViewer 提案落地第一步的探针）。库比探针慢一些（4 线程扫完整个缓存，探针 4.1 秒，库 5.9–6.3 秒），多出来的是起名、建 `CodeReference` 与 selector 字符串；过滤扫描也是先建好每条引用再丢弃，按键提前跳过是能做的优化。
 
+**搬家之后**（2026-11-19，同一台 Ultra，Xcode 26.6，release；提案 [move-cross-reference-layers](../../Evolutions/draft-move-cross-reference-layers.md)）：核心层与 ObjC 层跨包、接口改成 SPI 之后没有变慢，各项比 `next` 快 1% 到 11%（整 cache 建表进程内 2.67 → 2.53 秒、归档 27.2 cache 文件 2.75 → 2.51 秒），引用逐条一致。逐项数字记在 MachOKitExtensions 的 `Documentations/Internal/MachOCodeReferences.md`「吞吐」一节。
+
 ## 测试锚点
 
 - `ARM64InstructionWordTests` / `ARM64TrampolineTests`：手写编码器造指令字；`capstoneAgreesWithTheEncoders` 让 Capstone 反汇编同一批字，编码器写错也藏不住。`linkerRewrittenAddressesAndLoads` 与 `linkerRewrittenSlotStub` 核对 ld64 改写出的 `adr`、字面量 `ldr` 与桩。
