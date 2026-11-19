@@ -3379,6 +3379,11 @@
   - 有 3 条 warning：`SwiftDeclarationPrinter+ObjCImportedDefinitions.swift` 里 `try await MemberList` 下没有会抛错的调用。这段代码本分支没动过，`next` 上原样就有。
   - 两侧 release 测试的结果见第 139 节。
   - `claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过；本机没有 Codex 的 `validate_plugin.py`，这一项没做，这次两个 `plugin.json` 只改了版本号。
+  - 同一份干净副本只走远端依赖跑 debug 全量 `swift test --skip IntegrationTests`：2,901 个测试 / 553 个套件全部通过，原始退出码 0。
+  - swift-decompiler 的 `main` 跟本库 `next`。它对合并后的 `next` 带测试编译通过，解析到 MachOKitExtensions 2.0.0、MachOObjCSection 0.8.207、swift-demangling 0.7.4。
+  - RuntimeViewer 的 `next`：由它自己的会话改清单、抬钉（`e4ab9089`），Core、Packages、CommandLine 与 app 都编过。
+  - PR #141 的 CI：版本检查与 debug 任务通过。release 任务第一次红在一条计时测试上：`ThunkEnvironmentImageTablesTests` 的「A fresh environment does not read the cache's image list again」，实测新建环境查一次乘以 5 是 1.06 ms，读一遍镜像列表 0.63 ms。这条测试由 0097 加入，是第一次在 CI 的 3 核机器上跑；Ultra 的 debug、release 两轮全量里它都通过。只重跑失败的任务就过了。
+  - Release 附件 `swift-section-macos-universal.zip` 是 x86_64 加 arm64 的通用二进制，两个架构的 `--version` 都输出 0.25.0。
 - **关联文档**：[Changelogs/0.25.0.md](../../Changelogs/0.25.0.md)。
 - **对应版本**：0.25.0。
 
