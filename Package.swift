@@ -172,7 +172,10 @@ extension Package.Dependency {
             // `SharedCacheKey` reads the identifier on every lookup.
             // 2.0.0 carries MachOReading and MachOResolving, which used to be
             // targets of this package; earlier releases do not have them.
-            from: "2.0.0",
+            // 3.0.0 leaves Swift symbol names to this package: `SwiftSymbols`
+            // defines `SymbolLanguage.swift` and registers it when the image
+            // loads (proposal split-symbol-language).
+            from: "3.0.0",
         ),
     )
 
@@ -217,7 +220,10 @@ extension Package.Dependency {
             // for each pointer.
             // 0.8.207 holds `ObjCCodeReferences`, the Objective-C layer of the
             // cross-reference analysis, and takes MachOKitExtensions 2.0.0.
-            "0.8.207" ..< "0.9.0",
+            // 0.8.208 defines `SymbolLanguage.objectiveC` and registers it when
+            // its image loads, and takes MachOKitExtensions 3.0.0, which this
+            // package requires (proposal split-symbol-language).
+            "0.8.208" ..< "0.9.0",
         ),
     )
 }
@@ -443,8 +449,18 @@ extension Target {
             .product(.MachOSymbols),
             .product(.MachOCaches),
             .target(.Utilities),
+            .target(.SwiftSymbolsRegistration),
         ],
         path: "Sources/Symbols/SwiftSymbols",
+    )
+
+    /// Registers `SymbolLanguage.swift` with MachOKitExtensions' symbol
+    /// language registry when the image loads: a constructor that calls the
+    /// `@c` function `SwiftSymbols` exports. Swift has no load-time
+    /// initializers of its own; linking `SwiftSymbols` links this target.
+    static let SwiftSymbolsRegistration = Target.target(
+        name: "SwiftSymbolsRegistration",
+        path: "Sources/Symbols/SwiftSymbolsRegistration",
     )
 
     static let MachOSwiftSectionC = Target.target(
@@ -1463,6 +1479,7 @@ let package = Package(
         .Utilities,
         .SwiftOutputTransformer,
         .SwiftSymbols,
+        .SwiftSymbolsRegistration,
         .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,

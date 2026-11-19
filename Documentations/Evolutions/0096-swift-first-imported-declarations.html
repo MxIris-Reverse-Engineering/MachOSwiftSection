@@ -1,304 +1,389 @@
-<!doctype html>
-<html lang="zh-CN">
+<!DOCTYPE html>
+<html lang="zh-Hans">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>0096 - Swift 实现的类，导入声明以 Swift 一侧为准</title>
 <style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
   :root {
-    color-scheme: light dark;
-    --background: #ffffff;
-    --surface: #f5f6f8;
-    --text: #1d1f23;
-    --muted: #5d6470;
-    --border: #d6d9df;
-    --accent: #2f6fd6;
-    --added: #1f8a4c;
-    --modified: #b7791f;
-    --code-background: #f0f2f5;
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: #17191d;
-      --surface: #20242a;
-      --text: #e6e8eb;
-      --muted: #9aa3ae;
-      --border: #363c45;
-      --accent: #6ea2ff;
-      --added: #4cc27f;
-      --modified: #e0a84a;
-      --code-background: #262a31;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--background);
-    color: var(--text);
-    font: 15px/1.7 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
-  }
-  main { max-width: 980px; margin: 0 auto; padding: 32px 24px 64px; }
-  h1 { font-size: 1.6em; line-height: 1.3; margin: 0 0 12px; }
-  h2 { font-size: 1.25em; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-  h3 { font-size: 1.05em; margin: 28px 0 8px; }
-  a { color: var(--accent); }
-  code {
-    font: 0.9em/1.4 ui-monospace, "SF Mono", Menlo, monospace;
-    background: var(--code-background);
-    padding: 1px 5px;
-    border-radius: 4px;
-  }
-  pre {
-    background: var(--code-background);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    overflow-x: auto;
-    font: 13px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
-  }
-  pre code { background: none; padding: 0; font: inherit; }
-  .freshness {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: var(--muted);
-    font-size: 0.9em;
-  }
-  .metadata { width: 100%; border-collapse: collapse; margin: 16px 0; }
-  .metadata th, .metadata td { text-align: left; vertical-align: top; padding: 6px 10px; border-bottom: 1px solid var(--border); }
-  .metadata th { width: 7.5em; color: var(--muted); font-weight: 500; white-space: nowrap; }
-  .status { display: inline-block; padding: 0 10px; border-radius: 999px; background: var(--added); color: #fff; font-weight: 600; }
-  nav { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; margin: 20px 0; }
-  nav ol { margin: 4px 0; padding-left: 1.4em; }
-  .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; }
-  .diagram svg { display: block; width: 100%; min-width: 640px; height: auto; }
-  .diagram .box { fill: var(--background); stroke: var(--modified); stroke-width: 2; }
-  .diagram .title { fill: var(--text); font: 600 15px -apple-system, BlinkMacSystemFont, sans-serif; }
-  .diagram .line { fill: var(--text); font: 12.5px ui-monospace, "SF Mono", Menlo, monospace; }
-  .diagram .added { fill: var(--added); }
-  .diagram .modified { fill: var(--modified); }
-  .diagram .muted { fill: var(--muted); }
-  .diagram .arrow { stroke: var(--accent); stroke-width: 2; fill: none; }
-  .diagram .arrowLabel { fill: var(--accent); font: 12px ui-monospace, "SF Mono", Menlo, monospace; }
-  .diagram .arrowHead { fill: var(--accent); }
-  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; font-size: 0.85em; color: var(--muted); }
-  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
-  .legend .legendAdded::before { background: var(--added); }
-  .legend .legendModified::before { background: var(--modified); }
-  details { border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; margin: 16px 0; background: var(--surface); }
-  summary { cursor: pointer; font-weight: 600; }
-  .decisions { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.92em; }
-  .decisions th, .decisions td { border: 1px solid var(--border); padding: 6px 8px; vertical-align: top; text-align: left; }
-  .decisions th { background: var(--background); }
-  .decisions td:first-child { white-space: nowrap; }
-  @media (max-width: 640px) {
-    main { padding: 20px 14px 48px; }
-    .metadata th { width: auto; white-space: normal; }
-  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
 </style>
 </head>
 <body>
-<main>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
 
-<h1>0096 - Swift 实现的类，导入声明以 Swift 一侧为准</h1>
-<p class="freshness">本页是提案 <code>0096-swift-first-imported-declarations.md</code> 的网页版，对应提案「最后更新」<strong>2026-11-18</strong>。两者对不上时以提案为准。</p>
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0096</span></p>
+  <h1><span class="proposal-number">0096</span> Swift 实现的类，导入声明以 Swift 一侧为准</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
+    <div><dt>创建日期</dt><dd>2026-11-17</dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-18</dd></div>
+    <div><dt>项目类型</dt><dd>库</dd></div>
+    <div><dt>原文</dt><dd><code>0096-swift-first-imported-declarations.md</code></dd></div>
+  </dl>
+</header>
 
-<table class="metadata">
-  <tr><th>状态</th><td><span class="status">Implemented</span></td></tr>
-  <tr><th>创建日期</th><td>2026-11-17</td></tr>
-  <tr><th>最后更新</th><td>2026-11-18</td></tr>
-  <tr><th>关联提案</th><td><a href="0090-objc-imported-declarations.md">0090-objc-imported-declarations</a>（本提案改它的「与 Swift 合并」）、<a href="0048-objc-member-selector-recovery.md">0048-objc-member-selector-recovery</a>（把 ObjC 方法联结到 Swift 成员的三档证据）、<a href="0046-objc-implementation-class-recognition.md">0046-objc-implementation-class-recognition</a>（认出 <code>@objc @implementation</code> 类）；RuntimeViewer 的提案 0084（Generated Interface）</td></tr>
-  <tr><th>跨仓库</th><td>本提案是三个库共用的唯一提案，MachOObjCSection 与 RuntimeViewer 的提案索引各有一行 cross-repository draft 指向这里；各库的部分见「三个库各做什么」</td></tr>
-  <tr><th>实现分支 / PR</th><td>三个仓库都是 <code>feature/swift-first-imported-declarations</code>（从各自的 <code>next</code> 切出），本地合进各自的 <code>next</code>，没开 PR</td></tr>
-</table>
-
-<nav>
-  <strong>目录</strong>
+<nav class="toc" aria-label="目录">
   <ol>
     <li><a href="#summary">摘要</a></li>
-    <li><a href="#libraries">三个库各做什么</a></li>
-    <li><a href="#plan">方案</a></li>
+    <li><a href="#architecture">三个库各做什么</a></li>
+    <li><a href="#design">方案</a></li>
+    <li><a href="#example">以 SHScenePresentation 为例</a></li>
     <li><a href="#assumptions">没问就定的假设</a></li>
     <li><a href="#steps">落地步骤</a></li>
     <li><a href="#followups">后续项</a></li>
-    <li><a href="#decisions">决策日志</a></li>
+    <li><a href="#related">关联与分支</a></li>
+    <li><a href="#log">决策日志</a></li>
   </ol>
 </nav>
 
-<h2 id="summary">摘要</h2>
-<p>RuntimeViewer 的 Generated Interface 显示 macOS 27.2 共享缓存里 SceneHosting 的 <code>SHScenePresentation</code>（一个 <code>@objc @implementation</code> 类）时，只有 5 个成员用上了 Swift 声明，其余都按 ClangImporter 的规则从 selector 推导，例如 <code>func isHostingSceneLayer(_: Any!) -&gt; Swift.Bool</code>，而同一镜像的 Swift 一侧就有 <code>func isHosting(sceneLayer: __C.FBSceneLayer) -&gt; Swift.Bool</code>。原因在 0090 的配对只认符号证据：系统框架剥掉了 <code>To</code> thunk 的符号，<code>-O</code> 又把 Swift 函数体整段内联进 thunk（<code>-[SHScenePresentation isHostingSceneLayer:]</code> 的实现不再调用 <code>isHosting(sceneLayer:)</code>），第二档找不到引用；只按名字配的第三档在 0048 里只算 override，0090 接上的也只有这一部分。</p>
-<p>本提案让 Swift 实现的类以 Swift 一侧为准：Swift 一侧有的成员照它的声明打印，ObjC 一侧只补 Swift 一侧没有的。头文件标了 <code>NS_REFINED_FOR_SWIFT</code>、在 Swift 里改成 <code>__</code> 开头的成员，两边都标出来：Swift 视图写出它的 <code>__</code> 声明，ObjC 头文件打上这个宏。这一项跨三个库：本库判定哪些成员改了名，MachOObjCSection 在头文件里打宏，RuntimeViewer 把两者接起来。</p>
+<main class="content">
 
-<h2 id="libraries">三个库各做什么</h2>
-<div class="diagram">
-<svg viewBox="0 0 820 360" role="img" aria-label="MachOSwiftSection hands the Swift view and the refined members to RuntimeViewer, which converts them into Swift import notes for MachOObjCSection's header rendering">
-  <defs>
-    <marker id="arrowHead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path class="arrowHead" d="M 0 0 L 10 5 L 0 10 z"/>
-    </marker>
-  </defs>
+<section id="summary">
+  <h2>摘要</h2>
+  <p>RuntimeViewer 的 Generated Interface 显示 macOS 27.2 共享缓存里 SceneHosting 的 <code>SHScenePresentation</code>（一个 <code>@objc @implementation</code> 类）时，只有 5 个成员用上了 Swift 声明，其余都按 ClangImporter 的规则从 selector 推导，例如 <code>func isHostingSceneLayer(_: Any!) -&gt; Swift.Bool</code>，而同一镜像的 Swift 一侧就有 <code>func isHosting(sceneLayer: __C.FBSceneLayer) -&gt; Swift.Bool</code>。原因在 0090 的配对只认符号证据：系统框架剥掉了 <code>To</code> thunk 的符号，<code>-O</code> 又把 Swift 函数体整段内联进 thunk（<code>-[SHScenePresentation isHostingSceneLayer:]</code> 的实现不再调用 <code>isHosting(sceneLayer:)</code>），第二档找不到引用；只按名字配的第三档在 0048 里只算 override，0090 接上的也只有这一部分。</p>
+  <p>本提案让 Swift 实现的类以 Swift 一侧为准：Swift 一侧有的成员照它的声明打印，ObjC 一侧只补 Swift 一侧没有的。头文件标了 <code>NS_REFINED_FOR_SWIFT</code>、在 Swift 里改成 <code>__</code> 开头的成员，两边都标出来：Swift 视图写出它的 <code>__</code> 声明，ObjC 头文件打上这个宏。这一项跨三个库：本库判定哪些成员改了名，MachOObjCSection 在头文件里打宏，RuntimeViewer 把两者接起来。</p>
+</section>
 
-  <rect class="box" x="20" y="20" width="370" height="152" rx="10"/>
-  <text class="title" x="36" y="46">MachOSwiftSection (this library)</text>
-  <text class="line" x="36" y="72"><tspan class="modified">~</tspan> ObjCImplementingSwiftMembers</text>
-  <text class="line muted" x="36" y="90">    pair by name, "__" prefix, type check</text>
-  <text class="line" x="36" y="112"><tspan class="modified">~</tspan> @objc @implementation: Swift-first body</text>
-  <text class="line" x="36" y="134"><tspan class="added">+</tspan> query: members refined for Swift</text>
-  <text class="line" x="36" y="156"><tspan class="added">+</tspan> // NS_REFINED_FOR_SWIFT: var __x: …</text>
+<section id="architecture">
+  <h2>三个库各做什么</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+  </ul>
+  <div class="figure">
+  <svg viewBox="0 0 1000 460" role="img" aria-label="MachOSwiftSection hands the Swift view and the refined members to RuntimeViewer, which converts them into Swift import notes for MachOObjCSection's header rendering">
+    <rect class="group" x="10" y="10" width="470" height="226" rx="10"/>
+    <text class="group-label" x="22" y="30">MachOSwiftSection (this library)</text>
+    <rect class="box-changed" x="25" y="42" width="440" height="44" rx="6"/><text x="35" y="60">ObjCImplementingSwiftMembers</text><text class="caption" x="35" y="77">pair by name, "__" prefix, type check</text>
+    <rect class="box-changed" x="25" y="94" width="440" height="44" rx="6"/><text x="35" y="112">@objc @implementation class</text><text class="caption" x="35" y="129">Swift-first body; stored properties var / weak var</text>
+    <rect class="box-added" x="25" y="146" width="440" height="34" rx="6"/><text x="35" y="168">query: members refined for Swift</text>
+    <rect class="box-added" x="25" y="188" width="440" height="34" rx="6"/><text x="35" y="210">// NS_REFINED_FOR_SWIFT: var __settings: …</text>
 
-  <rect class="box" x="430" y="20" width="370" height="152" rx="10"/>
-  <text class="title" x="446" y="46">MachOObjCSection</text>
-  <text class="line" x="446" y="72"><tspan class="added">+</tspan> Swift import notes (API-notes shape)</text>
-  <text class="line muted" x="446" y="90">    isSwiftPrivate → NS_REFINED_FOR_SWIFT</text>
-  <text class="line" x="446" y="112"><tspan class="modified">~</tspan> ObjCInterfaceBuilder.classInterface</text>
-  <text class="line muted" x="446" y="130">    + notes parameter, default empty</text>
-  <text class="line muted" x="446" y="156">    no notes: output byte-for-byte same</text>
+    <rect class="group" x="520" y="10" width="470" height="226" rx="10"/>
+    <text class="group-label" x="532" y="30">MachOObjCSection</text>
+    <rect class="box-added" x="535" y="42" width="440" height="44" rx="6"/><text x="545" y="60">Swift import notes (API-notes shape)</text><text class="caption" x="545" y="77">isSwiftPrivate → NS_REFINED_FOR_SWIFT; room for swiftName</text>
+    <rect class="box-changed" x="535" y="94" width="440" height="58" rx="6"/><text x="545" y="112">ObjCInterfaceBuilder</text><text class="caption" x="545" y="129">classInterface / markedClassInterface: + notes parameter</text><text class="caption" x="545" y="144">default empty; no notes: output byte-for-byte same</text>
+    <text class="caption" x="545" y="176">classes only; categories and protocols not yet</text>
 
-  <rect class="box" x="170" y="232" width="480" height="112" rx="10"/>
-  <text class="title" x="186" y="258">RuntimeViewer (service process)</text>
-  <text class="line" x="186" y="282"><tspan class="modified">~</tspan> Generated Interface: picks up MSS changes</text>
-  <text class="line" x="186" y="304"><tspan class="modified">~</tspan> ObjC header &amp; Find corpus: members → notes</text>
-  <text class="line" x="186" y="326"><tspan class="modified">~</tspan> lockfile: bump both revisions (branch: next)</text>
+    <rect class="group" x="210" y="290" width="580" height="160" rx="10"/>
+    <text class="group-label" x="222" y="310">RuntimeViewer (service process)</text>
+    <rect class="box-changed" x="225" y="322" width="550" height="34" rx="6"/><text x="235" y="344">Generated Interface: picks up MachOSwiftSection changes</text>
+    <rect class="box-changed" x="225" y="364" width="550" height="34" rx="6"/><text x="235" y="386">ObjC header &amp; Find corpus: refined members → notes</text>
+    <rect class="box-changed" x="225" y="406" width="550" height="34" rx="6"/><text x="235" y="428">lockfile: bump both revisions (branch: "next")</text>
 
-  <line class="arrow" x1="220" y1="174" x2="280" y2="228" marker-end="url(#arrowHead)"/>
-  <text class="arrowLabel" x="256" y="204">Swift view, refined members</text>
+    <path class="arrow" d="M 245 236 L 300 288"/>
+    <text class="caption" x="282" y="262">Swift view, refined members</text>
+    <path class="arrow" d="M 640 290 L 640 238"/>
+    <text class="caption" x="632" y="268" text-anchor="end">import notes</text>
+    <path class="arrow" d="M 880 236 L 792 330"/>
+    <text class="caption" x="846" y="282">header + macro</text>
+  </svg>
+  </div>
+  <p class="figure-caption">本库给出 Swift 视图与改了名的成员，RuntimeViewer 在服务进程里把后者转成 MachOObjCSection 的 Swift 导入标注，头文件由此打上 <code>NS_REFINED_FOR_SWIFT</code>。</p>
+  <ul>
+    <li><strong>MachOObjCSection</strong>：头文件渲染接受宿主按成员给出的 Swift 导入标注，形状照 Clang 的 API notes——方法以 selector 加实例/类方法为键，属性以名字加实例/类属性为键，每项是一个可以加属性的值类型。现在只有 <code>isSwiftPrivate</code>（API notes 的 <code>SwiftPrivate</code>，即 <code>NS_REFINED_FOR_SWIFT</code>），日后的 <code>NS_SWIFT_NAME</code> 是再加一个 <code>swiftName</code>。<code>ObjCInterfaceBuilder</code> 打印类的两个入口（<code>classInterface</code>、<code>markedClassInterface</code>）多一个参数，默认为空；宏打在属性与方法声明的分号前、行尾注释之前。不传时输出逐字节不变。只接类，category 与协议先不接。
+<pre><code><span class="token-comment">// 类型与参数的名字实现时定</span>
+<span class="token-keyword">var</span> notes = <span class="token-type">ObjCSwiftImportNotes</span>()
+notes[.property(named: <span class="token-string">"settings"</span>)] = .init(isSwiftPrivate: <span class="token-keyword">true</span>)
+<span class="token-keyword">let</span> header = builder.classInterface(named: <span class="token-string">"SHScenePresentation"</span>, options: options, swiftImportNotes: notes)</code></pre>
+    </li>
+    <li><strong>本库</strong>：「方案」一节的配对、打印形状、存储属性两条，以及一个查询：一个类里哪些 ObjC 成员是 <code>NS_REFINED_FOR_SWIFT</code>。查询用本库自己的类型——本库按版本依赖 MachOObjCSection，直接用它的新类型就得先等它发版、再抬下限。</li>
+    <li><strong>RuntimeViewer</strong>：抬锁文件里两个库的修订号（两个都按 <code>branch: "next"</code> 依赖，不等发版），Generated Interface 由此得到改动。服务进程打印一个 ObjC 类的头文件之前，向同一镜像的 Swift section 要这个类改了名的成员，转成 MachOObjCSection 的标注；镜像没有 Swift section、或这个类没有 Swift 参与时不传。Find 语料里的头文件同样带上，与显示逐字一致——Find 按位置高亮结果。标注只在服务进程里用，请求与回复没有新字段，混版本不受影响。</li>
+  </ul>
+</section>
 
-  <line class="arrow" x1="560" y1="228" x2="560" y2="176" marker-end="url(#arrowHead)"/>
-  <text class="arrowLabel" x="552" y="210" text-anchor="end">import notes</text>
+<section id="design">
+  <h2>方案</h2>
 
-  <line class="arrow" x1="700" y1="176" x2="700" y2="228" marker-end="url(#arrowHead)"/>
-  <text class="arrowLabel" x="708" y="210">header + macro</text>
-</svg>
-<div class="legend"><span class="legendAdded">+ 新增</span><span class="legendModified">~ 修改</span></div>
-</div>
+  <h3>打印形状</h3>
+  <ul>
+    <li><strong><code>@objc @implementation</code> 类</strong>（类的 Swift extension 里有 0046 认出的 <code>@implementation</code> 主体）改成与桥接出去的 Swift 类同一种形状：类头仍取 ObjC 记录的父类与协议；类体是 Swift 一侧 interface 里 <code>@implementation</code> extension 的内容，存储属性、<code>final</code> 的纯 Swift 成员都在；本镜像里这个类的其余 Swift extension 跟在类后面；ObjC 方法表里没有 Swift 成员回答的，按规则推导、加注明，放在类体最后——推断出改了名的属性除外，它的注释挂在占了它原名的 Swift 属性正上方（见「改了 Swift 名字的成员」）。</li>
+    <li>桥接出去的 Swift 类形状不变。ObjC 实现、只被 Swift 扩展的类（夹具里的 <code>ClangWidget</code>）与 category 仍逐个成员替换。三种都用下面的配对：Swift 类末尾那个「没有 Swift 成员回答」的 extension 会少掉误列的成员。</li>
+  </ul>
 
-<ul>
-  <li><strong>MachOObjCSection</strong>：头文件渲染接受宿主按成员给出的 Swift 导入标注，形状照 Clang 的 API notes——方法以 selector 加实例/类方法为键，属性以名字加实例/类属性为键，每项是一个可以加属性的值类型。现在只有 <code>isSwiftPrivate</code>（API notes 的 <code>SwiftPrivate</code>，即 <code>NS_REFINED_FOR_SWIFT</code>），日后的 <code>NS_SWIFT_NAME</code> 是再加一个 <code>swiftName</code>。<code>ObjCInterfaceBuilder</code> 打印类的两个入口（<code>classInterface</code>、<code>markedClassInterface</code>）多一个参数，默认为空；宏打在属性与方法声明的分号前、行尾注释之前。不传时输出逐字节不变。只接类，category 与协议先不接。
-<pre><code>// 类型与参数的名字实现时定
-var notes = ObjCSwiftImportNotes()
-notes[.property(named: "settings")] = .init(isSwiftPrivate: true)
-let header = builder.classInterface(named: "SHScenePresentation", options: options, swiftImportNotes: notes)</code></pre>
-  </li>
-  <li><strong>本库</strong>：上面的配对、打印形状、存储属性两条，以及一个查询：一个类里哪些 ObjC 成员是 <code>NS_REFINED_FOR_SWIFT</code>。查询用本库自己的类型——本库按版本依赖 MachOObjCSection，直接用它的新类型就得先等它发版、再抬下限。</li>
-  <li><strong>RuntimeViewer</strong>：抬锁文件里两个库的修订号（两个都按 <code>branch: "next"</code> 依赖，不等发版），Generated Interface 由此得到改动。服务进程打印一个 ObjC 类的头文件之前，向同一镜像的 Swift section 要这个类改了名的成员，转成 MachOObjCSection 的标注；镜像没有 Swift section、或这个类没有 Swift 参与时不传。Find 语料里的头文件同样带上，与显示逐字一致——Find 按位置高亮结果。标注只在服务进程里用，请求与回复没有新字段，混版本不受影响。</li>
-</ul>
+  <h3>配对：哪个 ObjC 成员有 Swift 成员回答</h3>
+  <p>前两档（IMP 处的 <code>To</code> 符号、thunk 引用到的实现）不变。两档都没配上的 ObjC 成员，到实现这个类的 Swift 定义里、还没配上的成员中按名字找：</p>
+  <ul>
+    <li>不再只限 override。在打印时做（<code>ObjCImplementingSwiftMembers</code>），不改 0048 在索引期记下的事实，dump 与 Swift 一侧的 interface 不受影响。</li>
+    <li>名字判据沿用 <code>ObjCMemberShape.isConsistent(withSelector:isClassMethod:)</code>，加一条：认 <code>NS_REFINED_FOR_SWIFT</code> 加的 <code>__</code> 前缀（属性名、方法基名、初始化器的第一个标签）。同一个 selector 既对得上 <code>__layerFilter</code>、又对得上纯 Swift 的 <code>layerFilter</code> 时取前者：头文件标了 <code>NS_REFINED_FOR_SWIFT</code> 的才是 ObjC 那个成员。</li>
+    <li>类型明显对不上的不配：ObjC 一侧是对象（<code>@</code>），Swift 成员的类型却是 Swift 与 Foundation 之外定义的 struct 或 enum；或者 ObjC 一侧是标量，Swift 成员却是类或 existential。宁可漏配，不配错，与 0048 一致。</li>
+    <li>仍然只在恰好一个候选时配。</li>
+  </ul>
 
-<h2 id="plan">方案</h2>
+  <h3 id="refined">改了 Swift 名字的成员（<code>NS_REFINED_FOR_SWIFT</code>）</h3>
+  <p>只看 <code>@implementation</code> 类与被本镜像 Swift extension 扩展的 ObjC 类；桥接出去的 Swift 类没有头文件，不涉及。两种判定：</p>
+  <ul>
+    <li><strong>有凭据</strong>：ObjC 成员配上的是 <code>__</code> 开头的 Swift 成员（<code>layerFilter</code> ↔ <code>__layerFilter</code>）。</li>
+    <li><strong>推断</strong>：ObjC 属性没配上，而 Swift 一侧有同名属性、类型明显对不上（<code>settings</code> 对上本模块的 struct <code>ScenePresentationSettings</code>）。Swift 不允许一个类型里有两个同名属性，ObjC 那个只能是在 Swift 里改了名。只用于属性：方法可以按参数类型重载，同名说明不了改过名。</li>
+  </ul>
+  <p>两边怎么标：</p>
+  <ul>
+    <li><strong>Swift 视图</strong>（Generated Interface）：有凭据的照 Swift 一侧打（<code>var __layerFilter: …</code>）。推断的没有 Swift 符号可抄，打一条结构化注释（<code>StructuredComment</code>），内容是按 importer 规则推出的 <code>__</code> 声明，压成一行：
+      <ul>
+        <li><strong>位置</strong>：<code>@objc @implementation</code> 类里，挂在占了它原名的那个 Swift 属性正上方（<code>var settings: ScenePresentationSettings</code> 的上一行），排在那个属性自己的注释（地址、偏移）之前，不再进类体末尾那组；那组因此变空时，那行说明也不打。类体里没有那个 Swift 属性时留在原处：ObjC 实现、只被 Swift 扩展的类，类体按 ObjC 方法表逐个打，纯 Swift 属性不在里面；导出过滤（<code>--exported-only</code>）滤掉那个 Swift 属性时也一样，免得注释随它一起消失。</li>
+        <li><strong>分段</strong>：注释里的声明按结构分段，宿主可以像字段偏移树的行那样分色。<code>NS_REFINED_FOR_SWIFT</code> 是 <code>.label</code>，后面的 <code>: </code> 是 <code>.separator</code>；声明里属性名 <code>__settings</code> 是 <code>.name</code>，类型 <code>__C.SHScenePresentationSettings!</code> 是 <code>.type</code>；<code>var </code>、声明里的 <code>: </code>、<code> { get set }</code> 不带角色——宿主会藏起 <code>.separator</code> 里的标点，声明里的冒号不能是 separator。各段取自结构，不切打印出的文字：名字与修饰词取自声明打印出的组件（名字是语义类型为 <code>.variable</code> 的那个），类型由 <code>TypeNodePrinter</code> 单独打印属性的类型节点，访问器块取自 <code>AccessorBlockKeywords</code>。</li>
+      </ul>
+    </li>
+    <li><strong>ObjC 头文件</strong>：两种都在声明的分号前打 <code>NS_REFINED_FOR_SWIFT</code>。头文件由 MachOObjCSection 打印，由宿主告诉它哪些成员要打（见「三个库各做什么」）。</li>
+  </ul>
 
-<h3>打印形状</h3>
-<ul>
-  <li><strong><code>@objc @implementation</code> 类</strong>（类的 Swift extension 里有 0046 认出的 <code>@implementation</code> 主体）改成与桥接出去的 Swift 类同一种形状：类头仍取 ObjC 记录的父类与协议；类体是 Swift 一侧 interface 里 <code>@implementation</code> extension 的内容，存储属性、<code>final</code> 的纯 Swift 成员都在；本镜像里这个类的其余 Swift extension 跟在类后面；ObjC 方法表里没有 Swift 成员回答的，按规则推导、加注明，放在类体最后——推断出改了名的属性除外，它的注释挂在占了它原名的 Swift 属性正上方（见「改了 Swift 名字的成员」）。</li>
-  <li>桥接出去的 Swift 类形状不变。ObjC 实现、只被 Swift 扩展的类（夹具里的 <code>ClangWidget</code>）与 category 仍逐个成员替换。三种都用下面的配对：Swift 类末尾那个「没有 Swift 成员回答」的 extension 会少掉误列的成员。</li>
-</ul>
+  <h3>Swift 一侧缺、ObjC 一侧有的事实</h3>
+  <ul>
+    <li><code>@implementation</code> 的存储属性没有 setter 符号时，现在一律打 <code>let</code>，可 <code>-O</code> 下 setter 常被内联进 thunk、不留符号。改为 ObjC 属性可写就打 <code>var</code>，特性串带 <code>W</code> 就加 <code>weak</code>：<code>scene</code> 由 <code>let scene: FBScene?</code> 变成 <code>weak var scene: FBScene?</code>。Swift 一侧的 interface 同样生效。</li>
+    <li>只剩 ivar、Swift 类型还原不出的存储属性（<code>observers</code>、<code>_isActive</code>）：Generated Interface 里有同名 ObjC 属性时，在原位置打这个属性的导入形式（<code>var observers: Any!</code>），代替注释。Swift 一侧的 interface 照旧打注释——那里要的是 Swift 的类型，ObjC 的类型不是它。</li>
+  </ul>
+</section>
 
-<h3>配对：哪个 ObjC 成员有 Swift 成员回答</h3>
-<p>前两档（IMP 处的 <code>To</code> 符号、thunk 引用到的实现）不变。两档都没配上的 ObjC 成员，到实现这个类的 Swift 定义里、还没配上的成员中按名字找：</p>
-<ul>
-  <li>不再只限 override。在打印时做（<code>ObjCImplementingSwiftMembers</code>），不改 0048 在索引期记下的事实，dump 与 Swift 一侧的 interface 不受影响。</li>
-  <li>名字判据沿用 <code>ObjCMemberShape.isConsistent(withSelector:isClassMethod:)</code>，加一条：认 <code>NS_REFINED_FOR_SWIFT</code> 加的 <code>__</code> 前缀（属性名、方法基名、初始化器的第一个标签）。同一个 selector 既对得上 <code>__layerFilter</code>、又对得上纯 Swift 的 <code>layerFilter</code> 时取前者：头文件标了 <code>NS_REFINED_FOR_SWIFT</code> 的才是 ObjC 那个成员。</li>
-  <li>类型明显对不上的不配：ObjC 一侧是对象（<code>@</code>），Swift 成员的类型却是 Swift 与 Foundation 之外定义的 struct 或 enum；或者 ObjC 一侧是标量，Swift 成员却是类或 existential。宁可漏配，不配错，与 0048 一致。</li>
-  <li>仍然只在恰好一个候选时配。</li>
-</ul>
-
-<h3>改了 Swift 名字的成员（<code>NS_REFINED_FOR_SWIFT</code>）</h3>
-<p>只看 <code>@implementation</code> 类与被本镜像 Swift extension 扩展的 ObjC 类；桥接出去的 Swift 类没有头文件，不涉及。两种判定：</p>
-<ul>
-  <li><strong>有凭据</strong>：ObjC 成员配上的是 <code>__</code> 开头的 Swift 成员（<code>layerFilter</code> ↔ <code>__layerFilter</code>）。</li>
-  <li><strong>推断</strong>：ObjC 属性没配上，而 Swift 一侧有同名属性、类型明显对不上（<code>settings</code> 对上本模块的 struct <code>ScenePresentationSettings</code>）。Swift 不允许一个类型里有两个同名属性，ObjC 那个只能是在 Swift 里改了名。只用于属性：方法可以按参数类型重载，同名说明不了改过名。</li>
-</ul>
-<p>两边怎么标：</p>
-<ul>
-  <li><strong>Swift 视图</strong>（Generated Interface）：有凭据的照 Swift 一侧打（<code>var __layerFilter: …</code>）。推断的没有 Swift 符号可抄，打一条结构化注释（<code>StructuredComment</code>），内容是按 importer 规则推出的 <code>__</code> 声明，压成一行：
-    <ul>
-      <li><strong>位置</strong>：<code>@objc @implementation</code> 类里，挂在占了它原名的那个 Swift 属性正上方（<code>var settings: ScenePresentationSettings</code> 的上一行），排在那个属性自己的注释（地址、偏移）之前，不再进类体末尾那组；那组因此变空时，那行说明也不打。类体里没有那个 Swift 属性时留在原处：ObjC 实现、只被 Swift 扩展的类，类体按 ObjC 方法表逐个打，纯 Swift 属性不在里面；导出过滤（<code>--exported-only</code>）滤掉那个 Swift 属性时也一样，免得注释随它一起消失。</li>
-      <li><strong>分段</strong>：注释里的声明按结构分段，宿主可以像字段偏移树的行那样分色。<code>NS_REFINED_FOR_SWIFT</code> 是 <code>.label</code>，后面的 <code>: </code> 是 <code>.separator</code>；声明里属性名 <code>__settings</code> 是 <code>.name</code>，类型 <code>__C.SHScenePresentationSettings!</code> 是 <code>.type</code>；<code>var </code>、声明里的 <code>: </code>、<code> { get set }</code> 不带角色——宿主会藏起 <code>.separator</code> 里的标点，声明里的冒号不能是 separator。各段取自结构，不切打印出的文字：名字与修饰词取自声明打印出的组件（名字是语义类型为 <code>.variable</code> 的那个），类型由 <code>TypeNodePrinter</code> 单独打印属性的类型节点，访问器块取自 <code>AccessorBlockKeywords</code>。</li>
-    </ul>
-  </li>
-  <li><strong>ObjC 头文件</strong>：两种都在声明的分号前打 <code>NS_REFINED_FOR_SWIFT</code>。头文件由 MachOObjCSection 打印，由宿主告诉它哪些成员要打（见「三个库各做什么」）。</li>
-</ul>
-
-<h3>Swift 一侧缺、ObjC 一侧有的事实</h3>
-<ul>
-  <li><code>@implementation</code> 的存储属性没有 setter 符号时，现在一律打 <code>let</code>，可 <code>-O</code> 下 setter 常被内联进 thunk、不留符号。改为 ObjC 属性可写就打 <code>var</code>，特性串带 <code>W</code> 就加 <code>weak</code>：<code>scene</code> 由 <code>let scene: FBScene?</code> 变成 <code>weak var scene: FBScene?</code>。Swift 一侧的 interface 同样生效。</li>
-  <li>只剩 ivar、Swift 类型还原不出的存储属性（<code>observers</code>、<code>_isActive</code>）：Generated Interface 里有同名 ObjC 属性时，在原位置打这个属性的导入形式（<code>var observers: Any!</code>），代替注释。Swift 一侧的 interface 照旧打注释——那里要的是 Swift 的类型，ObjC 的类型不是它。</li>
-</ul>
-
-<h3>以 <code>SHScenePresentation</code> 为例</h3>
-<p>Generated Interface，现在（节选）：</p>
-<pre><code>class SHScenePresentation: __C.NSObject {
-    var settings: __C.SHScenePresentationSettings! { get set }
-    weak var scene: __C.FBScene! { get set }
-    var layerFilter: __C.SHSceneLayerFilter! { get set }
-    @objc var priority: Swift.Int { get set }
-    func isHostingSceneLayer(_: Any!) -&gt; Swift.Bool
+<section id="example">
+  <h2>以 <code>SHScenePresentation</code> 为例</h2>
+  <p>Generated Interface，现在（节选）：</p>
+<pre><code><span class="token-keyword">class</span> <span class="token-type">SHScenePresentation</span>: __C.<span class="token-type">NSObject</span> {
+    <span class="token-keyword">var</span> settings: __C.<span class="token-type">SHScenePresentationSettings</span>! { <span class="token-keyword">get set</span> }
+    <span class="token-keyword">weak var</span> scene: __C.<span class="token-type">FBScene</span>! { <span class="token-keyword">get set</span> }
+    <span class="token-keyword">var</span> layerFilter: __C.<span class="token-type">SHSceneLayerFilter</span>! { <span class="token-keyword">get set</span> }
+    <span class="token-keyword">@objc var</span> priority: Swift.<span class="token-type">Int</span> { <span class="token-keyword">get set</span> }
+    <span class="token-keyword">func</span> isHostingSceneLayer(_: <span class="token-type">Any</span>!) -&gt; Swift.<span class="token-type">Bool</span>
 }</code></pre>
-<p>改后（节选；注释的措辞实现时定）：</p>
-<pre><code>class SHScenePresentation: __C.NSObject {
-    var observers: Any! { get set }
-    // stored property layerController: Swift type not recoverable (ObjC ivar, …)
-    weak var scene: __C.FBScene?
-    var __layerFilter: __C.SHSceneLayerFilter { get set }
-    var layerFilter: SceneHosting.SceneLayerFilter { get set }
-    @objc var priority: Swift.Int { get set }
-    // NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }
-    var settings: SceneHosting.ScenePresentationSettings { get set }
-    func isHosting(sceneLayer: __C.FBSceneLayer) -&gt; Swift.Bool
+  <p>改后（节选；注释的措辞实现时定）：</p>
+<pre><code><span class="token-keyword">class</span> <span class="token-type">SHScenePresentation</span>: __C.<span class="token-type">NSObject</span> {
+    <span class="token-keyword">var</span> observers: <span class="token-type">Any</span>! { <span class="token-keyword">get set</span> }
+    <span class="token-comment">// stored property layerController: Swift type not recoverable (ObjC ivar, …)</span>
+    <span class="token-keyword">weak var</span> scene: __C.<span class="token-type">FBScene</span>?
+    <span class="token-keyword">var</span> __layerFilter: __C.<span class="token-type">SHSceneLayerFilter</span> { <span class="token-keyword">get set</span> }
+    <span class="token-keyword">var</span> layerFilter: SceneHosting.<span class="token-type">SceneLayerFilter</span> { <span class="token-keyword">get set</span> }
+    <span class="token-keyword">@objc var</span> priority: Swift.<span class="token-type">Int</span> { <span class="token-keyword">get set</span> }
+    <span class="token-comment">// NS_REFINED_FOR_SWIFT: var __settings: __C.SHScenePresentationSettings! { get set }</span>
+    <span class="token-keyword">var</span> settings: SceneHosting.<span class="token-type">ScenePresentationSettings</span> { <span class="token-keyword">get set</span> }
+    <span class="token-keyword">func</span> isHosting(sceneLayer: __C.<span class="token-type">FBSceneLayer</span>) -&gt; Swift.<span class="token-type">Bool</span>
 
-    // Objective-C methods of the class that no Swift member answers to. …
+    <span class="token-comment">// Objective-C methods of the class that no Swift member answers to. …</span>
 }</code></pre>
-<p>ObjC 头文件，改后（节选）：</p>
-<pre><code>@property (nonatomic, strong) SHSceneLayerFilter *layerFilter NS_REFINED_FOR_SWIFT; // getter IMP: …
-@property (nonatomic, strong) SHScenePresentationSettings *settings NS_REFINED_FOR_SWIFT; // getter IMP: …</code></pre>
+  <p>ObjC 头文件，改后（节选）：</p>
+<pre><code><span class="token-keyword">@property</span> (nonatomic, strong) <span class="token-type">SHSceneLayerFilter</span> *layerFilter <span class="token-macro">NS_REFINED_FOR_SWIFT</span>; <span class="token-comment">// getter IMP: …</span>
+<span class="token-keyword">@property</span> (nonatomic, strong) <span class="token-type">SHScenePresentationSettings</span> *settings <span class="token-macro">NS_REFINED_FOR_SWIFT</span>; <span class="token-comment">// getter IMP: …</span></code></pre>
+</section>
 
-<h2 id="assumptions">没问就定的假设</h2>
-<ul>
-  <li>纯 Swift 成员（<code>final</code>、<code>@nonobjc</code>）照打：Swift 一侧有的就以它为准。</li>
-  <li><code>@objc</code> 照 Swift 一侧原样打：符号证据配上的成员带，名字配上的不带。</li>
-  <li>category 不改成 Swift 优先，也不标 <code>NS_REFINED_FOR_SWIFT</code>：同一个类的几个 category 共用这个镜像里这个类的全部 Swift extension，分不清哪个成员属于哪个 category。</li>
-  <li>镜像里根本没有 Swift 符号的成员（0090 后续项里 <code>NSGlassEffectView</code> 的 <code>init(frame:)</code>）仍按规则推导：Swift 一侧确实没有它。</li>
-  <li><code>__</code> 名字照 importer 的规则推：属性名与方法基名加 <code>__</code>，初始化器加在第一个标签上。</li>
-  <li>本库的公开 API 只多「一个类哪些成员是 <code>NS_REFINED_FOR_SWIFT</code>」这一个查询；Swift 优先的打印在打印器内部，<code>ObjCImportedClassDefinition</code> 已带着 <code>swiftExtensions</code>。</li>
-  <li><code>NS_SWIFT_NAME</code> 不在本提案，见后续项。</li>
-</ul>
+<section id="assumptions">
+  <h2>没问就定的假设</h2>
+  <ul>
+    <li>纯 Swift 成员（<code>final</code>、<code>@nonobjc</code>）照打：Swift 一侧有的就以它为准。</li>
+    <li><code>@objc</code> 照 Swift 一侧原样打：符号证据配上的成员带，名字配上的不带。</li>
+    <li>category 不改成 Swift 优先，也不标 <code>NS_REFINED_FOR_SWIFT</code>：同一个类的几个 category 共用这个镜像里这个类的全部 Swift extension，分不清哪个成员属于哪个 category。</li>
+    <li>镜像里根本没有 Swift 符号的成员（0090 后续项里 <code>NSGlassEffectView</code> 的 <code>init(frame:)</code>）仍按规则推导：Swift 一侧确实没有它。</li>
+    <li><code>__</code> 名字照 importer 的规则推：属性名与方法基名加 <code>__</code>，初始化器加在第一个标签上。</li>
+    <li>本库的公开 API 只多「一个类哪些成员是 <code>NS_REFINED_FOR_SWIFT</code>」这一个查询；Swift 优先的打印在打印器内部，<code>ObjCImportedClassDefinition</code> 已带着 <code>swiftExtensions</code>。</li>
+    <li><code>NS_SWIFT_NAME</code> 不在本提案，见后续项。</li>
+  </ul>
+</section>
 
-<h2 id="steps">落地步骤</h2>
-<ol>
-  <li>（已完成）MachOObjCSection：头文件渲染接受宿主给的 Swift 导入标注、打出 <code>NS_REFINED_FOR_SWIFT</code>；测试覆盖属性、实例方法、类方法，不传标注时输出逐字节不变，marked 形式投影后与普通形式一致；文档写进它的使用指南「库调用方」一节与下一个版本的 Changelog。</li>
-  <li>（已完成）本库测试先红：夹具加一个照 <code>SHScenePresentation</code> 写的 <code>@implementation</code> 类，成员 <code>public</code>，像系统框架那样留下导出符号——一个头文件用 <code>NS_SWIFT_NAME</code> 改了 Swift 名的方法（<code>isHosting(sceneLayer:)</code> 那种）、一对 <code>NS_REFINED_FOR_SWIFT</code> 属性加同名的纯 Swift 属性（一个留下 <code>__</code> 成员的符号、一个不留）、一个 <code>weak</code> 可写存储属性、一个只留 ivar 的存储属性。在 <code>.optimizedStripped</code> 变体上断言 Generated Interface 与改名查询的结果，先确认它们在改动前失败。</li>
-  <li>（已完成）本库实现：配对、打印形状、改了 Swift 名字的成员（判定、Swift 视图的注释、给宿主的查询）、存储属性的两条。</li>
-  <li>RuntimeViewer：（已完成）ObjC 头文件的显示与 Find 语料带上标注，测试接线；（已完成）用户在 App 里看过 <code>SHScenePresentation</code>；（收尾时，由 RuntimeViewer 一侧做）两个库落地进各自的 <code>next</code> 后，抬锁文件里的修订号。</li>
-  <li>（已完成）文档：模块参考 SwiftObjCInterop 与 SwiftDeclaration 里「ObjC 声明按 Swift 导入的样子」、命令行指南的「The Swift view」、演进账本、术语表；插件 skill 里讲 <code>objc interface --swift</code> 输出的地方一并核对。</li>
-</ol>
+<section id="steps">
+  <h2>落地步骤</h2>
+  <ol>
+    <li>（已完成）MachOObjCSection：头文件渲染接受宿主给的 Swift 导入标注、打出 <code>NS_REFINED_FOR_SWIFT</code>；测试覆盖属性、实例方法、类方法，不传标注时输出逐字节不变，marked 形式投影后与普通形式一致；文档写进它的使用指南「库调用方」一节与下一个版本的 Changelog。</li>
+    <li>（已完成）本库测试先红：夹具加一个照 <code>SHScenePresentation</code> 写的 <code>@implementation</code> 类，成员 <code>public</code>，像系统框架那样留下导出符号——一个头文件用 <code>NS_SWIFT_NAME</code> 改了 Swift 名的方法（<code>isHosting(sceneLayer:)</code> 那种）、一对 <code>NS_REFINED_FOR_SWIFT</code> 属性加同名的纯 Swift 属性（一个留下 <code>__</code> 成员的符号、一个不留）、一个 <code>weak</code> 可写存储属性、一个只留 ivar 的存储属性。在 <code>.optimizedStripped</code> 变体上断言 Generated Interface 与改名查询的结果，先确认它们在改动前失败。</li>
+    <li>（已完成）本库实现：配对、打印形状、改了 Swift 名字的成员（判定、Swift 视图的注释、给宿主的查询）、存储属性的两条。</li>
+    <li>RuntimeViewer：（已完成）ObjC 头文件的显示与 Find 语料带上标注，测试接线；（已完成）用户在 App 里看过 <code>SHScenePresentation</code>；（收尾时，由 RuntimeViewer 一侧做）两个库落地进各自的 <code>next</code> 后，抬锁文件里的修订号。</li>
+    <li>（已完成）文档：模块参考 SwiftObjCInterop 与 SwiftDeclaration 里「ObjC 声明按 Swift 导入的样子」、命令行指南的「The Swift view」、演进账本、术语表；插件 skill 里讲 <code>objc interface --swift</code> 输出的地方一并核对。</li>
+  </ol>
+</section>
 
-<h2 id="followups">后续项</h2>
-<ul>
-  <li><code>NS_SWIFT_NAME</code>：配上的 Swift 成员的名字与 importer 推出的名字不同时，头文件里打 <code>NS_SWIFT_NAME(…)</code>。<code>SHScenePresentation</code> 的 <code>isHosting(sceneLayer:)</code> 就是这样：夹具实测 importer 自己只给 <code>isHostingSceneLayer(_:)</code>，参数是 <code>FXSceneLayer</code> 这种带前缀的类也一样，这个名字只能来自头文件的 <code>NS_SWIFT_NAME</code>。比较要用上 Swift 成员的参数类型——只凭 <code>@</code> 推出的名字本来就偏。MachOObjCSection 的标注已为它留了位置。</li>
-  <li><code>swift-section objc interface</code> 与 <code>objc dump</code> 也打这个宏：要 MachOObjCSection 先发带新接口的版本，本库再抬依赖下限。</li>
-</ul>
+<section id="followups">
+  <h2>后续项</h2>
+  <ul>
+    <li><code>NS_SWIFT_NAME</code>：配上的 Swift 成员的名字与 importer 推出的名字不同时，头文件里打 <code>NS_SWIFT_NAME(…)</code>。<code>SHScenePresentation</code> 的 <code>isHosting(sceneLayer:)</code> 就是这样：夹具实测 importer 自己只给 <code>isHostingSceneLayer(_:)</code>，参数是 <code>FXSceneLayer</code> 这种带前缀的类也一样，这个名字只能来自头文件的 <code>NS_SWIFT_NAME</code>。比较要用上 Swift 成员的参数类型——只凭 <code>@</code> 推出的名字本来就偏。MachOObjCSection 的标注已为它留了位置。</li>
+    <li><code>swift-section objc interface</code> 与 <code>objc dump</code> 也打这个宏：要 MachOObjCSection 先发带新接口的版本，本库再抬依赖下限。</li>
+  </ul>
+</section>
 
-<h2 id="decisions">决策日志</h2>
-<details>
-<summary>展开 14 条决策</summary>
-<table class="decisions">
-  <tr><th>日期</th><th>决定</th><th>理由</th></tr>
-  <tr><td>2026-11-17</td><td>Created as Draft</td><td>RuntimeViewer 的 Generated Interface 里，系统框架中的 <code>@objc @implementation</code> 类大多数成员仍是按 selector 推导的名字与 <code>Any!</code>；用户要求 Swift 实现的类以 Swift 一侧的类型与签名为准，只有 Swift 一侧没有的才用 ObjC 一侧的</td></tr>
-  <tr><td>2026-11-17</td><td>ObjC 属性与 Swift 一侧的属性同名而类型对不上时（<code>settings</code>），Swift 视图用结构化注释写出它的 <code>__settings</code> 声明，ObjC 头文件给它标 <code>NS_REFINED_FOR_SWIFT</code>；MachOObjCSection 现在不会打这个宏，要给它加上，接口为日后的 <code>NS_SWIFT_NAME</code> 留好位置</td><td>用户选定。两边各用自己的语言说同一件事，与 SDK 里头文件和它导入后的样子一致</td></tr>
-  <tr><td>2026-11-17</td><td>本库用自己的类型给出改了名的成员，由 RuntimeViewer 转成 MachOObjCSection 的输入；<code>swift-section</code> 的 ObjC 头文件暂不打这个宏</td><td>本库按版本依赖 MachOObjCSection，直接用它的新类型就得先发版、再抬下限；RuntimeViewer 按分支依赖两个库，不用等</td></tr>
-  <tr><td>2026-11-17</td><td>三个库共用这一份提案，另两个仓库的提案索引各加一行 cross-repository draft</td><td>一次改动一份提案；MachOObjCSection 的索引里已有这种跨仓库草案的先例</td></tr>
-  <tr><td>2026-11-17</td><td>用户批准，开始实现</td><td>按 MachOObjCSection → 本库 → RuntimeViewer 的顺序做，三个仓库各一条 <code>feature/swift-first-imported-declarations</code></td></tr>
-  <tr><td>2026-11-17</td><td>构建与测试改在 JHs-MacBook-Pro 上跑</td><td>JHs-Mac-Studio-Ultra 当天连不上 GitHub（22 与 443 端口都在本地被断开），代码只经 GitHub 同步，网络设置不动</td></tr>
-  <tr><td>2026-11-17</td><td>本库按 <code>USING_LOCAL_DEPENDENCIES=1</code> 配 swift-demangling <code>next</code> 的同级检出来编</td><td>本库 <code>next</code> 用到 swift-demangling 还没发版的 <code>DemangleOptions.useExistentialAny</code>，按发布版 0.7.3 编不过；锁文件不进 git，CI 以外都这样编</td></tr>
-  <tr><td>2026-11-17</td><td>RuntimeViewer 的功能分支接在 <code>origin/next</code> 上</td><td>本地 <code>next</code> 有 6 个别处还没推的提交（与本改动无关的文件），推功能分支会把它们带上 GitHub</td></tr>
-  <tr><td>2026-11-17</td><td>只剩 ivar 的存储属性，找它的 ObjC 属性先认 <code>V&lt;ivar&gt;</code>，再认同名</td><td>夹具编出的 ObjC 属性特性串不写 <code>V</code>，SceneHosting 的写；两种都要认</td></tr>
-  <tr><td>2026-11-17</td><td><code>NS_REFINED_FOR_SWIFT</code> 注释把声明压成一行（<code>{ get set }</code>）</td><td>原样打印时访问器块占好几行，只有第一行在注释里</td></tr>
-  <tr><td>2026-11-17</td><td>夹具照编译器的要求写：改名属性的实现写成 <code>@objc(name) var __name</code>；<code>isHostingSceneLayer:</code> 的 Swift 名由头文件的 <code>NS_SWIFT_NAME</code> 给，实现写 <code>@objc(isHostingSceneLayer:)</code></td><td>编译器拒绝不写 selector 的 <code>__name</code>（它从 Swift 名推出 <code>__name</code>，头文件里没有），也从 <code>isHosting(sceneLayer:)</code> 推出 <code>isHostingWithSceneLayer:</code>；importer 自己不会把 <code>isHostingSceneLayer:</code> 拆成 <code>isHosting(sceneLayer:)</code>，参数类带前缀也一样，所以 SceneHosting 的这个名字来自 <code>NS_SWIFT_NAME</code>，后续项据此更正</td></tr>
-  <tr><td>2026-11-17</td><td>实现完成，待用户看过后收尾</td><td>三个库在 JHs-MacBook-Pro（macOS 27.2，Xcode 27.2）上验证：MachOObjCSection 的 <code>ObjCInterfaceTests</code> 与 <code>ObjCDeclarationRenderingTests</code> 全过；本库新测试改动前失败、改动后通过，相关套件全过，全量（跳过 IntegrationTests）与不含改动的 <code>next</code> 失败点完全相同（167 处，SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录、模拟器 runtime 缺文件）；RuntimeViewerCore 的新测试与 Generated Interface 测试全过。RuntimeViewer 锁文件里两个库的修订号留到正式收尾再抬：两个库的改动那时才进各自的 <code>next</code>。不另写实现说明与使用指南：契约写进了两份模块参考、命令行指南与 MachOObjCSection 的使用指南；新术语「改名成员」与 MachOObjCSection 的「Swift 导入标注」已登记</td></tr>
-  <tr><td>2026-11-17</td><td>推断出改了名的属性，注释挂到占了它原名的 Swift 属性正上方（排在那个属性自己的注释之前）；注释里的声明分段：属性名 <code>.name</code>、类型 <code>.type</code>，<code>var </code>、声明里的冒号和访问器块不带角色。类体里没有那个 Swift 属性、或导出过滤滤掉了它时，注释留在原处</td><td>用户在 RuntimeViewer 里看过效果后定的：注释放在类体末尾，离它说的那个属性太远；整条声明是一个 <code>.value</code> 段，宿主只能整段一个颜色。宿主会藏起 <code>.separator</code> 里的标点，所以声明里的冒号不能标成 separator</td></tr>
-  <tr><td>2026-11-18</td><td>Implemented，取号 0096，合进 <code>next</code> 并推送</td><td>用户在 RuntimeViewer 里看过注释的新位置与分段着色，同意收尾。追加的两处在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2）上验证：两个新用例改动前失败、改动后通过，相关的 9 个套件 73 个测试全过。仍不另写实现说明与使用指南：位置与分段写进了命令行指南的「The Swift view」、插件 skill 与术语表的「改名成员」，没有新术语。<code>NS_SWIFT_NAME</code> 与 <code>swift-section</code> 的 ObjC 头文件打宏两项留作后续项</td></tr>
-</table>
-</details>
+<section id="related">
+  <h2>关联与分支</h2>
+  <ul>
+    <li><strong>关联提案</strong>：<a href="0090-objc-imported-declarations.md">0090-objc-imported-declarations</a>（本提案改它的「与 Swift 合并」）、<a href="0048-objc-member-selector-recovery.md">0048-objc-member-selector-recovery</a>（把 ObjC 方法联结到 Swift 成员的三档证据）、<a href="0046-objc-implementation-class-recognition.md">0046-objc-implementation-class-recognition</a>（认出 <code>@objc @implementation</code> 类）；RuntimeViewer 的提案 0084（Generated Interface）</li>
+    <li><strong>跨仓库</strong>：本提案是三个库共用的唯一提案，MachOObjCSection 与 RuntimeViewer 的提案索引各有一行 cross-repository draft 指向这里；各库的部分见「三个库各做什么」</li>
+    <li><strong>实现分支 / PR</strong>：三个仓库都是 <code>feature/swift-first-imported-declarations</code>（从各自的 <code>next</code> 切出），本地合进各自的 <code>next</code>，没开 PR</li>
+  </ul>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>14 条，最近一条：2026-11-18 Implemented，取号 0096，合进 <code>next</code> 并推送</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>决定</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-17</td><td>Created as Draft</td><td>RuntimeViewer 的 Generated Interface 里，系统框架中的 <code>@objc @implementation</code> 类大多数成员仍是按 selector 推导的名字与 <code>Any!</code>；用户要求 Swift 实现的类以 Swift 一侧的类型与签名为准，只有 Swift 一侧没有的才用 ObjC 一侧的</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>ObjC 属性与 Swift 一侧的属性同名而类型对不上时（<code>settings</code>），Swift 视图用结构化注释写出它的 <code>__settings</code> 声明，ObjC 头文件给它标 <code>NS_REFINED_FOR_SWIFT</code>；MachOObjCSection 现在不会打这个宏，要给它加上，接口为日后的 <code>NS_SWIFT_NAME</code> 留好位置</td><td>用户选定。两边各用自己的语言说同一件事，与 SDK 里头文件和它导入后的样子一致</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>本库用自己的类型给出改了名的成员，由 RuntimeViewer 转成 MachOObjCSection 的输入；<code>swift-section</code> 的 ObjC 头文件暂不打这个宏</td><td>本库按版本依赖 MachOObjCSection，直接用它的新类型就得先发版、再抬下限；RuntimeViewer 按分支依赖两个库，不用等</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>三个库共用这一份提案，另两个仓库的提案索引各加一行 cross-repository draft</td><td>一次改动一份提案；MachOObjCSection 的索引里已有这种跨仓库草案的先例</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>用户批准，开始实现</td><td>按 MachOObjCSection → 本库 → RuntimeViewer 的顺序做，三个仓库各一条 <code>feature/swift-first-imported-declarations</code></td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>构建与测试改在 JHs-MacBook-Pro 上跑</td><td>JHs-Mac-Studio-Ultra 当天连不上 GitHub（22 与 443 端口都在本地被断开），代码只经 GitHub 同步，网络设置不动</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>本库按 <code>USING_LOCAL_DEPENDENCIES=1</code> 配 swift-demangling <code>next</code> 的同级检出来编</td><td>本库 <code>next</code> 用到 swift-demangling 还没发版的 <code>DemangleOptions.useExistentialAny</code>，按发布版 0.7.3 编不过；锁文件不进 git，CI 以外都这样编</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>RuntimeViewer 的功能分支接在 <code>origin/next</code> 上</td><td>本地 <code>next</code> 有 6 个别处还没推的提交（与本改动无关的文件），推功能分支会把它们带上 GitHub</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>只剩 ivar 的存储属性，找它的 ObjC 属性先认 <code>V&lt;ivar&gt;</code>，再认同名</td><td>夹具编出的 ObjC 属性特性串不写 <code>V</code>，SceneHosting 的写；两种都要认</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td><code>NS_REFINED_FOR_SWIFT</code> 注释把声明压成一行（<code>{ get set }</code>）</td><td>原样打印时访问器块占好几行，只有第一行在注释里</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>夹具照编译器的要求写：改名属性的实现写成 <code>@objc(name) var __name</code>；<code>isHostingSceneLayer:</code> 的 Swift 名由头文件的 <code>NS_SWIFT_NAME</code> 给，实现写 <code>@objc(isHostingSceneLayer:)</code></td><td>编译器拒绝不写 selector 的 <code>__name</code>（它从 Swift 名推出 <code>__name</code>，头文件里没有），也从 <code>isHosting(sceneLayer:)</code> 推出 <code>isHostingWithSceneLayer:</code>；importer 自己不会把 <code>isHostingSceneLayer:</code> 拆成 <code>isHosting(sceneLayer:)</code>，参数类带前缀也一样，所以 SceneHosting 的这个名字来自 <code>NS_SWIFT_NAME</code>，后续项据此更正</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>实现完成，待用户看过后收尾</td><td>三个库在 JHs-MacBook-Pro（macOS 27.2，Xcode 27.2）上验证：MachOObjCSection 的 <code>ObjCInterfaceTests</code> 与 <code>ObjCDeclarationRenderingTests</code> 全过；本库新测试改动前失败、改动后通过，相关套件全过，全量（跳过 IntegrationTests）与不含改动的 <code>next</code> 失败点完全相同（167 处，SymbolTests 夹具的 ABI 基线按 Xcode 26.6 录、模拟器 runtime 缺文件）；RuntimeViewerCore 的新测试与 Generated Interface 测试全过。RuntimeViewer 锁文件里两个库的修订号留到正式收尾再抬：两个库的改动那时才进各自的 <code>next</code>。不另写实现说明与使用指南：契约写进了两份模块参考、命令行指南与 MachOObjCSection 的使用指南；新术语「改名成员」与 MachOObjCSection 的「Swift 导入标注」已登记</td></tr>
+          <tr><td class="numeric">2026-11-17</td><td>推断出改了名的属性，注释挂到占了它原名的 Swift 属性正上方（排在那个属性自己的注释之前）；注释里的声明分段：属性名 <code>.name</code>、类型 <code>.type</code>，<code>var </code>、声明里的冒号和访问器块不带角色。类体里没有那个 Swift 属性、或导出过滤滤掉了它时，注释留在原处</td><td>用户在 RuntimeViewer 里看过效果后定的：注释放在类体末尾，离它说的那个属性太远；整条声明是一个 <code>.value</code> 段，宿主只能整段一个颜色。宿主会藏起 <code>.separator</code> 里的标点，所以声明里的冒号不能标成 separator</td></tr>
+          <tr><td class="numeric">2026-11-18</td><td>Implemented，取号 0096，合进 <code>next</code> 并推送</td><td>用户在 RuntimeViewer 里看过注释的新位置与分段着色，同意收尾。追加的两处在 JHs-Mac-Studio-Ultra（macOS 27.2，Xcode 27.2）上验证：两个新用例改动前失败、改动后通过，相关的 9 个套件 73 个测试全过。仍不另写实现说明与使用指南：位置与分段写进了命令行指南的「The Swift view」、插件 skill 与术语表的「改名成员」，没有新术语。<code>NS_SWIFT_NAME</code> 与 <code>swift-section</code> 的 ObjC 头文件打宏两项留作后续项</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
 
 </main>
+</div>
 </body>
 </html>

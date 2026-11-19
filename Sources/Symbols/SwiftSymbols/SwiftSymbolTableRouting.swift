@@ -15,8 +15,11 @@ struct SwiftSymbolTableRouting: SymbolTableRouting {
         case symbolicMangling
     }
 
+    /// Reads the name with this package's own Swift rules rather than the
+    /// `language` the registry gave: the Swift index must not go empty
+    /// because a registration did not run.
     func table(forSymbolNamed name: UnsafePointer<CChar>, language: SymbolLanguage) -> Table? {
-        guard language == .swift else { return nil }
+        guard SwiftSymbolNameRecognition.recognizes(name) else { return nil }
         return nameBytesHaveSymbolicManglingSymbolPrefix(name) ? .symbolicMangling : .swift
     }
 

@@ -13,7 +13,7 @@ import SwiftSectionFixtureSupport
 /// leg — the one the fixture-file suite cannot exercise — is covered end
 /// to end:
 ///
-/// 1. MachOKitExtensions' `SymbolLanguage`, which tells Swift names from the
+/// 1. `SwiftSymbolNameRecognition`, which tells Swift names from the
 ///    others byte by byte, agrees with `String.isSwiftSymbol` on every entry
 ///    of a real symbol table once the symbolic-mangling names (Swift too,
 ///    but no mangling) are set apart (it re-states the demangler's prefix
@@ -25,14 +25,14 @@ import SwiftSectionFixtureSupport
 ///    materialized name with that row (the dictionary it replaced was
 ///    keyed on those exact strings).
 final class SymbolTableImageEquivalenceTests: MachOImageTests, @unchecked Sendable {
-    @Test func symbolLanguageSwiftMatchesDemanglingIsSwiftSymbol() throws {
+    @Test func swiftRecognitionMatchesDemanglingIsSwiftSymbol() throws {
         var checkedCount = 0
         var mismatchCount = 0
         func check(nameC: UnsafePointer<CChar>, name: String) {
             // Evaluated before the `&&`: its right side is an autoclosure, and capturing
             // the non-Sendable pointer there is a region-isolation error in release builds.
             let hasSymbolicManglingPrefix = nameBytesHaveSymbolicManglingSymbolPrefix(nameC)
-            let isSwiftMangling = SymbolLanguage(ofSymbolNameBytes: nameC) == .swift && !hasSymbolicManglingPrefix
+            let isSwiftMangling = SwiftSymbolNameRecognition.recognizes(nameC) && !hasSymbolicManglingPrefix
             if isSwiftMangling != name.isSwiftSymbol {
                 mismatchCount += 1
                 if mismatchCount <= 3 {
