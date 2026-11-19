@@ -3358,6 +3358,30 @@
   - 落地当天加跑 release 测试。MachOKitExtensions 161 个全过。本库 2,901 个测试里红 6 条：`SpecializedRuntimeTypeNameTests` 的 5 条是已知的 release 必红，release 优化把测试里没用到的私有类型删掉了，CI 的名单也不含这个套件；`LargeStackTaskExecutionTests.demanglerEntriesInsideTheBodyDoNotHop` 是满载下的偶发，单独连跑三次都过。
 - **对应版本**：0.25.0（MachOKitExtensions 2.0.0、MachOObjCSection 0.8.207）。
 
+## 140. 0.25.0 发版
+
+- **时间段**：2026-11-19。
+- **动机**：用户批准发 0.25.0，并把等它的三份搬迁同日合入（第 138、139 节）。0.24.0 以来 `next` 另有第 108–137 节，以及两节还没编号的 SwiftDeclaration 整理里已经合进来的部分（它们的提案还在进行）。
+- **关键决策**：
+  - **① 发版顺序**：swift-demangling 0.7.4 → MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0。每一步依赖前一步的 tag，前一步发出后下一步才能只走远端依赖编过。
+  - **② swift-demangling 发 0.7.4**：0092 用到它 `next` 上的 `DemangleOptions.useExistentialAny`，一直没发版。`next` 上另有 0019（`Demangler` / `Remangler` 改为 `~Copyable`，都是 internal），两者都不破坏兼容，按它的惯例发补丁版；本库要求抬到 `"0.7.4"..<"0.8.0"`。发版前在 Ultra 上用 Xcode 26.6 跑过它的全部测试，651 个通过。
+  - **③ 0057 的废弃读取写法按期删除**：期限两次顺延后定在 0.25.0，条件是 MachOKitUI 与 swift-decompiler 先改用 `ReadingContext`，两者都已改。删除随第 138 节的搬迁分支进来，Changelog 的 Breaking 写明。
+  - **④ Changelog 约 5,400 字符**，超出大版本 4,000 字符的预算：Breaking 有 13 条，每条都要调用方改代码（模块搬家、符号索引改名、旧读取写法删除、快照格式 13、默认写 `any`、几个新 case 与类型变化、依赖下限）。
+  - **⑤ 版本号**：`Version.swift` 与两个 `plugin.json` 改为 0.25.0；插件 skill 里「after 0.24.0」的标注改为「from 0.25.0」。README 的安装示例与 product 表已由搬迁分支改好。
+  - **⑥ 下游**：
+    - MachOKitUI 要求 MachOKitExtensions `from: "1.3.0"`，与 0.25.0 要的 2.0.0 冲突，所以会继续解析到 0.24.x，不会突然编不过；它改用 2.0.0 是它自己的后续提案。
+    - swift-decompiler 跟本库的 `next`，只用 `SwiftInterface`、`SwiftDump`、`SwiftDeclarationRendering`、`SwiftLayout` 四个 product。
+    - RuntimeViewer 跟 `next`，要同日把 `MachODependencies` 改从 MachOKitExtensions 取。
+- **落地模块**：`Sources/Executables/swift-section/Version.swift`、`AgentPlugins/swift-section/`（两个 `plugin.json`、skill）、`Changelogs/0.25.0.md`、`Package.swift`（MachOObjCSection 与 swift-demangling 的下限）、本账本（第 108–139 节的对应版本、本节）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上，Xcode 26.6。
+  - 发版提交，`git archive` 导出的干净副本，只走远端依赖（MachOKitExtensions 2.0.0、MachOObjCSection 0.8.207、swift-demangling 0.7.4），scratch 是新的。
+  - 照 release 配置编 `swift-section` 通过，`--version` 输出 0.25.0。
+  - 有 3 条 warning：`SwiftDeclarationPrinter+ObjCImportedDefinitions.swift` 里 `try await MemberList` 下没有会抛错的调用。这段代码本分支没动过，`next` 上原样就有。
+  - 两侧 release 测试的结果见第 139 节。
+  - `claude-isolated plugin validate` 对插件目录与 marketplace（`--strict`）都通过；本机没有 Codex 的 `validate_plugin.py`，这一项没做，这次两个 `plugin.json` 只改了版本号。
+- **关联文档**：[Changelogs/0.25.0.md](../../Changelogs/0.25.0.md)。
+- **对应版本**：0.25.0。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
