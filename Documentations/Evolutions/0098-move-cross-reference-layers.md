@@ -1,16 +1,16 @@
-# Draft - 交叉引用的核心层与 ObjC 层迁出本库
+# 0098 - 交叉引用的核心层与 ObjC 层迁出本库
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-19
 - **最后更新**: 2026-11-19
 - **所属愿景**: [不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)（「我们选的方向」第 6 条：分层归属）
 - **关联提案**:
   - [0097 offline-cross-references-and-symbolication](0097-offline-cross-references-and-symbolication.md)：在本库里把交叉引用拆成核心、ObjC、Swift 三层，并给下层定好了落脚处与名字；它的「非目标」第一条留给本提案的五个问题，在这里逐一定下。
-  - MachOKitExtensions [draft-move-reading-and-resolving-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/feature/move-reading-and-resolving-modules/Documentations/Evolutions/draft-move-reading-and-resolving-modules.md) 与 [draft-move-macho-infrastructure-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/feature/move-macho-infrastructure-modules/Documentations/Evolutions/draft-move-macho-infrastructure-modules.md)（都已 Accepted，已实现、未落地）：把本库的读取层与 MachO 基础模块搬进 MachOKitExtensions 2.0.0。本提案的实现叠在它们的分支上，三份同日落地。
-- **跨仓库**: 本提案是 MachOKitExtensions、MachOObjCSection 与本库共用的唯一提案；另外两个仓库的提案索引各加一行 cross-repository draft 指向这里（落地步骤第 1 步）。
+  - MachOKitExtensions [0002 move-reading-and-resolving-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0002-move-reading-and-resolving-modules.md) 与 [0003 move-macho-infrastructure-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md)（与本提案同日落地，都是 Implemented）：把本库的读取层与 MachO 基础模块搬进 MachOKitExtensions 2.0.0。本提案的实现叠在它们的分支上，三份同日落地。
+- **跨仓库**: 本提案是 MachOKitExtensions、MachOObjCSection 与本库共用的唯一提案；另外两个仓库的提案索引各加一行 cross-repository 指向这里（落地步骤第 1 步）。
 - **实现分支 / PR**: 三个仓库都是 `feature/move-cross-reference-layers`。本库与 MachOKitExtensions 从各自的 `feature/move-macho-infrastructure-modules` 切出，MachOObjCSection 从 `next` 切出。
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **配套文档**: 实现说明 MachOKitExtensions [MachOCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md)、[MachOAddressResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOAddressResolution.md)、[ARM64InstructionDecoding.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/ARM64InstructionDecoding.md)，MachOObjCSection [ObjCCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/main/Documentations/Internal/ObjCCodeReferences.md)；三层的总说明仍是本库的 [Modules/CrossReferenceAnalysis.md](../Internal/Modules/CrossReferenceAnalysis.md)。不另写使用指南：调用方契约没变
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -178,8 +178,8 @@
 | `Documentations/Internal/MachOCodeReferences.md`、`MachOAddressResolution.md`、`ARM64InstructionDecoding.md` | 新增（从本库搬入并改写） | 本库同名模块文档的内容，加 SPI 与 Linux 说明 | 文档跟代码走 | 5 |
 | `Documentations/Internal/SharedCache.md` | 修改 | `thunkResolution` 组那一行的 `CacheImageResolver` 改成 `CacheImageLocator`（类型在 `MachOAddressResolution`） | 0097 改了本库那份 `MachOCaches.md`，而它在基础设施搬迁里已搬来这里；第 0 步合并时本库那份保持删除 | 2 |
 | `Documentations/Evolutions/README.md` | 修改 | 加 cross-repository draft 一行指向本提案 | 跨仓库提案的登记方式 | 1 |
-| `Documentations/Evolutions/draft-move-macho-infrastructure-modules.md` | 修改 | 第 109 行与第 189 行的图改为 `ARM64InstructionDecoding` 也搬；决策日志加一行；落地清单的顺序改成第 6 节 | 第 1、6 节 | 1 |
-| `Documentations/Evolutions/draft-move-reading-and-resolving-modules.md` | 修改 | 决策日志加一行：落地顺序改成 MachOKitExtensions 2.0.0 先于 MachOObjCSection 的 tag | 第 6 节 | 1 |
+| `Documentations/Evolutions/0003-move-macho-infrastructure-modules.md（MachOKitExtensions）` | 修改 | 第 109 行与第 189 行的图改为 `ARM64InstructionDecoding` 也搬；决策日志加一行；落地清单的顺序改成第 6 节 | 第 1、6 节 | 1 |
+| `Documentations/Evolutions/0002-move-reading-and-resolving-modules.md（MachOKitExtensions）` | 修改 | 决策日志加一行：落地顺序改成 MachOKitExtensions 2.0.0 先于 MachOObjCSection 的 tag | 第 6 节 | 1 |
 | `Documentations/README.md` | 修改 | 登记三份模块文档 | 文档索引 | 5 |
 
 ### MachOObjCSection（`feature/move-cross-reference-layers`，从 `next` 切出）
@@ -504,7 +504,7 @@ import MachOReading
 5. **文档与验收**（已完成） —— 步骤列为 5 的各行；吞吐、渲染 A/B、三个仓库的全量测试、RuntimeViewer 沙盒构建。
    - 行为：`scanThroughputAfterTheMoveIsRecordedInTheModuleDocument`（不是断言：整 cache 建表与两条查询的耗时写进 `MachOCodeReferences.md`，相对基线超过 +5% 先查原因再落地）
    - 行为：渲染 A/B 三条读取路径逐字节一致
-6. **落地（随 0.25.0）** —— 第 6 节的顺序：MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 `"0.8.207"..<"0.9.0"`）→ RuntimeViewer 抬钉，并照基础设施搬迁提案改 `RuntimeViewerCore/Package.swift`（`MachODependencies` 改从 MachOKitExtensions 取）；本提案取号、改 Implemented，`Changelogs/0.25.0.md` 写 Breaking，账本加一节。
+6. **落地（随 0.25.0）**（已完成） —— 第 6 节的顺序：MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 `"0.8.207"..<"0.9.0"`）→ RuntimeViewer 抬钉，并照基础设施搬迁提案改 `RuntimeViewerCore/Package.swift`（`MachODependencies` 改从 MachOKitExtensions 取）；本提案取号、改 Implemented，`Changelogs/0.25.0.md` 写 Breaking，账本加一节。
    - 行为：用远端依赖（不设 `USING_LOCAL_DEPENDENCIES`）、Xcode 26.6 编过本库并跑完 CI 名单里的套件
    - 行为：三个仓库除 debug 全量测试外，都再用 `swift test -c release` 跑一次（本库加 `--skip IntegrationTests`，与 CI 的 release 任务一致）；之前三个仓库的测试都只在 debug 下跑过
 
@@ -541,3 +541,5 @@ import MachOReading
 | 2026-11-19 | 渲染 A/B 全部一致 | 基线 `origin/next`（`9d5c0310`），候选是本提案的分支（同时包含两份搬迁提案，所以这一轮也补上了基础设施搬迁欠的 A/B）：归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 26.5 模拟器、进程内，共 84 对 dump 与 interface 逐字节一致，没有缺失与跳过 |
 | 2026-11-19 | RuntimeViewer 验证 | 沙盒里导出 RuntimeViewer 的 `next`（`6cb25e09`）与本提案的分支，MachOKitExtensions、MachOObjCSection 用本提案分支的副本：Core（含测试）、CLI、MCP 三个包都编过，RuntimeViewer 的源码一行没改；交叉引用测试 82 个通过（1 个预先标记的已知问题）。第一轮跑到一半退出码 1、没有汇总也没有崩溃报告，原样重跑一遍全过，原因没查明。另发现基础设施搬迁要求 RuntimeViewer 改清单：`RuntimeViewerCore/Package.swift:269` 从本库取 `MachODependencies`，搬迁后这个 product 只在 MachOKitExtensions，解析失败；沙盒里临时改成从 MachOKitExtensions 取才编得下去。用户决定落地那天再改 RuntimeViewer，记在基础设施搬迁提案（本提案的 MachOKitExtensions 分支上）与第 6 步 |
 | 2026-11-19 | 实现完成，待用户看过后收尾 | 第 0 到 5 步都已完成，第 6 步（落地）随 0.25.0。功能分支没有合进任何常驻检出：两份搬迁提案定了它们的分支只推送、不合进常驻检出，本提案叠在它们上面，照同样的规矩（MachOKitExtensions 的 `main` 一合，本库主检出与 MachOKitUI 就报模块重名）。文档判断：不另写使用指南，调用方契约没变（门面不变）；实现说明写在 MachOKitExtensions 的 `MachOCodeReferences.md`、`MachOAddressResolution.md`、`ARM64InstructionDecoding.md` 与 MachOObjCSection 的 `ObjCCodeReferences.md`，本库的 `Modules/CrossReferenceAnalysis.md` 仍是三层的总说明；没有新术语，术语表只改了链接。Ultra 上候选 worktree 的 `Package.swift` 有一处不提交的改动，把两个兄弟依赖指向 agent 沙盒 `LocalDependencies/MoveCrossReferenceLayers`，拉新代码前要先还原 |
+| 2026-11-19 | 落地前的 release 测试 | 两侧都在 JHs-Mac-Studio-Ultra 上用 Xcode 26.6 跑 `swift test -c release`。MachOKitExtensions 161 个测试全过；两份搬迁提案记作后续项的 `readersOfOneCacheFileShareOneMapping` 已随第 7 步搬进 MachOKitExtensions，也通过。本库加 `--skip IntegrationTests`，2,901 个测试里红 6 条，都不是本提案带来的：`SpecializedRuntimeTypeNameTests` 的 5 条是已知的 release 必红（release 优化把测试里没用到的私有类型连描述符一起删了，CI 的套件名单不含它）；`LargeStackTaskExecutionTests.demanglerEntriesInsideTheBodyDoNotHop` 在满载的全量里第 3.2 秒才轮到，`executeAsync` 被挤到了别的线程，单独连跑三次都通过。渲染 A/B 不重跑：落地前后代码没变，第 4 步的 84 对仍然覆盖 |
+| 2026-11-19 | Implemented，编号 0098，随 0.25.0 落地 | 按第 6 节的顺序同日落地：MachOKitExtensions 把本提案的分支（已含两份搬迁分支与 `main` 的全部提交）快进到 `main`，打 2.0.0，两份搬迁提案取号 0002、0003；MachOObjCSection 把分支 `--no-ff` 合进 `next` 并快进 `main`，CI 通过后打 0.8.207；本库把 MachOObjCSection 的要求改成 `"0.8.207"..<"0.9.0"`，swift-demangling 改成 `"0.7.4"..<"0.8.0"`（0092 用到它 `next` 上的 `useExistentialAny`，0.7.4 同日发布），分支合进 `next` 后随 0.25.0 发布，账本第 138 节记两份搬迁、第 139 节记本提案。三个仓库的提案索引都改成编号链接，MachOObjCSection 索引里 0088、0096 两行过时的 cross-repository draft 一并改正。RuntimeViewer 照基础设施搬迁提案改清单、抬钉。没做的：MachOObjCSection 文档注释里的旧名 `SymbolIndexStore`（`ObjCExportIndex.swift:129`）留着，那是基础设施搬迁的遗留，不在本提案范围 |

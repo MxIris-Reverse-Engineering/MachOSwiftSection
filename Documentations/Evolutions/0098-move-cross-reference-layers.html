@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Draft - 交叉引用的核心层与 ObjC 层迁出本库</title>
+<title>0098 - 交叉引用的核心层与 ObjC 层迁出本库</title>
 <style>
 :root {
   --bg: #ffffff; --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --panel: #f5f5f7; --code: #f2f2f5;
@@ -63,15 +63,17 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <body>
 <main>
 
-<h1>Draft - 交叉引用的核心层与 ObjC 层迁出本库</h1>
+<h1>0098 - 交叉引用的核心层与 ObjC 层迁出本库</h1>
 <div class="meta">
-  <span>状态：<b>In Progress</b></span>
+  <span>状态：<b>Implemented</b></span>
   <span>对应提案最后更新：<b>2026-11-19</b></span>
   <span>作者：JH</span>
   <span>创建：2026-11-19</span>
   <span>所属愿景：<a href="../Visions/ReverseEngineeringWithoutIDA.md">不依赖 IDA 的逆向</a>（第 6 条：分层归属）</span>
 </div>
-<p class="meta">本页是 <code>draft-move-cross-reference-layers.md</code> 的网页版，两者对不上时以 Markdown 原文为准。实现分支：三个仓库都是 <code>feature/move-cross-reference-layers</code>（本库与 MachOKitExtensions 从 <code>feature/move-macho-infrastructure-modules</code> 切出，MachOObjCSection 从 <code>next</code> 切出）。本提案是三个仓库共用的唯一提案。</p>
+<p class="meta">本页是 <code>0098-move-cross-reference-layers.md</code> 的网页版，两者对不上时以 Markdown 原文为准。实现分支：三个仓库都是 <code>feature/move-cross-reference-layers</code>（本库与 MachOKitExtensions 从 <code>feature/move-macho-infrastructure-modules</code> 切出，MachOObjCSection 从 <code>next</code> 切出）。本提案是 MachOKitExtensions、MachOObjCSection 与本库共用的唯一提案；另外两个仓库的提案索引各加一行 cross-repository 指向这里（落地步骤第 1 步）。</p>
+<p class="meta">关联提案：<a href="0097-offline-cross-references-and-symbolication.md">0097 offline-cross-references-and-symbolication</a>（在本库里把交叉引用拆成核心、ObjC、Swift 三层，并给下层定好了落脚处与名字；它的「非目标」第一条留给本提案的五个问题，在这里逐一定下）；MachOKitExtensions <a href="https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0002-move-reading-and-resolving-modules.md">0002 move-reading-and-resolving-modules</a> 与 <a href="https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md">0003 move-macho-infrastructure-modules</a>（与本提案同日落地，都是 Implemented：把本库的读取层与 MachO 基础模块搬进 MachOKitExtensions 2.0.0。本提案的实现叠在它们的分支上，三份同日落地）。</p>
+<p class="meta">配套文档：实现说明 MachOKitExtensions <a href="https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md">MachOCodeReferences.md</a>、<a href="https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOAddressResolution.md">MachOAddressResolution.md</a>、<a href="https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/ARM64InstructionDecoding.md">ARM64InstructionDecoding.md</a>，MachOObjCSection <a href="https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/main/Documentations/Internal/ObjCCodeReferences.md">ObjCCodeReferences.md</a>；三层的总说明仍是本库的 <a href="../Internal/Modules/CrossReferenceAnalysis.md">Modules/CrossReferenceAnalysis.md</a>。不另写使用指南：调用方契约没变。</p>
 
 <nav class="toc">
   <a href="#summary">摘要</a><a href="#decide">要定的事</a><a href="#architecture">架构图</a><a href="#map">改动地图</a>
@@ -152,8 +154,8 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <tr><td><code>Documentations/Internal/MachOCodeReferences.md</code>、<code>MachOAddressResolution.md</code>、<code>ARM64InstructionDecoding.md</code></td><td><span class="tag add">新增（从本库搬入并改写）</span></td><td>本库同名模块文档的内容，加 SPI 与 Linux 说明</td><td>文档跟代码走</td><td>5</td></tr>
 <tr><td><code>Documentations/Internal/SharedCache.md</code></td><td><span class="tag mod">修改</span></td><td><code>thunkResolution</code> 组那一行的 <code>CacheImageResolver</code> 改成 <code>CacheImageLocator</code>（类型在 <code>MachOAddressResolution</code>）</td><td>0097 改了本库那份 <code>MachOCaches.md</code>，而它在基础设施搬迁里已搬来这里；第 0 步合并时本库那份保持删除</td><td>2</td></tr>
 <tr><td><code>Documentations/Evolutions/README.md</code></td><td><span class="tag mod">修改</span></td><td>加 cross-repository draft 一行指向本提案</td><td>跨仓库提案的登记方式</td><td>1</td></tr>
-<tr><td><code>Documentations/Evolutions/draft-move-macho-infrastructure-modules.md</code></td><td><span class="tag mod">修改</span></td><td>第 109 行与第 189 行的图改为 <code>ARM64InstructionDecoding</code> 也搬；决策日志加一行；落地清单的顺序改成第 6 节</td><td>第 1、6 节</td><td>1</td></tr>
-<tr><td><code>Documentations/Evolutions/draft-move-reading-and-resolving-modules.md</code></td><td><span class="tag mod">修改</span></td><td>决策日志加一行：落地顺序改成 MachOKitExtensions 2.0.0 先于 MachOObjCSection 的 tag</td><td>第 6 节</td><td>1</td></tr>
+<tr><td><code>Documentations/Evolutions/0003-move-macho-infrastructure-modules.md（MachOKitExtensions）</code></td><td><span class="tag mod">修改</span></td><td>第 109 行与第 189 行的图改为 <code>ARM64InstructionDecoding</code> 也搬；决策日志加一行；落地清单的顺序改成第 6 节</td><td>第 1、6 节</td><td>1</td></tr>
+<tr><td><code>Documentations/Evolutions/0002-move-reading-and-resolving-modules.md（MachOKitExtensions）</code></td><td><span class="tag mod">修改</span></td><td>决策日志加一行：落地顺序改成 MachOKitExtensions 2.0.0 先于 MachOObjCSection 的 tag</td><td>第 6 节</td><td>1</td></tr>
 <tr><td><code>Documentations/README.md</code></td><td><span class="tag mod">修改</span></td><td>登记三份模块文档</td><td>文档索引</td><td>5</td></tr>
 </tbody>
 </table>
@@ -569,7 +571,7 @@ IndirectCallEvidence(tableOffset: offset, pointerAuthenticationConstant: constan
       <li>行为：<code>scanThroughputAfterTheMoveIsRecordedInTheModuleDocument</code>（不是断言：整 cache 建表与两条查询的耗时写进 <code>MachOCodeReferences.md</code>，相对基线超过 +5% 先查原因再落地）</li>
       <li>行为：渲染 A/B 三条读取路径逐字节一致</li>
     </ul></li>
-  <li><b>落地（随 0.25.0）</b> —— MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 <code>"0.8.207"..&lt;"0.9.0"</code>）→ RuntimeViewer 抬钉，并照基础设施搬迁提案改 <code>RuntimeViewerCore/Package.swift</code>（<code>MachODependencies</code> 改从 MachOKitExtensions 取）；本提案取号、改 Implemented，<code>Changelogs/0.25.0.md</code> 写 Breaking，账本加一节。
+  <li><b>落地（随 0.25.0）</b>（已完成） —— MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207 → 本库 0.25.0（要求改成 <code>"0.8.207"..&lt;"0.9.0"</code>）→ RuntimeViewer 抬钉，并照基础设施搬迁提案改 <code>RuntimeViewerCore/Package.swift</code>（<code>MachODependencies</code> 改从 MachOKitExtensions 取）；本提案取号、改 Implemented，<code>Changelogs/0.25.0.md</code> 写 Breaking，账本加一节。
     <ul><li>行为：用远端依赖（不设 <code>USING_LOCAL_DEPENDENCIES</code>）、Xcode 26.6 编过本库并跑完 CI 名单里的套件</li><li>行为：三个仓库除 debug 全量测试外，都再用 <code>swift test -c release</code> 跑一次（本库加 <code>--skip IntegrationTests</code>，与 CI 的 release 任务一致）；之前三个仓库的测试都只在 debug 下跑过</li></ul></li>
 </ol>
 <p><b>收尾时必须判断两件事</b>（判断结果写进决策日志，不允许沉默跳过）：</p>
@@ -606,6 +608,8 @@ IndirectCallEvidence(tableOffset: offset, pointerAuthenticationConstant: constan
 <tr><td>2026-11-19</td><td>渲染 A/B 全部一致</td><td>基线 <code>origin/next</code>（<code>9d5c0310</code>），候选是本提案的分支（同时包含两份搬迁提案，所以这一轮也补上了基础设施搬迁欠的 A/B）：归档 cache 15.5 与 26.6、iOS 15.5 / 16.4 / 17.5 / 26.5 模拟器、进程内，共 84 对 dump 与 interface 逐字节一致，没有缺失与跳过</td></tr>
 <tr><td>2026-11-19</td><td>RuntimeViewer 验证</td><td>沙盒里导出 RuntimeViewer 的 <code>next</code>（<code>6cb25e09</code>）与本提案的分支，MachOKitExtensions、MachOObjCSection 用本提案分支的副本：Core（含测试）、CLI、MCP 三个包都编过，RuntimeViewer 的源码一行没改；交叉引用测试 82 个通过（1 个预先标记的已知问题）。第一轮跑到一半退出码 1、没有汇总也没有崩溃报告，原样重跑一遍全过，原因没查明。另发现基础设施搬迁要求 RuntimeViewer 改清单：<code>RuntimeViewerCore/Package.swift:269</code> 从本库取 <code>MachODependencies</code>，搬迁后这个 product 只在 MachOKitExtensions，解析失败；沙盒里临时改成从 MachOKitExtensions 取才编得下去。用户决定落地那天再改 RuntimeViewer，记在基础设施搬迁提案（本提案的 MachOKitExtensions 分支上）与第 6 步</td></tr>
 <tr><td>2026-11-19</td><td>实现完成，待用户看过后收尾</td><td>第 0 到 5 步都已完成，第 6 步（落地）随 0.25.0。功能分支没有合进任何常驻检出：两份搬迁提案定了它们的分支只推送、不合进常驻检出，本提案叠在它们上面，照同样的规矩（MachOKitExtensions 的 <code>main</code> 一合，本库主检出与 MachOKitUI 就报模块重名）。文档判断：不另写使用指南，调用方契约没变（门面不变）；实现说明写在 MachOKitExtensions 的 <code>MachOCodeReferences.md</code>、<code>MachOAddressResolution.md</code>、<code>ARM64InstructionDecoding.md</code> 与 MachOObjCSection 的 <code>ObjCCodeReferences.md</code>，本库的 <code>Modules/CrossReferenceAnalysis.md</code> 仍是三层的总说明；没有新术语，术语表只改了链接。Ultra 上候选 worktree 的 <code>Package.swift</code> 有一处不提交的改动，把两个兄弟依赖指向 agent 沙盒 <code>LocalDependencies/MoveCrossReferenceLayers</code>，拉新代码前要先还原</td></tr>
+<tr><td>2026-11-19</td><td>落地前的 release 测试</td><td>两侧都在 JHs-Mac-Studio-Ultra 上用 Xcode 26.6 跑 <code>swift test -c release</code>。MachOKitExtensions 161 个测试全过；两份搬迁提案记作后续项的 <code>readersOfOneCacheFileShareOneMapping</code> 已随第 7 步搬进 MachOKitExtensions，也通过。本库加 <code>--skip IntegrationTests</code>，2,901 个测试里红 6 条，都不是本提案带来的：<code>SpecializedRuntimeTypeNameTests</code> 的 5 条是已知的 release 必红（release 优化把测试里没用到的私有类型连描述符一起删了，CI 的套件名单不含它）；<code>LargeStackTaskExecutionTests.demanglerEntriesInsideTheBodyDoNotHop</code> 在满载的全量里第 3.2 秒才轮到，<code>executeAsync</code> 被挤到了别的线程，单独连跑三次都通过。渲染 A/B 不重跑：落地前后代码没变，第 4 步的 84 对仍然覆盖</td></tr>
+<tr><td>2026-11-19</td><td>Implemented，编号 0098，随 0.25.0 落地</td><td>按第 6 节的顺序同日落地：MachOKitExtensions 把本提案的分支（已含两份搬迁分支与 <code>main</code> 的全部提交）快进到 <code>main</code>，打 2.0.0，两份搬迁提案取号 0002、0003；MachOObjCSection 把分支 <code>--no-ff</code> 合进 <code>next</code> 并快进 <code>main</code>，CI 通过后打 0.8.207；本库把 MachOObjCSection 的要求改成 <code>"0.8.207"..&lt;"0.9.0"</code>，swift-demangling 改成 <code>"0.7.4"..&lt;"0.8.0"</code>（0092 用到它 <code>next</code> 上的 <code>useExistentialAny</code>，0.7.4 同日发布），分支合进 <code>next</code> 后随 0.25.0 发布，账本第 138 节记两份搬迁、第 139 节记本提案。三个仓库的提案索引都改成编号链接，MachOObjCSection 索引里 0088、0096 两行过时的 cross-repository draft 一并改正。RuntimeViewer 照基础设施搬迁提案改清单、抬钉。没做的：MachOObjCSection 文档注释里的旧名 <code>SymbolIndexStore</code>（<code>ObjCExportIndex.swift:129</code>）留着，那是基础设施搬迁的遗留，不在本提案范围</td></tr>
 </tbody>
 </table>
 

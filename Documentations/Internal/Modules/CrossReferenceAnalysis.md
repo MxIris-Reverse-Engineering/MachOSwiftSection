@@ -7,7 +7,7 @@
 
 ## 三层与识别器
 
-交叉引用分成三个模块，依赖从上到下（提案 [0097-offline-cross-references-and-symbolication](../../Evolutions/0097-offline-cross-references-and-symbolication.md) 第 2 步在本库里拆开，提案 [move-cross-reference-layers](../../Evolutions/draft-move-cross-reference-layers.md) 把下两层搬去各自的落脚处）。三层的代码一起演进，这份文档是它们的总说明；两个下层仓库里的实现说明只讲各自的边界与测试：
+交叉引用分成三个模块，依赖从上到下（提案 [0097-offline-cross-references-and-symbolication](../../Evolutions/0097-offline-cross-references-and-symbolication.md) 第 2 步在本库里拆开，提案 [0098 move-cross-reference-layers](../../Evolutions/0098-move-cross-reference-layers.md) 把下两层搬去各自的落脚处）。三层的代码一起演进，这份文档是它们的总说明；两个下层仓库里的实现说明只讲各自的边界与测试：
 
 - **`MachOCodeReferences`**（核心层，在 MachOKitExtensions，原名 `CrossReferenceCore`，[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md)）：读取层、镜像集 `CodeImageSet`（镜像、路径、内存区间、按镜像缓存的函数表、链接关系与改名再导出）、函数表、指令扫描与寄存器跟踪、按导入名与链接关系预筛、导出表起名，以及识别器扩展点。不认识任何一种语言：源码里不许出现 `objc_` / `swift_` 开头的字面量（MachOKitExtensions 的 `SourceScanTests`）。离线的地址空间、桩链与槽解析在同包的 `MachOAddressResolution`（原 `CodeAddressResolution`，[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOAddressResolution.md)），手写的 A64 解码在 `ARM64InstructionDecoding`（[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/ARM64InstructionDecoding.md)）。
 - **`ObjCCodeReferences`**（ObjC 层，在 MachOObjCSection，原名 `CrossReferenceObjC`，[实现说明](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/next/Documentations/Internal/ObjCCodeReferences.md)）：`objc_msgSend` 系列与 libobjc 专用入口、`__objc_stubs` 与 cache 共用 selector 桩的含义、selector 与接收者、classref / superref / 类对象、ObjC 方法列表起名、按 selector 与类预筛、libobjc 的运行时辅助函数名单。
@@ -254,7 +254,7 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 单线程解码 AppKit 约 187 MiB/s，比 Capstone 快 25–50 倍（RuntimeViewer 提案落地第一步的探针）。库比探针慢一些（4 线程扫完整个缓存，探针 4.1 秒，库 5.9–6.3 秒），多出来的是起名、建 `CodeReference` 与 selector 字符串；过滤扫描也是先建好每条引用再丢弃，按键提前跳过是能做的优化。
 
-**搬家之后**（2026-11-19，同一台 Ultra，Xcode 26.6，release；提案 [move-cross-reference-layers](../../Evolutions/draft-move-cross-reference-layers.md)）：核心层与 ObjC 层跨包、接口改成 SPI 之后没有变慢，各项比 `next` 快 1% 到 11%（整 cache 建表进程内 2.67 → 2.53 秒、归档 27.2 cache 文件 2.75 → 2.51 秒），引用逐条一致。逐项数字记在 MachOKitExtensions 的 `Documentations/Internal/MachOCodeReferences.md`「吞吐」一节。
+**搬家之后**（2026-11-19，同一台 Ultra，Xcode 26.6，release；提案 [0098 move-cross-reference-layers](../../Evolutions/0098-move-cross-reference-layers.md)）：核心层与 ObjC 层跨包、接口改成 SPI 之后没有变慢，各项比 `next` 快 1% 到 11%（整 cache 建表进程内 2.67 → 2.53 秒、归档 27.2 cache 文件 2.75 → 2.51 秒），引用逐条一致。逐项数字记在 MachOKitExtensions 的 `Documentations/Internal/MachOCodeReferences.md`「吞吐」一节。
 
 ## 测试锚点
 
