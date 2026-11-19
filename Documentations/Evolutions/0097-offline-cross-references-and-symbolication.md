@@ -1,6 +1,6 @@
-# Draft - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache
+# 0097 - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-18
 - **最后更新**: 2026-11-19
@@ -15,9 +15,9 @@
     （两份都已 Accepted）：把本库的读取层、`MachOPointers` / `MachOCaches` / `MachODependencies` 与语言无关的
     `MachOSymbols` 迁进 MachOKitExtensions 2.0.0。本提案拆出的核心层与 ObjC 层照同样的走法，**之后另写一份迁移
     提案**搬到 MachOKitExtensions 与 MachOObjCSection（见「提议方案」第 2 节）。
-- **实现分支 / PR**: `feature/offline-cross-references-and-symbolication`，worktree 在 `.worktrees/MachOSwiftSection-OfflineCrossReferences`
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
-- **网页版**: 同目录同名的 `.html`
+- **实现分支 / PR**: 本库与 RuntimeViewer 都是 `feature/offline-cross-references-and-symbolication`（从各自的 `next` 切出），本地合进各自的 `next`，没开 PR
+- **配套文档**: 用法与契约在 [README](../../README.md) 的 `refs` / `symbolicate` 两节、`swift-section` 插件的 [references/cross-references.md](../../AgentPlugins/swift-section/skills/swift-section-cli/references/cross-references.md) 与 RuntimeViewer 的 `Documentations/Guides/CommandLineInterface.md`；实现说明在模块文档 [CrossReferenceAnalysis](../Internal/Modules/CrossReferenceAnalysis.md)、[CrossReferenceCore](../Internal/Modules/CrossReferenceCore.md)、[CrossReferenceObjC](../Internal/Modules/CrossReferenceObjC.md)、[CodeAddressResolution](../Internal/Modules/CodeAddressResolution.md)
+- **网页版**: [0097-offline-cross-references-and-symbolication.html](0097-offline-cross-references-and-symbolication.html)
 
 ## 摘要
 
@@ -1147,6 +1147,14 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 - **有没有引入新术语** —— 预计有「地址符号化（symbolication）」「引用路线（route）」「识别器（recognizer）」，
   以及 stub island、cache 共用桩若术语表里还没有。
 
+## 后续项
+
+- **全面核对没有重做**：2026-11-18 那次用 `otool -tV` 加寄存器跟踪独立生成标准答案、再对照 IDA 的做法，生成脚本与 Finder 26.5.2 都已不在卷上。第 4 步改为 ControlCenter 26.7 三个函数的抽样核对。重做要新写生成标准答案的脚本，先给用户看过再跑。
+- **Swift 类经 ObjC ivar 列表登记的偏移变量没有收**：它们是 `__data` 里的 Swift 字段偏移全局量，不在 `__objc_ivar`（ControlCenter 的 `BentoBackdrop.maskLayer` 就是这样）。
+- **ivar 名字的两个来源有 23 条之差**（共约 182 万条 ivar 引用），没有逐条追。
+- **RuntimeViewer**：三种新目标（ivar、C 字符串、常量字符串）在界面里先不显示；App 工程本身没有构建过，只在沙盒里编过 Core、CLI 与 MCP 三个包；它按版本号依赖本库，用版本号构建要等本库发版、抬版本号之后。交叉引用测试模块整体并发跑时「分析器换新后要重新读名字」那组会超时，是基线就有的问题。
+- **核心层与 ObjC 层迁出本库**：另写迁移提案，要定的事见「非目标」第一条。
+
 ## 决策日志
 
 | 日期 | 变更 | 说明 |
@@ -1180,3 +1188,4 @@ RuntimeViewer 的 CLI 使用指南与 `runtime-viewer` skill。
 | 2026-11-19 | 渲染 A/B 验证全部一致 | 桩与槽的解析从 `SwiftThunkAnalysis` 抽成共用模块，动到了读取层，按 AGENTS.md 跑系统框架渲染 A/B：基线是开工时的 `next`（f8b25d2a），三条读取路径共 84 对 dump 与 interface 逐字节一致（归档 cache 15.5 与 26.6、iOS 15.5 至 26.5 模拟器、进程内） |
 | 2026-11-19 | RuntimeViewer 交叉引用模块的并发超时是基线就有的 | 在沙盒里对本分支跑 RuntimeViewer 整个交叉引用测试模块（82 条并发），「分析器换新后要重新读名字」的两条等了 60 秒没等到；基线（RuntimeViewer 远端 `next` 加本库 `next`）整模块跑同样有其中一条在同一行失败，两边单跑这一组（18 条）都在 41 秒内全过。是会话队列在整模块并发时被前面的准备工作占满，与本次改动无关，没有修 |
 | 2026-11-19 | 实现完成，待用户看过后收尾 | 九个落地步骤都已完成。本库全量测试（跳过 IntegrationTests）2,993 个零失败；渲染 A/B 84 对一致；RuntimeViewer 一侧在沙盒里对本分支编过 Core、CLI 与 MCP 三个包，新测试全过，App 工程本身没有构建。文档判断：配套使用指南不另写——CLI 的用法与契约写在 README、`swift-section` 插件的 `references/cross-references.md` 与 RuntimeViewer 的 `Guides/CommandLineInterface.md`，实现细节在三份模块文档；新术语「地址符号化」「识别器」「引用路线」「stub island」已登记进术语表。两个仓库的功能分支已在本地合进各自常驻的 `next` 检出，没有推送 |
+| 2026-11-19 | Implemented，取号 0097，两个仓库合进各自的 `next` 并推送 | 用户验收后批准收尾。验收在 JHs-Mac-Studio-Ultra 上用功能分支的 release 版 CLI 做（Xcode 27.2，本地兄弟依赖）：运行中系统 cache 里 `makeKeyAndOrderFront:` 的 439 处发送，0.7 秒；归档 27.0 与 27.2 cache 里 `UINSPasteboardWritingItemProvider` 的两个调用者；cache 共用 `objc_msgSend` 桩解成 selector（`ipsw dyld a2s` 对同一地址只回 `?`），GOT 槽、类对象与未映射地址的符号化；TextEdit 胖文件带 `-a arm64e` 找到 4 处发送，不带时按约定报错。落地前验证沿用「实现完成」一行的结果，之后只改了文档。文档判断不变：不另写使用指南，配套文档登记在头部，新术语已登记。正文去掉了段内硬换行，内容不变。没做完的列在「后续项」 |

@@ -52,7 +52,7 @@
 回答「这个未滑动地址是什么」：落在哪个镜像的哪个段与节，以及在那里的意思——某个函数体里、离起点多远（函数名的来源与列函数时相同，含 ObjC 方法表与 Swift 元数据给的后备名），一个桩或一串 stub island 以及最终通向哪里，一个指针槽（GOT、selector / class / superclass / protocol 引用、ivar 偏移变量）以及里面装的东西，一个 C 字符串或 `CFString`，或者最近的符号加偏移。结构由核心层的 `AddressPlace` 判断，语言层知道的（selector、类、ivar、Swift 类型）由门面补上。`dyld_info` 在 macOS 26 的 SwiftUICore 上给两千多个桩标错名，原因是它按间接符号表认桩，而符号化按桩实际加载的槽认。
 
 - **主要出现在**：`CrossReferenceAnalyzer.symbolication(of:)`、`swift-section symbolicate`、RuntimeViewer 的 `symbolicate` 命令与 `Symbolicate` MCP 工具
-- **延伸阅读**：[draft-offline-cross-references-and-symbolication](Evolutions/draft-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「地址符号化」
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「地址符号化」
 
 ### anchor 协议（anchor protocol）
 
@@ -318,14 +318,14 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 交叉引用扫描里认某一种语言的那一层。核心层只认与语言无关的东西（调用、桩、槽、寄存器跟踪、字符串），在五个时机问各语言层的识别会话：进入函数、遇到只有它认得的调用目标、调用点、算出一个地址、读一个槽。ObjC 层认发送、类与 ivar，Swift 层认类型元数据与 mangled name。核心不 import 任何语言层，新语言加识别器即可，不改核心。
 
 - **主要出现在**：`Sources/Analysis/CrossReferenceCore/Recognition/`、`CrossReferenceObjC`、`CrossReferenceAnalysis/Scanning/SwiftCodeReferenceRecognizer.swift`
-- **延伸阅读**：[draft-offline-cross-references-and-symbolication](Evolutions/draft-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceCore.md](Internal/Modules/CrossReferenceCore.md)
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceCore.md](Internal/Modules/CrossReferenceCore.md)
 
 ### reference route（引用路线，`CodeReferenceRoute`）
 
 一条交叉引用是怎么到达目标的，与目标是什么无关：直接 `bl` / `b`（`direct`）、本镜像的桩（`imageStub`）、cache 镜像之间的 stub island（`stubIsland`）、全缓存共用桩（`cacheSharedStub`）、经指针槽（`pointerSlot`）、算出地址（`addressMaterialization`）、近距离的字面量 `ldr`（`literalLoad`）、经寄存器（`indirect`）。经桩的调用和直接调用一样真；路线是读者在采信之前核对、或亲自去看时顺着走的那条路。
 
 - **主要出现在**：`CodeReference.route`、`swift-section refs` 每行的第五列与 JSON 的 `route`
-- **延伸阅读**：[draft-offline-cross-references-and-symbolication](Evolutions/draft-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「引用种类与路线」
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「引用种类与路线」
 
 ### refined member（改名成员，`NS_REFINED_FOR_SWIFT`）
 
@@ -421,7 +421,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 dyld shared cache 在子缓存之间放的跳板：`bl` 只能跳 ±128 MB，跨子缓存的调用先落到 island，由 island 用 `adrp` / `add` / `br` 算出目标再跳过去。island 不属于任何镜像，也不读槽位——这是它与 [cache-shared stub](#cache-shared-stub全缓存共用桩) 的区别。一串调用可能连过几个 island，交叉引用把整串记作一跳路线 `stubIsland`，符号化列出经过的每一个。
 
 - **主要出现在**：`ARM64Trampoline`、`StubChainResolver`、`CodeReferenceRoute.stubIsland`
-- **延伸阅读**：[draft-offline-cross-references-and-symbolication](Evolutions/draft-offline-cross-references-and-symbolication.md)
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)
 
 ### supplementary APINotes（补充映射）
 

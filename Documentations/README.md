@@ -22,7 +22,7 @@ Documentation is split by audience.
   IDA 退为后备：地址符号化、跨镜像交叉引用、注解反汇编、数据解码、控制流与常量追踪、构建间逐函数比对、按需持久化，
   横跨 MachOKitExtensions、本库、swift-capstone 与 RuntimeViewer；定下手写解码器与 capstone 的分工、不建完整
   中间表示、先现算后落盘、分层归属与正确性的标准答案。第一步是提案
-  [draft-offline-cross-references-and-symbolication](Evolutions/draft-offline-cross-references-and-symbolication.md)。
+  [0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)。
 
 ## External — for library users / other developers
 

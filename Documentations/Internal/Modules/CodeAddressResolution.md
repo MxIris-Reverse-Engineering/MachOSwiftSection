@@ -2,7 +2,7 @@
 
 从 Mach-O 文件里离线读出「一次调用最终落到哪」所需的几样东西：一个镜像的地址空间（`ImageAddressSpace`）、调用途经的跳板链（`StubChainResolver`）、任意指针槽里装着谁（`SlotResolver`），以及 dyld shared cache 里某个地址属于哪个镜像（`CacheImageLocator`）。不认识 Swift、ObjC 的任何元数据。
 
-- 提案：[draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 3 步从 `SwiftThunkAnalysis` 抽出。原来 `ThunkAddressSpace`、`CacheImageResolver` 与 `MachOThunkEnvironment` 里的桩链和槽解析都在那里，只给 accessor thunk 读取用；交叉引用的文件模式（第 4 步）也要同样的东西，于是抽成两边共用的模块。
+- 提案：[0097-offline-cross-references-and-symbolication](../../Evolutions/0097-offline-cross-references-and-symbolication.md) 第 3 步从 `SwiftThunkAnalysis` 抽出。原来 `ThunkAddressSpace`、`CacheImageResolver` 与 `MachOThunkEnvironment` 里的桩链和槽解析都在那里，只给 accessor thunk 读取用；交叉引用的文件模式（第 4 步）也要同样的东西，于是抽成两边共用的模块。
 - 依赖：MachOKit、MachOKitExtensions、`MachOReading`（`MachOFile.readElements`）、`ARM64InstructionDecoding`（跳板形状）。不是 library product，接口都是 `package` 级。
 - 用到它的：`SwiftThunkAnalysis`（`MachOThunkEnvironment` 经它读槽、读桩、找 cache 镜像）、`SwiftDeclarationRendering`（导出表偏移换地址），第 4 步起还有 `CrossReferenceCore` 的文件模式。
 - 将来的落脚处：MachOKitExtensions，改名 `MachOAddressResolution`，随交叉引用核心层一起迁（迁移提案另写）。

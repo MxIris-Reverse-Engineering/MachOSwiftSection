@@ -1,8 +1,8 @@
 # 愿景：不依赖 IDA 的逆向
 
 - **状态**: Active
-- **最后更新**: 2026-11-18
-- **相关提案**: [draft-offline-cross-references-and-symbolication](../Evolutions/draft-offline-cross-references-and-symbolication.md)
+- **最后更新**: 2026-11-19
+- **相关提案**: [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)
 
 愿景**不做具体决定**，它划定一个方向的边界与取舍原则，让后续每个提案不必重新论证一遍。
 具体怎么做写在各自的提案里。
@@ -165,7 +165,7 @@
 
 1. **交叉引用与地址符号化扩展到磁盘文件和归档 cache**——本库已有的进程内分析器支持文件，补几类引用，新增
    符号化器，`swift-section refs` / `symbolicate` 两个子命令，RuntimeViewer 的 CLI 与 MCP 接上交叉引用。
-   提案 [draft-offline-cross-references-and-symbolication](../Evolutions/draft-offline-cross-references-and-symbolication.md)。
+   提案 [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)。
 2. **函数清单与带注解的反汇编**——边界来自 `LC_FUNCTION_STARTS`、符号表、ObjC 方法表的 IMP 与 unwind 信息，
    包括 block 和 `.cold`；用 swift-capstone 出文本，每个调用、地址生成、槽读取都经第 1 步的符号化器标名。
    swift-capstone 的对拍与符号化接口在这一步做。
@@ -200,7 +200,7 @@
 
 | 提案 | 状态 | 它推进了愿景的哪一部分 |
 |------|------|------------------------|
-| [draft-offline-cross-references-and-symbolication](../Evolutions/draft-offline-cross-references-and-symbolication.md) | Draft | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP；顺带把交叉引用按「我们选的方向」第 6 条拆成核心、ObjC、Swift 三层（真正迁出本库另写提案） |
+| [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md) | Implemented | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP；顺带把交叉引用按「我们选的方向」第 6 条拆成核心、ObjC、Swift 三层（真正迁出本库另写提案） |
 
 ---
 

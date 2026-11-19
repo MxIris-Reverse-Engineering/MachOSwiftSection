@@ -7,7 +7,7 @@
 
 ## 三层与识别器
 
-交叉引用分成三个模块，依赖从上到下（提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 2 步）：
+交叉引用分成三个模块，依赖从上到下（提案 [0097-offline-cross-references-and-symbolication](../../Evolutions/0097-offline-cross-references-and-symbolication.md) 第 2 步）：
 
 - **`CrossReferenceCore`**（核心层，将来迁进 MachOKitExtensions，改名 `MachOCodeReferences`）：读取层、镜像集 `CodeImageSet`（镜像、路径、内存区间、按镜像缓存的函数表、链接关系与改名再导出）、函数表、指令扫描与寄存器跟踪、按导入名与链接关系预筛、导出表起名，以及识别器扩展点。不认识任何一种语言：只许 import 将来 MachOKitExtensions 里也有的模块，源码里不许出现 `objc_` / `swift_` 开头的字面量（`CrossReferenceLayerBoundaryTests`）。
 - **`CrossReferenceObjC`**（ObjC 层，将来迁进 MachOObjCSection，改名 `ObjCCodeReferences`）：`objc_msgSend` 系列与 libobjc 专用入口、`__objc_stubs` 与 cache 共用 selector 桩的含义、selector 与接收者、classref / superref / 类对象、ObjC 方法列表起名、按 selector 与类预筛、libobjc 的运行时辅助函数名单。
@@ -19,7 +19,7 @@
 
 ## 文件模式
 
-`CrossReferenceAnalyzer(dyldCache:)` 读一个 cache 文件里的全部镜像（归档的、别的设备的），`CrossReferenceAnalyzer(machOFiles:)` 读一组独立文件（一个 app 的主程序与它自带的框架），公开 API 与进程内一样（提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 4 步）。
+`CrossReferenceAnalyzer(dyldCache:)` 读一个 cache 文件里的全部镜像（归档的、别的设备的），`CrossReferenceAnalyzer(machOFiles:)` 读一组独立文件（一个 app 的主程序与它自带的框架），公开 API 与进程内一样（提案 [0097-offline-cross-references-and-symbolication](../../Evolutions/0097-offline-cross-references-and-symbolication.md) 第 4 步）。
 
 - **镜像与 `__LINKEDIT`**：每个镜像是一个 `CodeImage`，`reader` 是 `MachOImage` 或 `MachOFile`；两种读取器的差别——slide（进程内是镜像的 slide，cache 文件里是 0）、MachOSwiftSection / MachOObjCSection 给出的 offset 落在哪个地址——只在构造它的地方定一次。符号表、间接符号、函数起点、data in code、导出树一律由 `ImageLinkEdit` 按「`__LINKEDIT` 的地址 + 表的偏移 − 段的文件偏移」经读取层读，进程内与文件里是同一个算法；镜像自带的桩按 `S_SYMBOL_STUBS` 的 `reserved1/2` 逐个读字节、按形状认。
 - **读取器专属的 API**：MachOObjCSection 的类、方法表与 MachOKit 的 objc 桩是各读取器一套，ObjC 层经 `asMachOImage` / `asMachOFile` 分两条路读；文件里方法的 `imp` 是读取器 offset，进程内是运行时地址，类在文件里从不 realize。Swift 层经 `MachOSwiftSectionRepresentableWithCache` 泛型读描述符；文件里的 mangled name 经文件的读取上下文解（进程内照旧经 `InProcessContext`）。
@@ -30,7 +30,7 @@
 
 ## 引用种类与路线
 
-提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 5 步加了三种目标、对导入符号的数据引用，以及每条引用的「路线」。
+提案 [0097-offline-cross-references-and-symbolication](../../Evolutions/0097-offline-cross-references-and-symbolication.md) 第 5 步加了三种目标、对导入符号的数据引用，以及每条引用的「路线」。
 
 - **ivar**：`.objectiveCInstanceVariable(className:name:)`。代码经 `adrp; ldrsw`（或 ld64 改写出的字面量 `ldrsw`、Swift 的 64 位 `ldr`）读 `__objc_ivar` 里的偏移变量；ObjC 会话把这个节作为「观察的槽」，核心在 32 位与 64 位载入时都问它。名字先取 `_OBJC_IVAR_$_<类>.<变量>` 符号，没有符号再从类的 ivar 列表反查（列表项的第一个字段指向偏移变量，第二个是名字），在 ObjC 层的附件 `ObjCInstanceVariableNames` 里，第一次碰到时读。父类是 `NSObject` 的类，clang 直接用常量偏移，不经偏移变量；Swift 类经 ObjC ivar 列表登记的偏移变量是 `__data` 里的 Swift 字段偏移全局量，不在 `__objc_ivar`，眼下不收。
 - **字符串**：`.cString(String)`（`adrp; add` 或 `adr` 落进 C 字符串节——`__cstring`、`__objc_methname`、`__oslogstring` 等 `S_CSTRING_LITERALS` 节）与 `.constantString(String)`（落进 `__cfstring`，按 `{ isa, flags, characters, length }` 读，`flags & 0x10` 是 UTF-16）。核心层认，默认不记：分析器用 `recordingStringReferences: true` 打开（`recordsStringReferences`），查询里含 `.cString` / `.constantString` 键时那次扫描也会找。减法算出的地址从不当作字符串：Swift 的大字符串字面量是 `adrp; add; sub #0x20`，`add` 已经指到字符串起点，`sub` 之后的地址会落进前一个字符串中间。
@@ -229,7 +229,7 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 比第一批多出来的是寄存器状态沿着分支走（约 +10–20%）、类引用与 Swift 类型引用（整表约 +45%，只查 selector 或函数时约 +10%）。「现在」一列是在别的会话同时编译、负载较高的机器上交替跑多轮取的最好值。
 
-**读取层与拆层的代价**（2026-11-19，同一台 Ultra，release，`ScanThroughputBenchmarkTests` 三方交替各三轮取最好；提案 [draft-offline-cross-references-and-symbolication](../../Evolutions/draft-offline-cross-references-and-symbolication.md) 第 1、2 步）：
+**读取层与拆层的代价**（2026-11-19，同一台 Ultra，release，`ScanThroughputBenchmarkTests` 三方交替各三轮取最好；提案 [0097-offline-cross-references-and-symbolication](../../Evolutions/0097-offline-cross-references-and-symbolication.md) 第 1、2 步）：
 
 | 操作 | 拆分前的 `next` | 第 1 步：读取层 | 第 2 步：三层与识别器 |
 |---|---|---|---|

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Draft - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache</title>
+<title>0097 - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache</title>
 <style>
 :root {
   --bg: #ffffff; --fg: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7; --panel: #f5f5f7; --code: #f2f2f5;
@@ -66,20 +66,20 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 <body>
 <main>
 
-<h1>Draft - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache</h1>
+<h1>0097 - 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache</h1>
 <div class="meta">
-  <span>状态：<b>In Progress</b></span>
+  <span>状态：<b>Implemented</b></span>
   <span>对应提案最后更新：<b>2026-11-19</b></span>
   <span>作者：JH</span>
   <span>创建：2026-11-18</span>
   <span>所属愿景：<a href="../Visions/ReverseEngineeringWithoutIDA.md">不依赖 IDA 的逆向</a>（第 1 阶段）</span>
 </div>
-<p class="meta">本页是 <code>draft-offline-cross-references-and-symbolication.md</code> 的网页版，两者对不上时以 Markdown 原文为准。</p>
+<p class="meta">本页是 <code>0097-offline-cross-references-and-symbolication.md</code> 的网页版，两者对不上时以 Markdown 原文为准。</p>
 
 <nav class="toc">
   <a href="#summary">摘要</a><a href="#decide">要定的事</a><a href="#architecture">架构图</a><a href="#map">改动地图</a>
   <a href="#motivation">动机</a><a href="#proposal">提议方案</a><a href="#nongoals">非目标</a><a href="#design">详细设计</a>
-  <a href="#research">前期调研</a><a href="#alternatives">替代方案</a><a href="#impact">影响</a><a href="#steps">落地步骤</a><a href="#log">决策日志</a>
+  <a href="#research">前期调研</a><a href="#alternatives">替代方案</a><a href="#impact">影响</a><a href="#steps">落地步骤</a><a href="#followups">后续项</a><a href="#log">决策日志</a>
 </nav>
 
 <h2 id="summary">摘要</h2>
@@ -94,7 +94,7 @@ details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 </ol>
 
 <h2 id="decide">要定的事</h2>
-<div class="callout">没有留待拍板的设计问题。九个落地步骤都已完成，实现完成，待用户看过后收尾（见决策日志最后一行）。下层模块迁出后对外的公开模型留给之后的迁移提案（见非目标）。</div>
+<div class="callout">没有留待拍板的事。九个落地步骤都已完成，用户验收后已落地为 0097，合进本库与 RuntimeViewer 的 <code>next</code>（见决策日志最后一行）；没做完的列在「后续项」。下层模块迁出后对外的公开模型留给之后的迁移提案（见非目标）。</div>
 
 <h2 id="architecture">架构图</h2>
 <div class="legend"><span class="tag add">新增</span><span class="tag mod">修改</span><span class="tag del">删除</span>未着色的是不变的上下文。虚线框右上角是这一层将来的落脚处。</div>
@@ -909,6 +909,15 @@ case .objectiveCInstanceVariable, .cString, .constantString:
   <li><b>有没有引入新术语</b> —— 预计有「地址符号化（symbolication）」「引用路线（route）」「识别器（recognizer）」，以及 stub island、cache 共用桩若术语表里还没有。</li>
 </ul>
 
+<h2 id="followups">后续项</h2>
+<ul>
+  <li><b>全面核对没有重做</b>：2026-11-18 那次用 <code>otool -tV</code> 加寄存器跟踪独立生成标准答案、再对照 IDA 的做法，生成脚本与 Finder 26.5.2 都已不在卷上。第 4 步改为 ControlCenter 26.7 三个函数的抽样核对。重做要新写生成标准答案的脚本，先给用户看过再跑。</li>
+  <li><b>Swift 类经 ObjC ivar 列表登记的偏移变量没有收</b>：它们是 <code>__data</code> 里的 Swift 字段偏移全局量，不在 <code>__objc_ivar</code>（ControlCenter 的 <code>BentoBackdrop.maskLayer</code> 就是这样）。</li>
+  <li><b>ivar 名字的两个来源有 23 条之差</b>（共约 182 万条 ivar 引用），没有逐条追。</li>
+  <li><b>RuntimeViewer</b>：三种新目标（ivar、C 字符串、常量字符串）在界面里先不显示；App 工程本身没有构建过，只在沙盒里编过 Core、CLI 与 MCP 三个包；它按版本号依赖本库，用版本号构建要等本库发版、抬版本号之后。交叉引用测试模块整体并发跑时「分析器换新后要重新读名字」那组会超时，是基线就有的问题。</li>
+  <li><b>核心层与 ObjC 层迁出本库</b>：另写迁移提案，要定的事见「非目标」第一条。</li>
+</ul>
+
 <h2 id="log">决策日志</h2>
 <table>
 <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
@@ -942,6 +951,7 @@ case .objectiveCInstanceVariable, .cString, .constantString:
 <tr><td>2026-11-19</td><td>渲染 A/B 验证全部一致</td><td>桩与槽的解析从 <code>SwiftThunkAnalysis</code> 抽成共用模块，动到了读取层，按 AGENTS.md 跑系统框架渲染 A/B：基线是开工时的 <code>next</code>（f8b25d2a），三条读取路径共 84 对 dump 与 interface 逐字节一致（归档 cache 15.5 与 26.6、iOS 15.5 至 26.5 模拟器、进程内）</td></tr>
 <tr><td>2026-11-19</td><td>RuntimeViewer 交叉引用模块的并发超时是基线就有的</td><td>在沙盒里对本分支跑 RuntimeViewer 整个交叉引用测试模块（82 条并发），「分析器换新后要重新读名字」的两条等了 60 秒没等到；基线（RuntimeViewer 远端 <code>next</code> 加本库 <code>next</code>）整模块跑同样有其中一条在同一行失败，两边单跑这一组（18 条）都在 41 秒内全过。是会话队列在整模块并发时被前面的准备工作占满，与本次改动无关，没有修</td></tr>
 <tr><td>2026-11-19</td><td>实现完成，待用户看过后收尾</td><td>九个落地步骤都已完成。本库全量测试（跳过 IntegrationTests）2,993 个零失败；渲染 A/B 84 对一致；RuntimeViewer 一侧在沙盒里对本分支编过 Core、CLI 与 MCP 三个包，新测试全过，App 工程本身没有构建。文档判断：配套使用指南不另写——CLI 的用法与契约写在 README、<code>swift-section</code> 插件的 <code>references/cross-references.md</code> 与 RuntimeViewer 的 <code>Guides/CommandLineInterface.md</code>，实现细节在三份模块文档；新术语「地址符号化」「识别器」「引用路线」「stub island」已登记进术语表。两个仓库的功能分支已在本地合进各自常驻的 <code>next</code> 检出，没有推送</td></tr>
+<tr><td>2026-11-19</td><td>Implemented，取号 0097，两个仓库合进各自的 <code>next</code> 并推送</td><td>用户验收后批准收尾。验收在 JHs-Mac-Studio-Ultra 上用功能分支的 release 版 CLI 做（Xcode 27.2，本地兄弟依赖）：运行中系统 cache 里 <code>makeKeyAndOrderFront:</code> 的 439 处发送，0.7 秒；归档 27.0 与 27.2 cache 里 <code>UINSPasteboardWritingItemProvider</code> 的两个调用者；cache 共用 <code>objc_msgSend</code> 桩解成 selector（<code>ipsw dyld a2s</code> 对同一地址只回 <code>?</code>），GOT 槽、类对象与未映射地址的符号化；TextEdit 胖文件带 <code>-a arm64e</code> 找到 4 处发送，不带时按约定报错。落地前验证沿用「实现完成」一行的结果，之后只改了文档。文档判断不变：不另写使用指南，配套文档登记在头部，新术语已登记。正文去掉了段内硬换行，内容不变。没做完的列在「后续项」</td></tr>
 </tbody>
 </table>
 
