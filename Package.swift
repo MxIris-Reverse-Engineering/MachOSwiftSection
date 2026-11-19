@@ -565,6 +565,7 @@ extension Target {
             .target(.SwiftObjCInterop),
             .target(.SwiftLayout),
             .target(.SwiftThunkAnalysis),
+            .target(.CodeAddressResolution),
         ],
         path: "Sources/Output/SwiftDeclarationRendering",
     )
@@ -583,13 +584,13 @@ extension Target {
     static let SwiftThunkAnalysis = Target.target(
         name: "SwiftThunkAnalysis",
         dependencies: [
+            .target(.CodeAddressResolution),
             .product(.MachOKit),
             .product(.MachOKitExtensions),
             .product(.Demangling),
             .product(.Capstone),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.Utilities),
-            .target(.ARM64InstructionDecoding),
             .product(.MachOCaches),
             .product(.MachOFoundation),
             .target(.SwiftSymbols),
@@ -600,8 +601,58 @@ extension Target {
         path: "Sources/Analysis/SwiftThunkAnalysis",
     )
 
+    /// One image's address space and the stubs and pointer slots on the way
+    /// to a function, read from a Mach-O file: what the accessor-thunk reader
+    /// and the cross-reference analysis share. Moves to MachOKitExtensions
+    /// later as `MachOAddressResolution` (evolution proposal
+    /// `offline-cross-references-and-symbolication`).
+    static let CodeAddressResolution = Target.target(
+        name: "CodeAddressResolution",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
+            .product(.MachOReading),
+            .target(.ARM64InstructionDecoding),
+        ],
+        path: "Sources/Analysis/CodeAddressResolution",
+    )
+
+    /// The language-free core of the cross-reference analysis: image
+    /// memory, function tables, the instruction scan and the recognizer
+    /// extension point. May depend only on what MachOKitExtensions will
+    /// hold — it moves there later as `MachOCodeReferences` (evolution
+    /// proposal `offline-cross-references-and-symbolication`,
+    /// `CrossReferenceLayerBoundaryTests`).
+    static let CrossReferenceCore = Target.target(
+        name: "CrossReferenceCore",
+        dependencies: [
+            .product(.MachOKit),
+            .target(.ARM64InstructionDecoding),
+            .target(.CodeAddressResolution),
+            .product(.MachOFoundation),
+        ],
+        path: "Sources/Analysis/CrossReferenceCore",
+    )
+
+    /// The Objective-C layer of the cross-reference analysis: message
+    /// sends, class references, method names. Moves to MachOObjCSection
+    /// later as `ObjCCodeReferences`.
+    static let CrossReferenceObjC = Target.target(
+        name: "CrossReferenceObjC",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .target(.ARM64InstructionDecoding),
+            .product(.MachOFoundation),
+            .target(.CrossReferenceCore),
+        ],
+        path: "Sources/Analysis/CrossReferenceObjC",
+    )
+
     /// What each function of an image references, read from its arm64
-    /// machine code in process (evolution proposal `cross-reference-analysis`).
+    /// machine code (evolution proposals `cross-reference-analysis`,
+    /// `offline-cross-references-and-symbolication`): the Swift layer and
+    /// the public facade over the two layers below it.
     static let CrossReferenceAnalysis = Target.target(
         name: "CrossReferenceAnalysis",
         dependencies: [
@@ -615,6 +666,8 @@ extension Target {
             // `SymbolicDemangler`: a type's name from its descriptor when no
             // symbol spells it.
             .target(.SwiftInspection),
+            .target(.CrossReferenceCore),
+            .target(.CrossReferenceObjC),
         ],
         path: "Sources/Analysis/CrossReferenceAnalysis",
     )
@@ -871,6 +924,8 @@ extension Target {
             .target(.SwiftPrivateDiscriminators),
             .target(.TypeIndexing),
             .target(.Utilities),
+            // `refs` and `symbolicate`.
+            .target(.CrossReferenceAnalysis),
             .product(.MachOKit),
             .product(.MachOKitExtensions),
             .product(.Semantic),
@@ -1209,6 +1264,7 @@ extension Target {
     static let SwiftThunkAnalysisTests = Target.testTarget(
         name: "SwiftThunkAnalysisTests",
         dependencies: [
+            .target(.CodeAddressResolution),
             .target(.SwiftThunkAnalysis),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftDump),
@@ -1225,6 +1281,8 @@ extension Target {
         name: "CrossReferenceAnalysisTests",
         dependencies: [
             .target(.CrossReferenceAnalysis),
+            .target(.CrossReferenceCore),
+            .target(.CrossReferenceObjC),
             .target(.ARM64InstructionDecoding),
             .product(.MachOKit),
             .product(.Capstone),
@@ -1232,6 +1290,19 @@ extension Target {
             .target(.MachOSwiftSection),
             .product(.MachOReading),
             .target(.SwiftInspection),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let CodeAddressResolutionTests = Target.testTarget(
+        name: "CodeAddressResolutionTests",
+        dependencies: [
+            .target(.CodeAddressResolution),
+            .target(.CrossReferenceAnalysis),
+            .target(.ARM64InstructionDecoding),
+            .target(.SwiftSectionFixtureSupport),
+            .product(.MachOKit),
+            .product(.MachOKitExtensions),
         ],
         swiftSettings: testSettings,
     )
@@ -1292,6 +1363,8 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),
+            // What `refs` and `symbolicate` return.
+            .target(.CrossReferenceAnalysis),
             .product(.Semantic),
             .product(.OutputTransformer),
             .product(name: "ObjCDiffing", package: "MachOObjCSection"),
@@ -1444,6 +1517,9 @@ let package = Package(
         .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftThunkAnalysis,
+        .CodeAddressResolution,
+        .CrossReferenceCore,
+        .CrossReferenceObjC,
         .CrossReferenceAnalysis,
         .SwiftDump,
         .SwiftDeclaration,
@@ -1482,6 +1558,7 @@ let package = Package(
         .SwiftDeclarationRenderingTests,
         .SwiftThunkAnalysisTests,
         .CrossReferenceAnalysisTests,
+        .CodeAddressResolutionTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftSectionCommandTests,

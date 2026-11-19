@@ -140,6 +140,6 @@ MachOFoundation = MachOBase + MachOSymbols + MachODependencies (all external, Ma
 
 - **符号索引的几套成员索引**（`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift:296`–`:302`）：实现符号、method descriptor、protocol witness、`@objc` thunk 四套成员索引并列，同一个成员可能同时出现在几套里。名字键去掉了 private discriminator，同名的私有类型共用一个桶，所以按单个类型查要用带 node 的重载（`:1284`）。难在哪一套回答哪一种问题，只能从注释和提案里拼出来。
 - **`TypeDefinition` 索引的步骤顺序是承重的**（`Sources/Declaration/SwiftDeclaration/Components/Definitions/TypeDefinition+Indexing.swift:22`）：`final` 的还原要读 `applyThunkAttributes` 挂上的 `@objc` 证据，又必须早于 `orderedMembers` 拷贝成员值；wrapped property 的还原要等字段和成员变量都齐。换了顺序照样编译通过，输出却静默变错。
-- **dyld shared cache 里的四种偏移口径**（`Sources/Analysis/SwiftThunkAnalysis/Resolution/ThunkAddressSpace.swift:42`）：本库的 offset 是「未滑动的虚拟地址减 shared region 起点」；另外三种（subcache 文件偏移、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)`）看着能用却不对，而且算错时给出的是一个落在邻近 image 里、看起来合理的地址，不报错。
+- **dyld shared cache 里的四种偏移口径**（`Sources/Analysis/CodeAddressResolution/ImageAddressSpace.swift:43`）：本库的 offset 是「未滑动的虚拟地址减 shared region 起点」；另外三种（subcache 文件偏移、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)`）看着能用却不对，而且算错时给出的是一个落在邻近 image 里、看起来合理的地址，不报错。
 - **泛型参数的层号**（`Sources/Analysis/SwiftInspection/GenericParameterDepthLayout.swift:30`）：一层只算真正声明了参数的上下文，不能数祖先链；opaque type 还要把声明它的函数（debug 构建里还有属性）算进去。八个读取点曾各自数错，现在统一从这里取。
 - **ObjC 成员的三档证据**（`Sources/Analysis/SwiftThunkAnalysis/ObjCMembers/ObjCMembers.swift:9`）：IMP 处的 `To` 符号、符号被剥后反汇编 thunk、只按名字推断。第三档只记录、用不用由使用方决定，而且不能写进 `attributes`——紧接着的 `final` 还原会把它当成 `@objc dynamic` 的证据。

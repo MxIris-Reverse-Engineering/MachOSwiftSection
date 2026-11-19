@@ -1,8 +1,8 @@
 # 愿景：不依赖 IDA 的逆向
 
 - **状态**: Active
-- **最后更新**: 2026-11-18
-- **相关提案**: [draft-offline-cross-references-and-symbolication](../Evolutions/draft-offline-cross-references-and-symbolication.md)
+- **最后更新**: 2026-11-19
+- **相关提案**: [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)
 
 愿景**不做具体决定**，它划定一个方向的边界与取舍原则，让后续每个提案不必重新论证一遍。
 具体怎么做写在各自的提案里。
@@ -149,11 +149,7 @@
    读几个 GB 的 cache 若明显拖慢重复查询，持久化再作为独立阶段提出。
 5. **保留按镜像的 `CodeLocation`，另给一张全 cache 的地址符号化表。** 统一地址空间里最有价值的是「任何地址
    都能说出它是什么」，这一点用符号化器单独提供，不推翻已有的模型和 RuntimeViewer 的查询层。
-6. **分层：通用读取与地址换算归 MachOKitExtensions，分析留在本库的 Analysis 层。** 不依赖 Swift 元数据的
-   通用代码直接写进 MachOKitExtensions：自它的 2.0.0 起，本库原来的整个 Mach-O 层（读取、指针、按镜像的
-   缓存、依赖闭包、符号表与采集，外加一个 C/C++ 符号索引）都在那里，本库的 `Sources/MachO/` 分组已经没有了
-   （MachOKitExtensions 草案 `move-macho-infrastructure-modules`）。本库只写依赖 Swift 元数据或属于分析的
-   部分。除了修 bug，不往 MachOKit fork 里加新能力。
+6. **分层：与语言无关的部分归 MachOKitExtensions，ObjC 专属的归 MachOObjCSection，Swift 专属的与命令入口留在本库。** 与语言无关的包括读取、地址换算、桩与槽的解析，也包括分析本身的核心——指令扫描、函数表、字符串、符号化；ObjC 专属的是消息发送、类引用、ivar、方法列表这类识别。核心经扩展点接纳各语言层的识别，不认识任何一种语言，对新语言封闭、对扩展开放。自 MachOKitExtensions 2.0.0 起，本库原来的整个 Mach-O 层（读取、指针、按镜像的缓存、依赖闭包、符号表与采集，外加一个 C/C++ 符号索引）都在那里，本库的 `Sources/MachO/` 分组已经没有了（MachOKitExtensions 草案 `move-macho-infrastructure-modules`）；不依赖 Swift 元数据的新通用代码直接写进 MachOKitExtensions。交叉引用是先在本库按这几层写成独立模块、用源码扫描守住每层能 import 什么、量过之后再整体搬过去的（0097 拆层，草案 [move-cross-reference-layers](../Evolutions/draft-move-cross-reference-layers.md) 搬家）；本库里的模块名刻意不同于落脚处的名字，免得与已发布版本的同名模块冲突。除了修 bug，不往 MachOKit fork 里加新能力。
 7. **标准答案**：反汇编对 `otool -tV`；fixup 对本机 cache 的 `dyld_info -fixups`；交叉引用以 IDA（查到两跳）
    为主要参照，Binary Ninja 为辅——第 1 条的实测里，IDA 两跳的召回是 99.4%，Binary Ninja 经 MCP 是 67.6%。
    最可靠的仍是 `otool -tV` 加独立寄存器跟踪生成的标准答案，那次实测就是这样做的。
@@ -164,7 +160,7 @@
 
 1. **交叉引用与地址符号化扩展到磁盘文件和归档 cache**——本库已有的进程内分析器支持文件，补几类引用，新增
    符号化器，`swift-section refs` / `symbolicate` 两个子命令，RuntimeViewer 的 CLI 与 MCP 接上交叉引用。
-   提案 [draft-offline-cross-references-and-symbolication](../Evolutions/draft-offline-cross-references-and-symbolication.md)。
+   提案 [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)。
 2. **函数清单与带注解的反汇编**——边界来自 `LC_FUNCTION_STARTS`、符号表、ObjC 方法表的 IMP 与 unwind 信息，
    包括 block 和 `.cold`；用 swift-capstone 出文本，每个调用、地址生成、槽读取都经第 1 步的符号化器标名。
    swift-capstone 的对拍与符号化接口在这一步做。
@@ -199,7 +195,8 @@
 
 | 提案 | 状态 | 它推进了愿景的哪一部分 |
 |------|------|------------------------|
-| [draft-offline-cross-references-and-symbolication](../Evolutions/draft-offline-cross-references-and-symbolication.md) | Draft | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP |
+| [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md) | Implemented | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP；顺带把交叉引用按「我们选的方向」第 6 条拆成核心、ObjC、Swift 三层（真正迁出本库另写提案） |
+| [draft-move-cross-reference-layers](../Evolutions/draft-move-cross-reference-layers.md) | Accepted | 「我们选的方向」第 6 条：把 0097 拆出的核心层与地址解析、ARM64 解码搬进 MachOKitExtensions，ObjC 层搬进 MachOObjCSection，随本库 0.25.0 落地 |
 
 ---
 

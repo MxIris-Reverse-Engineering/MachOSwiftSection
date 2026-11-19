@@ -106,6 +106,7 @@
 | [0094](0094-init-accessor-recovery.md) | 还原 SE-0400 的 init accessor | Implemented |
 | [0095](0095-observable-nested-expansion.md) | `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它 | Implemented |
 | [0096](0096-swift-first-imported-declarations.md) | Swift 实现的类，导入声明以 Swift 一侧为准 | Implemented |
+| [0097](0097-offline-cross-references-and-symbolication.md) | 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
-| draft | [交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache](draft-offline-cross-references-and-symbolication.md)（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Draft |
+| draft | [交叉引用的核心层与 ObjC 层迁出本库](draft-move-cross-reference-layers.md)（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Accepted |

@@ -104,6 +104,31 @@ package enum ARM64InstructionWord {
         return nil
     }
 
+    /// A 32-bit load from a base register plus an unsigned, scaled
+    /// displacement: `ldr wt, [xn, #imm]` and `ldrsw xt, [xn, #imm]` — how
+    /// code reads an Objective-C instance variable's offset variable, a
+    /// 32-bit value. The destination is the register written, its 64-bit
+    /// view for `ldrsw`.
+    @inlinable
+    package static func wordLoad(_ word: UInt32) -> (destination: Int, base: Int, displacement: Int64)? {
+        switch word & 0xFFC0_0000 {
+        case 0xB940_0000, 0xB980_0000:
+            return (Int(word & 0x1F), Int((word >> 5) & 0x1F), Int64((word >> 10) & 0xFFF) << 2)
+        default:
+            return nil
+        }
+    }
+
+    /// `ldr wt, label` and `ldrsw xt, label`: a 32-bit load from a slot
+    /// within a megabyte of the instruction — what ld64 makes of an `adrp` /
+    /// `ldrsw` pair reading an instance variable's offset that close.
+    @inlinable
+    package static func wordLoadLiteral(_ word: UInt32, at address: UInt64) -> (destination: Int, slotAddress: UInt64)? {
+        // `ldr wt` is opc 00, `ldrsw` opc 10; 01 is the 64-bit load, 11 a prefetch.
+        guard word & 0x7F00_0000 == 0x1800_0000 else { return nil }
+        return (Int(word & 0x1F), adding(signExtended(UInt64((word >> 5) & 0x7FFFF) << 2, bitWidth: 21), to: address))
+    }
+
     /// `ldr xt, label`, a 64-bit load from a slot within a megabyte of the
     /// instruction: the register loaded and the slot's address. ld64 turns an
     /// `adrp` / `ldr` pair whose slot lies that close into `nop` / this load —

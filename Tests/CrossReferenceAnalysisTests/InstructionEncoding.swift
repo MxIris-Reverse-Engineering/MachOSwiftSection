@@ -36,6 +36,23 @@ enum InstructionEncoding {
         0xF940_0000 | ((byteOffset / 8) << 10) | (UInt32(base) << 5) | UInt32(destination)
     }
 
+    /// `ldr wt, [xn, #imm]`: a 32-bit load, the displacement scaled by 4.
+    static func loadWordUnsignedOffset(_ destination: Int, base: Int, byteOffset: UInt32) -> UInt32 {
+        0xB940_0000 | ((byteOffset / 4) << 10) | (UInt32(base) << 5) | UInt32(destination)
+    }
+
+    /// `ldrsw xt, [xn, #imm]`: a 32-bit load, sign-extended to 64 bits.
+    static func loadSignedWordUnsignedOffset(_ destination: Int, base: Int, byteOffset: UInt32) -> UInt32 {
+        0xB980_0000 | ((byteOffset / 4) << 10) | (UInt32(base) << 5) | UInt32(destination)
+    }
+
+    /// `ldrsw xt, label`: a sign-extended 32-bit load from a slot within a
+    /// megabyte.
+    static func loadSignedWordLiteral(_ destination: Int, at address: UInt64, slot: UInt64) -> UInt32 {
+        let wordDelta = UInt32(truncatingIfNeeded: Int64(bitPattern: slot &- address) >> 2) & 0x7FFFF
+        return 0x9800_0000 | (wordDelta << 5) | UInt32(destination)
+    }
+
     static func loadPreIndexed(_ destination: Int, base: Int, byteOffset: Int32) -> UInt32 {
         0xF840_0C00 | ((UInt32(bitPattern: byteOffset) & 0x1FF) << 12) | (UInt32(base) << 5) | UInt32(destination)
     }

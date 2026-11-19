@@ -22,7 +22,7 @@ SwiftThunkAnalysis 干一件事：**不执行 thunk，把它算出来**。
 | 1. 指令解码 | `Instructions/CapstoneThunkDecoder`、`Instructions/ThunkInstruction` |
 | 2. 符号求值 | `Analysis/ThunkTypeEvaluator`、`Analysis/ThunkTypeExpression`、`Analysis/ThunkRegisterTracker` |
 | 3. thunk 形状识别 | `Analysis/AccessorThunkAnalyzer`、`Analysis/AccessorThunkProgram` |
-| 4. 环境与调用目标解析 | `Resolution/MachOThunkEnvironment`、`Resolution/MetadataAccessorIndex`、`Resolution/DependencyImageResolver`、`Resolution/ThunkAddressSpace` |
+| 4. 环境与调用目标解析 | `Resolution/MachOThunkEnvironment`、`Resolution/MetadataAccessorIndex`、`Resolution/DependencyImageResolver`；地址空间、桩链、槽解析与 cache 镜像定位在 [CodeAddressResolution](CodeAddressResolution.md)（原 `Resolution/ThunkAddressSpace` 与 `CacheImageResolver`，提案 `offline-cross-references-and-symbolication` 第 3 步抽出，交叉引用的文件模式共用） |
 | 5. 对外读取面 | `Resolution/AccessorThunkReader`、`Resolution/AccessorThunkOwnerLayout`、`Resolution/ThunkTypeNodeBuilder`、`SwiftThunkAnalysis` |
 | 6. ObjC 成员表联结 | `ObjCMembers/ObjCMembers`、`ObjCMembers/ObjCMethodThunkReferences` — 复用子系统 1 的解码器与 2 的寄存器跟踪，把一个 ObjC 方法的 IMP 反汇编、收它引用的地址换成 Swift 符号，把类的每一条 ObjC 方法联结到实现它的 Swift 成员——`@objc`、`override`、显式 selector 三个事实的第二档证据（提案 `objc-ancestor-override-recovery` 与 `objc-member-selector-recovery`；hierarchy 与接缝在 SwiftObjCInterop，只有联结表在这里，因为解码器在这里）。见 [ObjCMemberRecovery.md](../ObjCMemberRecovery.md)。`ObjCMembers/ObjCProtocolWitnesses` 在这张表上替 Swift 声明的 `@objc` 协议找实现每条要求的成员：Swift 类的表按 Swift 全名取（按运行时名取的是 ObjC 类的表，strip 后联结不上 Swift 类的成员），声明的上下文换成协议，显式 selector 按编译器的推导判断。见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md) |
 
@@ -93,15 +93,15 @@ swift-capstone 7 见[提案](../../Evolutions/0071-swift-capstone-7.md)。
 
 混用不会抛错。`adrp` 是拿指令自身地址算页基址的，所以一个不到一页的误差照样能算出一个可计算、看起来合理、指向邻居镜像的候选地址（实测现象：SwiftUI 的候选看起来住在 `TextRecognition` 的 `__AUTH_CONST` 里）。本模块统一走 `resolveRebase(fileOffset:)`。
 
-同类陷阱还有一个：`ExportedSymbol.offset` 是**相对 mach header** 的偏移，`MachOKit` 对 cache 镜像原样交出，所以它在那里不是文件偏移。唯一正确的换算是 `ThunkAddressSpace.address(forExportedSymbolOffset:)`（`__TEXT` 地址加偏移），dylib、可执行文件、cache 镜像通用。
+同类陷阱还有一个：`ExportedSymbol.offset` 是**相对 mach header** 的偏移，`MachOKit` 对 cache 镜像原样交出，所以它在那里不是文件偏移。唯一正确的换算是 `ImageAddressSpace.address(forExportedSymbolOffset:)`（CodeAddressResolution）（`__TEXT` 地址加偏移），dylib、可执行文件、cache 镜像通用。
 
 ### 「在不在本镜像内」用段范围判定
 
-`ThunkAddressSpace.containsAddress(_:)` 是段范围测试，**不能**用 `offset(forAddress:)` 是否返回 nil 来代替：对 cache 镜像那个换算只是一次减法，cache 里任何地址它都答得出来。
+`ImageAddressSpace.containsAddress(_:)` 是段范围测试，**不能**用 `offset(forAddress:)` 是否返回 nil 来代替：对 cache 镜像那个换算只是一次减法，cache 里任何地址它都答得出来。
 
 ### 环境每个 thunk 一个，镜像级的事实按镜像缓存
 
-`AccessorThunkReader.read` 每读一个 thunk 就新建一个 `MachOThunkEnvironment`，环境里记下的调用目标、解码过的函数只活到这次读完。所以凡是只取决于镜像、又要扫一遍大表的东西，都不能挂在环境上，要放进 `thunkResolution` 组的按镜像缓存：`MetadataAccessorIndex`（扫 `__swift5_types`）、`DependencyImageResolver`、`CacheImageResolver`（cache 里全部镜像的地址表，加上已打开的目标镜像与它们导出的运行时入口），以及给调用目标起名用的镜像自带运行时符号（`__swift_instantiateConcreteTypeFromMangledNameV2` 一类，从原始符号表里挑出来）。后两样原先挂在环境上，于是每读一个 thunk 就把整张符号表重扫一遍、把 cache 里约四千个镜像的路径重读一遍、把调用到的镜像重开一遍：离线读 SwiftUI 的 interface，约六分之一的时间花在这上面。`CacheImageResolver` 会被多个环境共用，所以它记下的已打开镜像与导出入口表加了锁，查找在锁外做、先存者胜。回归测试 `ThunkEnvironmentImageTablesTests` 拿直接读一遍对应大表的耗时当尺子，新环境第一次查调用目标必须远快于它。
+`AccessorThunkReader.read` 每读一个 thunk 就新建一个 `MachOThunkEnvironment`，环境里记下的调用目标、解码过的函数只活到这次读完。所以凡是只取决于镜像、又要扫一遍大表的东西，都不能挂在环境上，要放进 `thunkResolution` 组的按镜像缓存：`MetadataAccessorIndex`（扫 `__swift5_types`）、`DependencyImageResolver`、`CacheImageLocator`（cache 里全部镜像的地址表，加上已打开的目标镜像与它们导出的运行时入口；类型在 CodeAddressResolution，按镜像的缓存在这里），以及给调用目标起名用的镜像自带运行时符号（`__swift_instantiateConcreteTypeFromMangledNameV2` 一类，从原始符号表里挑出来）。后两样原先挂在环境上，于是每读一个 thunk 就把整张符号表重扫一遍、把 cache 里约四千个镜像的路径重读一遍、把调用到的镜像重开一遍：离线读 SwiftUI 的 interface，约六分之一的时间花在这上面。`CacheImageLocator` 会被多个环境共用，所以它记下的已打开镜像与导出入口表加了锁，查找在锁外做、先存者胜。回归测试 `ThunkEnvironmentImageTablesTests` 拿直接读一遍对应大表的耗时当尺子，新环境第一次查调用目标必须远快于它。
 
 ## 测试注意
 

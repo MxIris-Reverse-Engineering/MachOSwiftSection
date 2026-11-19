@@ -47,6 +47,13 @@
 - **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
 
+### address symbolication（地址符号化）
+
+回答「这个未滑动地址是什么」：落在哪个镜像的哪个段与节，以及在那里的意思——某个函数体里、离起点多远（函数名的来源与列函数时相同，含 ObjC 方法表与 Swift 元数据给的后备名），一个桩或一串 stub island 以及最终通向哪里，一个指针槽（GOT、selector / class / superclass / protocol 引用、ivar 偏移变量）以及里面装的东西，一个 C 字符串或 `CFString`，或者最近的符号加偏移。结构由核心层的 `AddressPlace` 判断，语言层知道的（selector、类、ivar、Swift 类型）由门面补上。`dyld_info` 在 macOS 26 的 SwiftUICore 上给两千多个桩标错名，原因是它按间接符号表认桩，而符号化按桩实际加载的槽认。
+
+- **主要出现在**：`CrossReferenceAnalyzer.symbolication(of:)`、`swift-section symbolicate`、RuntimeViewer 的 `symbolicate` 命令与 `Symbolicate` MCP 工具
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「地址符号化」
+
 ### anchor 协议（anchor protocol）
 
 一条 same-type 约束的 subject 里，关联类型所**限定的声明协议**——`τ_1_0.[Swift.Sequence]Element == [A]` 的 anchor 是 `Swift.Sequence`（mangling 层限定形式，demangle 后保留在 `dependentAssociatedTypeRef` 的第二个 child）。注意 anchor 是 canonicalization 后**继承链最上层的原始声明者**，不一定是源码 sugar 写在哪个协议上（`Collection<[A]>` 的约束 anchor 是 Sequence），也不一定在 opaque 组合成员之内。opaque 尖括号参数的归属裁决以它为第一信号。
@@ -306,6 +313,20 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedContainerIndex.swift`、`ObjCImportedMemberBuilder.swift`，`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCImported*Definition.swift`，`swift-section objc interface --swift`
 - **延伸阅读**：[0090-objc-imported-declarations](Evolutions/0090-objc-imported-declarations.md)
 
+### recognizer（识别器，`CodeReferenceRecognitionSession`）
+
+交叉引用扫描里认某一种语言的那一层。核心层只认与语言无关的东西（调用、桩、槽、寄存器跟踪、字符串），在五个时机问各语言层的识别会话：进入函数、遇到只有它认得的调用目标、调用点、算出一个地址、读一个槽。ObjC 层认发送、类与 ivar，Swift 层认类型元数据与 mangled name。核心不 import 任何语言层，新语言加识别器即可，不改核心。
+
+- **主要出现在**：`Sources/Analysis/CrossReferenceCore/Recognition/`、`CrossReferenceObjC`、`CrossReferenceAnalysis/Scanning/SwiftCodeReferenceRecognizer.swift`
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceCore.md](Internal/Modules/CrossReferenceCore.md)
+
+### reference route（引用路线，`CodeReferenceRoute`）
+
+一条交叉引用是怎么到达目标的，与目标是什么无关：直接 `bl` / `b`（`direct`）、本镜像的桩（`imageStub`）、cache 镜像之间的 stub island（`stubIsland`）、全缓存共用桩（`cacheSharedStub`）、经指针槽（`pointerSlot`）、算出地址（`addressMaterialization`）、近距离的字面量 `ldr`（`literalLoad`）、经寄存器（`indirect`）。经桩的调用和直接调用一样真；路线是读者在采信之前核对、或亲自去看时顺着走的那条路。
+
+- **主要出现在**：`CodeReference.route`、`swift-section refs` 每行的第五列与 JSON 的 `route`
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「引用种类与路线」
+
 ### refined member（改名成员，`NS_REFINED_FOR_SWIFT`）
 
 头文件标了 `NS_REFINED_FOR_SWIFT` 的 ObjC 成员：Swift 导入它时名字前加 `__`（属性名、方法基名、初始化器的第一个标签），原名留给一个包装它的纯 Swift 声明。二进制不记这个宏，本库从 Swift 一侧认：有凭据的是配上了 `__` 开头的 Swift 成员（`layerFilter` ↔ `__layerFilter`）；推断的是没有 Swift 成员回答的 ObjC 属性，而同名的 Swift 属性类型明显不可能是它（`settings` 对上本模块的 struct）——Swift 不允许一个类型里有两个同名属性。方法只认前者：方法能按参数类型重载，同名说明不了改过名。导入声明把推断出的这种属性打成 `// NS_REFINED_FOR_SWIFT: var __name: …` 注释，挂在占了它原名的 Swift 属性正上方；`SwiftDeclarationPrinter.objcMembersRefinedForSwift(in:)` 交给宿主，由它在 ObjC 头文件里打回这个宏。
@@ -394,6 +415,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 `NodeReference` 的两种相等语义，混用会静默出错：intrinsic `Hashable` 按**store 身份**（同一 store 里的同一下标才相等），跨 store 的结构相同树不相等；**结构相等**（`structurallyEquals` / `StructuralNodeReferenceKey`）逐节点比对，跨 store 成立。规则：键和查询可能来自**不同 store** 的任何 `Dictionary` / `Set` 必须用 `StructuralNodeReferenceKey`，裸 `NodeReference` 键只在单一 hash-consed store 内部安全。踩过的坑：override/vtable 注释丢失、subscript getter/setter 分桶、merged thunk 重复输出。
 
 - **主要出现在**：`Sources/Symbols/SwiftSymbols/StructuralNodeReferenceKey.swift`；键位清单见 AGENTS.md「Symbol indexing」段
+
+### stub island（桩岛）
+
+dyld shared cache 在子缓存之间放的跳板：`bl` 只能跳 ±128 MB，跨子缓存的调用先落到 island，由 island 用 `adrp` / `add` / `br` 算出目标再跳过去。island 不属于任何镜像，也不读槽位——这是它与 [cache-shared stub](#cache-shared-stub全缓存共用桩) 的区别。一串调用可能连过几个 island，交叉引用把整串记作一跳路线 `stubIsland`，符号化列出经过的每一个。
+
+- **主要出现在**：`ARM64Trampoline`、`StubChainResolver`、`CodeReferenceRoute.stubIsland`
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)
 
 ### supplementary APINotes（补充映射）
 

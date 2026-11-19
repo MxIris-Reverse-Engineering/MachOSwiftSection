@@ -22,7 +22,7 @@ Documentation is split by audience.
   IDA 退为后备：地址符号化、跨镜像交叉引用、注解反汇编、数据解码、控制流与常量追踪、构建间逐函数比对、按需持久化，
   横跨 MachOKitExtensions、本库、swift-capstone 与 RuntimeViewer；定下手写解码器与 capstone 的分工、不建完整
   中间表示、先现算后落盘、分层归属与正确性的标准答案。第一步是提案
-  [draft-offline-cross-references-and-symbolication](Evolutions/draft-offline-cross-references-and-symbolication.md)。
+  [0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)。
 
 ## External — for library users / other developers
 
@@ -92,6 +92,9 @@ selects names using each access's offset and width.
 | [Modules/SwiftPrivateDiscriminators.md](Internal/Modules/SwiftPrivateDiscriminators.md) | SwiftPrivateDiscriminators 模块参考：从 private discriminator 反推源文件的三个子系统（纯函数的五步候选搜索、生成的已知文件名清单、按镜像取候选并记住答案的 index），关键契约（只会还原不出、不会还原错；模块名候选的先后；候选与 RuntimeViewer 侧栏对象表的差别；名字首次请求才读，在锁外、在大栈上读，读完放掉索引器）与测试锚点。 |
 | [Modules/SwiftThunkAnalysis.md](Internal/Modules/SwiftThunkAnalysis.md) | SwiftThunkAnalysis 模块参考：kind-9 accessor thunk 符号求值的模块视角索引——五个子系统、按输入形态列的当前能力表（含 macOS 27 cache 打不开这个已知缺口）、三条故意的拒绝、dyld cache 偏移口径与 `ExportedSymbol.offset` 两个静默出错点、测试如何 scope 一个读不出来的 resolver。 |
 | [Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md) | CrossReferenceAnalysis 模块参考（含 ARM64InstructionDecoding）：从 arm64 机器码读出函数表与每个函数的引用——地址口径（`CodeLocation`、MachOKit `FunctionStart.offset` 其实是绝对地址）、macOS 27 / iOS 27 起全缓存共用的 selector 桩与 GOT 桩、读任何目标前先确认可读、寄存器只记确定的事、尾调用与跳转表的区分、运行时辅助调用名单、分析器的生命周期与吞吐。 |
+| [Modules/CodeAddressResolution.md](Internal/Modules/CodeAddressResolution.md) | CodeAddressResolution 模块参考：从 SwiftThunkAnalysis 抽出的离线地址解析（`ImageAddressSpace`、`StubChainResolver`、`SlotResolver`、`CacheImageLocator`），线程读取与交叉引用文件模式共用；跳板误认普通函数的修复，将来迁进 MachOKitExtensions |
+| [Modules/CrossReferenceCore.md](Internal/Modules/CrossReferenceCore.md) | CrossReferenceCore 模块参考：交叉引用与语言无关的核心层（读取层、镜像集、函数表与附件、指令扫描、识别器扩展点），将来迁进 MachOKitExtensions |
+| [Modules/CrossReferenceObjC.md](Internal/Modules/CrossReferenceObjC.md) | CrossReferenceObjC 模块参考：交叉引用的 ObjC 层（消息发送、类引用、方法名、按 selector 与类预筛），将来迁进 MachOObjCSection |
 | [ProjectEvolutionLog.md](Internal/ProjectEvolutionLog.md) | 编年演进账本：逐工作弧（Foundation 解析 → demangler → 模块化 → SwiftLayout → SwiftDiffing/ABI evolution …）的时间段/动机/关键决策/落地文档/版本对应，含每批次必须追加的维护约定。 |
 | [ReviewAdjudications.md](Internal/ReviewAdjudications.md) | Review 已裁决清单：判定为「不修 / 误报」的发现及结论、理由、复审条件；每轮 code review 先对照此表，已裁决且理由仍成立的直接跳过。 |
 | [SwiftModularizationMigration.md](Internal/SwiftModularizationMigration.md) | The `SwiftInterface` monolith → layered peer modules refactor; where everything moved. |

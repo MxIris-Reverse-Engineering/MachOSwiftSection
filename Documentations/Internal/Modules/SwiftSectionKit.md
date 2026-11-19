@@ -20,6 +20,7 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 | 3. 输入 | `Inputs/Architecture`、`MachOSource`（含 `DyldSharedCacheImage` / `MachOSourceError`）、`SnapshotSource`（含 `SnapshotSourceError` / `BinaryLoadingOptions`） |
 | 4. Swift 侧请求 | `Swift/DumpRequest`（含 `DumpSection` / `FieldOffsetComments`）、`InterfaceRequest`、`ABISnapshotRequest`、`ABIDiffRequest`、`ABIEvolutionRequest`（含 `AvailabilityAttributes` / `AvailabilityPlatformInferenceError`）、`TransformerRequests`；共用的 `ABISnapshotLoading`、`DependencySearchPathUsage`、`CommentTransformerApplication` |
 | 5. ObjC 侧请求 | `ObjC/ObjCInterfaceSession`（含 `ObjCDeclarationKind`）、`ObjCDumpRequest`、`ObjCInterfaceRequest`（含 `ObjCDeclarationLookupError`）、`ObjCAPIRequests`（snapshot / diff / evolution 与 `ObjCAPISnapshotLoading`） |
+| 6. 交叉引用请求 | `CrossReferences/CrossReferenceInput`（含 `CrossReferenceRequestError`、按名字或路径找镜像）、`ReferencesRequest`（含 `CrossReferenceSubject` / `CrossReferenceDirection` / `CrossReferenceOutputFormat` / `ReferencesResult`）、`SymbolicateRequest`、`CrossReferenceFormatting`（文本与 JSON 的拼写，JSON 名字即契约） |
 | CLI 包装层 | `Sources/Executables/swift-section/`：各命令的 `makeRequest()` + `run()`、`Models/CommandLineSupport`（flag → `MachOSource`、错误翻译、`ExpressibleByArgument`）、`Output/StandardStreamOutput` |
 
 ## 1. 输出端
@@ -54,6 +55,12 @@ SwiftSectionKit 是 `swift-section` 每个子命令的库版本：一个子命�
 
 `SnapshotSource.path` 是 `snapshot` / `diff` / `evolution` 的输入：snapshot 文档（JSON）或二进制，按文件第一个非空白字节区分（`{` 即文档）。annotated interface 只能吃二进制，`SnapshotSource.requireBinaries` 在加载任何输入之前就逐个检查，出错抛 `SnapshotSourceError.binaryRequired(path:)`。`BinaryLoadingOptions` 只作用于二进制输入：`dyldSharedCacheImage` 一旦给出，每个二进制输入都按 cache 文件处理、从中取同名镜像。
 
+`refs` 与 `symbolicate` 读的是一批镜像的机器码，不是一个镜像的元数据，所以不走 `MachOSource`，走 `CrossReferenceInput`：一组一起读的文件（胖文件同样必须给架构，复用 `MachOSource.file(…).load()`，不默默挑切片）、整个 cache 文件、或宿主 cache（`FullDyldCache.cachedHost`，经文件读，地址是未滑动的）。`--in-image` 按路径或文件名找镜像，一个文件名在 macOS cache 里可能对上两个（Mac Catalyst 变体），两个都算。
+
+## 交叉引用请求
+
+`ReferencesRequest` 先把主体解析成「要找哪些键、在哪些镜像里找」，再在候选镜像上并发扫描（`DispatchQueue.concurrentPerform` 放在一个私有串行队列里起，原因见 AGENTS.md 关于同步等待的规则），最后一次性给函数起名（`functions(containing:)`，每个镜像的函数表用完即丢）。各主体的候选镜像：selector 用 `__objc_selrefs` 预筛；符号先按导出表与符号表找定义（`locations(ofSymbolNamed:among:)`），函数的调用者经 `imageIndices(callingFunctionAt:…)`（C 名字看导入，Swift 名字看链接关系），没有定义的按导入名找；类先找 `_OBJC_CLASS_$_` 符号，找不到再读各镜像的类表，并按类对象位置过滤同名类；ivar 看定义它的类所在镜像与导入 `_OBJC_IVAR_$_` 的镜像；字符串不预筛。`--function` 在 cache 里只有一个地址空间；一组文件各有各的，几个文件都在那个地址有函数时报 `ambiguousFunction`，要 `--function-image` 指名。`limit` 在过滤之后按镜像、函数、指令顺序截断，`isTruncated` 如实标出；一行摘要以 note 发到诊断通道。JSON 由 `CrossReferenceJSONValue` 编码，键排序、地址一律是十六进制字符串。
+
 ## 4. 请求的设计约定
 
 - **按用途建模**：互斥的选项用 enum 表达，非法组合在类型上写不出来——`ABIDiffRequest.Report` 只能是 change list / summary / JSON / annotated interface 之一，`FieldOffsetComments` 把「expanded 隐含 flat」做成了 `.none / .flat / .expanded`。只对某一种报告有意义的选项做成那个 case 的关联值：diff 的 `annotatedInterface(format:includesBreakingChangeVerdict:)`，evolution 的 `annotatedInterface(availabilityAttributes:)`（`@available` 属性只有 annotated interface 才有；`.none` / `.inferredPlatform` / `.platform(_:)` 对应命令行的「不给 `--emit-available`」「只给 `--emit-available`」「再加 `--platform`」）。命令行的 flag 组合校验（`--json and --interface are mutually exclusive`）留在包装层的 `validate()`，原文不动。
@@ -73,7 +80,8 @@ stdout、stderr、退出码、每个子命令的 `--help` 都与拆分前逐字�
 
 - `Tests/SwiftSectionKitTests/`：每个请求对 SymbolTestsCore fixture 端到端跑（`ABIRequestTests`、`DumpAndInterfaceRequestTests`、`ObjCRequestTests`、`TransformerRequestTests`），加纯逻辑（`MachOSourceTests` 里的胖二进制是测试现场拼的单切片胖文件，不依赖宿主；`InterfaceAnnotationStyleTests`；从 CLI 搬来的 `ObjCDumpDiagnosticsTests`）。`ABIRequestTests` 整个套件共用一份 fixture 的 snapshot 文档（静态 `Task`），只索引一次。它测 `@available` 平台推断失败时，平台不同的输入是现场改写了 `LC_BUILD_VERSION` 的 fixture 副本（`FixtureFiles.makeCopy(of:buildPlatform:in:)`）；副本的 UUID 与原件相同，每个按镜像的缓存都会把它当成原件，所以只能交给在索引之前就结束的用例。`RecordingOutput` 只实现 `write(_:)`，所以用它的用例同时在测 `write(_:declaring:)` 的默认实现；要看每块声明是什么，用 `DeclarationRecordingOutput`（两个方法都实现，按顺序记下每块产物和它带的声明）。`PrivateDeclarationSourceFileRequestTests` 的 dump 与 interface 各共用一份打开开关的 fixture 输出（静态 `Task`，四个用例只跑一次）；公开类型的私有成员用 `LocalTypeFixture`，那两条用例按惯例声明 `ExclusiveImageAccess(LocalTypeFixture.exclusiveAccessName)`，测试目标因此依赖 `SwiftSectionTestingSupport`。
 - `ClassesWithoutClassObjectsRequestTests`：对测试时现编的 `ClassesWithoutClassObjectsFixture` 跑 `objc dump`，钉住两处 ObjC 请求把没有 class object 的 Swift 类（`ObjCSuppliedClass.swiftClassesWithoutClassObjects(in:)`）交给 ObjC 索引器：泛型类与 `__objc_stublist` 登记的类连同 MachOObjCSection 写的注释一起列出，没有 ObjC 祖先的 Singleton 类不列（提案 `objc-classes-without-class-objects`）。
-- `Tests/SwiftSectionCommandTests/`：原有的解析测试；`CommandRequestMappingTests`（flag → 请求）、`CommandLineErrorTranslationTests`（库错误 → 历史文案与退出码）、`StandardStreamOutputTests`（内存流读回字节；`Rainbow.enabled` 与 `outputTarget` 是进程全局量，套件 `.serialized` 并在测试内钉住、用完还原）、`CommandLineStreamWriteScanTests`。
+- `CrossReferenceRequestTests`：`refs` 与 `symbolicate` 对宿主 cache（经文件读）端到端跑——JSON 的地址是十六进制字符串、`limit` 截断与 `isTruncated`、函数的被调用者、符号与类（含 `_OBJC_CLASS_$_` 写法与类名写法结果一致）、错误；归档的 macOS 27.2 cache 上整 cache 查 selector；独立的胖可执行文件（TextEdit）必须给架构。
+- `Tests/SwiftSectionCommandTests/`：`CrossReferenceCommandTests`（`refs` 恰好一个查询、恰好一个输入，各 flag 到请求的映射，需要别的 flag 才成立的组合，`symbolicate` 的地址解析；`--in-image` 与 `--function-image` 的错误译成退出码 64）；原有的解析测试；`CommandRequestMappingTests`（flag → 请求）、`CommandLineErrorTranslationTests`（库错误 → 历史文案与退出码）、`StandardStreamOutputTests`（内存流读回字节；`Rainbow.enabled` 与 `outputTarget` 是进程全局量，套件 `.serialized` 并在测试内钉住、用完还原）、`CommandLineStreamWriteScanTests`。
 - `PrintFailureEventTests.libraryModulesWriteToNoProcessStream` 的豁免名单只有 `swift-section` 和 `SwiftSectionTestingSupport`，`SwiftSectionKit` 自动被扫描：库里出现任何 `print` / `fputs` / `FileHandle.standard*` 都会变红。
 
 ## 7. 加一个 flag / 子命令

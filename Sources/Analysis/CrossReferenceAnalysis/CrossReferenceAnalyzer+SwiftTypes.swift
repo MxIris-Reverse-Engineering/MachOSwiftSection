@@ -21,8 +21,7 @@ public struct SwiftTypeIdentity: Hashable, Sendable {
 extension CrossReferenceAnalyzer {
     /// The type whose context descriptor lies at `location`.
     public func swiftTypeIdentity(ofDescriptorAt location: CodeLocation) -> SwiftTypeIdentity? {
-        guard let slide = images[location.imageIndex].vmaddrSlide else { return nil }
-        let descriptor = UInt(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide)
+        let descriptor = imageSet.runtimeAddress(of: location)
         guard let key = swiftTypeIndex(ofImageAt: location.imageIndex).key(ofDescriptorAt: descriptor) else { return nil }
         let classObject = objectiveCClassIndex(ofImageAt: location.imageIndex).swiftClassObject(describedBy: descriptor)
         return SwiftTypeIdentity(key: key, descriptorLocation: location, objectiveCClassName: classObject?.name, objectiveCClassLocation: classObject?.location)
@@ -34,12 +33,11 @@ extension CrossReferenceAnalyzer {
     /// descriptors name alike built, and every descriptor with that key
     /// returned, in no particular order — one in the images seen so far.
     public func swiftTypeDescriptorLocations(withKey key: String, inImageAt imageIndex: Int) -> [CodeLocation] {
-        let image = images[imageIndex]
-        guard let slide = image.vmaddrSlide else { return [] }
+        let image = imageSet.images[imageIndex]
         let index = swiftTypeIndex(ofImageAt: imageIndex)
         // The symbol settles it: a key spells the type the way its symbols do.
         for address in addresses(ofSymbolsNamed: "_$s" + key + "Mn", inImageAt: imageIndex) {
-            let descriptor = UInt(bitPattern: Int(bitPattern: UInt(address)) &+ slide)
+            let descriptor = image.runtimeAddress(ofUnslid: address)
             if index.describesType(descriptorAt: descriptor) { return [index.location(ofRuntimeAddress: descriptor)] }
         }
         return index.descriptorLocations(withKey: key)
@@ -55,13 +53,12 @@ extension CrossReferenceAnalyzer {
     /// spell out — the standard library's and the imported ones — take
     /// demangling the names to find.
     public func references(toSwiftType identity: SwiftTypeIdentity, inImageAt imageIndex: Int) -> [CodeReference] {
-        let table = existingFunctionTable(ofImageAt: imageIndex) ?? ImageFunctionTable(imageIndex: imageIndex, image: images[imageIndex])
-        var scanner = ReferenceScanner(analyzer: self, table: table, matching: SwiftTypeQuery(identity: identity, analyzer: self))
-        var references: [CodeReference] = []
-        for index in table.starts.indices {
-            scanner.scanFunction(at: index, into: &references)
+        let table = imageSet.transientFunctionTable(ofImageAt: imageIndex)
+        return scan(table, matching: SwiftTypeQuery(identity: identity, analyzer: self)) { scanner, _ in
+            for index in table.starts.indices {
+                scanner.scanFunction(at: index)
+            }
         }
-        return references
     }
 
     /// What ``references(toSwiftType:inImageAt:)`` finds, read from the
@@ -99,7 +96,7 @@ extension CrossReferenceAnalyzer {
         }
         if SwiftTypeQuery.mayBeSpelledOut(identity.key) {
             result.formUnion(candidates.filter { imageIndex in
-                images[imageIndex].sections64.contains { $0.sectionName.hasPrefix("__swift5_") && $0.size > 0 }
+                imageSet.images[imageIndex].reader.sections64.contains { $0.sectionName.hasPrefix("__swift5_") && $0.size > 0 }
             })
         }
         if let classLocation = identity.objectiveCClassLocation {
@@ -119,7 +116,7 @@ extension CrossReferenceAnalyzer {
     /// it to look up three names took SwiftUICore's first type query 0.1 s in
     /// a debug build, and keeping what was read 6 MiB.
     func exportsSymbol(named name: String, fromImageAt imageIndex: Int) -> Bool {
-        images[imageIndex].exportTrie?.search(by: name) != nil
+        imageSet.linkEdit(ofImageAt: imageIndex).exportedSymbol(named: name) != nil
     }
 
     /// The types a Swift type name names, by key, in the order the name
@@ -134,13 +131,29 @@ extension CrossReferenceAnalyzer {
             guard let node = try? demangleAsNodeTransient(symbol) else { return [] }
             return Self.nominalKeys(in: node)
         case .mangledName(let location, _):
-            guard let slide = images[location.imageIndex].vmaddrSlide,
-                  let pointer = UnsafeRawPointer(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide),
-                  let mangledName = try? MangledName.resolve(at: pointer, in: InProcessContext.shared),
-                  let node = try? SymbolicDemangler.demangleTypeUncached(for: mangledName, in: InProcessContext.shared)
-            else { return [] }
-            return Self.nominalKeys(in: node)
+            let image = imageSet.images[location.imageIndex]
+            let node: Node?
+            if image.reader.asMachOImage != nil {
+                // In this process the name is read where it lies, its
+                // symbolic references followed through process memory.
+                guard let pointer = memory.bytes(at: image.runtimeAddress(ofUnslid: location.address), length: 1)?.baseAddress,
+                      let mangledName = try? MangledName.resolve(at: pointer, in: InProcessContext.shared)
+                else { return [] }
+                node = try? SymbolicDemangler.demangleTypeUncached(for: mangledName, in: InProcessContext.shared)
+            } else if let reader = image.swiftSectionReader, let offset = image.readerOffset(ofUnslidAddress: location.address) {
+                node = Self.demangledType(ofMangledNameAt: offset, in: reader)
+            } else {
+                node = nil
+            }
+            return node.map(Self.nominalKeys(in:)) ?? []
         }
+    }
+
+    /// The type a mangled name in a file spells, its symbolic references
+    /// followed through the file.
+    private static func demangledType(ofMangledNameAt offset: Int, in reader: some MachOSwiftSectionRepresentableWithCache) -> Node? {
+        guard let mangledName = try? MangledName.resolve(at: offset, in: reader.context) else { return nil }
+        return try? SymbolicDemangler.demangleTypeUncached(for: mangledName, in: reader.context)
     }
 
     // MARK: - Internals
@@ -206,21 +219,18 @@ extension CrossReferenceAnalyzer {
     /// The unslid addresses the image's symbol table and export trie give
     /// `name`.
     private func addresses(ofSymbolsNamed name: String, inImageAt imageIndex: Int) -> [UInt64] {
-        let image = images[imageIndex]
+        let image = imageSet.images[imageIndex]
+        let linkEdit = imageSet.linkEdit(ofImageAt: imageIndex)
         var addresses: [UInt64] = []
         name.withCString { wantedName in
-            guard let symbols = image.symbols64 else { return }
-            for symbolIndex in 0 ..< symbols.numberOfSymbols {
-                let entry = symbols.symbols[symbolIndex]
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E,
-                      strcmp(symbols.stringBase.advanced(by: Int(entry.n_un.n_strx)), wantedName) == 0
-                else { continue }
+            for symbolIndex in linkEdit.symbols.indices {
+                let entry = linkEdit.symbols[symbolIndex]
+                guard ImageLinkEdit.isDefinedInSection(entry), let symbolName = linkEdit.name(ofSymbolAt: symbolIndex), strcmp(symbolName, wantedName) == 0 else { continue }
                 addresses.append(entry.n_value)
             }
         }
-        if let headerAddress = image.segments64.first(where: { $0.segmentName == "__TEXT" }).map({ UInt64($0.layout.vmaddr) }),
-           let offset = image.exportTrie?.search(by: name)?.offset {
-            addresses.append(UInt64(bitPattern: Int64(bitPattern: headerAddress) &+ Int64(offset)))
+        if let offset = linkEdit.exportedSymbol(named: name)?.offset {
+            addresses.append(image.unslidAddress(atHeaderOffset: offset))
         }
         return addresses
     }
@@ -248,8 +258,7 @@ final class SwiftTypeQuery {
         self.isImported = identity.key.hasPrefix("So") || identity.key.hasPrefix("SC")
         self.mayBeSpelledOut = Self.mayBeSpelledOut(identity.key)
         var typeName: String?
-        if let slide = analyzer.images[identity.descriptorLocation.imageIndex].vmaddrSlide,
-           let name = SwiftTypeIndex.name(ofDescriptorAt: UInt(bitPattern: Int(bitPattern: UInt(identity.descriptorLocation.address)) &+ slide)) {
+        if let name = SwiftTypeIndex.name(ofDescriptorAt: analyzer.imageSet.runtimeAddress(of: identity.descriptorLocation), in: analyzer.memory) {
             typeName = String(cString: name)
         }
         self.typeName = typeName
@@ -286,11 +295,9 @@ final class SwiftTypeQuery {
         guard isImported, let typeName else { return false }
         if let known = descriptorMatches[location] { return known }
         var result = false
-        if let slide = analyzer.images[location.imageIndex].vmaddrSlide {
-            let descriptor = UInt(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide)
-            if let name = SwiftTypeIndex.name(ofDescriptorAt: descriptor), strcmp(name, typeName) == 0 {
-                result = analyzer.swiftTypeIndex(ofImageAt: location.imageIndex).key(ofDescriptorAt: descriptor) == identity.key
-            }
+        let descriptor = analyzer.imageSet.runtimeAddress(of: location)
+        if let name = SwiftTypeIndex.name(ofDescriptorAt: descriptor, in: analyzer.memory), strcmp(name, typeName) == 0 {
+            result = analyzer.swiftTypeIndex(ofImageAt: location.imageIndex).key(ofDescriptorAt: descriptor) == identity.key
         }
         descriptorMatches[location] = result
         return result
@@ -302,24 +309,24 @@ final class SwiftTypeQuery {
             // A symbol spells every type out.
             return analyzer.swiftTypeKeys(in: name).contains(identity.key)
         case .mangledName(let location, let length):
-            guard let slide = analyzer.images[location.imageIndex].vmaddrSlide,
-                  let bytes = UnsafePointer<UInt8>(bitPattern: Int(bitPattern: UInt(location.address)) &+ slide)
-            else { return false }
+            let nameAddress = analyzer.imageSet.runtimeAddress(of: location)
+            guard let bytes = analyzer.memory.typedPointer(to: UInt8.self, at: nameAddress, length: length) else { return false }
             var index = 0
             while index < length {
                 let byte = bytes[index]
                 if byte == 0x01 || byte == 0x02, index + 5 <= length {
                     // A symbolic reference to a context descriptor, direct or
                     // through a pointer.
-                    let field = UInt(bitPattern: bytes + index + 1)
+                    // The field's own address, from which the reference counts.
+                    let field = nameAddress &+ UInt(index + 1)
                     let relative = UnsafeRawPointer(bytes + index + 1).loadUnaligned(as: Int32.self)
                     var descriptor = UInt(bitPattern: Int(bitPattern: field) &+ Int(relative))
                     if byte == 0x02 {
-                        guard analyzer.isMapped(runtimeAddress: descriptor, length: 8), let slot = UnsafeRawPointer(bitPattern: descriptor) else {
+                        guard analyzer.isMapped(runtimeAddress: descriptor, length: 8), let target = analyzer.memory.pointer(at: descriptor) else {
                             index += 5
                             continue
                         }
-                        descriptor = StoredPointer.address(in: slot.loadUnaligned(as: UInt64.self))
+                        descriptor = target
                     }
                     if let descriptorLocation = analyzer.location(ofDescriptorAtRuntimeAddress: descriptor), matchesDescriptor(at: descriptorLocation) {
                         return true
@@ -343,7 +350,6 @@ extension CrossReferenceAnalyzer {
     /// Where the context descriptor at the runtime `address` lies, when it
     /// lies in an image.
     func location(ofDescriptorAtRuntimeAddress address: UInt) -> CodeLocation? {
-        guard let imageIndex = imageIndex(containingRuntimeAddress: address), let slide = images[imageIndex].vmaddrSlide else { return nil }
-        return CodeLocation(imageIndex: imageIndex, address: UInt64(bitPattern: Int64(bitPattern: UInt64(address)) &- Int64(slide)))
+        imageSet.location(ofRuntimeAddress: address)
     }
 }

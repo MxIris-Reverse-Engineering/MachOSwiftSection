@@ -14,9 +14,10 @@ struct AddressMaskScanTests {
         var offendingLines: [String] = []
         for fileURL in try Self.librarySourceFiles() {
             let contents = try String(contentsOf: fileURL, encoding: .utf8)
+            let allowedFields = Self.fixupFormatFields[fileURL.lastPathComponent] ?? []
             for (lineNumber, line) in contents.components(separatedBy: .newlines).enumerated() {
                 let code = line.trimmingCharacters(in: .whitespaces)
-                guard !code.hasPrefix("//"), Self.containsAnAddressMask(code) else { continue }
+                guard !code.hasPrefix("//"), Self.containsAnAddressMask(code), !allowedFields.contains(where: code.contains) else { continue }
                 offendingLines.append("\(fileURL.lastPathComponent):\(lineNumber + 1): \(code)")
             }
         }
@@ -39,6 +40,14 @@ struct AddressMaskScanTests {
         #expect(!Self.containsAnAddressMask("value & 0x0000_7FFF_FFFF_F000"))
         #expect(!Self.containsAnAddressMask("let shift = 47"))
     }
+
+    /// Fields of a fixup format that look like an address mask and are none:
+    /// decoding a file reads them, and no process pointer is stripped with
+    /// them. Shrink-only; each entry says which field it is.
+    private static let fixupFormatFields: [String: [String]] = [
+        // `dyld_cache_slide_pointer5.runtimeOffset`, 34 bits (slide info v5).
+        "FileCrossReferenceMemory.swift": ["raw & 0x3_FFFF_FFFF"],
+    ]
 
     private static let hexadecimalLiteral = try! NSRegularExpression(pattern: #"\b0x[0-9A-Fa-f_]+\b"#)
 

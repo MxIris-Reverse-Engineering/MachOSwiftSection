@@ -1,6 +1,7 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
+import CodeAddressResolution
 import MachOSwiftSection
 import Demangling
 import OrderedCollections
@@ -406,7 +407,7 @@ extension Node {
                 #log(.info, "no search path located an image exporting \(descriptorSymbolName, privacy: .public)")
                 return nil
             }
-            let imageAddressSpace = ThunkAddressSpace(of: location.image)
+            let imageAddressSpace = ImageAddressSpace(of: location.image)
             guard let descriptorAddress = imageAddressSpace.address(forExportedSymbolOffset: location.exportedSymbolOffset),
                   let descriptorOffset = imageAddressSpace.offset(forAddress: descriptorAddress)
             else { return nil }

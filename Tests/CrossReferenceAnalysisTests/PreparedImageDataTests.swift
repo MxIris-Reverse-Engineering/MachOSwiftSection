@@ -22,8 +22,8 @@ struct PreparedImageDataTests {
         #expect(analyzer.approximateByteCount(ofImageDataAt: foundation) == 0)
 
         analyzer.prepareNames(inImageAt: foundation)
-        let table = try #require(analyzer.existingFunctionTable(ofImageAt: foundation))
-        #expect(table.existingFallbackNames?.hasReadEverySource == true)
+        #expect(analyzer.existingFunctionTable(ofImageAt: foundation) != nil)
+        #expect(analyzer.hasReadEveryNameSource(ofImageAt: foundation))
         let indexes = analyzer.existingIndexes(ofImageAt: foundation)
         #expect(indexes.classIndex?.hasReadEveryName == true)
         #expect(indexes.swiftTypeIndex?.builtState.hasReadDescriptorSymbols == true)
@@ -58,7 +58,7 @@ struct PreparedImageDataTests {
         let keptBytes = analyzer.approximateByteCount(ofImageDataAt: libobjc)
 
         analyzer.releaseImageData(exceptForImagesAt: [libobjc])
-        #expect(analyzer.existingFunctionTable(ofImageAt: libobjc)?.existingFallbackNames?.hasReadEverySource == true)
+        #expect(analyzer.hasReadEveryNameSource(ofImageAt: libobjc))
         #expect(analyzer.existingIndexes(ofImageAt: libobjc).classIndex?.hasReadEveryName == true)
         #expect(analyzer.approximateByteCount(ofImageDataAt: libobjc) == keptBytes)
         #expect(analyzer.existingFunctionTable(ofImageAt: foundation) == nil)
@@ -86,8 +86,8 @@ struct PreparedImageDataTests {
     /// reading them on every core finds, in the same order.
     @Test func serialAndConcurrentReadsAgree() throws {
         let analyzer = try #require(CrossReferenceAnalyzer())
-        let serial = RenamedReexportIndex(analyzer: analyzer, concurrently: false)
-        let concurrent = RenamedReexportIndex(analyzer: analyzer, concurrently: true)
+        let serial = RenamedReexportIndex(images: analyzer.imageSet, concurrently: false)
+        let concurrent = RenamedReexportIndex(images: analyzer.imageSet, concurrently: true)
         #expect(serial.reexportsByProvider.values.reduce(0) { $0 + $1.count } > 1000)
         #expect(serial.reexportsByProvider == concurrent.reexportsByProvider)
     }

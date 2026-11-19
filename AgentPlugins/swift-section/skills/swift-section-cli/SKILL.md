@@ -4,11 +4,13 @@ description: >-
   Recovering Swift and Objective-C declarations and ABI facts from a Mach-O binary or a dyld
   shared cache with the `swift-section` CLI — dumping types / protocols / conformances,
   generating a .swiftinterface offline, Objective-C headers with IMP addresses, diffing the API
-  of two builds, tracking it across OS versions, and the static field-offset / type-layout /
-  enum-layout comments. Read before running swift-section, and whenever a task needs type
-  information out of a binary without loading it into a process. Triggers on swift-section,
-  swift-section objc, objc-section, MachOSwiftSection, __swift5_types, swiftinterface,
-  ABI diff, ABI baseline.
+  of two builds, tracking it across OS versions, the static field-offset / type-layout /
+  enum-layout comments, and — from arm64 code — the callers of a selector, symbol, class or
+  function across a whole dyld shared cache and what an address is. Read before running
+  swift-section, and whenever a task needs type information or cross references out of a binary
+  without loading it into a process. Triggers on swift-section, swift-section objc,
+  objc-section, swift-section refs, swift-section symbolicate, MachOSwiftSection,
+  __swift5_types, swiftinterface, ABI diff, ABI baseline, xrefs, callers.
 ---
 
 # swift-section
@@ -47,8 +49,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 / `dump --enable-module-selectors`, from 0.24.0
 `interface --requirements-on-associated-types` and `--emit-private-source-files`, and after
 0.24.0 `objc evolution --interface` / `--emit-available` / `--platform`,
-`objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`
-and `interface --expand-macros`.
+`objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`,
+`interface --expand-macros` and the `refs` and `symbolicate` subcommands.
 When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
@@ -64,6 +66,8 @@ missing, say so rather than silently producing a weaker answer — the alternati
 | How did this API evolve across N OS versions? | `evolution` |
 | Reformat the memory-layout comments the two above emit | `transformer` |
 | Objective-C headers, IMP addresses, or an Objective-C API diff (0.20.0+, formerly the separate `objc-section` executable) | `objc` — read `references/objc.md` first |
+| Who calls this selector / symbol / function, who references this class, ivar or string — across a whole dyld shared cache or an app's files | `refs` — read `references/cross-references.md` first |
+| What is this address: which function and how far into it, a stub and where it leads, a slot and what it holds | `symbolicate` — same reference |
 
 `dump` is the default subcommand: `swift-section <path>` is `swift-section dump <path>`.
 
@@ -437,4 +441,5 @@ The repository is [MachOSwiftSection](https://github.com/MxIris-Reverse-Engineer
 | How to read an enum-layout comment | `Documentations/SwiftEnumLayout.md` (`_zh` companion) |
 | Writing supplementary `.apinotes` for a private framework | `Documentations/SupplementaryTypeMappings.md` |
 | The `objc` subcommands in full, including the snapshot / diff / evolution workflow | `Documentations/ObjCCommandLine.md` (`_zh` companion); the traps are in `references/objc.md` beside this file |
+| `refs` and `symbolicate`: the line format, the routes, the traps | `references/cross-references.md` beside this file |
 | What each flag does, authoritatively | `swift-section <subcommand> --help` (and `swift-section objc <subcommand> --help`) — generated from the code, so it cannot drift |

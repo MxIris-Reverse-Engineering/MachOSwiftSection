@@ -61,6 +61,38 @@ struct ARM64InstructionWordTests {
         #expect(negative.displacement == -0x20)
     }
 
+    /// How code reads an Objective-C instance variable's offset variable:
+    /// `adrp` / `ldrsw`, or the literal `ldrsw` ld64 makes of a pair within a
+    /// megabyte. A 64-bit load is none of them, and none of them a 64-bit
+    /// load.
+    @Test func decoderDecodesThirtyTwoBitLoadAndLoadSignedWord() throws {
+        let word = try #require(ARM64InstructionWord.wordLoad(InstructionEncoding.loadWordUnsignedOffset(3, base: 8, byteOffset: 0x1F4)))
+        #expect(word.destination == 3 && word.base == 8 && word.displacement == 0x1F4)
+        let signedWord = try #require(ARM64InstructionWord.wordLoad(InstructionEncoding.loadSignedWordUnsignedOffset(8, base: 8, byteOffset: 0x3FFC)))
+        #expect(signedWord.destination == 8 && signedWord.base == 8 && signedWord.displacement == 0x3FFC)
+        #expect(ARM64InstructionWord.wordLoad(InstructionEncoding.loadUnsignedOffset(8, base: 8, byteOffset: 0x10)) == nil)
+        #expect(ARM64InstructionWord.load(InstructionEncoding.loadSignedWordUnsignedOffset(8, base: 8, byteOffset: 0x10)) == nil)
+
+        let slot = address + 0x2_0004
+        let literal = try #require(ARM64InstructionWord.wordLoadLiteral(InstructionEncoding.loadSignedWordLiteral(9, at: address, slot: slot), at: address))
+        #expect(literal.destination == 9 && literal.slotAddress == slot)
+        // A 64-bit literal load is the other reader's.
+        #expect(ARM64InstructionWord.wordLoadLiteral(InstructionEncoding.loadLiteral(9, at: address, slot: slot), at: address) == nil)
+        #expect(ARM64InstructionWord.loadLiteral(InstructionEncoding.loadSignedWordLiteral(9, at: address, slot: slot), at: address) == nil)
+
+        let instructions = try Disassembler<AArch64>().decode(
+            InstructionEncoding.bytes(of: [
+                InstructionEncoding.loadWordUnsignedOffset(3, base: 8, byteOffset: 0x1F4),
+                InstructionEncoding.loadSignedWordUnsignedOffset(8, base: 8, byteOffset: 0x3FFC),
+                InstructionEncoding.loadSignedWordLiteral(9, at: address + 8, slot: address + 8 + 0x2_0004),
+            ]),
+            address: address
+        )
+        #expect(instructions.map(\.mnemonic) == ["ldr", "ldrsw", "ldrsw"])
+        #expect(instructions[0].operands[1].memory?.displacement == 0x1F4)
+        #expect(instructions[1].operands[1].memory?.displacement == 0x3FFC)
+    }
+
     @Test func registerBranchesAndConstants() throws {
         let tailCall = try #require(ARM64InstructionWord.registerBranch(InstructionEncoding.branchToRegisterAuthenticated(16, modifier: 17)))
         #expect(tailCall == .init(target: 16, modifier: 17, isCall: false, isAuthenticated: true))
@@ -166,6 +198,38 @@ struct ARM64TrampolineTests {
             0xD420_0020,
         ]
         #expect(ARM64Trampoline(words: words, at: stubAddress) == .selectorStub(selectorAddress: 0x1_F57F_7F98, messageSendAddress: messageSend))
+    }
+
+    /// A function that starts by loading a global — a Swift field offset
+    /// here — begins the way a GOT stub does; what it does with the loaded
+    /// value tells the two apart. UIKitCore's `UIHostingViewBase.viewGraph`
+    /// getter in the iOS 26.3.1 device cache, which a stub island leads to,
+    /// read as a stub loading its target from the offset variable.
+    @Test func aFunctionLoadingAGlobalIsNoSlotStub() {
+        // adrp x8, 0x1e9949000 / ldr x8, [x8, #0xb10] / ldr x0, [x20, x8] / b <swift_retain>
+        let getter: [UInt32] = [0xB030_47C8, 0xF945_8908, 0xF868_6A80, 0x1503_490D]
+        #expect(ARM64Trampoline(words: getter, at: 0x1_8905_01B0) == nil)
+        // A jump through another register leaves the loaded value unused.
+        let otherRegister = [
+            InstructionEncoding.adrp(16, at: address, page: 0x1_0000_8000),
+            InstructionEncoding.loadUnsignedOffset(16, base: 16, byteOffset: 0x18),
+            InstructionEncoding.branchToRegister(17),
+        ]
+        #expect(ARM64Trampoline(words: otherRegister, at: address) == nil)
+        // A call through the loaded register returns; a stub's jump does not.
+        let call = [
+            InstructionEncoding.adrp(16, at: address, page: 0x1_0000_8000),
+            InstructionEncoding.loadUnsignedOffset(16, base: 16, byteOffset: 0x18),
+            InstructionEncoding.callRegisterAuthenticated(16, modifier: 17),
+        ]
+        #expect(ARM64Trampoline(words: call, at: address) == nil)
+        // A literal load the stub's jump does not follow.
+        let literal = [
+            ARM64InstructionWord.noOperation,
+            InstructionEncoding.loadLiteral(8, at: address + 4, slot: address + 0x4_0008),
+            ARM64InstructionWord.noOperation,
+        ]
+        #expect(ARM64Trampoline(words: literal, at: address) == nil)
     }
 
     @Test func ordinaryCodeIsNoTrampoline() {

@@ -1,6 +1,7 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
+import CodeAddressResolution
 import MachOFoundation
 import SwiftSymbols
 import MachOSwiftSection
@@ -225,7 +226,7 @@ package struct ThunkTypeNodeBuilder: ThunkTypeNodeBuildingLogging {
 /// Names a metadata record: its exported `…VN` symbol first, then the
 /// record's own descriptor.
 package enum MetadataNaming {
-    package static func typeNode(forMetadataAt address: UInt64, addressSpace: ThunkAddressSpace, in machO: MachOFile) -> Node? {
+    package static func typeNode(forMetadataAt address: UInt64, addressSpace: ImageAddressSpace, in machO: MachOFile) -> Node? {
         guard let offset = addressSpace.offset(forAddress: address) else { return nil }
         // The metadata symbol first: `…VN` is an *exported* symbol, so it
         // survives the stripping that removes the thunk's own
