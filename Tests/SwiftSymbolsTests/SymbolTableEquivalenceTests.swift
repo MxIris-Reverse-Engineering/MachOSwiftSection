@@ -29,7 +29,10 @@ final class SymbolTableImageEquivalenceTests: MachOImageTests, @unchecked Sendab
         var checkedCount = 0
         var mismatchCount = 0
         func check(nameC: UnsafePointer<CChar>, name: String) {
-            let isSwiftMangling = SymbolLanguage(ofSymbolNameBytes: nameC) == .swift && !nameBytesHaveSymbolicManglingSymbolPrefix(nameC)
+            // Evaluated before the `&&`: its right side is an autoclosure, and capturing
+            // the non-Sendable pointer there is a region-isolation error in release builds.
+            let hasSymbolicManglingPrefix = nameBytesHaveSymbolicManglingSymbolPrefix(nameC)
+            let isSwiftMangling = SymbolLanguage(ofSymbolNameBytes: nameC) == .swift && !hasSymbolicManglingPrefix
             if isSwiftMangling != name.isSwiftSymbol {
                 mismatchCount += 1
                 if mismatchCount <= 3 {
