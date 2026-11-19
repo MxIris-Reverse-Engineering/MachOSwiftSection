@@ -25,7 +25,7 @@ swift-section objc interface NSTextInputContext \
 swift-section objc interface NSTextInputContext --uses-system-dyld-shared-cache -n AppKit \
   --emit-method-imp-addresses --emit-property-accessor-addresses
 
-# The same class as Swift imports it, like Xcode's Generated Interface (after 0.24.0)
+# The same class as Swift imports it, like Xcode's Generated Interface (from 0.25.0)
 swift-section objc interface NSColor --uses-system-dyld-shared-cache -n AppKit --swift
 
 # A standalone binary; a universal one needs -a, and without it the error lists the slices
