@@ -95,12 +95,12 @@ extension SwiftDeclarationPrinter {
                         dispatchingTo: eventDispatcher,
                         context: .init(name: definition.className.name, kind: .extension)
                     ) {
-                        try await DeclarationBlock(level: level) {
+                        await DeclarationBlock(level: level) {
                             Keyword(.extension)
                             Space()
                             renderExtendedTypeName(definition.className.extensionName)
                         } body: {
-                            try await MemberList(level: level) {
+                            await MemberList(level: level) {
                                 comment(.note("Objective-C methods of the class that no member of the Swift class answers to. Swift names follow the ClangImporter's rules for these selectors."), as: .note)
                                 for member in unansweredMembers {
                                     await printObjCImportedMember(member, level: level)
@@ -286,7 +286,7 @@ extension SwiftDeclarationPrinter {
             TypeDeclaration(kind: .protocol, Self.leafName(of: definition.protocolName.node, kind: .protocol) ?? definition.objcRuntimeName)
             try await inheritanceClause(definition.inheritedProtocolNames.map(\.node))
         } body: {
-            try await MemberList(level: level) {
+            await MemberList(level: level) {
                 if !definition.requirements.isEmpty {
                     comment(.note("Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them."), as: .note)
                 }
@@ -303,7 +303,7 @@ extension SwiftDeclarationPrinter {
 
     @SemanticStringBuilder
     private func objcImportedMemberList(_ members: [ObjCImportedMemberDefinition], swiftMembers: ObjCImplementingSwiftMembers, leadingNote: String? = nil, level: Int) async throws -> SemanticString {
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             if let leadingNote {
                 comment(.note(leadingNote), as: .note)
             }
