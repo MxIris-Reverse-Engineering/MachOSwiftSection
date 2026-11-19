@@ -26,7 +26,7 @@ SwiftSymbols 是 **Swift 符号索引**层：在 MachOKitExtensions `MachOSymbol
 
 ## `SymbolLanguage.swift` 与加载时注册
 
-`SymbolLanguage.swift` 定义在本模块（`SymbolLanguage+Swift.swift`），不在 MachOKitExtensions：Swift 名字怎么认归本包管（MachOKitExtensions 提案 [split-symbol-language](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/draft-split-symbol-language.md)）。
+`SymbolLanguage.swift` 定义在本模块（`SymbolLanguage+Swift.swift`），不在 MachOKitExtensions：Swift 名字怎么认归本包管（MachOKitExtensions 提案 [split-symbol-language](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0004-split-symbol-language.md)）。
 
 - **识别**：`SwiftSymbolNameRecognition.recognizes` 只看名字开头的字节——`$s` `_$s` `$S` `_$S` `$e` `_$e` `_T0` `@__swiftmacro_`，以及链接器去重名 `_symbolic `、`_default assoc type `。前缀集合必须与 swift-demangling 的 `isSwiftSymbol` 一致，`SymbolTableEquivalenceTests.swiftRecognitionMatchesDemanglingIsSwiftSymbol` 在真实符号表上钉住。
 - **注册**：C target `SwiftSymbolsRegistration` 里的 `__attribute__((constructor))` 在镜像加载时调用本模块用 `@c` 导出的 `swift_symbols_register_symbol_language`，向 `SymbolLanguageRegistry.shared` 登记 `.swift`。`SwiftSymbols` 依赖这个 C target，链接 `SwiftSymbols` 就带上了 constructor，调用方什么都不用做。Swift 自己没有加载时初始化：SE-0492 的 `@section` 写进 `__mod_init_func` 在 Swift 6.4.2 上链接失败，所以用 C target。
