@@ -22,10 +22,10 @@
 | SwiftSpecialization | — | 待写 |
 | SwiftThunkAnalysis | [SwiftThunkAnalysis.md](SwiftThunkAnalysis.md) | ✅ 已写（入门：[AccessorThunkResolutionExplained.md](../AccessorThunkResolutionExplained.md)） |
 | CrossReferenceAnalysis | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（提案 [0072-cross-reference-analysis](../../Evolutions/0072-cross-reference-analysis.md)） |
-| ARM64InstructionDecoding | [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) | ✅ 已写（与 CrossReferenceAnalysis 同篇：手写的指令字读取与跳板形状，SwiftThunkAnalysis 也用） |
-| CodeAddressResolution | [CodeAddressResolution.md](CodeAddressResolution.md) | ✅ 已写（离线的地址空间、桩链、槽解析与 cache 镜像定位，线程读取与交叉引用文件模式共用，将来迁进 MachOKitExtensions） |
-| CrossReferenceCore | [CrossReferenceCore.md](CrossReferenceCore.md) | ✅ 已写（交叉引用与语言无关的核心层，将来迁进 MachOKitExtensions） |
-| CrossReferenceObjC | [CrossReferenceObjC.md](CrossReferenceObjC.md) | ✅ 已写（交叉引用的 ObjC 层，将来迁进 MachOObjCSection） |
+| ARM64InstructionDecoding | MachOKitExtensions 的 [ARM64InstructionDecoding.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/ARM64InstructionDecoding.md) | 已搬去 MachOKitExtensions（提案 `move-cross-reference-layers`）：手写的指令字读取与跳板形状，CrossReferenceAnalysis 与 SwiftThunkAnalysis 经 `@_spi(Internals)` 用 |
+| MachOAddressResolution（原 CodeAddressResolution） | MachOKitExtensions 的 [MachOAddressResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOAddressResolution.md) | 已搬去 MachOKitExtensions：离线的地址空间、桩链、槽解析与 cache 镜像定位，线程读取与交叉引用文件模式共用 |
+| MachOCodeReferences（原 CrossReferenceCore） | MachOKitExtensions 的 [MachOCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md) | 已搬去 MachOKitExtensions：交叉引用与语言无关的核心层；总说明仍在 [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) |
+| ObjCCodeReferences（原 CrossReferenceObjC） | MachOObjCSection 的 [ObjCCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOObjCSection/blob/next/Documentations/Internal/ObjCCodeReferences.md) | 已搬去 MachOObjCSection：交叉引用的 ObjC 层；总说明仍在 [CrossReferenceAnalysis.md](CrossReferenceAnalysis.md) |
 | SwiftAttributeInference | — | 待写 |
 | SwiftDeclaration | [SwiftDeclaration.md](SwiftDeclaration.md) | ✅ 已写 |
 | SwiftDeclarationRendering | — | 待写 |

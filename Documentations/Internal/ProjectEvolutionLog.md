@@ -3318,6 +3318,21 @@
 - **验证**：JHs-Mac-Studio-Ultra（macOS 27.2）。全量测试（跳过 IntegrationTests）2,993 个零失败；系统框架渲染 A/B 三条读取路径 84 对逐字节一致；RuntimeViewer 一侧在沙盒里编过 Core、CLI 与 MCP，新测试全过。用户验收用功能分支的 release 版 CLI（Xcode 27.2，本地兄弟依赖）跑了 selector 调用者、归档 27.0 与 27.2 cache 的类引用、桩与槽的符号化和一个胖文件。
 - **对应版本**：未发版。
 
+## 2026-11-19 交叉引用的核心层与 ObjC 层迁出本库
+
+- **时间段**：2026-11-19 起，三个仓库同名的分支 `feature/move-cross-reference-layers`（本库与 MachOKitExtensions 从各自的 `feature/move-macho-infrastructure-modules` 切出，MachOObjCSection 从 `next` 切出）。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上构建与测试。
+- **动机**：愿景《不依赖 IDA 的逆向》第 6 条要求与语言无关的部分归 MachOKitExtensions、ObjC 专属的归 MachOObjCSection。0097 已在本库拆好、量过；MachOKitExtensions 2.0.0 与本库 0.25.0 本来就是大版本与破坏性版本，同日搬只走一轮三个仓库的发版。
+- **关键决策**：
+  - 下层只开 `@_spi(Internals)` 给本库，对外的分析器与公开模型留在本库，RuntimeViewer 不改代码；搬走的 `package` 一律改成 SPI（共约 370 处），不按「跨包才改」逐个挑。
+  - `CrossReferenceCore` → `MachOCodeReferences`、`CodeAddressResolution` → `MachOAddressResolution`、`ARM64InstructionDecoding` 名字不变，都进 MachOKitExtensions；`CrossReferenceObjC` → MachOObjCSection 的新 target `ObjCCodeReferences`。
+  - 进程内部分用 `#if canImport(Darwin)` 包住，文件模式在 Linux 上也能编（未验证）；删掉从来只写 `.none` 的 `IndirectCallEvidence.table`，`refs --json` 的 `table` 键一起删。
+  - 测试跟代码走，但几乎都经门面建分析器，所以只搬直接测下层的几组与源码扫描；Capstone 对照的解码器测试留在本库。
+  - 落地顺序：MachOKitExtensions 2.0.0 → MachOObjCSection 0.8.207（MachOKitExtensions 下限抬到 2.0.0）→ 本库 0.25.0 → RuntimeViewer 抬钉。
+- **落地**：先把 `next` 合进基础设施搬迁分支（冲突七处，两边改动都保留）；三个模块与 ObjC 层的源码、测试、实现说明分别进 MachOKitExtensions 与 MachOObjCSection；本库删掉四个模块与 `CodeAddressResolutionTests`，门面、`SwiftThunkAnalysis`、`SwiftDeclarationRendering` 与测试改用 SPI import。
+- **文档**：提案 [draft-move-cross-reference-layers](../Evolutions/draft-move-cross-reference-layers.md)；`Modules/CrossReferenceAnalysis.md`（仍是三层的总说明）、`Modules/README.md`、`SwiftThunkAnalysis.md`、`AccessorThunkResolutionExplained.md`、`ProjectMap.md`、术语表与 `AGENTS.md`；MachOKitExtensions 的 `MachOCodeReferences.md`、`MachOAddressResolution.md`、`ARM64InstructionDecoding.md`，MachOObjCSection 的 `ObjCCodeReferences.md`；本库的三份旧模块文档删除。
+- **验证**：进行中，结果记在提案的决策日志。
+- **对应版本**：随 0.25.0（未发版）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

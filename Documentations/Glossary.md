@@ -86,7 +86,7 @@
 
 macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__objc_stubs` / `__auth_stubs`（这两个段在镜像里大小为 0），而是把桩收成整个缓存共用的一份，放在不属于任何镜像的区域：ObjC 消息走 selector 桩（`adrp x1; add x1; b <objc_msgSend 副本>`，`x1` 就是 selector 字符串），跨库调用走 GOT 桩（`adrp x17; add x17; ldr x16, [x17]; braa x16, x17`）。同一个 selector 在不同子缓存里各有一份桩，所以认 selector 要以字符串地址为键。与 stub island 的区别：island 自己算出目标、不读槽位。macOS 26、iOS 26 及更早，以及 Simulator 的缓存仍是镜像自带的桩。
 
-- **主要出现在**：`Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift`、`Sources/Analysis/CrossReferenceAnalysis/Scanning/ReferenceScanner.swift`
+- **主要出现在**：MachOKitExtensions 的 `Sources/ARM64InstructionDecoding/ARM64Trampoline.swift`、MachOKitExtensions 的 `Sources/MachOCodeReferences/Scanning/ReferenceScanner.swift`
 - **延伸阅读**：[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)、[0072-cross-reference-analysis](Evolutions/0072-cross-reference-analysis.md)
 
 ### category conformance（category 遵循，`ObjCCategoryConformance`）
@@ -317,8 +317,8 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 交叉引用扫描里认某一种语言的那一层。核心层只认与语言无关的东西（调用、桩、槽、寄存器跟踪、字符串），在五个时机问各语言层的识别会话：进入函数、遇到只有它认得的调用目标、调用点、算出一个地址、读一个槽。ObjC 层认发送、类与 ivar，Swift 层认类型元数据与 mangled name。核心不 import 任何语言层，新语言加识别器即可，不改核心。
 
-- **主要出现在**：`Sources/Analysis/CrossReferenceCore/Recognition/`、`CrossReferenceObjC`、`CrossReferenceAnalysis/Scanning/SwiftCodeReferenceRecognizer.swift`
-- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceCore.md](Internal/Modules/CrossReferenceCore.md)
+- **主要出现在**：MachOKitExtensions 的 `Sources/MachOCodeReferences/Recognition/`、MachOObjCSection 的 `ObjCCodeReferences`、`CrossReferenceAnalysis/Scanning/SwiftCodeReferenceRecognizer.swift`
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、MachOKitExtensions 的 [MachOCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md)
 
 ### reference route（引用路线，`CodeReferenceRoute`）
 

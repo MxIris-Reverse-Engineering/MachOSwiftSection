@@ -121,7 +121,7 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 - **认不出、但在本镜像 `__TEXT` 里的函数**：不放弃，把它的指令也解码出来交给第三步跟进去算（见「被调函数没名字怎么办」）。
 - 其余认不出的：不猜，让那一支降级。
 
-这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。同一个减法还有另一面：它对整个 cache 里的任何地址都算得出偏移，所以「这个地址在不在本镜像」不能靠它答，要按段范围判断（`ImageAddressSpace.containsAddress`，原名 `ThunkAddressSpace`，现在在 `CodeAddressResolution` 模块）——合并 accessor 那批第一版在 cache 上没解出来，就是把 rebase 出来的 libswiftSynchronization 地址当成了本镜像地址。
+这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。同一个减法还有另一面：它对整个 cache 里的任何地址都算得出偏移，所以「这个地址在不在本镜像」不能靠它答，要按段范围判断（`ImageAddressSpace.containsAddress`，原名 `ThunkAddressSpace`，现在在 MachOKitExtensions 的 `MachOAddressResolution` 模块）——合并 accessor 那批第一版在 cache 上没解出来，就是把 rebase 出来的 libswiftSynchronization 地址当成了本镜像地址。
 
 ### 第三步：符号求值——寄存器里装的不是数，是「类型表达式」
 
@@ -219,7 +219,7 @@ Sources/Analysis/SwiftThunkAnalysis/
     ├── ThunkTypeNodeBuilder.swift              # 第四步：表达式 → 类型名节点
     └── AccessorThunkOwnerLayout.swift          # thunk 主人的泛型参数布局（argument(k) 对应哪个参数）
 
-Sources/Analysis/CodeAddressResolution/         # 从 SwiftThunkAnalysis 抽出，交叉引用的文件模式共用
+MachOKitExtensions: Sources/MachOAddressResolution/（0.25.0 起在 MachOKitExtensions 包里；从 SwiftThunkAnalysis 抽出，交叉引用的文件模式共用）
 ├── ImageAddressSpace.swift                     # 共享缓存偏移与地址的换算（三套账的坑就在这里收口；导出表偏移是第四套：相对 mach header）
 ├── StubChainResolver.swift                     # 桩、stub island、cache 共用 selector 桩：一跳一跳读
 ├── SlotResolver.swift                          # 指针槽里装着谁：bind 名或 rebase 目标
