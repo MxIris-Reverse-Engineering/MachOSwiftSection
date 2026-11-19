@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// Where code takes a class object's address, the class a send goes to when
 /// the code names it, and the class a super send starts above.

@@ -3,6 +3,7 @@ import Testing
 import Capstone
 import MachOKit
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// One analyzer for the whole suite: building it reads every image of the
 /// shared cache.

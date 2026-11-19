@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-import CodeAddressResolution
+@_spi(Internals) import MachOAddressResolution
 import MachOFoundation
 import MachOSwiftSection
 import SwiftSectionFixtureSupport

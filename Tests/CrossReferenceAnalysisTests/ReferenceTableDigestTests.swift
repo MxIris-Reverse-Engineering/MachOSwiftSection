@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import CryptoKit
 import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// Whole reference tables of a few large images, reduced to a count and a
 /// SHA-256 per image, so that a refactoring of the analyzer can be shown to

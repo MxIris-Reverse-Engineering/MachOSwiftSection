@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 
 /// The instance variables an image's classes declare, by the unslid address
 /// of each one's offset variable in `__objc_ivar` — what code loads to reach

@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 
 /// Where the references only the Objective-C layer recognizes go.
 package protocol ObjCCodeReferenceRecording: CodeReferenceRecording {

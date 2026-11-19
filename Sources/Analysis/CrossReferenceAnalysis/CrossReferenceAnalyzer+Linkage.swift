@@ -1,4 +1,5 @@
 import Foundation
+@_spi(Internals) import MachOCodeReferences
 
 extension CrossReferenceAnalyzer {
     /// Where the images among `candidates` define a symbol named `name`,

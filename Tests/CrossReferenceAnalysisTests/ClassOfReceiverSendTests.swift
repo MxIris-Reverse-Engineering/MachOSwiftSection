@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// `[self class]` compiles to `objc_opt_class(self)`, which returns the class
 /// of what it is handed: a class object itself, an instance's class

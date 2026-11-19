@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// Every reference of a standalone binary, read in file mode and written one
 /// function at a time, to compare with a disassembler's cross references by

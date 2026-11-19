@@ -1,7 +1,7 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
-import CodeAddressResolution
+@_spi(Internals) import MachOAddressResolution
 import MachOSwiftSection
 import Demangling
 import OrderedCollections

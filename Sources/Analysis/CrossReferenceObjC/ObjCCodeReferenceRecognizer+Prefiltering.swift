@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 
 extension ObjCCodeReferenceRecognizer {
     /// How many selector references the selector prefilter reads at once.

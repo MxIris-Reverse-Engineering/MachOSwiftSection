@@ -1,7 +1,8 @@
 import Foundation
 import Testing
 import MachOKit
-import ARM64InstructionDecoding
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ARM64InstructionDecoding
 @testable import CrossReferenceAnalysis
 
 /// What an address is (evolution proposal

@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Capstone
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// What `RegisterFile.forgetRegistersWritten(by:)` forgets for the
 /// instructions the scanner does not model: every general-purpose register

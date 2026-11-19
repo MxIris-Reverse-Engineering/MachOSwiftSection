@@ -1,7 +1,8 @@
 import Foundation
 import Testing
 import Capstone
-import ARM64InstructionDecoding
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ARM64InstructionDecoding
 
 @Suite
 struct ARM64InstructionWordTests {

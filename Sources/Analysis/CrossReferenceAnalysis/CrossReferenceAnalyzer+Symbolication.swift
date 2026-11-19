@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 import CrossReferenceObjC
 
 extension CrossReferenceAnalyzer {

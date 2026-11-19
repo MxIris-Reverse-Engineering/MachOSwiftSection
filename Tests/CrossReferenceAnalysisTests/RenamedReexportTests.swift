@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// A function or a class that another image re-exports under a name of its
 /// own is imported by that name, and the prefilters keep its importers:

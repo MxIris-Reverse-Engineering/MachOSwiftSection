@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+@_spi(Internals) import MachOCodeReferences
 
 extension CrossReferenceAnalyzer {
     /// The images among `candidates` whose symbol table imports

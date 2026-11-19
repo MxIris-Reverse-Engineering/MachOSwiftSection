@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 @_spi(Core) import MachOObjCSection
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 
 /// A class object a scan met: its class's runtime name, and where the class
 /// lies. A metaclass is met as its class.

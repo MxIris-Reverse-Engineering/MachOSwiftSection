@@ -1,3 +1,5 @@
+@_spi(Internals) import MachOCodeReferences
+
 /// Every reference the functions of one image make, grouped by what they
 /// reference.
 ///

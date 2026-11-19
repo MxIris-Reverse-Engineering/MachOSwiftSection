@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOObjCSection
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 
 /// Every method implementation the image's own class and category lists
 /// name, by unslid address: a name for a function the symbol table and the

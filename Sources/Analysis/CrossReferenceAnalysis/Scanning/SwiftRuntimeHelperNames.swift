@@ -1,4 +1,5 @@
 import Foundation
+@_spi(Internals) import MachOCodeReferences
 
 /// The Swift functions a scan marks as runtime helpers: memory management and
 /// value operations, which with libobjc's (`ObjCRuntimeHelperNames`)

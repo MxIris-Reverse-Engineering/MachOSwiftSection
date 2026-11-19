@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+@_spi(Internals) import MachOCodeReferences
 
 /// A dynamic library compiled from source for one suite, rewritten after
 /// linking when the suite asks, and loaded into the test process.

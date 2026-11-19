@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
+@_spi(Internals) import MachOCodeReferences
 @_spi(Internals) import SwiftInspection
 import Demangling
 

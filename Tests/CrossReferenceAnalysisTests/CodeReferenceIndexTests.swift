@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
 
 /// Foundation's index, built once for the suite: a Debug build scans an image
 /// of its size in seconds.

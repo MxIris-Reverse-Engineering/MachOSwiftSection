@@ -1,64 +1,44 @@
 import Foundation
 import Testing
 
-/// The cross-reference analysis is split into layers that will leave this
-/// package: the core for MachOKitExtensions, the Objective-C layer for
-/// MachOObjCSection (evolution proposal
-/// `offline-cross-references-and-symbolication`). Each may import only what
-/// its future home provides, and the core knows no language — so that the
-/// move is a matter of moving files.
+/// The Objective-C layer of the cross-reference analysis is bound for
+/// MachOObjCSection (MachOSwiftSection proposal `move-cross-reference-layers`):
+/// it may import only what its future home provides, so that the move is a
+/// matter of moving files. The core already lives in MachOKitExtensions, whose
+/// own scans watch it.
 @Suite
 struct CrossReferenceLayerBoundaryTests {
-    /// What MachOKitExtensions holds, or will once the reading-layer and
-    /// infrastructure moves land, and the modules that move with the core.
-    static let coreAllowedImports: Set<String> = [
+    /// What MachOObjCSection will see: MachOKit, MachOKitExtensions'
+    /// modules, MachOObjCSection itself.
+    static let objectiveCAllowedImports: Set<String> = [
         "Foundation", "Darwin", "Dispatch",
         "MachOKit", "MachOKitExtensions",
         "MachOReading", "MachOResolving", "MachOPointers", "MachOCaches", "MachODependencies",
         "MachOBase", "MachOFoundation", "MachOSymbols",
-        "ARM64InstructionDecoding", "CodeAddressResolution",
+        "ARM64InstructionDecoding", "MachOAddressResolution", "MachOCodeReferences",
+        "MachOObjCSection",
     ]
 
-    /// The core's, plus MachOObjCSection and the core itself.
-    static let objectiveCAllowedImports = coreAllowedImports.union(["MachOObjCSection", "CrossReferenceCore"])
-
-    @Test func crossReferenceLayersImportOnlyWhatTheirFutureHomesProvide() throws {
+    @Test func objectiveCLayerImportsOnlyWhatItsFutureHomeProvides() throws {
         var offendingLines: [String] = []
-        for (moduleName, allowedImports) in [("CrossReferenceCore", Self.coreAllowedImports), ("CrossReferenceObjC", Self.objectiveCAllowedImports)] {
-            for fileURL in try Self.sourceFiles(ofModule: moduleName) {
-                for (lineNumber, line) in try Self.lines(of: fileURL) {
-                    guard let imported = Self.importedModule(in: line), !allowedImports.contains(imported) else { continue }
-                    offendingLines.append("\(moduleName)/\(fileURL.lastPathComponent):\(lineNumber): \(line.trimmingCharacters(in: .whitespaces))")
-                }
+        for fileURL in try Self.sourceFiles(ofModule: "CrossReferenceObjC") {
+            for (lineNumber, line) in try Self.lines(of: fileURL) {
+                guard let imported = Self.importedModule(in: line), !Self.objectiveCAllowedImports.contains(imported) else { continue }
+                offendingLines.append("CrossReferenceObjC/\(fileURL.lastPathComponent):\(lineNumber): \(line.trimmingCharacters(in: .whitespaces))")
             }
         }
-        #expect(offendingLines.isEmpty, "a layer imports a module its future home will not have:\n\(offendingLines.joined(separator: "\n"))")
+        #expect(offendingLines.isEmpty, "the layer imports a module its future home will not have:\n\(offendingLines.joined(separator: "\n"))")
     }
 
-    @Test func crossReferenceCoreSpellsNoRuntimeSymbolName() throws {
-        var offendingLines: [String] = []
-        for fileURL in try Self.sourceFiles(ofModule: "CrossReferenceCore") {
-            for (lineNumber, line) in try Self.lines(of: fileURL) where Self.spellsARuntimeSymbolName(line) {
-                offendingLines.append("\(fileURL.lastPathComponent):\(lineNumber): \(line.trimmingCharacters(in: .whitespaces))")
-            }
-        }
-        #expect(offendingLines.isEmpty, "the runtime's names belong to the language layers:\n\(offendingLines.joined(separator: "\n"))")
-    }
-
-    /// The scans must see what they look for, and nothing else — their
-    /// silence proves nothing otherwise.
-    @Test func theScansDiscriminate() {
+    /// The scan must see what it looks for, and nothing else — its silence
+    /// proves nothing otherwise.
+    @Test func theScanDiscriminates() {
         #expect(Self.importedModule(in: "import MachOSwiftSection") == "MachOSwiftSection")
         #expect(Self.importedModule(in: "@_spi(Core) import MachOObjCSection") == "MachOObjCSection")
-        #expect(Self.importedModule(in: "@_exported import CrossReferenceCore") == "CrossReferenceCore")
+        #expect(Self.importedModule(in: "@_spi(Internals) import MachOCodeReferences") == "MachOCodeReferences")
         #expect(Self.importedModule(in: "package import Demangling") == "Demangling")
         #expect(Self.importedModule(in: "/// import nothing, a comment") == nil)
         #expect(Self.importedModule(in: "let important = 1") == nil)
-
-        #expect(Self.spellsARuntimeSymbolName(#"if strcmp(name, "_objc_msgSend") == 0 {"#))
-        #expect(Self.spellsARuntimeSymbolName(#"strncmp(name, "_swift_getTypeByMangledNameIn", 29)"#))
-        #expect(!Self.spellsARuntimeSymbolName("/// `objc_msgSend` copies in the cache"))
-        #expect(!Self.spellsARuntimeSymbolName(#"sectionName == "__got""#))
     }
 
     private static let importPattern = try! NSRegularExpression(pattern: #"^\s*(@\w+(\([^)]*\))?\s+)*((public|package|internal|private|fileprivate)\s+)?import\s+(class\s+|struct\s+|enum\s+|func\s+)?([A-Za-z_][A-Za-z0-9_]*)"#)
@@ -68,14 +48,6 @@ struct CrossReferenceLayerBoundaryTests {
               let range = Range(match.range(at: 6), in: line)
         else { return nil }
         return String(line[range])
-    }
-
-    private static let runtimeSymbolLiteral = try! NSRegularExpression(pattern: #""[^"]*(objc_|swift_)[^"]*""#)
-
-    static func spellsARuntimeSymbolName(_ line: String) -> Bool {
-        let code = line.trimmingCharacters(in: .whitespaces)
-        guard !code.hasPrefix("//") else { return false }
-        return runtimeSymbolLiteral.firstMatch(in: code, range: NSRange(code.startIndex..., in: code)) != nil
     }
 
     private static func lines(of fileURL: URL) throws -> [(Int, String)] {

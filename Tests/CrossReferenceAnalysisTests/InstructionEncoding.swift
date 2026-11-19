@@ -1,4 +1,5 @@
 import Foundation
+@_spi(Internals) import MachOCodeReferences
 
 /// Encoders for the A64 instructions the decoding tests build by hand,
 /// written straight from the architecture's encoding tables so the readers

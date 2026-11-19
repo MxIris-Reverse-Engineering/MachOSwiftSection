@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 
 /// The Objective-C sections of one image a scan reads: its own selector
 /// stubs, its selector, class and superclass references. Kept on the image's

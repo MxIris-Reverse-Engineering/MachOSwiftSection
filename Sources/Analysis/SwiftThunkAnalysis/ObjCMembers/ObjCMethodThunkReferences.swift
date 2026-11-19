@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import CodeAddressResolution
+@_spi(Internals) import MachOAddressResolution
 import MachOKitExtensions
 @_spi(Internals) import SwiftSymbols
 

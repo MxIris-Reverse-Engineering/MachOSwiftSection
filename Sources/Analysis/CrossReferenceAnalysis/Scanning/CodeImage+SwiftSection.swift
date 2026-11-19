@@ -1,6 +1,6 @@
 import MachOKit
 import MachOSwiftSection
-import CrossReferenceCore
+@_spi(Internals) import MachOCodeReferences
 
 extension CodeImage {
     /// The image's reader as MachOSwiftSection reads it: both kinds of
