@@ -914,7 +914,7 @@ case .objectiveCInstanceVariable, .cString, .constantString:
   <li><b>全面核对没有重做</b>：2026-11-18 那次用 <code>otool -tV</code> 加寄存器跟踪独立生成标准答案、再对照 IDA 的做法，生成脚本与 Finder 26.5.2 都已不在卷上。第 4 步改为 ControlCenter 26.7 三个函数的抽样核对。重做要新写生成标准答案的脚本，先给用户看过再跑。</li>
   <li><b>Swift 类经 ObjC ivar 列表登记的偏移变量没有收</b>：它们是 <code>__data</code> 里的 Swift 字段偏移全局量，不在 <code>__objc_ivar</code>（ControlCenter 的 <code>BentoBackdrop.maskLayer</code> 就是这样）。</li>
   <li><b>ivar 名字的两个来源有 23 条之差</b>（共约 182 万条 ivar 引用），没有逐条追。</li>
-  <li><b>RuntimeViewer</b>：三种新目标（ivar、C 字符串、常量字符串）在界面里先不显示；App 工程本身没有构建过，只在沙盒里编过 Core、CLI 与 MCP 三个包；它按版本号依赖本库，用版本号构建要等本库发版、抬版本号之后。交叉引用测试模块整体并发跑时「分析器换新后要重新读名字」那组会超时，是基线就有的问题。</li>
+  <li><b>RuntimeViewer</b>：三种新目标（ivar、C 字符串、常量字符串）在界面里先不显示；App 工程本身没有构建过，只在沙盒里编过 Core、CLI 与 MCP 三个包；它跟的是本库的 <code>next</code> 分支，提交的 <code>Package.resolved</code> 已同日抬到本库的 <code>a98cbc15</code>。交叉引用测试模块整体并发跑时「分析器换新后要重新读名字」那组会超时，是基线就有的问题。</li>
   <li><b>核心层与 ObjC 层迁出本库</b>：另写迁移提案，要定的事见「非目标」第一条。</li>
 </ul>
 
