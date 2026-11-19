@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// Reads what each function of an image references, from its arm64
 /// machine code, inside the current process.

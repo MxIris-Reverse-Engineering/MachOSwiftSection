@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 import CrossReferenceAnalysis
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// How long the operations the module document's throughput table lists
 /// take: building the analyzer, a whole table of every image of the

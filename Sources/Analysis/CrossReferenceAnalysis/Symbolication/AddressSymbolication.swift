@@ -1,4 +1,5 @@
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// What an address is: where it lies — the image, segment and section — and
 /// what it means there. What `atos` answers for a function, and what it does

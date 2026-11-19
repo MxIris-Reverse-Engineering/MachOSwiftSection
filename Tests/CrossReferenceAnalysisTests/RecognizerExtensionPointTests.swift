@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CrossReferenceAnalysis
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// What the language layers' sessions do inside the analyzer. That the
 /// core's scan takes any recognizer, with no language layer present at all,

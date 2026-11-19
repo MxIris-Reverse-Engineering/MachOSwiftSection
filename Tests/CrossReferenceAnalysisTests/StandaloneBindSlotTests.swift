@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 import SwiftSectionFixtureSupport
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import MachOAddressResolution
 
 /// MachOKitExtensions' `SlotResolver` on a standalone file, the one of its

@@ -1,4 +1,5 @@
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// What one instruction references.
 public enum CodeReferenceTarget: Hashable, Sendable {

@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 @testable import CrossReferenceAnalysis
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// An image outside the shared cache — a third-party app's own binary, here
 /// the SymbolTestsCore fixture — calls other images through its own

@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CrossReferenceAnalysis
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// Some images' symbol tables put a function start of `__text` below the
 /// section's own start. The scan reads such a function where it lies, as it

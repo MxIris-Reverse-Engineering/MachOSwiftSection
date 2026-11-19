@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 import Demangling
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import ARM64InstructionDecoding
 @testable import CrossReferenceAnalysis
 

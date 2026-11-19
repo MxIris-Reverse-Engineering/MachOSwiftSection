@@ -4,4 +4,4 @@
 // `ReceiverClassHint`). Their `@_spi(Internals)` interfaces are imported
 // file by file, and are not re-exported.
 @_exported import MachOCodeReferences
-@_exported import CrossReferenceObjC
+@_exported import ObjCCodeReferences

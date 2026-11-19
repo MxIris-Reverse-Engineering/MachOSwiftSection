@@ -291,6 +291,10 @@ extension Target.Dependency {
         name: "MachOObjCSection",
         package: "MachOObjCSection",
     )
+    static let ObjCCodeReferences = Target.Dependency.product(
+        name: "ObjCCodeReferences",
+        package: "MachOObjCSection",
+    )
     static let MachOKitExtensions = Target.Dependency.product(
         name: "MachOKitExtensions",
         package: "MachOKitExtensions",
@@ -605,21 +609,6 @@ extension Target {
         path: "Sources/Analysis/SwiftThunkAnalysis",
     )
 
-    /// The Objective-C layer of the cross-reference analysis: message
-    /// sends, class references, method names. Moves to MachOObjCSection
-    /// later as `ObjCCodeReferences`.
-    static let CrossReferenceObjC = Target.target(
-        name: "CrossReferenceObjC",
-        dependencies: [
-            .product(.MachOKit),
-            .product(.MachOObjCSection),
-            .product(.ARM64InstructionDecoding),
-            .product(.MachOFoundation),
-            .product(.MachOCodeReferences),
-        ],
-        path: "Sources/Analysis/CrossReferenceObjC",
-    )
-
     /// What each function of an image references, read from its arm64
     /// machine code (evolution proposals `cross-reference-analysis`,
     /// `offline-cross-references-and-symbolication`): the Swift layer and
@@ -638,7 +627,7 @@ extension Target {
             // symbol spells it.
             .target(.SwiftInspection),
             .product(.MachOCodeReferences),
-            .target(.CrossReferenceObjC),
+            .product(.ObjCCodeReferences),
         ],
         path: "Sources/Analysis/CrossReferenceAnalysis",
     )
@@ -1254,7 +1243,7 @@ extension Target {
             .target(.CrossReferenceAnalysis),
             .product(.MachOCodeReferences),
             .product(.MachOAddressResolution),
-            .target(.CrossReferenceObjC),
+            .product(.ObjCCodeReferences),
             .product(.ARM64InstructionDecoding),
             .product(.MachOKit),
             .product(.Capstone),
@@ -1476,7 +1465,6 @@ let package = Package(
         .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftThunkAnalysis,
-        .CrossReferenceObjC,
         .CrossReferenceAnalysis,
         .SwiftDump,
         .SwiftDeclaration,

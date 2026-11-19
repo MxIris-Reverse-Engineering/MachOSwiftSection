@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Capstone
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import ARM64InstructionDecoding
 
 @Suite

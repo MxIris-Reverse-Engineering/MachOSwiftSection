@@ -5,6 +5,7 @@ import MachOSwiftSection
 import Demangling
 @testable import CrossReferenceAnalysis
 @_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// The names a function gets when the symbol table has none: the export
 /// trie, the Objective-C method lists, the Swift metadata. Each source is
