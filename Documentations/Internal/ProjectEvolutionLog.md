@@ -3384,6 +3384,9 @@
   - RuntimeViewer 的 `next`：由它自己的会话改清单、抬钉（`e4ab9089`），Core、Packages、CommandLine 与 app 都编过。
   - PR #141 的 CI：版本检查与 debug 任务通过。release 任务第一次红在一条计时测试上：`ThunkEnvironmentImageTablesTests` 的「A fresh environment does not read the cache's image list again」，实测新建环境查一次乘以 5 是 1.06 ms，读一遍镜像列表 0.63 ms。这条测试由 0097 加入，是第一次在 CI 的 3 核机器上跑；Ultra 的 debug、release 两轮全量里它都通过。只重跑失败的任务就过了。
   - Release 附件 `swift-section-macos-universal.zip` 是 x86_64 加 arm64 的通用二进制，两个架构的 `--version` 都输出 0.25.0。
+- **发版后的两处收尾**（同日，`next`，不改库的行为）：
+  - 上面那条计时测试与同一套件里另一条同样只量一次的测试，改成两边交替各量 10 轮、各取最快的一轮再比，倍数仍是 5 倍；其余测试没有拿耗时做断言的。
+  - 去掉那 3 个多余的 `try`；其中一个去掉后，包着它的 `try await DeclarationBlock` 也不再有会抛错的调用，一并去掉。库代码（`Sources/`）编译不再有警告，测试目标里原有的警告没动。
 - **关联文档**：[Changelogs/0.25.0.md](../../Changelogs/0.25.0.md)。
 - **对应版本**：0.25.0。
 
