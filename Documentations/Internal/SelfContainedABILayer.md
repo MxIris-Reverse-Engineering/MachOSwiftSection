@@ -2,18 +2,20 @@
 
 提案：[0018-self-contained-abi-layer](../Evolutions/0018-self-contained-abi-layer.md)。本文记录落地后的形态，以及那些从签名上看不出来、下次维护会踩的决策。
 
+> **0.25.0 更新**：本文涉及的 Mach-O 基础模块——`MachOBase`、`MachOFoundation`、`MachOPointers`、`MachODependencies`，以及 `MachOSymbols` 与语言无关的那一半——已迁到 MachOKitExtensions 2.0.0，模块名不变。`MachOBase` 不再再导出 `Utilities`（`Utilities` 留在本仓库，改由 `MachOSwiftSection` 自己 `@_exported import`）；`MachOSymbols` 的 Swift 部分留在本仓库，改名 `SwiftSymbols`，`SymbolIndexStore` 改名 `SwiftSymbolIndexStore`。ABI 层的边界本身没有变：`MachOSwiftSection` 仍只依赖 `MachOBase`，够不到任何符号索引与 demangler。下表「之后」一列与「下游迁移」按迁移后的模块名写。
+
 ## 改了什么
 
 | 之前 | 之后 |
 |---|---|
-| `MachOSwiftSection` 依赖 `MachOFoundation` 伞模块（含 `MachOSymbols`、`MachODependencies`）和 `Demangling`，并把伞模块整个再导出 | 只依赖新的底层伞模块 `MachOBase`（`MachOKitExtensions` + `MachOReading` + `MachOResolving` + `MachOPointers` + `Utilities`）并再导出它；`Package.swift` 上看不到符号索引与 demangler |
+| `MachOSwiftSection` 依赖 `MachOFoundation` 伞模块（含 `MachOSymbols`、`MachODependencies`）和 `Demangling`，并把伞模块整个再导出 | 只依赖新的底层伞模块 `MachOBase`（`MachOKitExtensions` + `MachOReading` + `MachOResolving` + `MachOPointers`，0.25.0 起在 MachOKitExtensions）并再导出它，另外自己再导出 `Utilities`；`Package.swift` 上看不到符号索引与 demangler |
 | 五个描述符的 Layout 字段是 `RelativeDirectPointer<Symbols?>`，访问器 `implementationSymbols(in:)` 一调就建整镜像符号索引 | 字段是 `RelativeDirectRawPointer`，访问器 `implementationOffset: Int?`（纯指针算术）与 `implementationAddress(in context:)`；`ProtocolRequirement` 用 `defaultImplementation…` 前缀 |
 | `implementationSymbols(in:)` 家族在 ABI 层 | 同名扩展在 `SwiftInspection`（`Extensions/Descriptor+ImplementationSymbols.swift`），实现是拿偏移问 `machO.symbols(offset:)`；只有 MachO 一条腿 |
-| `Symbol` / `Symbols` / `SymbolOrElement` 在 `MachOSymbols`，`Symbols` 是 `AsyncResolvable` | 三个纯值类型在 `MachOResolving`；`Symbols` 不再是 `Resolvable`；`Symbol` 走索引库的 `resolve(from:in:)` 与 `resolvesSymbolUsingIndexStore` 作为扩展留在 `MachOSymbols` |
+| `Symbol` / `Symbols` / `SymbolOrElement` 在 `MachOSymbols`，`Symbols` 是 `AsyncResolvable` | 三个纯值类型在 `MachOResolving`；`Symbols` 不再是 `Resolvable`；`Symbol` 走索引库的 `resolve(from:in:)` 与 `resolvesSymbolUsingIndexStore` 作为扩展留在符号索引模块（今 `SwiftSymbols`） |
 | `SymbolOrElementPointer` 独占一个 `MachOSymbolPointers` target | 并入 `MachOPointers`，target 删除 |
 | `String.isSwiftSymbol` / `stripManglePrefix`、`cModule` / `objcModule` 来自 `Demangling` | 本模块自有 `hasSwiftManglingPrefix` / `strippingSwiftManglingPrefix`（`Extensions/String+.swift`）与 `CImportedModuleNames`（`Models/Mangling/`），`ManglingPrefixTests` 钉住与 demangler 一致 |
 
-分层由编译器守：`MachOSwiftSection` 的依赖列表里没有 `MachOSymbols` 与 `Demangling`，回归就是编译错误。
+分层由编译器守：`MachOSwiftSection` 的依赖列表里没有 `SwiftSymbols`、`MachOSymbols` 与 `Demangling`，回归就是编译错误。
 
 ## 从签名看不出来的决策
 
@@ -35,7 +37,7 @@
 
 ### `Symbol.resolve(from:in:)` 为什么还在
 
-`MetadataReader` 的 `MachOContext.lookupSymbol` 与 `SwiftDeclarationRendering` 的 `OpaqueType+` 仍用它，且它承载 `resolvesSymbolUsingIndexStore` 开关（MachOKitUI 会置 false）。它现在是 `MachOSymbols` 里 `Symbol` 的静态扩展方法，不再是 `Resolvable` 要求：语义是「查」不是「读」。
+`MetadataReader` 的 `MachOContext.lookupSymbol` 与 `SwiftDeclarationRendering` 的 `OpaqueType+` 仍用它，且它承载 `resolvesSymbolUsingIndexStore` 开关（MachOKitUI 会置 false）。它现在是 `SwiftSymbols`（当时的 `MachOSymbols`）里 `Symbol` 的静态扩展方法，不再是 `Resolvable` 要求：语义是「查」不是「读」。
 
 ### `ResilientWitness.implementationAddress(in:)` 的两个形态
 
@@ -51,10 +53,10 @@
 |---|---|
 | `try d.implementationSymbols(in: machO)` | 去掉 `try`，文件补 `import SwiftInspection` |
 | `d.implementationSymbols(in: context)` | 删除；要位置用 `try d.implementationAddress(in: context)` |
-| `try Symbols.resolve(from: offset, in: machO)` | `machO.symbols(offset: offset)`（`MachOSymbols`） |
+| `try Symbols.resolve(from: offset, in: machO)` | `machO.symbols(offset: offset)`（`SwiftSymbols`） |
 | `MachOSymbols.Symbol` 限定名 | 不限定，或 `MachOResolving.Symbol` |
 | `import MachOSymbolPointers` | 删除（并入 `MachOPointers`） |
-| 经 `import MachOSwiftSection` 间接用 `SymbolIndexStore` 等 | 补 `import MachOFoundation` |
+| 经 `import MachOSwiftSection` 间接用 `SymbolIndexStore`（今 `SwiftSymbolIndexStore`）等 | 补 `import SwiftSymbols`；用 `DependencyClosure` 等补 `import MachODependencies`（MachOKitExtensions） |
 | `ResilientWitness.implementationOffset` | 现在是 `Int?` |
 
 ## 验证

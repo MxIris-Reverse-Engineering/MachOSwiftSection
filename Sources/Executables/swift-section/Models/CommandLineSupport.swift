@@ -98,12 +98,20 @@ enum CommandLineErrorTranslation {
             case .systemDyldSharedCacheUnavailable:
                 return SwiftSectionCommandError.unsupportedSystemVersionForDyldSharedCache
             }
+        case CrossReferenceRequestError.imageNotFound(let name):
+            return ValidationError("No analyzed image is named '\(name)'; --in-image and --function-image take an image's path or its file name.")
+        case CrossReferenceRequestError.ambiguousFunction(let address, let imagePaths):
+            return ValidationError("Several files hold a function at 0x\(String(address, radix: 16)): \(imagePaths.joined(separator: ", ")). Name its image with --function-image.")
         case SnapshotSourceError.binaryRequired(let snapshotPath):
             guard let annotatedInterfaceRequiresBinaries else { return error }
             return ValidationError(annotatedInterfaceRequiresBinaries(snapshotPath))
         case AvailabilityPlatformInferenceError.noPlatform(let path):
             return ValidationError("--emit-available could not infer an @available platform from \(path) (no LC_BUILD_VERSION, or a platform with no @available spelling); pass --platform explicitly.")
         case AvailabilityPlatformInferenceError.conflictingPlatforms(let platforms):
+            return ValidationError("--emit-available found conflicting platforms across the inputs (\(platforms.joined(separator: ", "))); pass --platform explicitly.")
+        case ObjCAvailabilityPlatformInferenceError.noPlatform(let path):
+            return ValidationError("--emit-available could not infer an availability-macro platform from \(path) (no LC_BUILD_VERSION, or a platform the availability macros have no name for); pass --platform explicitly.")
+        case ObjCAvailabilityPlatformInferenceError.conflictingPlatforms(let platforms):
             return ValidationError("--emit-available found conflicting platforms across the inputs (\(platforms.joined(separator: ", "))); pass --platform explicitly.")
         default:
             return error

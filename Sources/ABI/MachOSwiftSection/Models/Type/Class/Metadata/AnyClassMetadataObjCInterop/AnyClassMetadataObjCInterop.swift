@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct AnyClassMetadataObjCInterop: AnyClassMetadataObjCInteropProtocol {
     public struct Layout: AnyClassMetadataObjCInteropLayout {
         public let kind: StoredPointer

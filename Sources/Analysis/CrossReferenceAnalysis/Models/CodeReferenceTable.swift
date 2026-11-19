@@ -1,3 +1,6 @@
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
+
 /// Every reference the functions of one image make, grouped by what they
 /// reference.
 ///
@@ -17,6 +20,13 @@ public struct CodeReferenceTable: Sendable {
         /// there. Names a mangled name holds are not filed: telling them takes
         /// demangling (`CrossReferenceAnalyzer.references(toSwiftType:inImageAt:)`).
         case swiftTypeDescriptor(CodeLocation)
+        /// Every load of the instance variable's offset variable.
+        case instanceVariable(className: String, name: String)
+        /// Every reference to a C string literal with these characters.
+        case cString(String)
+        /// Every reference to a constant `CFString` / `NSString` with these
+        /// characters.
+        case constantString(String)
     }
 
     public let imageIndex: Int
@@ -72,6 +82,12 @@ extension CodeReferenceTarget {
             return .objectiveCClass(name)
         case .swiftType(let descriptor):
             return .swiftTypeDescriptor(descriptor)
+        case .objectiveCInstanceVariable(let className, let name):
+            return .instanceVariable(className: className, name: name)
+        case .cString(let string):
+            return .cString(string)
+        case .constantString(let string):
+            return .constantString(string)
         case .swiftTypeName, .indirect, .unrecognized:
             return nil
         }

@@ -3,6 +3,8 @@ import Testing
 import Demangling
 import MachOReading
 import MachOSwiftSection
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import SwiftInspection
 @testable import CrossReferenceAnalysis
 

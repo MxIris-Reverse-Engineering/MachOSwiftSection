@@ -20,8 +20,8 @@ import MachOBase
 ///
 /// Mirrors `swift::TargetResilientClassMetadataPattern`
 /// (`swift/ABI/Metadata.h`).
-@LocatableLayoutWrapping
-public struct ResilientClassMetadataPattern: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ResilientClassMetadataPattern {
     public struct Layout: LayoutProtocol {
         /// Allocates the metadata at the right size. **Null is meaningful**:
         /// it tells the runtime to call `swift_relocateClassMetadata` with

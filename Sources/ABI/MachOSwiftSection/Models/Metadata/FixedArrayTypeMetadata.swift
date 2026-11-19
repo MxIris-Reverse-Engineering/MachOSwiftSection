@@ -2,7 +2,7 @@ import Foundation
 import MachOBase
 import MachOKit
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct FixedArrayTypeMetadata: MetadataProtocol {
     public struct Layout: FixedArrayTypeMetadataLayout {
         public let kind: StoredPointer

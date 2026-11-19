@@ -1,12 +1,13 @@
 import Semantic
-import Demangling
+@_spi(Internals) import Demangling
 import MachOKit
 import MachOSwiftSection
 import Utilities
 import Dependencies
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 import SwiftThunkAnalysis
 import SwiftDeclarationRendering
 
@@ -23,7 +24,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package let machO: MachO
 
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
@@ -53,6 +54,16 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package var declaration: SemanticString {
         get async throws {
+            // A class `@Observable` expanded (evolution proposal
+            // `observable-macro-folding`): the dump keeps every member the
+            // macro generated, as the records have them, and says which macro
+            // generated them, on the header line as the `@objc @implementation`
+            // header does.
+            if ObservableMacroRecognition.isObservableClass(.class(dumped.descriptor), in: machO.context) {
+                Standard("@")
+                try await demangleResolver.resolve(for: ObservableMacroRecognition.observableAttributeNameNode)
+                Space()
+            }
             if dumped.descriptor.isActor {
                 if isDistributedActor {
                     Keyword(.distributed)
@@ -217,6 +228,28 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
         }
     }
 
+    /// `ObjC protocols: P, Q`, the protocols the class's own data lists — an
+    /// extension of the class's module included, folded into it by the
+    /// compiler. One a Swift conformance of the class implies is marked, as
+    /// the interface leaves it out.
+    private func objcProtocolComments(ofClassNamed contextNode: Node?) async throws -> [String] {
+        guard let contextNode,
+              let qualifiedName = NodeTypeNaming.nominalQualifiedName(of: contextNode),
+              let adoption = ObjCProtocolAdoptionIndex.shared.adoption(ofSwiftClassQualifiedName: qualifiedName, in: machO)
+        else { return [] }
+        func names(_ runtimeNames: [String]) async throws -> String {
+            var printedNames: [String] = []
+            for runtimeName in runtimeNames {
+                let typeNode = Node.createTransient(kind: .type, child: ObjCRuntimeNames.protocolNode(forRuntimeName: runtimeName, in: machO))
+                let printedName = try await demangleResolver.resolve(for: typeNode).string
+                printedNames.append(adoption.impliedProtocolRuntimeNames.contains(runtimeName) ? "\(printedName) (implied by a Swift conformance)" : printedName)
+            }
+            return printedNames.joined(separator: ", ")
+        }
+        guard !adoption.declaredProtocolRuntimeNames.isEmpty else { return [] }
+        return ["ObjC protocols: \(try await names(adoption.declaredProtocolRuntimeNames))"]
+    }
+
     package var body: SemanticString {
         get async throws {
             // Same-named private types share the stripped name bucket; the
@@ -247,11 +280,22 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
             // The ObjC ancestor chain (evolution proposal
             // `objc-ancestor-override-recovery`) right under the header, on a
-            // line of its own — whether or not any member follows.
-            if let hierarchy = objcAncestorChainHierarchy, !hierarchy.ancestors.isEmpty {
+            // line of its own — whether or not any member follows — then the
+            // ObjC protocols the class adopts, which no conformance record
+            // names (evolution proposal `swift-declared-objc-protocols`).
+            let ancestorChainHierarchy = objcAncestorChainHierarchy.flatMap { $0.ancestors.isEmpty ? nil : $0 }
+            let objcProtocolComments = try await objcProtocolComments(ofClassNamed: contextNode)
+            if let ancestorChainHierarchy {
                 BreakLine()
                 Indent(level: 1)
-                Comment(ObjCMemberRendering.ancestorChainComment(for: hierarchy))
+                Comment(ObjCMemberRendering.ancestorChainComment(for: ancestorChainHierarchy))
+            }
+            for objcProtocolComment in objcProtocolComments {
+                BreakLine()
+                Indent(level: 1)
+                Comment(objcProtocolComment)
+            }
+            if ancestorChainHierarchy != nil || !objcProtocolComments.isEmpty {
                 BreakLine()
             }
 
@@ -422,7 +466,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 .flatMap { NodeTypeNaming.nominalQualifiedName(ofDemangledRoot: $0) }
                 .flatMap { ObjCMembers.table(forSwiftClassQualifiedName: $0, in: machO) }
 
-            let memberSymbolsByKind = SymbolIndexStore.MemberKind.allCases.map { kind in
+            let memberSymbolsByKind = SwiftSymbolIndexStore.MemberKind.allCases.map { kind in
                 if let contextNode {
                     (kind: kind, symbols: symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO))
                 } else {
@@ -462,6 +506,8 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                         configuration.exportStatusComment()
                     }
 
+                    initAccessorFieldsComment(for: symbol)
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
@@ -477,7 +523,51 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 }
             }
 
-            for kind in SymbolIndexStore.MemberKind.allCases {
+            // The members the image keeps only as their `@objc` thunk: the
+            // optimizer inlined the Swift body into the thunk and deleted the
+            // Swift entry point, so no member symbol above names them
+            // (evolution proposal `thunk-only-objc-members`).
+            for kind in SwiftSymbolIndexStore.MemberKind.allCases {
+                let thunkSymbols = if let contextNode {
+                    symbolIndexStore.objcThunkMemberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
+                } else {
+                    symbolIndexStore.objcThunkMemberSymbols(of: kind, for: interfaceNameString, in: machO)
+                }
+                for (offset, symbol) in thunkSymbols.filter(isOnlySymbolOfItsMember).offsetEnumerated() {
+                    if offset.isStart {
+                        BreakLine()
+
+                        Indent(level: 1)
+
+                        InlineComment("[ObjC Thunk] " + kind.description)
+                    }
+
+                    BreakLine()
+
+                    configuration.privateDeclarationSourceFileComments(for: [symbol.demangledNode], enclosedBy: contextNodes, indentationLevel: configuration.indentation)
+
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
+
+                    Indent(level: 1)
+
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
+
+                    // Keyed by the member's own name, which the thunk's is
+                    // with `To` appended.
+                    if let member = objcMemberTable?.member(forMemberSymbolNamed: String(symbol.name.dropLast(2))) {
+                        Space()
+                        Comment(ObjCMemberRendering.memberComment(for: member))
+                    }
+
+                    if offset.isEnd {
+                        BreakLine()
+                    }
+                }
+            }
+
+            for kind in SwiftSymbolIndexStore.MemberKind.allCases {
                 let methodDescriptorSymbols = if let contextNode {
                     symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
                 } else {
@@ -525,6 +615,25 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
             }
 
             Standard("}")
+        }
+    }
+
+    /// Whether `thunkSymbol`, an `@objc` thunk (`$s…To`), is the only symbol
+    /// its member has. The thunk's name is the member's mangled name with
+    /// `To` appended, so the member's own symbols are found by name: its
+    /// implementation, the implementation merged with an identical one
+    /// (`Tm`), and for an initializer, whose thunk enters the initializing
+    /// entry point, the allocating entry point as well.
+    private func isOnlySymbolOfItsMember(_ thunkSymbol: DemangledSymbol) -> Bool {
+        let thunkName = thunkSymbol.name
+        guard thunkName.hasSuffix("To") else { return false }
+        let implementationName = String(thunkName.dropLast(2))
+        var memberSymbolNames = [implementationName]
+        if implementationName.hasSuffix("fc") {
+            memberSymbolNames.append(String(implementationName.dropLast(2)) + "fC")
+        }
+        return !memberSymbolNames.contains { memberSymbolName in
+            symbolIndexStore.containsSymbol(named: memberSymbolName, in: machO) || symbolIndexStore.containsSymbol(named: memberSymbolName + "Tm", in: machO)
         }
     }
 
@@ -576,7 +685,11 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     @SemanticStringBuilder
     private func dumpMethodKind(for descriptor: MethodDescriptor?) -> SemanticString? {
         if let descriptor {
-            InlineComment("[\(descriptor.flags.kind)]")
+            if let kind = descriptor.flags.kind {
+                InlineComment("[\(kind)]")
+            } else {
+                InlineComment("[unknown kind, flags 0x\(String(descriptor.flags.rawValue, radix: 16))]")
+            }
 
             Space()
         }
@@ -651,7 +764,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     private func vtableAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
         var names: Set<String> = []
         let accessorKinds: Set<MethodDescriptorKind> = [.getter, .setter, .modifyCoroutine, .readCoroutine]
-        for descriptor in dumped.methodDescriptors where accessorKinds.contains(descriptor.flags.kind) {
+        for descriptor in dumped.methodDescriptors where descriptor.flags.kind.map(accessorKinds.contains) ?? false {
             guard let symbols = descriptor.implementationSymbols(in: machO) else { continue }
             for symbol in symbols {
                 guard let node = SymbolicDemangler.demangleSymbolReference(for: symbol, in: machO),
@@ -659,7 +772,7 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                 names.insert(variableName)
             }
         }
-        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let variableKind: SwiftSymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
         let descriptorSymbols = if let contextNode {
             symbolIndexStore.methodDescriptorMemberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
         } else {
@@ -681,13 +794,16 @@ package struct ClassDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
     /// `TypeDefinition.index`).
     private func storedAccessorFieldNames(interfaceNameString: String, contextNode: Node?) -> Set<String> {
         var names: Set<String> = []
-        let variableKind: SymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
+        let variableKind: SwiftSymbolIndexStore.MemberKind = .variable(inExtension: false, isStatic: false, isStorage: false)
         let accessorSymbols = if let contextNode {
             symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, node: contextNode, in: machO)
         } else {
             symbolIndexStore.memberSymbols(of: variableKind, for: interfaceNameString, in: machO)
         }
         for symbol in accessorSymbols {
+            // A SE-0400 init accessor is never dispatched, so it testifies
+            // to nothing (evolution proposal `init-accessor-recovery`).
+            guard !symbol.demangledNode.children.contains(where: { $0.kind == .initAccessor }) else { continue }
             guard let variableName = symbol.demangledNode.first(of: .variable)?.identifier else { continue }
             names.insert(variableName)
         }

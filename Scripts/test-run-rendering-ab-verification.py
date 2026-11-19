@@ -211,6 +211,7 @@ class SkipBuildTests(unittest.TestCase):
         self.baseline_scratch = root / "baseline-scratch"
         self.candidate_scratch = root / "candidate-scratch"
         self.launched_commands: list[list[str]] = []
+        self.launched_environments: list[dict[str, str] | None] = []
         self.original_subprocess_run = HARNESS.subprocess.run
         HARNESS.subprocess.run = self.recordLaunchedCommand
 
@@ -220,10 +221,13 @@ class SkipBuildTests(unittest.TestCase):
 
     def recordLaunchedCommand(self, command: list[str], **keyword_arguments) -> SimpleNamespace:
         self.launched_commands.append(list(command))
+        self.launched_environments.append(keyword_arguments.get("env"))
         return SimpleNamespace(returncode=0)
 
     def makeRun(self, skip_build: bool, skip_image_part: bool = False,
-                scenario_names: frozenset[str] = frozenset()) -> "HARNESS.VerificationRun":
+                scenario_names: frozenset[str] = frozenset(),
+                candidate_extra_arguments: dict[str, list[str]] | None = None,
+                candidate_image_options: list[str] | None = None) -> "HARNESS.VerificationRun":
         return HARNESS.VerificationRun(SimpleNamespace(
             output_root=self.output_root,
             skip_build=skip_build,
@@ -234,6 +238,8 @@ class SkipBuildTests(unittest.TestCase):
             baseline_scratch=self.baseline_scratch,
             candidate_scratch=self.candidate_scratch,
             framework_names=["SwiftUI"],
+            candidate_extra_arguments=candidate_extra_arguments or {"dump": [], "interface": []},
+            candidate_image_options=candidate_image_options or [],
         ))
 
     def writePrebuiltCommandLineInterface(self, scratch: Path) -> Path:
@@ -315,6 +321,38 @@ class SkipBuildTests(unittest.TestCase):
         run.run_macho_image_side("candidate", self.candidate_checkout, self.candidate_scratch)
 
         self.assertNotIn("--skip-build", self.launched_commands[0])
+
+    def testCandidateFlagsReachTheCandidateRenderAlone(self) -> None:
+        """--candidate-dump-arguments and --candidate-interface-arguments exist
+        to compare across a changed default, and the baseline's CLI may not
+        know the flag: it reaches the candidate's command line of that command
+        and no other."""
+        run = self.makeRun(skip_build=True, candidate_extra_arguments={
+            "dump": ["--disable-existential-any"],
+            "interface": ["--no-existential-any"],
+        })
+        run.command_line_interfaces = {"baseline": Path("/baseline/swift-section"), "candidate": Path("/candidate/swift-section")}
+
+        for side in ("baseline", "candidate"):
+            for command_name in ("dump", "interface"):
+                run.render_one_side(side, "cache-15.5", "SwiftUI", command_name, ["/input/SwiftUI"])
+
+        commands = {(command[0], command[1]): command for command in self.launched_commands}
+        self.assertNotIn("--disable-existential-any", commands[("/baseline/swift-section", "dump")])
+        self.assertNotIn("--no-existential-any", commands[("/baseline/swift-section", "interface")])
+        self.assertIn("--disable-existential-any", commands[("/candidate/swift-section", "dump")])
+        self.assertNotIn("--no-existential-any", commands[("/candidate/swift-section", "dump")])
+        self.assertIn("--no-existential-any", commands[("/candidate/swift-section", "interface")])
+
+    def testCandidateImageOptionsReachTheCandidateImagePartAlone(self) -> None:
+        run = self.makeRun(skip_build=True, candidate_image_options=["bareExistentials"])
+
+        run.run_macho_image_side("baseline", self.baseline_checkout, self.baseline_scratch)
+        run.run_macho_image_side("candidate", self.candidate_checkout, self.candidate_scratch)
+
+        baseline_options, candidate_options = (environment["RV_OPTS"].split(",") for environment in self.launched_environments)
+        self.assertNotIn("bareExistentials", baseline_options)
+        self.assertEqual(candidate_options, baseline_options + ["bareExistentials"])
 
 
 if __name__ == "__main__":

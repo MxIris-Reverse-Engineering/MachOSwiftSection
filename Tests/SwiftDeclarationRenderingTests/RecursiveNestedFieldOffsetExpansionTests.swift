@@ -6,8 +6,8 @@ import MachOFoundation
 @_spi(Internals) import SwiftInspection
 @testable import SwiftDeclarationRendering
 import Demangling
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Regression coverage for the nested expanded-field-offset walk on a **cyclic**
 /// field graph.

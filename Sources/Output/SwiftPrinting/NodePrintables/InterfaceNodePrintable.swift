@@ -42,6 +42,8 @@ struct InterfaceNodePrinterContext<Target: NodePrinterTarget>: InterfaceNodePrin
 
     var usesModuleSelectors = false
 
+    var usesExistentialAny = false
+
     /// How many `repeat` patterns enclose the node being printed. `each` is
     /// only ever written inside one.
     var packExpansionDepth = 0

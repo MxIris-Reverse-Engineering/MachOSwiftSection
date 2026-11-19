@@ -5,9 +5,9 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 import SwiftDeclarationRendering
-@_spi(Internals) @testable import MachOSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@_spi(Internals) @testable import SwiftSymbols
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Dump-path coverage for the `// not exported` annotation (evolution
 /// proposal 0008), pinning the two false-positive classes the member-symbol
@@ -61,7 +61,7 @@ final class ExportStatusDumpAnnotationTests: MachOFileTests, SnapshotDumpableTes
     /// via the store so the exemption, not fixture luck, is what's tested.
     @Test func overrideImplementationSymbolIsExempt() async throws {
         let unsafeMachOFile = machOFile
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: Self.overrideImplementationName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: Self.overrideImplementationName, in: unsafeMachOFile) == false)
 
         let output = try await dumpClasses(printExportStatus: true, inNamespace: "Classes")
         let annotated = try isAnnotated(in: output) { line in
@@ -72,8 +72,8 @@ final class ExportStatusDumpAnnotationTests: MachOFileTests, SnapshotDumpableTes
 
     @Test func objcDynamicImplementationSymbolIsExempt() async throws {
         let unsafeMachOFile = machOFile
-        #expect(SymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: Self.objcDynamicImplementationName, in: unsafeMachOFile) == false)
-        #expect(SymbolIndexStore.shared.containsSymbol(named: Self.objcDynamicImplementationName + "To", in: unsafeMachOFile))
+        #expect(SwiftSymbolIndexStore.shared.isExportedIncludingDerivedSymbols(name: Self.objcDynamicImplementationName, in: unsafeMachOFile) == false)
+        #expect(SwiftSymbolIndexStore.shared.containsSymbol(named: Self.objcDynamicImplementationName + "To", in: unsafeMachOFile))
 
         let output = try await dumpClasses(printExportStatus: true, inNamespace: "Attributes")
         let annotated = try isAnnotated(in: output) { line in

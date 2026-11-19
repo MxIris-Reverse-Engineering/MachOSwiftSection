@@ -2,6 +2,8 @@ import Foundation
 import MachOKit
 import MachOFoundation
 import MachOSwiftSection
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import SwiftInspection
 import Demangling
 
@@ -13,38 +15,43 @@ import Demangling
 /// `7SwiftUI4TextV` — is built only when someone asks for it: it takes
 /// demangling the descriptor's context, tens of microseconds a type.
 final class SwiftTypeIndex: @unchecked Sendable {
-    /// User-space addresses fit in 47 bits; above them are pointer
-    /// authentication bits.
-    static let addressMask: UInt64 = 0x0000_7FFF_FFFF_FFFF
-
-    private let image: MachOImage
+    private let image: CodeImage
     private let imageIndex: Int
     private let slide: Int
+    private let memory: any CrossReferenceMemory
     private let descriptorsByRuntimeAddress: [UInt: TypeContextDescriptorWrapper]
     private let descriptorsByAccessor: [UInt: UInt]
     private let lock = NSLock()
     private var keysByDescriptor: [UInt: String?] = [:]
     private var descriptorSymbolsStorage: [UInt: String]?
 
-    init(image: MachOImage, imageIndex: Int) {
+    init(image: CodeImage, imageIndex: Int, memory: any CrossReferenceMemory) {
         self.image = image
         self.imageIndex = imageIndex
-        self.slide = image.vmaddrSlide ?? 0
+        self.memory = memory
+        self.slide = image.slide
         var descriptors: [UInt: TypeContextDescriptorWrapper] = [:]
         var accessors: [UInt: UInt] = [:]
-        let base = UInt(bitPattern: image.ptr)
-        for wrapper in (try? image.swift.typeContextDescriptors) ?? [] {
-            let descriptor = base &+ UInt(bitPattern: wrapper.typeContextDescriptor.offset)
+        let wrappers = image.swiftSectionReader.map { Self.typeContextDescriptors(in: $0) } ?? []
+        for wrapper in wrappers {
+            guard let unslidDescriptor = image.unslidAddress(ofReaderOffset: wrapper.typeContextDescriptor.offset) else { continue }
+            let descriptor = image.runtimeAddress(ofUnslid: unslidDescriptor)
             descriptors[descriptor] = wrapper
             // Every type context descriptor holds its metadata accessor as a
             // relative direct pointer at +12.
-            guard let field = UnsafeRawPointer(bitPattern: descriptor &+ 12) else { continue }
-            let relative = field.loadUnaligned(as: Int32.self)
-            guard relative != 0 else { continue }
+            guard let relative = memory.load(Int32.self, at: descriptor &+ 12), relative != 0 else { continue }
             accessors[UInt(bitPattern: Int(bitPattern: descriptor &+ 12) &+ Int(relative))] = descriptor
         }
         self.descriptorsByRuntimeAddress = descriptors
         self.descriptorsByAccessor = accessors
+    }
+
+    private static func typeContextDescriptors(in reader: some MachOSwiftSectionRepresentableWithCache) -> [TypeContextDescriptorWrapper] {
+        (try? reader.swift.typeContextDescriptors) ?? []
+    }
+
+    private static func contextNode(of wrapper: TypeContextDescriptorWrapper, in reader: some MachOSwiftSectionRepresentableWithCache) -> Node? {
+        try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: reader.context)
     }
 
     /// The descriptor of the type whose metadata accessor starts at the
@@ -62,8 +69,7 @@ final class SwiftTypeIndex: @unchecked Sendable {
     /// The runtime address of the metadata accessor of the type whose
     /// descriptor lies at the runtime `descriptor`.
     func accessorAddress(ofDescriptorAt descriptor: UInt) -> UInt? {
-        guard descriptorsByRuntimeAddress[descriptor] != nil, let field = UnsafeRawPointer(bitPattern: descriptor &+ 12) else { return nil }
-        let relative = field.loadUnaligned(as: Int32.self)
+        guard descriptorsByRuntimeAddress[descriptor] != nil, let relative = memory.load(Int32.self, at: descriptor &+ 12) else { return nil }
         return relative == 0 ? nil : UInt(bitPattern: Int(bitPattern: descriptor &+ 12) &+ Int(relative))
     }
 
@@ -91,7 +97,7 @@ final class SwiftTypeIndex: @unchecked Sendable {
         if let symbol = descriptorSymbols()[address], let node = try? demangleAsNodeTransient(symbol) {
             key = CrossReferenceAnalyzer.nominalKeys(in: node).first
         }
-        if key == nil, let contextNode = try? SymbolicDemangler.demangleContext(for: wrapper.asContextDescriptorWrapper, in: image.context) {
+        if key == nil, let reader = image.swiftSectionReader, let contextNode = Self.contextNode(of: wrapper, in: reader) {
             key = try? mangleAsString(NodeBuilder(kind: .type, children: [contextNode]).node)
         }
         lock.lock()
@@ -113,18 +119,15 @@ final class SwiftTypeIndex: @unchecked Sendable {
             guard length > 4, name[length - 2] == 0x4D, name[length - 1] == 0x6E else { return }
             symbols[address] = String(cString: name + 1)
         }
-        if let symbolTable = image.symbols64 {
-            for symbolIndex in 0 ..< symbolTable.numberOfSymbols {
-                let entry = symbolTable.symbols[symbolIndex]
-                // Defined in a section, not a debugging entry.
-                guard entry.n_type & 0xE0 == 0, entry.n_type & 0x0E == 0x0E else { continue }
-                consider(symbolTable.stringBase.advanced(by: Int(entry.n_un.n_strx)), at: UInt(bitPattern: Int(bitPattern: UInt(entry.n_value)) &+ slide))
-            }
+        let linkEdit = ImageLinkEdit(image: image, memory: memory)
+        for symbolIndex in linkEdit.symbols.indices {
+            let entry = linkEdit.symbols[symbolIndex]
+            guard ImageLinkEdit.isDefinedInSection(entry), let name = linkEdit.name(ofSymbolAt: symbolIndex) else { continue }
+            consider(name, at: image.runtimeAddress(ofUnslid: entry.n_value))
         }
-        let base = UInt(bitPattern: image.ptr)
-        for exported in image.exportedSymbols {
+        for exported in image.reader.exportedSymbols {
             guard let offset = exported.offset, exported.name.hasSuffix("Mn") else { continue }
-            exported.name.withCString { consider($0, at: base &+ UInt(bitPattern: offset)) }
+            exported.name.withCString { consider($0, at: image.runtimeAddress(ofUnslid: image.unslidAddress(atHeaderOffset: offset))) }
         }
         descriptorSymbolsStorage = symbols
         return symbols
@@ -140,7 +143,7 @@ final class SwiftTypeIndex: @unchecked Sendable {
         var candidates = Array(descriptorsByRuntimeAddress.keys)
         if let typeName = Self.typeName(inKey: key) {
             candidates = typeName.withCString { wantedName in
-                candidates.filter { Self.descriptor(at: $0, isNamed: wantedName) }
+                candidates.filter { Self.descriptor(at: $0, isNamed: wantedName, in: memory) }
             }
         }
         return candidates.compactMap { address in
@@ -154,10 +157,10 @@ final class SwiftTypeIndex: @unchecked Sendable {
     /// has there, which a key spells and the descriptor's import info keeps
     /// after the name: `ResponseDisposition`, then
     /// `NNSURLSessionResponseDisposition`.
-    static func descriptor(at address: UInt, isNamed wantedName: UnsafePointer<CChar>) -> Bool {
-        guard let name = name(ofDescriptorAt: address) else { return false }
+    static func descriptor(at address: UInt, isNamed wantedName: UnsafePointer<CChar>, in memory: any CrossReferenceMemory) -> Bool {
+        guard let name = name(ofDescriptorAt: address, in: memory) else { return false }
         if strcmp(name, wantedName) == 0 { return true }
-        guard hasImportInfo(descriptorAt: address) else { return false }
+        guard hasImportInfo(descriptorAt: address, in: memory) else { return false }
         // Null-terminated strings, each starting with a tag, until an empty one.
         var component = name + strlen(name) + 1
         while component[0] != 0 {
@@ -169,9 +172,9 @@ final class SwiftTypeIndex: @unchecked Sendable {
 
     /// `TypeContextDescriptorFlags::HasImportInfo`: the third of the
     /// kind-specific flags, the upper half of the descriptor's first word.
-    private static func hasImportInfo(descriptorAt address: UInt) -> Bool {
-        guard let descriptor = UnsafeRawPointer(bitPattern: address) else { return false }
-        return descriptor.loadUnaligned(as: UInt32.self) & (1 << 18) != 0
+    private static func hasImportInfo(descriptorAt address: UInt, in memory: any CrossReferenceMemory) -> Bool {
+        guard let flags = memory.load(UInt32.self, at: address) else { return false }
+        return flags & (1 << 18) != 0
     }
 
     /// The name the key's type is declared with — `Text` for
@@ -227,11 +230,24 @@ final class SwiftTypeIndex: @unchecked Sendable {
 
     /// The name a descriptor gives its type, `Text` — for a type declared in
     /// Swift, the last component of its key — read without demangling.
-    static func name(ofDescriptorAt address: UInt) -> UnsafePointer<CChar>? {
-        guard let field = UnsafeRawPointer(bitPattern: address &+ 8) else { return nil }
-        let relative = field.loadUnaligned(as: Int32.self)
-        guard relative != 0 else { return nil }
-        return UnsafePointer<CChar>(bitPattern: UInt(bitPattern: Int(bitPattern: address &+ 8) &+ Int(relative)))
+    ///
+    /// `nil` for any other context descriptor. Only a type descriptor — a
+    /// class's, a struct's, an enum's: kinds 16 to 31 in the low five bits of
+    /// its flags — keeps its name at +8. An opaque type keeps its generic
+    /// header there, whose parameter and requirement counts read as an
+    /// offset of 64 KiB a requirement: in a small image, past its end. A type
+    /// query meets such descriptors through mangled names' symbolic
+    /// references.
+    static func name(ofDescriptorAt address: UInt, in memory: any CrossReferenceMemory) -> UnsafePointer<CChar>? {
+        guard address != 0,
+              let flags = memory.load(UInt32.self, at: address),
+              (16 ... 31).contains(flags & 0x1F),
+              let relative = memory.load(Int32.self, at: address &+ 8),
+              relative != 0
+        else { return nil }
+        let name = UInt(bitPattern: Int(bitPattern: address &+ 8) &+ Int(relative))
+        guard name != 0 else { return nil }
+        return memory.typedPointer(to: CChar.self, at: name, length: 1)
     }
 
     func location(ofRuntimeAddress address: UInt) -> CodeLocation {

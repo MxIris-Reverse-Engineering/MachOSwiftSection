@@ -62,11 +62,17 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Comment each declaration whose name carries a private discriminator with the source file the discriminator was derived from (recovered by hashing candidate file names), or say it could not be recovered, with the discriminator. Searches every discriminator of the image once after indexing, which takes a while for a framework the size of SwiftUI")
     var emitPrivateSourceFiles: Bool = false
 
-    @Flag(name: .customLong("exported-only"), help: "Print only the declarations the image exports: types and protocols whose descriptor symbol has an export-trie entry, extensions targeting them, and members with at least one exported symbol (dispatch-thunk and other derived forms included). `override` / `@objc` members and anything without export evidence are kept.")
+    @Flag(name: .customLong("exported-only"), help: "Print only the declarations the image exports: types and protocols whose descriptor symbol has an export-trie entry, extensions targeting them, and members with at least one exported symbol (dispatch-thunk and other derived forms included). A private or local declaration with no symbol to judge by (a Swift-declared `@objc` protocol, a type in an image without local symbols) is dropped too. `override` / `@objc` members and anything else without export evidence are kept.")
     var exportedOnly: Bool = false
 
     @Flag(name: .customLong("module-selectors"), help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int), the way the Swift 6.4 compiler writes a .swiftinterface. Every type level carries the module that declared it (Swift::Duration.Foundation::TimeFormatStyle).")
     var moduleSelectors: Bool = false
+
+    @Flag(name: .customLong("existential-any"), inversion: .prefixedNo, help: "Spell existential types with the any keyword (any P, (any P)?, any P.Type, (any P).Type), the way the compiler writes a .swiftinterface; a lone Any or AnyObject stays bare. On by default; --no-existential-any prints them bare (P, P?, P.Type, P.Protocol).")
+    var existentialAny: Bool = true
+
+    @Flag(name: .customLong("expand-macros"), help: "Print what an attached macro generated, as the binary has it, instead of folding it into the macro attribute. A class @Observable expanded prints by default with @Observation.Observable, each tracked property as the stored var it was declared as, and a stored var the macro left alone with @Observation.ObservationIgnored; with this flag it prints the registrar, the _x storage and computed x of each tracked property, access(keyPath:), withMutation(keyPath:_:), the shouldNotifyObservers overloads and the generated Observation.Observable conformance instead.")
+    var expandMacros: Bool = false
 
     @Flag(name: .customLong("requirements-on-associated-types"), help: "Print each protocol requirement about one of the protocol's own associated types on that associatedtype (associatedtype Element: Hashable, associatedtype Nested: Sequence where Self.Nested.Element: Hashable) instead of in the protocol's where clause, the way the compiler writes a .swiftinterface. The requirements are the same either way: the binary records the canonical requirement signature, not where the source wrote each one.")
     var requirementsOnAssociatedTypes: Bool = false
@@ -93,6 +99,8 @@ struct InterfaceCommand: AsyncParsableCommand {
             memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
             infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames,
             usesModuleSelectors: moduleSelectors,
+            usesExistentialAny: existentialAny,
+            expandsMacros: expandMacros,
             protocolRequirementPlacement: requirementsOnAssociatedTypes ? .associatedTypes : .protocolWhereClause,
             emitsHeader: emitHeader,
             commentTransformers: try transformerOptions.buildTransformerConfiguration(),

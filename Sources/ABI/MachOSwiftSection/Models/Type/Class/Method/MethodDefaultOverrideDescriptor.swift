@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct MethodDefaultOverrideDescriptor {
     public struct Layout: LayoutProtocol {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer
@@ -35,29 +35,5 @@ extension MethodDefaultOverrideDescriptor {
     public func implementationAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
         guard let implementationOffset else { return nil }
         return try context.addressFromOffset(implementationOffset)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension MethodDefaultOverrideDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: originalMethodDescriptor(in: machO.context).")
-    public func originalMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
-        try originalMethodDescriptor(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: replacementMethodDescriptor(in: machO.context).")
-    public func replacementMethodDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<MethodDescriptor>? {
-        try replacementMethodDescriptor(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: originalMethodDescriptor(in: .inProcess).")
-    public func originalMethodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
-        try originalMethodDescriptor(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: replacementMethodDescriptor(in: .inProcess).")
-    public func replacementMethodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
-        try replacementMethodDescriptor(in: InProcessContext.shared)
     }
 }

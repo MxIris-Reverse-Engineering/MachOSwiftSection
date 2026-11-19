@@ -113,7 +113,7 @@ release 二进制，宿主 dyld cache（macOS 26.5.2，10 核 Apple Silicon）�
 
 ## 测试锚点
 
-- `LargeStackTaskExecutionTests`（MachOSymbolsTests）：执行器线程栈 ≥ 16 MB 且线程名前缀 `swift-demangling.task-executor.`；`execute` / `executeAsync` 在体内不跳线程；嵌套 `run` 不换线程；子任务继承；`isEnabled = false` 时留在调用线程；值与错误透传。
+- `LargeStackTaskExecutionTests`（SwiftSymbolsTests）：执行器线程栈 ≥ 16 MB 且线程名前缀 `swift-demangling.task-executor.`；`execute` / `executeAsync` 在体内不跳线程；嵌套 `run` 不换线程；子任务继承；`isEnabled = false` 时留在调用线程；值与错误透传。
 - `BoundedConcurrentMapTests`（SwiftInterfaceTests）：源序、窗口不超、窗口 1 严格串行、窗口内真并发（rendezvous，超时即失败）、首错语义、空输入。
 - `SwiftEvolutionInterfaceBuilderTests.parallelPreparationMatchesSerialPreparation` / `preparationWindowIsClampedNotValidated`。
 - `DiffCommandValidationTests` / `EvolutionCommandValidationTests`：`--jobs` 解析与下界校验。

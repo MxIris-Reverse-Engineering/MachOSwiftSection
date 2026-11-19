@@ -178,13 +178,17 @@ enum ClassBoundGenericParameterAnalysis {
                 let protocolNode = symbolNode.kind == .protocol ? symbolNode : symbolNode.first(of: .protocol),
                 let qualifiedProtocolName = NodeTypeNaming.protocolQualifiedName(of: protocolNode)
             else { return false }
-            if imageUniverse.resolveProtocolClassConstraint(byQualifiedTypeName: qualifiedProtocolName) == .class {
+            switch imageUniverse.resolveProtocol(byQualifiedTypeName: qualifiedProtocolName) {
+            case .swift(let classConstraint):
+                return classConstraint == .class
+            case .objC:
+                // A Swift-declared `@objc` protocol emits no Swift protocol
+                // descriptor; its `__objc_protolist` record is the recognition
+                // signal, and such a protocol is always class-bound.
                 return true
+            case nil:
+                return false
             }
-            // A Swift-declared `@objc` protocol emits no Swift protocol
-            // descriptor; its `__objc_protolist` record is the recognition
-            // signal, and such a protocol is always class-bound.
-            return imageUniverse.isObjCProtocolDeclared(byQualifiedTypeName: qualifiedProtocolName)
         }
     }
 }

@@ -77,14 +77,19 @@ extension InterfaceAnnotationStyle {
                 // A trailing lifecycle annotation, or an overflow annotation on
                 // its own (indented) line. Classified by the annotation text
                 // only, so that a declaration whose name mentions these words
-                // stays plain.
+                // stays plain. A change across versions that could not show
+                // the declaration reads `… between A and B`; an annotation
+                // that only marks such versions (`inferred present in …`,
+                // `not observable in …`) records no change.
                 let annotation = line[annotationRange.lowerBound...]
-                if annotation.contains("removed in") {
+                if annotation.contains("removed in") || annotation.contains("removed between") {
                     return .removed
-                } else if annotation.contains("modified in") {
+                } else if annotation.contains("modified in") || annotation.contains("modified between") {
                     return .modified
-                } else {
+                } else if annotation.contains("added in") || annotation.contains("added between") {
                     return .added
+                } else {
+                    return .plain
                 }
             } else {
                 return .plain

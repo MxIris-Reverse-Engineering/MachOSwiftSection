@@ -1,4 +1,6 @@
 import Foundation
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// Encoders for the A64 instructions the decoding tests build by hand,
 /// written straight from the architecture's encoding tables so the readers
@@ -8,6 +10,20 @@ enum InstructionEncoding {
         let pageDelta = (Int64(bitPattern: target & ~UInt64(0xFFF)) - Int64(bitPattern: address & ~UInt64(0xFFF))) >> 12
         let immediate = UInt32(truncatingIfNeeded: pageDelta) & 0x1F_FFFF
         return 0x9000_0000 | ((immediate & 0x3) << 29) | ((immediate >> 2) << 5) | UInt32(destination)
+    }
+
+    /// `adr xd, label`: an address within a megabyte, from the instruction's
+    /// own address.
+    static func adr(_ destination: Int, at address: UInt64, target: UInt64) -> UInt32 {
+        let immediate = UInt32(truncatingIfNeeded: Int64(bitPattern: target &- address)) & 0x1F_FFFF
+        return 0x1000_0000 | ((immediate & 0x3) << 29) | ((immediate >> 2) << 5) | UInt32(destination)
+    }
+
+    /// `ldr xt, label`: a 64-bit load from a slot within a megabyte of the
+    /// instruction.
+    static func loadLiteral(_ destination: Int, at address: UInt64, slot: UInt64) -> UInt32 {
+        let wordDelta = UInt32(truncatingIfNeeded: Int64(bitPattern: slot &- address) >> 2) & 0x7FFFF
+        return 0x5800_0000 | (wordDelta << 5) | UInt32(destination)
     }
 
     static func add(_ destination: Int, _ source: Int, immediate: UInt32) -> UInt32 {
@@ -20,6 +36,23 @@ enum InstructionEncoding {
 
     static func loadUnsignedOffset(_ destination: Int, base: Int, byteOffset: UInt32) -> UInt32 {
         0xF940_0000 | ((byteOffset / 8) << 10) | (UInt32(base) << 5) | UInt32(destination)
+    }
+
+    /// `ldr wt, [xn, #imm]`: a 32-bit load, the displacement scaled by 4.
+    static func loadWordUnsignedOffset(_ destination: Int, base: Int, byteOffset: UInt32) -> UInt32 {
+        0xB940_0000 | ((byteOffset / 4) << 10) | (UInt32(base) << 5) | UInt32(destination)
+    }
+
+    /// `ldrsw xt, [xn, #imm]`: a 32-bit load, sign-extended to 64 bits.
+    static func loadSignedWordUnsignedOffset(_ destination: Int, base: Int, byteOffset: UInt32) -> UInt32 {
+        0xB980_0000 | ((byteOffset / 4) << 10) | (UInt32(base) << 5) | UInt32(destination)
+    }
+
+    /// `ldrsw xt, label`: a sign-extended 32-bit load from a slot within a
+    /// megabyte.
+    static func loadSignedWordLiteral(_ destination: Int, at address: UInt64, slot: UInt64) -> UInt32 {
+        let wordDelta = UInt32(truncatingIfNeeded: Int64(bitPattern: slot &- address) >> 2) & 0x7FFFF
+        return 0x9800_0000 | (wordDelta << 5) | UInt32(destination)
     }
 
     static func loadPreIndexed(_ destination: Int, base: Int, byteOffset: Int32) -> UInt32 {

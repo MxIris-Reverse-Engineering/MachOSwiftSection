@@ -5,7 +5,7 @@ import MachOFoundation
 import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftLayout
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 /// Where the archived-cache-gated suite below finds its cache. A separate
 /// type on purpose: a `@Suite(.enabled(if:))` condition that reads a static

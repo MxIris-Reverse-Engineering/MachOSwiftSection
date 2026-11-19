@@ -1,13 +1,13 @@
 #if os(macOS)
 
 import Foundation
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import MachOKit
 import MachOSwiftSection
 import SwiftInterface
 import Testing
 import TypeIndexing
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// Maintainer-run end-to-end for the TypeIndexing provider (evolution
 /// proposal 0008): builds the fixture's interface with and without

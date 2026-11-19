@@ -5,7 +5,7 @@ import Foundation
 import Testing
 import MachOKit
 @testable import MachOSwiftSection
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// A base-class requirement on an Objective-C class, checked offline
 /// (evolution proposal `offline-generic-specialization`).

@@ -6,10 +6,10 @@ import Foundation
 import Testing
 import MachOKit
 import Dependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The diff renderer's header contract: a declaration whose HEADER cannot be
 /// rendered must be dropped whole, never rendered as a body under a blank

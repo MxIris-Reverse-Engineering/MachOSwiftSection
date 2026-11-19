@@ -14,6 +14,19 @@ Usage:
         [--output-root PATH] [--frameworks A,B,...] [--scenarios cache-15.5,sim-iOS-18.5,...]
         [--baseline-scratch PATH] [--candidate-scratch PATH] [--skip-image-part]
         [--jobs N] [--baseline-cache PATH | --no-baseline-cache] [--skip-build]
+        [--candidate-dump-arguments ARGS] [--candidate-interface-arguments ARGS]
+        [--candidate-image-options OPTIONS]
+
+Comparing across a changed default:
+    - A change that turns a new spelling on by default (the `any` keyword,
+      evolution proposal `existential-any`) differs from its baseline on every
+      line it touches. To show that nothing ELSE changed, turn the default off
+      on the candidate side alone: --candidate-dump-arguments and
+      --candidate-interface-arguments append shell-quoted flags to the
+      candidate's dump / interface command lines (the baseline's CLI may not
+      know them), --candidate-image-options appends comma-separated RV_OPTS
+      tokens to the candidate's MachOImage part. The baseline side and its
+      render cache are untouched.
 
 Building:
     - By default the harness builds both sides itself: `swift build -c release
@@ -122,6 +135,15 @@ def parse_arguments() -> argparse.Namespace:
                         help="Directory caching the baseline side's CLI renders across runs.")
     parser.add_argument("--no-baseline-cache", action="store_true",
                         help="Render the baseline side even when a cached render exists.")
+    parser.add_argument("--candidate-dump-arguments", default="",
+                        help="Shell-quoted flags appended to the candidate side's dump commands only "
+                             "(e.g. '--disable-existential-any').")
+    parser.add_argument("--candidate-interface-arguments", default="",
+                        help="Shell-quoted flags appended to the candidate side's interface commands only "
+                             "(e.g. '--no-existential-any').")
+    parser.add_argument("--candidate-image-options", default="",
+                        help="Comma-separated RV_OPTS tokens appended to the candidate side's MachOImage part only "
+                             "(e.g. 'bareExistentials').")
     arguments = parser.parse_args()
     arguments.baseline_checkout = arguments.baseline_checkout.resolve()
     arguments.candidate_checkout = arguments.candidate_checkout.resolve()
@@ -129,6 +151,13 @@ def parse_arguments() -> argparse.Namespace:
         arguments.baseline_scratch = arguments.baseline_checkout / ".build"
     if arguments.candidate_scratch is None:
         arguments.candidate_scratch = arguments.candidate_checkout / ".build"
+    arguments.candidate_extra_arguments = {
+        "dump": shlex.split(arguments.candidate_dump_arguments),
+        "interface": shlex.split(arguments.candidate_interface_arguments),
+    }
+    arguments.candidate_image_options = [
+        option.strip() for option in arguments.candidate_image_options.split(",") if option.strip()
+    ]
     arguments.framework_names = [name.strip() for name in arguments.frameworks.split(",") if name.strip()]
     arguments.scenario_names = {name.strip() for name in arguments.scenarios.split(",") if name.strip()}
     if arguments.jobs < 1:
@@ -275,9 +304,13 @@ class VerificationRun:
             marker = skip_file.read_text().strip() if skip_file.is_file() else "exit=0"
             return f"[{side}] {scenario_name}/{framework_name} {command_name} {marker} cached"
         started_at = time.monotonic()
+        # Flags for the candidate alone (--candidate-dump-arguments and
+        # friends); the baseline's command line, and so its cache key, never
+        # sees them.
+        side_arguments = self.arguments.candidate_extra_arguments.get(command_name, []) if side == "candidate" else []
         with open(log_file, "w") as log_handle:
             completed = subprocess.run(
-                [str(self.command_line_interfaces[side]), command_name, *extra_arguments, "-o", str(output_file)],
+                [str(self.command_line_interfaces[side]), command_name, *extra_arguments, *side_arguments, "-o", str(output_file)],
                 stdout=log_handle, stderr=subprocess.STDOUT,
             )
         elapsed_seconds = time.monotonic() - started_at
@@ -465,10 +498,13 @@ class VerificationRun:
         output_directory = self.output_root / "machoimage-current" / side
         output_directory.mkdir(parents=True, exist_ok=True)
         environment = os.environ.copy()
+        rendering_options = RENDERING_VERIFICATION_OPTIONS
+        if side == "candidate" and self.arguments.candidate_image_options:
+            rendering_options = ",".join([rendering_options, *self.arguments.candidate_image_options])
         environment.update({
             "RV_OUT": str(output_directory),
             "RV_FRAMEWORKS": ",".join(self.arguments.framework_names),
-            "RV_OPTS": RENDERING_VERIFICATION_OPTIONS,
+            "RV_OPTS": rendering_options,
             "MACHO_SWIFT_SECTION_SILENT_TEST": "1",
         })
         log_file = self.output_root / "machoimage-current" / f"{side}.test.log"

@@ -121,7 +121,7 @@ thunk 里每个 `bl` / `b` 都要知道「调的是谁」，否则无从推演�
 - **认不出、但在本镜像 `__TEXT` 里的函数**：不放弃，把它的指令也解码出来交给第三步跟进去算（见「被调函数没名字怎么办」）。
 - 其余认不出的：不猜，让那一支降级。
 
-这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。同一个减法还有另一面：它对整个 cache 里的任何地址都算得出偏移，所以「这个地址在不在本镜像」不能靠它答，要按段范围判断（`ThunkAddressSpace.containsAddress`）——合并 accessor 那批第一版在 cache 上没解出来，就是把 rebase 出来的 libswiftSynchronization 地址当成了本镜像地址。
+这里有一个反复踩过的坑值得单独记住：共享缓存里，`MachOSwiftSection` 用的「偏移」是 `虚拟地址 − 共享区域起始地址`，不是文件偏移。`segment.fileOffset`、`MachOFile.fileOffset(of:)`、`FullDyldCache.address(of:)` 是三套互不相同的账，混用不会报错，只会算出一个像模像样但错了几十字节的地址，最后指向隔壁 framework 的数据。同一个减法还有另一面：它对整个 cache 里的任何地址都算得出偏移，所以「这个地址在不在本镜像」不能靠它答，要按段范围判断（`ImageAddressSpace.containsAddress`，原名 `ThunkAddressSpace`，现在在 MachOKitExtensions 的 `MachOAddressResolution` 模块）——合并 accessor 那批第一版在 cache 上没解出来，就是把 rebase 出来的 libswiftSynchronization 地址当成了本镜像地址。
 
 ### 第三步：符号求值——寄存器里装的不是数，是「类型表达式」
 
@@ -193,7 +193,7 @@ thunk 之外还有一种「引用」不是指针：独立文件里的 witness �
 ## 读出来的答案怎么进输出
 
 - **原位替换**。kind-9 引用可以嵌在类型树的任何位置（`FeedbackGenerator.Body` 的引用在 `ModifiedContent<ModifiedContent<…>, _AppearanceActionModifier>` 的中间），所以渲染侧是一个 `Node` 的 rewriter（`AccessorFunctionReferenceRewriter`），在树里找到引用、换成答案，外面的 `ModifiedContent<…>` 链和泛型实参照常保留。关联类型 witness 和 field record 走同一个 rewriter。
-- **两支都保留**。rewriter 用当前平台那支（版本满足支）替换，同时把每个 thunk 的全部候选记进一个账本；要另一支时用「选第 n 支」再跑一遍 rewriter，得到整条 witness 按那一支替换后的全文。这就是模型里 `AssociatedTypeWitnessProjection.conditionalCandidates` 的来源（每支带平台版本条件、thunk 那一支的类型、整条 witness 全文），也是 `interface` / `dump` 里 `typealias` 上方那几行注释的来源（`ConditionalWitnessComment`）。
+- **两支都保留**。rewriter 用当前平台那支（版本满足支）替换，同时把每个 thunk 的全部候选记进一个账本；要另一支时用「选第 n 支」再跑一遍 rewriter，得到整条 witness 按那一支替换后的全文。这就是模型里 `ResolvedAssociatedTypeWitness.conditionalCandidates` 的来源（每支带平台版本条件、thunk 那一支的类型、整条 witness 全文），也是 `interface` / `dump` 里 `typealias` 上方那几行注释的来源（`ConditionalWitnessComment`）。
 - **diff 不看它**。哪个系统上读的二进制不是 ABI 事实，所以候选不进 ABI diff 的 key。
 - **失败时**：树保留，引用位置打 `accessor function at N`（这句来自上游 `NodePrinter`，快照归一化认识它）。之前的做法是整棵树放弃、只打一个裸的描述符地址，把实参全丢了。
 
@@ -216,11 +216,16 @@ Sources/Analysis/SwiftThunkAnalysis/
     ├── MachOThunkEnvironment.swift             # 第二步：给调用目标起名（accessor 索引、本地符号、stub、槽位、跨镜像、bind 槽 → 函数引用）；解码被跟进的函数
     ├── DependencyImageResolver.swift           # 独立文件：bind 名 → 按搜索路径找到的依赖镜像 → 它导出表里的位置（按根镜像共享）
     ├── MetadataAccessorIndex.swift             # accessor 地址 → 类型描述符（按镜像缓存）
-    ├── ThunkAddressSpace.swift                 # 共享缓存偏移与地址的换算（三套账的坑就在这里收口；导出表偏移是第四套：相对 mach header）
     ├── ThunkTypeNodeBuilder.swift              # 第四步：表达式 → 类型名节点
     └── AccessorThunkOwnerLayout.swift          # thunk 主人的泛型参数布局（argument(k) 对应哪个参数）
 
-Sources/MachO/MachODependencies/
+MachOKitExtensions: Sources/MachOAddressResolution/（0.25.0 起在 MachOKitExtensions 包里；从 SwiftThunkAnalysis 抽出，交叉引用的文件模式共用）
+├── ImageAddressSpace.swift                     # 共享缓存偏移与地址的换算（三套账的坑就在这里收口；导出表偏移是第四套：相对 mach header）
+├── StubChainResolver.swift                     # 桩、stub island、cache 共用 selector 桩：一跳一跳读
+├── SlotResolver.swift                          # 指针槽里装着谁：bind 名或 rebase 目标
+└── CacheImageLocator.swift                     # cache 里按地址找镜像、读它导出的名字
+
+MachOKitExtensions: Sources/MachODependencies/（0.25.0 起在 MachOKitExtensions 包里）
 ├── DependencySearchPath.swift                  # 搜索路径的四种（含 system root）、从文件位置推断、按形状归类
 └── FileDependencyLocator.swift                 # 按 load name 找依赖文件：显式文件 → system root → cache
 

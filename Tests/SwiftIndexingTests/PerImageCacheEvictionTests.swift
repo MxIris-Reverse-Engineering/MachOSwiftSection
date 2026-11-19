@@ -3,11 +3,12 @@ import Foundation
 import Testing
 import MachOKit
 import Dependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @_spi(Internals) @testable import SwiftInspection
+@_spi(Internals) @testable import SwiftObjCInterop
 @_spi(Internals) import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftDeclarationRendering
@@ -48,7 +49,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsHelper }
 
     private func clearAllPerImageCaches(for machOFile: MachOFile) {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
         symbolIndexStore.remove(for: machOFile)
         SymbolicManglingIndex.shared.remove(for: machOFile)
@@ -126,10 +127,10 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         for cycle in 1 ... 3 {
             var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
             try await indexer?.prepare()
-            try #require(SymbolIndexStore.shared.contains(in: unsafeMachOFile))
+            try #require(SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile))
             indexer = nil
 
-            #expect(!SymbolIndexStore.shared.contains(in: unsafeMachOFile), "cycle \(cycle) left the symbol store behind")
+            #expect(!SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile), "cycle \(cycle) left the symbol store behind")
             #expect(!InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile), "cycle \(cycle) left the interned store behind")
             #expect(!SymbolicDemangler.cacheExists(for: unsafeMachOFile), "cycle \(cycle) left the demangle memo behind")
         }
@@ -150,7 +151,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
 
         indexer = nil
 
-        #expect(!SymbolIndexStore.shared.contains(in: unsafeMachOFile), "the indexer built the symbol store, so it must reclaim it")
+        #expect(!SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile), "the indexer built the symbol store, so it must reclaim it")
         #expect(
             !SymbolicManglingIndex.shared.contains(in: unsafeMachOFile),
             "the index outlived the symbol store and pins its symbolic-mangling table"
@@ -178,6 +179,25 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         )
     }
 
+    /// `SwiftClassWithoutClassObjectIndex` is ObjC-side per-image state of the
+    /// same lifetime (evolution proposal `objc-classes-without-class-objects`).
+    @Test func classesWithoutClassObjectsIndexGoesWithTheObjCClassHierarchies() async throws {
+        let unsafeMachOFile = machOFile
+        clearAllPerImageCaches(for: unsafeMachOFile)
+
+        var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
+        try await indexer?.prepare()
+        _ = SwiftClassWithoutClassObjectIndex.shared.classes(in: unsafeMachOFile)
+        try #require(SwiftClassWithoutClassObjectIndex.shared.contains(in: unsafeMachOFile))
+
+        indexer = nil
+
+        #expect(
+            !SwiftClassWithoutClassObjectIndex.shared.contains(in: unsafeMachOFile),
+            "the index of classes without a class object outlived the indexer that reclaims the image's ObjC-side state"
+        )
+    }
+
     @Test func survivingIndexerKeepsPerImageCaches() async throws {
         let unsafeMachOFile = machOFile
         clearAllPerImageCaches(for: unsafeMachOFile)
@@ -189,7 +209,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
 
         // All three must genuinely be populated, or the survivor assertions
         // below degrade to `false == false` and pin nothing.
-        try #require(SymbolIndexStore.shared.contains(in: unsafeMachOFile))
+        try #require(SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile))
         try #require(InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
         try #require(SymbolicDemangler.cacheExists(for: unsafeMachOFile))
 
@@ -199,7 +219,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         firstIndexer = nil
 
         #expect(
-            SymbolIndexStore.shared.contains(in: unsafeMachOFile),
+            SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile),
             "the first indexer's deinit evicted the symbol store while a second live indexer was using the image"
         )
         #expect(
@@ -223,7 +243,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         var secondIndexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
         try await secondIndexer?.prepare()
 
-        try #require(SymbolIndexStore.shared.contains(in: unsafeMachOFile))
+        try #require(SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile))
         try #require(InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
         try #require(SymbolicDemangler.cacheExists(for: unsafeMachOFile))
 
@@ -231,7 +251,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         secondIndexer = nil
 
         #expect(
-            !SymbolIndexStore.shared.contains(in: unsafeMachOFile),
+            !SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile),
             "the image's LAST live indexer must still perform the eviction — otherwise the per-image caches leak for the rest of the process lifetime"
         )
         #expect(!InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
@@ -261,7 +281,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         // claim reads backwards.
         try #require(InternedNodeReferenceCache.shared.contains(in: unsafeMachOFile))
         try #require(SymbolicDemangler.cacheExists(for: unsafeMachOFile))
-        try #require(!SymbolIndexStore.shared.contains(in: unsafeMachOFile))
+        try #require(!SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile))
 
         var indexer: SwiftDeclarationIndexer<MachOFile>? = SwiftDeclarationIndexer(in: unsafeMachOFile)
         try await indexer?.prepare()
@@ -277,7 +297,7 @@ final class PerImageCacheEvictionTests: MachOFileTests, @unchecked Sendable {
         )
         // The symbol store IS the indexer's to reclaim: it built that one.
         #expect(
-            !SymbolIndexStore.shared.contains(in: unsafeMachOFile),
+            !SwiftSymbolIndexStore.shared.contains(in: unsafeMachOFile),
             "the symbol store the indexer built must still be reclaimed"
         )
     }

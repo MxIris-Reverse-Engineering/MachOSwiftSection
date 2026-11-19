@@ -3,7 +3,7 @@
 // The compiler tells them apart only by the per-file private discriminator
 // (`(PrivateDoppelganger in _XXXX...)`), which `DemangleOptions.interface`
 // deliberately strips — so the two types collide on the printed-name key of
-// `SymbolIndexStore`'s member indexes and only the interned context node can
+// `SwiftSymbolIndexStore`'s member indexes and only the interned context node can
 // attribute their member symbols to the right declaration (issue #115: the
 // dump path merged both types' initializers and methods into each).
 //

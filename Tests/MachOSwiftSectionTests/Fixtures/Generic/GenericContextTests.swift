@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based Suite for `TargetGenericContext` (the underlying generic
 /// struct behind both the `GenericContext` and `TypeGenericContext`
@@ -366,15 +366,6 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         let count = try acrossAllContexts(
             file: { contexts.file.uniqueCurrentRequirements(in: fileContext).count },
             image: { contexts.image.uniqueCurrentRequirements(in: imageContext).count }
-        )
-        #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
-    }
-
-    @Test func uniqueCurrentRequirementsInProcess() async throws {
-        let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.uniqueCurrentRequirements(in: inProcessContext).count },
-            image: { contexts.image.uniqueCurrentRequirements(in: inProcessContext).count }
         )
         #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
     }

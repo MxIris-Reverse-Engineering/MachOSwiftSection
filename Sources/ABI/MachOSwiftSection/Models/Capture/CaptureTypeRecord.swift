@@ -9,8 +9,8 @@ import MachOBase
 ///
 /// Mirrors `swift::reflection::CaptureTypeRecord`
 /// (`swift/RemoteInspection/Records.h`).
-@LocatableLayoutWrapping
-public struct CaptureTypeRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct CaptureTypeRecord {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
     }
@@ -21,19 +21,5 @@ public struct CaptureTypeRecord: ResolvableLocatableLayoutWrapper {
 extension CaptureTypeRecord {
     public func mangledTypeName(in context: some ReadingContext) throws -> MangledName {
         try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension CaptureTypeRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: machO.context).")
-    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try mangledTypeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: .inProcess).")
-    public func mangledTypeName() throws -> MangledName {
-        try mangledTypeName(in: InProcessContext.shared)
     }
 }

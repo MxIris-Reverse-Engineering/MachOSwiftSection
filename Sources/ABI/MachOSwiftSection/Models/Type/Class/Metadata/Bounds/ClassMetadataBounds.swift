@@ -1,6 +1,7 @@
 import Foundation
+import MachOKit
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ClassMetadataBounds: ClassMetadataBoundsProtocol {
     public struct Layout: ClassMetadataBoundsLayout {
         public let negativeSizeInWords: UInt32

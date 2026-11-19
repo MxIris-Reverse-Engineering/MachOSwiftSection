@@ -1,3 +1,6 @@
+import SwiftStdlibToolbox
+
+/// Mirrors `swift::GenericRequirementFlags` (`swift/ABI/MetadataValues.h`).
 public struct GenericRequirementFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -9,7 +12,8 @@ public struct GenericRequirementFlags: OptionSet, Sendable {
     public static let hasKeyArgument = GenericRequirementFlags(rawValue: 0x80)
     public static let isValueRequirement = GenericRequirementFlags(rawValue: 0x100)
 
-    public var kind: GenericRequirementKind {
-        .init(rawValue: UInt8(rawValue & 0x1F))!
-    }
+    /// The kind of requirement, or `nil` for a kind this reader does not
+    /// know. Five bits hold it.
+    @BitField(bits: 0..<5)
+    public var kind: GenericRequirementKind?
 }

@@ -7,8 +7,8 @@ import Semantic
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// The protocol a conformance extension names is a type reference like any
 /// other, so its name must carry the semantic type the rest of the interface

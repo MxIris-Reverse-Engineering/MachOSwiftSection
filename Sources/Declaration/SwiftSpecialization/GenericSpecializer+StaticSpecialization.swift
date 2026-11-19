@@ -5,7 +5,7 @@ import Foundation
 import MachOSwiftSection
 import MachOKit
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 #if canImport(ObjectiveC)
 import ObjectiveC
@@ -605,9 +605,11 @@ extension GenericSpecializer where MachO == MachOFile {
     }
 }
 
-/// How a diagnostic spells a type: the way the interface prints it.
+/// How a diagnostic spells a type: the way the interface prints it, an
+/// existential with the `any` keyword included (evolution proposal
+/// `existential-any`).
 private func displayName(of typeNode: Node) -> String {
-    typeNode.print(using: .interface)
+    typeNode.print(using: DemangleOptions.interface.union(.useExistentialAny))
 }
 
 private func unwrappedTypeNode(_ node: Node) -> Node {

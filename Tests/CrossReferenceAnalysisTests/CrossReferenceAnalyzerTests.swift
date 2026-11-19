@@ -3,6 +3,8 @@ import Testing
 import Capstone
 import MachOKit
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// One analyzer for the whole suite: building it reads every image of the
 /// shared cache.
@@ -29,7 +31,7 @@ struct CrossReferenceAnalyzerTests {
         #expect(analyzer.images.count > 1000)
         #expect(analyzer.imagePaths.contains { $0.hasSuffix("/libobjc.A.dylib") })
         #expect(!analyzer.messageSendLocations.isEmpty)
-        #expect(!analyzer.runtimeHelperLocations.isEmpty)
+        #expect(!analyzer.imageSet.runtimeHelperLocations.isEmpty)
     }
 
     /// The three messages this method sends — through the image's own
@@ -190,7 +192,9 @@ struct CrossReferenceAnalyzerTests {
     ///
     /// The dropped images are sampled, every sixteenth: a Debug build scans
     /// the whole cache in minutes, not seconds.
-    @Test(arguments: ["orderWindow:relativeTo:", "description", "count"])
+    /// `isKindOfClass:` is sent through `objc_opt_isKindOfClass` alone, which
+    /// no selector reference shows (`RuntimeSendEntryPointTests`).
+    @Test(arguments: ["orderWindow:relativeTo:", "description", "count", "isKindOfClass:"])
     func selectorPrefilterKeepsEverySender(selector: String) throws {
         let everyImage = Array(analyzer.images.indices)
         let kept = analyzer.imageIndices(referencingSelector: selector, among: everyImage)

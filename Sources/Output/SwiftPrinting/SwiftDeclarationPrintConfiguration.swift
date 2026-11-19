@@ -79,7 +79,12 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// `ExportFilterScope`). Still a symbol-table FACT: a declaration is
     /// dropped only on a definitive negative — anything without evidence
     /// (no export information, no joined symbols, `override` / `@objc`
-    /// members) is kept, so the filter never drops on a guess.
+    /// members, a C-imported type) is kept, so the filter never drops on a
+    /// guess.
+    ///
+    /// A marked print (`marksOptionalContent`) leaves nothing out for it: it
+    /// prints what the filter rules out in a region visible only while this
+    /// is off (evolution proposal `exported-only-marking-mode`).
     public var printExportedDeclarationsOnly: Bool = false
 
     /// Whether to act on the ObjC member recovery's NAME-only evidence tier
@@ -110,6 +115,54 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// Off by default, and off the output is unchanged byte for byte.
     public var usesModuleSelectors: Bool = false
 
+    /// Spell existential types with the `any` keyword, as the compiler writes
+    /// a `.swiftinterface` (SE-0335; evolution proposal `existential-any`):
+    /// `any P`, `any P & Q`, `(any P)?`, `any P.Type` for the existential
+    /// metatype and `(any P).Type` for the metatype of the existential, which
+    /// the bare spelling writes as `P.Protocol`. A lone `Any` or `AnyObject`
+    /// stays bare, except in a metatype (`any Any.Type`), where the compiler
+    /// writes the keyword for them too.
+    ///
+    /// On by default. Off, existentials print bare, the way they did before —
+    /// `Swift.Collection` for `any Collection`, which the compiler warns must
+    /// be written `any Collection`.
+    public var usesExistentialAny: Bool = true
+
+    /// Print what an attached macro the type was declared with generated, as
+    /// the binary has it, instead of the macro attribute and the
+    /// declarations the source wrote (evolution proposal
+    /// `observable-macro-folding`).
+    ///
+    /// Off by default: a class `@Observable` expanded
+    /// (`TypeDefinition.attachedMacros`) prints with
+    /// `@Observation.Observable`, each tracked property as the stored
+    /// `var x: T` it was declared as, in the place of its storage `_x`, and a
+    /// stored `var` the macro leaves alone with
+    /// `@Observation.ObservationIgnored`. The registrar, the computed
+    /// properties over the storage, `access(keyPath:)`,
+    /// `withMutation(keyPath:_:)`, the `shouldNotifyObservers(_:_:)`
+    /// overloads and the `Observation.Observable` conformance the macro
+    /// generated are left out. On, the output is unchanged byte for byte:
+    /// every one of them prints as it did before.
+    ///
+    /// The diff and evolution interfaces always print the expansion: they
+    /// compare what the binary has.
+    public var expandsMacros: Bool = false
+
+    /// Mark the attribute of each attached macro the folded form prints —
+    /// `@Observation.Observable` — with an `AnnotationRegion` of kind
+    /// `AnnotationRegion.Kind.attachedMacro(_:)` for that macro (evolution
+    /// proposal `observable-macro-folding`), so a host can anchor what it
+    /// shows of the expansion (`SwiftDeclarationPrinter.printMacroExpansion(of:attachedTo:level:)`)
+    /// to that line without reading text.
+    /// `FrozenSemanticString.separatingAnnotationRegions()` reads the regions
+    /// back. With `marksNestedDefinitions`, the innermost `DefinitionRegion`
+    /// around a region names the type whose macro it is; a region in none
+    /// belongs to the definition printed.
+    ///
+    /// Off by default, and off the output is unchanged byte for byte.
+    public var marksAttachedMacros: Bool = false
+
     /// Where a requirement about one of a protocol's own associated types
     /// prints: in the protocol's `where` clause (the default, unchanged byte
     /// for byte), or on that `associatedtype` (evolution proposal
@@ -132,10 +185,15 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// projected with `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` of
     /// some configuration, reads byte for byte as printing with that
     /// configuration. Everything else here — the transformers, the sort
-    /// order, the export options — applies as usual.
+    /// order, the `// not exported` annotation (`printExportStatus`) —
+    /// applies as usual.
     ///
     /// For the opaque type constraints to be there to mark, register the
-    /// opaque type resolver as for a normal print.
+    /// opaque type resolver as for a normal print. For the exported-only
+    /// filter to rule on extensions, install the export filter scope
+    /// (`SwiftDeclarationPrinter.installExportFilterScope(types:protocols:)`)
+    /// as for a normal print with the filter on — `SwiftInterfaceBuilder`'s
+    /// `printRoot()` installs it for a marked print too.
     public var marksOptionalContent: Bool = false
 
     /// Wrap every nested type and protocol printed inside its parent — a
@@ -163,8 +221,47 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// `applyTransformers(_:)`; a hand-written transformer closure must start
     /// each line it emits with the indentation it is given.
     ///
+    /// One exception with `marksOptionalContent`: a definition the
+    /// exported-only filter keeps inside one it rules out — an exported type
+    /// nested in an unexported one, which an OS framework's export list
+    /// allows (Foundation's `LocalePreferences.ICUSymbolsAndStrings`). The
+    /// parent's print marks all of the parent, the child included, as
+    /// visible only while `printExportedDeclarationsOnly` is off, so the
+    /// region reads as the child's own print with the filter off and is gone
+    /// with it on, where the child's own print stays (evolution proposal
+    /// `exported-only-marking-mode`). The host prints such a child on its
+    /// own: one whose own `exportStatus` is not `isDefinitelyNotExported`
+    /// while an enclosing definition's is.
+    ///
     /// Off by default, and off the output is unchanged byte for byte.
     public var marksNestedDefinitions: Bool = false
+
+    /// Mark every comment the print contains with what it is (evolution
+    /// proposal `comment-structure`): each in an `AnnotationRegion` of its
+    /// kind — the `AnnotationRegion.Kind` constants this library adds, or
+    /// `note` — and each part of it in an `AnnotationSegment` of its role,
+    /// so a host can draw a comment as a tag without reading its text.
+    ///
+    /// Comments that state one fact make one region each. Three make trees
+    /// of regions instead: a `fieldOffset` region holds its expanded tree,
+    /// each `fieldLayoutNode` region a row and the rows nested under it; an
+    /// `enumLayoutCase` region holds `/* Enum Layout */` and one region for
+    /// each line of the case's block; and a `conditionalWitness` region holds
+    /// one `conditionalWitnessBranch` for each branch. A comment a
+    /// transformer printed is one `text` segment, since only the template
+    /// knows what its text is made of. Indentation and line breaks belong
+    /// to no segment, and a region's range in the table leaves them out at
+    /// its ends.
+    ///
+    /// `FrozenSemanticString.separatingAnnotationRegions()` of the frozen
+    /// print gives exactly the string printed with this off — text, spans and
+    /// identifiers — and the table of regions and segments. It composes with
+    /// `marksOptionalContent` and `marksNestedDefinitions`: a projection, or
+    /// a nested definition taken out of its parent, separates to the regions
+    /// of its own print.
+    ///
+    /// Off by default, and off the output is unchanged byte for byte.
+    public var marksCommentStructure: Bool = false
 
     /// How the static (`MachOFile`) field-layout path resolves cross-module
     /// types when a layout-bearing flag is on. Defaults to the full transitive
@@ -198,7 +295,9 @@ extension SwiftDeclarationPrintConfiguration {
         case .printTypeLayout: printTypeLayout
         case .printEnumLayout: printEnumLayout
         case .infersObjCOverridesFromSelectorNames: infersObjCOverridesFromSelectorNames
+        case .printExportedDeclarationsOnly: printExportedDeclarationsOnly
         case .opaqueTypeResolution: resolvesOpaqueTypes
+        case .expandsMacros: expandsMacros
         }
     }
 

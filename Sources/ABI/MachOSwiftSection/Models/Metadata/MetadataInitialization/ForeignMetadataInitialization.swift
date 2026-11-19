@@ -1,8 +1,9 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ForeignMetadataInitialization: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ForeignMetadataInitialization {
     public struct Layout: LayoutProtocol {
         public let completionFunction: RelativeDirectRawPointer
     }

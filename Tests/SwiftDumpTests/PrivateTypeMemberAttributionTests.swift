@@ -4,8 +4,8 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Issue #115: two top-level `private struct PrivateDoppelganger` declarations
 /// (one per fixture file) share their interface-printed name — the private

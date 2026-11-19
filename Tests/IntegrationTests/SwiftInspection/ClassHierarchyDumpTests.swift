@@ -2,14 +2,15 @@ import Foundation
 import Testing
 import MachOKit
 import Dependencies
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Core) import MachOObjCSection
 @testable import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
+@testable @_spi(Internals) import SwiftObjCInterop
 
 #if os(macOS)
 import AppKit

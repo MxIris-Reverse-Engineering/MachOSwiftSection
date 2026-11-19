@@ -68,6 +68,8 @@ struct DemangleOptionGroup: ParsableArguments, Sendable {
     var showModuleInDependentMemberType: Bool?
     @Flag(inversion: .prefixedEnableDisable, help: "Qualify names with SE-0491 module selectors (Swift::Int instead of Swift.Int); every type level carries the module that declared it.")
     var moduleSelectors: Bool?
+    @Flag(inversion: .prefixedEnableDisable, help: "Spell existential types with the any keyword (any P, (any P)?, any P.Type, (any P).Type), the way the compiler writes a .swiftinterface; a lone Any or AnyObject stays bare. On by default, whichever --demangle-options preset is chosen.")
+    var existentialAny: Bool?
 
     func buildSwiftDumpDemangleOptions() -> SwiftDump.DemangleOptions {
         var options = demangleOptions.options
@@ -140,6 +142,9 @@ struct DemangleOptionGroup: ParsableArguments, Sendable {
         if let moduleSelectors {
             options = options.update(.useModuleSelectors, enabled: moduleSelectors)
         }
+        // No preset carries it — the presets print what the toolchain's
+        // demangler prints — so the dump turns it on itself.
+        options = options.update(.useExistentialAny, enabled: existentialAny ?? true)
         return options
     }
 }

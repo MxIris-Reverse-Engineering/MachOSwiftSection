@@ -6,7 +6,7 @@ import MachOFoundation
 @testable import SwiftDeclarationRendering
 import Demangling
 @_spi(Internals) import SwiftInspection
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 
 /// The in-process leg of kind-9 resolution (evolution proposal
 /// `offline-opaque-accessor-thunk-resolution`): a witness whose underlying

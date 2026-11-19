@@ -206,62 +206,86 @@ public struct ConsoleEventHandler: SwiftIndexEvents.Handler {
     /// so an unlabeled line cannot be attributed to an input.
     public let label: String?
 
+    /// The time a line is stamped with.
+    private let timestamp: @Sendable () -> String
+
     public init(label: String? = nil) {
-        self.label = label
+        self.init(label: label, timestamp: Self.localizedTimestamp)
     }
 
+    /// A handler that stamps lines with `timestamp` instead of the local time.
+    package init(label: String?, timestamp: @escaping @Sendable () -> String) {
+        self.label = label
+        self.timestamp = timestamp
+    }
+
+    @Sendable
+    private static func localizedTimestamp() -> String {
+        DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+    }
+
+    /// Most events — one per type, conformance and printed declaration —
+    /// print nothing, so the time is read only for a line that is written.
+    /// Stamping every event built a date formatter per event: a quarter of
+    /// `swift-section interface` over SwiftUI.
     public func handle(event: SwiftIndexEvents.Payload) {
-        let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-        if let line = line(for: event, timestamp: timestamp) {
-            report(line)
-        }
+        guard let message = message(for: event) else { return }
+        report(line(withMessage: message, timestamp: timestamp()))
     }
 
     /// The line `handle(event:)` writes for `event`, or `nil` for an event the
     /// console does not report. `[timestamp] [label] [LEVEL] message`; the
     /// label bracket is absent when there is no label.
     package func line(for event: SwiftIndexEvents.Payload, timestamp: String) -> String? {
-        let prefix = "[\(timestamp)]" + (label.map { " [\($0)]" } ?? "")
+        message(for: event).map { line(withMessage: $0, timestamp: timestamp) }
+    }
 
+    private func line(withMessage message: String, timestamp: String) -> String {
+        "[\(timestamp)]" + (label.map { " [\($0)]" } ?? "") + " " + message
+    }
+
+    /// What follows the timestamp and the label on the line for `event` —
+    /// `[LEVEL] message` — or `nil` for an event the console does not report.
+    private func message(for event: SwiftIndexEvents.Payload) -> String? {
         switch event {
         case .extractionCompleted(let result):
-            return "\(prefix) [INFO] Extracted \(result.count) \(sectionName(result.section))"
+            return "[INFO] Extracted \(result.count) \(sectionName(result.section))"
 
         case .typeIndexingCompleted(let result):
-            return "\(prefix) [INFO] Types: \(result.successful) successful, \(result.failed) failed, \(result.cImportedSkipped) C-imported skipped, \(result.nestedTypes) nested, \(result.extensionTypes) in extensions"
+            return "[INFO] Types: \(result.successful) successful, \(result.failed) failed, \(result.cImportedSkipped) C-imported skipped, \(result.nestedTypes) nested, \(result.extensionTypes) in extensions"
 
         case .protocolIndexingCompleted(let result):
-            return "\(prefix) [INFO] Protocols: \(result.successful) successful, \(result.failed) failed"
+            return "[INFO] Protocols: \(result.successful) successful, \(result.failed) failed"
 
         case .conformanceIndexingCompleted(let result):
-            return "\(prefix) [INFO] Conformances: \(result.extensionCount) extensions, \(result.failedConformances + result.failedAssociatedTypes + result.failedExtensions) failed"
+            return "[INFO] Conformances: \(result.extensionCount) extensions, \(result.failedConformances + result.failedAssociatedTypes + result.failedExtensions) failed"
 
         case .extensionIndexingCompleted(let result):
-            return "\(prefix) [INFO] Extensions: \(result.typeExtensions) type, \(result.protocolExtensions) protocol, \(result.typeAliasExtensions) typealias, \(result.failed) failed"
+            return "[INFO] Extensions: \(result.typeExtensions) type, \(result.protocolExtensions) protocol, \(result.typeAliasExtensions) typealias, \(result.failed) failed"
 
         case .moduleCollectionCompleted(let result):
-            return "\(prefix) [INFO] Found \(result.moduleCount) modules to import"
+            return "[INFO] Found \(result.moduleCount) modules to import"
 
         case .phaseTransition(let phase, let state):
             let phaseName = phaseName(phase)
             switch state {
             case .completed:
-                return "\(prefix) [SUCCESS] \(phaseName.capitalized) completed"
+                return "[SUCCESS] \(phaseName.capitalized) completed"
             case .failed(let error):
-                return "\(prefix) [ERROR] \(phaseName.capitalized) failed: \(String(describing: error))"
+                return "[ERROR] \(phaseName.capitalized) failed: \(String(describing: error))"
             case .started:
                 return nil // Ignore started events for console output
             }
 
         case .definitionPrintFailed(let context, let error):
-            return "\(prefix) [ERROR] Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))"
+            return "[ERROR] Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))"
 
         case .renderingDegraded(let context, let error):
             let subject = context.subject.map { " for \($0)" } ?? ""
-            return "\(prefix) [ERROR] Degraded \(context.source)\(subject): \(String(describing: error))"
+            return "[ERROR] Degraded \(context.source)\(subject): \(String(describing: error))"
 
         case .objcImplementationClassSkipped(let className, let reason):
-            return "\(prefix) [ERROR] Skipped @objc @implementation recognition for \(className): \(reason)"
+            return "[ERROR] Skipped @objc @implementation recognition for \(className): \(reason)"
 
         default:
             return nil // Ignore other detailed events

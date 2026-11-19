@@ -1,13 +1,14 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
+@_spi(Internals) import MachOAddressResolution
 import MachOSwiftSection
 import Demangling
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
 import SwiftThunkAnalysis
 import MachODependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Carries the logging floor onto the rewriter.
 ///
@@ -370,7 +371,7 @@ extension Node {
                 return try ReadOpaqueType(OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: offset, in: machO.context), in: machO.context), in: machO.context)
             }
             if reference.isKind(of: .opaqueReturnTypeOf), let memberNode = reference.firstChild,
-               let descriptorSymbol = SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
+               let descriptorSymbol = SwiftSymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: memberNode, in: machO) {
                 return try ReadOpaqueType(OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(at: descriptorSymbol.offset, in: machO.context), in: machO.context), in: machO.context)
             }
             return nil
@@ -406,7 +407,7 @@ extension Node {
                 #log(.info, "no search path located an image exporting \(descriptorSymbolName, privacy: .public)")
                 return nil
             }
-            let imageAddressSpace = ThunkAddressSpace(of: location.image)
+            let imageAddressSpace = ImageAddressSpace(of: location.image)
             guard let descriptorAddress = imageAddressSpace.address(forExportedSymbolOffset: location.exportedSymbolOffset),
                   let descriptorOffset = imageAddressSpace.offset(forAddress: descriptorAddress)
             else { return nil }
@@ -723,14 +724,17 @@ fileprivate struct ReadOpaqueType {
     let ownerLayout: AccessorThunkOwnerLayout
     /// How the descriptor's parameters split into depths: what regroups the
     /// argument lists of a reference to it (`opaqueTypeGenericArgumentsByDepth`).
-    /// `nil` for a descriptor with no generic context.
+    /// `nil` for a descriptor with no generic context, or one whose depths
+    /// cannot be told (`GenericParameterDepthLayout.make(forOpaqueType:genericContext:in:)`),
+    /// which leaves the lists keyed by position.
     let depthLayout: GenericParameterDepthLayout?
 
     init(_ opaqueType: OpaqueType, in context: some ReadingContext) {
         self.opaqueType = opaqueType
         if let genericContext = opaqueType.genericContext {
-            let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .opaqueType(opaqueType.descriptor), in: context)
-            self.ownerLayout = AccessorThunkOwnerLayout(genericContext: genericContext, depthLayout: depthLayout)
+            let depthLayout = GenericParameterDepthLayout.make(forOpaqueType: opaqueType.descriptor, genericContext: genericContext, in: context)
+            self.ownerLayout = depthLayout.map { AccessorThunkOwnerLayout(genericContext: genericContext, depthLayout: $0) }
+                ?? AccessorThunkOwnerLayout(genericContext: genericContext)
             self.depthLayout = depthLayout
         } else {
             self.ownerLayout = AccessorThunkOwnerLayout(genericContext: nil as GenericContext?)

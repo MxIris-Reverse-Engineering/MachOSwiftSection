@@ -6,7 +6,7 @@ import MachOSwiftSection
 import SwiftDump
 import SwiftDeclarationRendering
 import SwiftInterface
-import MachOFixtureSupport
+import SwiftSectionFixtureSupport
 import Demangling
 
 /// Maintainer-only rendering-verification harness (no assertions — like the rest
@@ -30,6 +30,20 @@ import Demangling
 ///   - `RV_OPTS`        comma-separated options (default = all):
 ///                      `fieldOffset, expandedFieldOffsets, typeLayout, enumLayout,
 ///                      spareBitAnalysis, memberAddress, vtableOffset, pwtOffset`.
+///                      `bareExistentials` (never in the default) prints
+///                      existentials without the `any` keyword, both outputs
+///                      on by default since evolution proposal
+///                      `existential-any`: an A/B run turns it on for the
+///                      candidate alone to compare against a baseline from
+///                      before the keyword.
+///                      `expandsMacros` (never in the default) prints what
+///                      `@Observable` generated instead of folding it into the
+///                      attribute, the interface default since evolution
+///                      proposal `observable-macro-folding`: the candidate
+///                      turns it on to compare against a baseline from before
+///                      the folding. The dump has no such switch; its
+///                      difference is the `@Observation.Observable` on the
+///                      header line of each class the macro expanded.
 ///
 /// Caveat: `expandedFieldOffsets` over a MachOImage of a framework with very
 /// deeply nested generic types (e.g. SwiftUI) hits a pre-existing stack overflow
@@ -108,13 +122,16 @@ struct RenderingVerificationTests {
         configuration.printConfiguration.printMemberAddress = options.contains("memberAddress")
         configuration.printConfiguration.printVTableOffset = options.contains("vtableOffset")
         configuration.printConfiguration.printPWTOffset = options.contains("pwtOffset")
+        configuration.printConfiguration.usesExistentialAny = !options.contains("bareExistentials")
+        configuration.printConfiguration.expandsMacros = options.contains("expandsMacros")
         let builder = try SwiftInterfaceBuilder(configuration: configuration, in: machO)
         try await builder.prepare()
         return try await builder.printRoot().string
     }
 
     private func renderDump(in machO: some MachOFieldLayoutRenderable, options: Set<String>) async throws -> String {
-        var configuration = DumperConfiguration(demangleResolver: .using(options: .test))
+        let demangleOptions = options.contains("bareExistentials") ? DemangleOptions.test.subtracting(.useExistentialAny) : .test
+        var configuration = DumperConfiguration(demangleResolver: .using(options: demangleOptions))
         configuration.printFieldOffset = options.contains("fieldOffset")
         configuration.printExpandedFieldOffsets = options.contains("expandedFieldOffsets")
         configuration.printTypeLayout = options.contains("typeLayout")

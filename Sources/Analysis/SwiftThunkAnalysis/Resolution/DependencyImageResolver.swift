@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+@_spi(Internals) import MachOAddressResolution
 import MachOFoundation
 @_spi(Internals) import MachOCaches
 
@@ -8,7 +9,7 @@ import MachOFoundation
 /// with a GOT bind.
 ///
 /// Inside a shared cache every cross-image call is a rebase to a concrete
-/// address and ``CacheImageResolver`` finds the image by address. A file
+/// address and `CacheImageLocator` finds the image by address. A file
 /// that is not in a cache — a third-party app, an older simulator runtime's
 /// framework, a build product — calls into other images through binds, and
 /// a bind is a *name* plus the load command it came from. The images are
@@ -26,7 +27,7 @@ import MachOFoundation
 package final class DependencyImageResolver: @unchecked Sendable {
     /// Where an exported symbol was found: the image, and the symbol's
     /// `ExportedSymbol.offset` in it — an offset from the mach header, which
-    /// ``ThunkAddressSpace/address(forExportedSymbolOffset:)`` turns into an
+    /// ``ImageAddressSpace/address(forExportedSymbolOffset:)`` turns into an
     /// address.
     package struct Location {
         package let image: MachOFile

@@ -39,6 +39,9 @@ struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
     @Flag(name: .shortAndLong, help: "Report indexing progress on stderr.")
     var verbose: Bool = false
 
+    @Flag(name: .customLong("swift"), help: "Print the declaration as Swift imports it — names by the ClangImporter's rules, members Swift implements as their Swift declarations — instead of as an Objective-C header. Classes, categories and protocols only.")
+    var printsSwiftImport: Bool = false
+
     /// The library request these flags describe.
     func makeRequest() throws -> ObjCInterfaceRequest {
         ObjCInterfaceRequest(
@@ -49,7 +52,8 @@ struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
             cTypeReplacements: try transformerOptions.buildCTypeReplacements(),
             ivarOffsetComment: transformerOptions.buildIvarOffsetComment(),
             reportsIndexingProgress: verbose,
-            destination: outputPath.map { .file(path: $0) } ?? .output
+            destination: outputPath.map { .file(path: $0) } ?? .output,
+            printsSwiftImport: printsSwiftImport
         )
     }
 

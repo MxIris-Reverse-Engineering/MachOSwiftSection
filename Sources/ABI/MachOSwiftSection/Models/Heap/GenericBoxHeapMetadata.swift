@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct GenericBoxHeapMetadata: HeapMetadataProtocol {
     public struct Layout: HeapMetadataLayout {
         public let kind: StoredPointer

@@ -8,7 +8,8 @@ import SwiftDeclarationRendering
 import SwiftInterface
 import SwiftThunkAnalysis
 @_spi(Internals) import SwiftInspection
-@testable import MachOTestingSupport
+@_spi(Internals) import SwiftObjCInterop
+@testable import SwiftSectionTestingSupport
 
 /// Classes a source renamed for the Objective-C runtime on the interface
 /// path (evolution proposal `objc-custom-class-name`): the attribute the

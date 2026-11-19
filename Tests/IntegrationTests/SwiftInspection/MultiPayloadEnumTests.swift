@@ -3,8 +3,8 @@ import Testing
 import MachOKit
 @testable import Demangling
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 
 #if canImport(SwiftUI)
@@ -163,8 +163,8 @@ private func makeOptionalMetatype<T>(_ metatype: T.Type) -> Any.Type {
 }
 
 extension String {
-    static func * (lhs: Self, rhs: Int) -> Self {
-        .init(repeating: lhs, count: rhs)
+    static func * (repeated: Self, count: Int) -> Self {
+        .init(repeating: repeated, count: count)
     }
 }
 

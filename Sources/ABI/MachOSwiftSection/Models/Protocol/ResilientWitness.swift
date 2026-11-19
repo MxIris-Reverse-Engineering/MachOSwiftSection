@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ResilientWitness {
     public struct Layout: LayoutProtocol {
         public let requirement: RelativeProtocolRequirementPointer
         public let implementation: RelativeDirectRawPointer
@@ -40,24 +40,5 @@ extension ResilientWitness {
     public func implementationAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
         guard let implementationOffset else { return nil }
         return try context.addressFromOffset(implementationOffset)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension ResilientWitness {
-    @available(*, deprecated, message: "Pass a ReadingContext: requirement(in: machO.context).")
-    public func requirement(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ProtocolRequirement>? {
-        try requirement(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: requirement(in: .inProcess).")
-    public func requirement() throws -> SymbolOrElement<ProtocolRequirement>? {
-        try requirement(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, renamed: "implementationAddressString(in:)", message: "The Mach-O form formats the address for display; implementationAddress(in:) with a ReadingContext answers the typed address.")
-    public func implementationAddress(in machO: some MachOSwiftSectionRepresentableWithCache) -> String? {
-        implementationAddressString(in: machO)
     }
 }

@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericRequirementDescriptor {
     public struct Layout: LayoutProtocol {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>
@@ -34,6 +34,11 @@ extension GenericRequirementDescriptor {
             })
         case .layout:
             return .layout(.init(rawValue: layout.content.cast())!)
+        case nil:
+            // What the content field holds depends on the kind, and
+            // `GenericRequirementContent` has no case for one this reader
+            // does not know; this stops the program, as it always has.
+            preconditionFailure("generic requirement flags 0x\(String(layout.flags.rawValue, radix: 16)) name a kind this reader does not know")
         }
     }
 }
@@ -72,49 +77,5 @@ extension GenericRequirementDescriptor {
         case .invertedProtocols(let invertedProtocols):
             return .invertedProtocols(invertedProtocols)
         }
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension GenericRequirementDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: isContentEqual(to:in: machO.context).")
-    public func isContentEqual(to other: GenericRequirementDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
-        isContentEqual(to: other, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: paramMangledName(in: machO.context).")
-    public func paramMangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try paramMangledName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: type(in: machO.context).")
-    public func type(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try type(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolvedContent(in: machO.context).")
-    public func resolvedContent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ResolvedGenericRequirementContent {
-        try resolvedContent(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: isContentEqual(to:in: .inProcess).")
-    public func isContentEqual(to other: GenericRequirementDescriptor) -> Bool {
-        isContentEqual(to: other, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: paramMangledName(in: .inProcess).")
-    public func paramMangledName() throws -> MangledName {
-        try paramMangledName(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: type(in: .inProcess).")
-    public func type() throws -> MangledName {
-        try type(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resolvedContent(in: .inProcess).")
-    public func resolvedContent() throws -> ResolvedGenericRequirementContent {
-        try resolvedContent(in: InProcessContext.shared)
     }
 }

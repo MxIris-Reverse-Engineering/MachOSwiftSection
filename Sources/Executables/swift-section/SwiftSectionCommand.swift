@@ -13,6 +13,8 @@ struct SwiftSectionCommand: AsyncParsableCommand {
             EvolutionCommand.self,
             TransformerCommand.self,
             ObjCCommand.self,
+            ReferencesCommand.self,
+            SymbolicateCommand.self,
         ],
         defaultSubcommand: DumpCommand.self
     )

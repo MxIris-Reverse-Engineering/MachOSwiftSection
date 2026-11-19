@@ -97,7 +97,7 @@ class SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box {
 }
 struct SymbolTestsCore.FunctionFeatures.VariadicFunctionTest {
     /* Function */
-    SymbolTestsCore.FunctionFeatures.VariadicFunctionTest.format(Swift.String, Swift.CVarArg...) -> Swift.String
+    SymbolTestsCore.FunctionFeatures.VariadicFunctionTest.format(Swift.String, any Swift.CVarArg...) -> Swift.String
     SymbolTestsCore.FunctionFeatures.VariadicFunctionTest.sum(Swift.Int...) -> Swift.Int
 }
 struct SymbolTestsCore.FunctionFeatures.ConventionFunctionTest {
@@ -107,12 +107,12 @@ struct SymbolTestsCore.FunctionFeatures.ConventionFunctionTest {
 }
 struct SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest {
     /* Function */
-    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.returnExistential() -> Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
-    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptMetatype(Any.Type) -> Swift.String
-    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptExistentialCollection([SymbolTestsCore.Protocols.ProtocolTest]) -> Swift.Int
-    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptProtocolMetatype(SymbolTestsCore.Protocols.ProtocolTest.Protocol) -> Swift.Bool
-    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptExistential(SymbolTestsCore.Protocols.ProtocolTest) -> ()
-    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptComposition(Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest) -> ()
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.returnExistential() -> any Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptMetatype(any Any.Type) -> Swift.String
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptExistentialCollection([any SymbolTestsCore.Protocols.ProtocolTest]) -> Swift.Int
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptProtocolMetatype((any SymbolTestsCore.Protocols.ProtocolTest).Type) -> Swift.Bool
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptExistential(any SymbolTestsCore.Protocols.ProtocolTest) -> ()
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptComposition(any Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest) -> ()
 }
 struct SymbolTestsCore.FunctionFeatures.FailableInitTest {
     let value: Swift.Int

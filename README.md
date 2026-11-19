@@ -33,7 +33,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.24.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.25.0"),
 ],
 targets: [
     .target(
@@ -41,7 +41,7 @@ targets: [
         dependencies: [
             .product(name: "MachOSwiftSection", package: "MachOSwiftSection"),
             // Optional higher-level products:
-            .product(name: "MachOFoundation", package: "MachOSwiftSection"),
+            .product(name: "SwiftSymbols", package: "MachOSwiftSection"),
             .product(name: "SwiftInspection", package: "MachOSwiftSection"),
             .product(name: "SwiftDump", package: "MachOSwiftSection"),
             .product(name: "SwiftInterface", package: "MachOSwiftSection"),
@@ -50,22 +50,25 @@ targets: [
 ]
 ```
 
-Declare every product whose module you import. In particular, `MachOSwiftSection` no longer re-exports the symbol index (since 0.19.0): a file that uses `SymbolIndexStore`, `DemangledSymbol` or `DependencyClosure` needs `import MachOFoundation` **and** the `MachOFoundation` product on its target.
+Declare every product whose module you import. In particular, `MachOSwiftSection` does not re-export the symbol index (since 0.19.0): a file that uses `SwiftSymbolIndexStore` or `DemangledSymbol` needs `import SwiftSymbols` **and** the `SwiftSymbols` product on its target.
+
+Since 0.25.0 the Mach-O layer underneath — `MachOBase`, `MachOFoundation`, `MachODependencies`, `MachOSymbols`, `MachOCaches`, `MachOPointers`, `MachOReading`, `MachOResolving` — comes from [MachOKitExtensions](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions) 2.0.0 and later, under the same module names. Code that uses one of them directly (`DependencyClosure`, for instance, is in `MachODependencies`) declares that product with `package: "MachOKitExtensions"`.
 
 **The ABI model and the Mach-O layer**
 
 | Product | Purpose |
 | --- | --- |
 | `MachOSwiftSection` | The ABI model: the `__swift5_*` sections, every descriptor in them, and the wrappers built from them (`Struct`, `Enum`, `Class`, `Protocol`, `ProtocolConformance`, …). Depends on `MachOBase` only — no symbol index, no demangler. |
-| `MachOBase` | Reading, address resolution and relative pointers — everything the ABI model sees. Re-exported by `MachOSwiftSection`. |
-| `MachOFoundation` | `MachOBase` plus the symbol index, demangling, and dependency resolution. |
-| `MachODependencies` | Resolves the images a binary links, in process or from files and dyld shared caches. |
+| `SwiftSymbols` | The Swift symbol index: `SwiftSymbolIndexStore` demangles and classifies an image's Swift symbols, queried by offset, by name and by type member. |
+
+`MachOSwiftSection` re-exports MachOKitExtensions' `MachOBase` (reading, address resolution and relative pointers — everything the ABI model sees). `MachOBase`, `MachOFoundation` and `MachODependencies` used to be products of this package; since 0.25.0 they are provided by MachOKitExtensions.
 
 **Analysis**
 
 | Product | Purpose |
 | --- | --- |
-| `SwiftInspection` | Symbol attribution and runtime metadata analysis — `SymbolicDemangler` (formerly `MetadataReader`), `EnumLayoutCalculator`, `ClassHierarchyDumper`. |
+| `SwiftInspection` | Symbol attribution and runtime metadata analysis — `SymbolicDemangler` (formerly `MetadataReader`), `EnumLayoutCalculator`. |
+| `SwiftObjCInterop` | The Objective-C side of Swift types: `@objc @implementation` classes, Swift classes renamed for the ObjC runtime, `@objc` protocols declared in Swift, ObjC method tables and ancestor chains, `ClassHierarchyDumper`. Split out of `SwiftInspection` in 0.25.0. |
 | `SwiftLayout` | The static layout engine: field offsets, type layouts and enum layouts computed offline, the way the runtime computes them at load time. |
 | `SwiftThunkAnalysis` | Reads a type stored behind a metadata accessor thunk (availability-conditional opaque types, noncopyable fields) by evaluating its ARM64 code instead of running it, and ties a class's ObjC method table to its Swift members. |
 | `CrossReferenceAnalysis` | What each function of a loaded arm64 image calls and references — functions, Objective-C classes, Swift types — read from its machine code. `MachOImage` only. |
@@ -168,8 +171,12 @@ Generated interfaces reflect a wide range of Swift language features:
 `SwiftInspection` exposes higher-level inspection utilities built on top of `MachOSwiftSection`:
 
 - `EnumLayoutCalculator` — compute the on-disk layout of Swift enums, including single-payload and multi-payload (tagged and untagged) cases. Mirrors the ABI rules in `swift/ABI/Enum.h`.
-- `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
 - `SymbolicDemangler` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O (requires `@_spi(Internals) import SwiftInspection`). Named `MetadataReader` before 0.20.0; the old name remains as a deprecated alias.
+
+The Objective-C side of Swift types lives in `SwiftObjCInterop` (part of `SwiftInspection` before 0.25.0 — add `import SwiftObjCInterop` and the product when upgrading):
+
+- `ObjCImplementationClasses` — the `@objc @implementation` classes an image defines, with their instance variables and method tables.
+- `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftObjCInterop`, `MachOImage` only).
 
 #### Run a swift-section Command from Code
 
@@ -213,7 +220,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides seven subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, `transformer`, and `objc` — the Objective-C side, with five subcommands of its own.
+The swift-section CLI tool provides nine subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, `transformer`, `objc` — the Objective-C side, with five subcommands of its own — and `refs` and `symbolicate`, which read arm64 machine code across a whole dyld shared cache or a set of files.
 
 > [!IMPORTANT]
 > As of 0.10.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
@@ -469,9 +476,12 @@ swift-section interface --emit-export-status /path/to/binary
 # --emit-export-status. Types and protocols are ruled by their descriptor
 # symbol's export-trie entry, extensions by whether their target is an
 # in-image non-exported declaration, members by the same derived-form verdict
-# the annotation uses. Still a symbol-table fact, never an access-level guess:
-# anything without export evidence (and every `override` / `@objc` member) is
-# kept, so an `-enable-testing` build keeps its `internal` declarations.
+# the annotation uses. Still a symbol-table fact, never an access-level guess,
+# with one certainty added: a private or local declaration with no symbol to
+# judge by (a Swift-declared `@objc` protocol, a type in an image without local
+# symbols) is dropped, as the compiler never exports one. Anything else without
+# export evidence (and every `override` / `@objc` member) is kept, so an
+# `-enable-testing` build keeps its `internal` declarations.
 swift-section interface --exported-only /path/to/binary
 
 # The source file each private declaration comes from, as `dump` prints it.
@@ -706,6 +716,16 @@ swift-section objc diff CoreLocation-15.5.json CoreLocation-26.5.json
 
 # Every declaration's lifeline across N ordered versions
 swift-section objc evolution CoreLocation-*.json --labels 15.5,26.0,26.5 --summary-only
+
+# The versions merged into one header, each declaration rendered as `objc dump`
+# renders it and annotated with its lifecycle (binaries or caches only)
+swift-section objc evolution \
+  15.5/dyld_shared_cache_arm64e \
+  26.5/dyld_shared_cache_arm64e \
+  --dyld-shared-cache -n CoreLocation \
+  --labels 15.5,26.5 \
+  --interface --emit-available \
+  -o CoreLocation-evolution.h
 ```
 
 Both `diff` and `evolution` support `--json`, `--summary-only`, `--fail-on-breaking` (exit
@@ -714,9 +734,80 @@ one written by a different format version is rejected with an error rather than 
 mis-compared, so regenerate it with the current tool. Baselines written by `objc-section`
 0.8.106 read unchanged.
 
+`evolution --interface` merges every version into one header instead: a changed declaration carries a `// [○●●] added in 26.5`-style lifecycle comment, and `--emit-available` adds the `API_AVAILABLE` / `API_OBSOLETED` macro where one expresses the lifecycle (the platform is inferred from `LC_BUILD_VERSION`, or named with `--platform macos`). Its inputs must be binaries or caches, since a snapshot carries no rendered declarations.
+
 The contracts that neither the signatures nor `--help` show — how file mode truncates the
 superclass chain, why pure-Swift classes' ivar records do not line up, and the rest — are in
 [Objective-C Command Line](Documentations/ObjCCommandLine.md).
+
+#### refs - Find Cross References
+
+Who sends a selector, calls a function, or references a class, an instance variable or a string — across every image of a dyld shared cache (an archived one, another device's, or the running system's, read from its files) or across a set of Mach-O files read together, such as an app's executable and its frameworks. No disassembler and no process: the code is read from the files, through image stubs, the stub islands between a cache's images, and the selector and GOT stubs macOS 27 shares across a cache. Only the images that can reference the subject are scanned — the ones whose selector references, imports or linkage allow it.
+
+```bash
+# Every send of a selector across a whole cache
+swift-section refs --selector makeKeyAndOrderFront: \
+  --dyld-shared-cache /path/to/dyld_shared_cache_arm64e
+
+# The running system's cache, only in the images named (by path or file name)
+swift-section refs --class NSWindow --uses-system-dyld-shared-cache --in-image AppKit
+
+# The callers of a symbol: a C function, a Swift mangled name,
+# _OBJC_CLASS_$_<class> or _OBJC_IVAR_$_<class>.<ivar>
+swift-section refs --symbol _objc_autoreleasePoolPush --uses-system-dyld-shared-cache
+
+# What one function references, in instruction order
+swift-section refs --function 0x18a403858 --callees --uses-system-dyld-shared-cache
+
+# An app's files; a fat file needs --architecture, as everywhere
+swift-section refs --string NSWindowDidBecomeKeyNotification \
+  Foo.app/Contents/MacOS/Foo Foo.app/Contents/Frameworks/Bar.framework/Bar -a arm64e
+```
+
+Each line is one reference: the referencing instruction, its image, its function and the offset into it, the kind (`call`, `tailCall`, `reference`), the route the code took to the target (`direct`, `imageStub`, `stubIsland`, `cacheSharedStub`, `pointerSlot`, `addressMaterialization`, `literalLoad`, `indirect`), and the target. A summary line goes to stderr.
+
+```
+0x18a403a08  AppKit  -[NSApplication _sendFinishLaunchingNotification]+0x1b0  call  cacheSharedStub  send makeKeyAndOrderFront:
+0x18a521430  AppKit  -[NSApplication _handleAppKitDefinedEvent:]+0x264  tailCall  cacheSharedStub  send makeKeyAndOrderFront:
+0x18a6ca864  AppKit  -[NSApplication reportException:]+0x38c  reference  addressMaterialization  CFString @"NSApplicationCrashOnExceptions"
+```
+
+Addresses in and out are unslid — the ones IDA, `ipsw` and `dyld_info` show. A function no symbol names is named from the export trie, the Objective-C method lists or the Swift metadata. `--limit <n>` keeps the first references in image and address order; `--json` prints one document whose addresses are all hexadecimal strings and whose `isTruncated` says whether `--limit` cut it short:
+
+```json
+{
+  "input" : { "imageCount" : 4115, "systemDyldSharedCache" : "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_arm64e" },
+  "isTruncated" : true,
+  "query" : { "selector" : "makeKeyAndOrderFront:" },
+  "references" : [
+    {
+      "function" : { "address" : "0x18a403858", "name" : "-[NSApplication _sendFinishLaunchingNotification]" },
+      "image" : "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit",
+      "isRuntimeHelperCall" : false,
+      "kind" : "call",
+      "route" : "cacheSharedStub",
+      "site" : "0x18a403a08",
+      "target" : { "messageSend" : { "receiver" : "unknown", "selector" : "makeKeyAndOrderFront:" } }
+    }
+  ],
+  "scannedImageCount" : 1
+}
+```
+
+On a 28-core Mac a whole macOS 27.2 cache answers `--selector makeKeyAndOrderFront:` in about a second and `--selector init` (334,624 sends in 2,853 images) in about two.
+
+#### symbolicate - Say What an Address Is
+
+```bash
+swift-section symbolicate 0x18a403a08 0x10 --uses-system-dyld-shared-cache
+```
+
+```
+0x18a403a08  AppKit  __TEXT,__text  -[NSApplication _sendFinishLaunchingNotification]+0x1b0
+0x10  -  -  unmapped
+```
+
+Each address is read as a function and the offset into it, a stub or a chain of stub islands and where it leads, a pointer slot (GOT, selector, class, superclass or protocol reference, an instance variable's offset) and what it holds, a C string or `CFString`, or the nearest symbol. Files take `--file <path>`, repeatable; each file keeps its own addresses, so `--in-image` names the one they belong to. `--json` prints `{"symbolications": [ … ]}`.
 
 ## Agent Plugin
 

@@ -1,3 +1,7 @@
+import SwiftStdlibToolbox
+
+/// Mirrors `swift::TargetValueWitnessFlags` (`swift/ABI/MetadataValues.h`):
+/// the alignment mask in the low byte, single-bit flags from bit 16 up.
 public struct ValueWitnessFlags: OptionSet, Sendable {
     public typealias RawValue = UInt32
 
@@ -25,9 +29,9 @@ public struct ValueWitnessFlags: OptionSet, Sendable {
     public static let alignmentMask: UInt32 = 0x0000_00FF
     public static let maxNumExtraInhabitants: UInt32 = 0x7FFF_FFFF
 
-    public var alignmentMask: StoredSize {
-        numericCast(rawValue & Self.alignmentMask)
-    }
+    /// The type's alignment minus one.
+    @BitField(bits: 0..<8)
+    public var alignmentMask: StoredSize
 
     public var alignment: StoredSize {
         alignmentMask + 1

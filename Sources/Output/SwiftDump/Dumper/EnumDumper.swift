@@ -6,7 +6,7 @@ import Utilities
 import MemberwiseInit
 import Demangling
 import Dependencies
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
@@ -23,7 +23,7 @@ package struct EnumDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package let machO: MachO
 
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
@@ -163,7 +163,7 @@ package struct EnumDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
             let interfaceNameString = try await interfaceName.string
 
-            for kind in SymbolIndexStore.MemberKind.allCases {
+            for kind in SwiftSymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
                     symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
                 } else {

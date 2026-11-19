@@ -40,6 +40,7 @@ struct SubscriptNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePri
         self.indentation = indentation
         self.delegate = delegate
         context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
+        context.usesExistentialAny = delegate?.usesExistentialAny ?? false
     }
 
     init(isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {

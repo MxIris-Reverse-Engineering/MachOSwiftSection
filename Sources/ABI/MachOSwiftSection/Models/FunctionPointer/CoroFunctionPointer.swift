@@ -28,8 +28,8 @@ import MachOBase
 /// There is no section listing these records — they live in `__TEXT,__const`
 /// and are reached by symbol or by another descriptor's relative pointer, so
 /// the only entry is `CoroFunctionPointer.resolve(at:in:)`.
-@LocatableLayoutWrapping
-public struct CoroFunctionPointer: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct CoroFunctionPointer {
     public struct Layout: LayoutProtocol {
         /// The coroutine's entry point.
         public let function: RelativeDirectRawPointer

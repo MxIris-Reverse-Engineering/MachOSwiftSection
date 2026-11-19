@@ -48,12 +48,11 @@ extension ImageUniverse {
               let conformingQualifiedName = NodeTypeNaming.nominalQualifiedName(of: baseTypeNode)
         else { return nil }
 
-        let key = ImageReference<MachO>.associatedTypeWitnessKey(
+        guard let witness = resolveAssociatedTypeWitness(
             conformingName: conformingQualifiedName,
             protocolName: protocolQualifiedName,
             associatedTypeName: associatedTypeName
-        )
-        guard let witness = resolveAssociatedTypeWitness(forKey: key) else { return nil }
+        ) else { return nil }
 
         // Demangled in the image that declares the conformance: its symbolic
         // references are relative to that image.

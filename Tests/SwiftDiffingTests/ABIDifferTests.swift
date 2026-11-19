@@ -4,7 +4,7 @@ import MachOFoundation
 import Testing
 import Foundation
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 // MARK: - Core three-way set-diff algorithm
 //
@@ -78,6 +78,13 @@ struct ABIDifferAlgorithmTests {
         let changes = ABIDiffer().diffMembers(old: [], new: new)
         let keys = changes.map(\.key.sortKey)
         #expect(keys == keys.sorted())
+    }
+
+    @Test("a member's export verdict is not part of its identity or payload")
+    func exportVerdictIsNotCompared() {
+        let old = [MemberRecord(identityKey: .mangled("foo"), payloadKey: .mangled("foo"), kind: .function, signature: "foo", isExported: false)]
+        let new = [MemberRecord(identityKey: .mangled("foo"), payloadKey: .mangled("foo"), kind: .function, signature: "foo", isExported: true)]
+        #expect(ABIDiffer().diffMembers(old: old, new: new).isEmpty)
     }
 }
 
@@ -167,6 +174,19 @@ struct ABIDifferProjectionTests {
         let readOnly = [MemberRecord.make(variable("value", accessors: [.getter]))]
         let readWrite = [MemberRecord.make(variable("value", accessors: [.getter, .setter]))]
         let changes = ABIDiffer().diffMembers(old: readOnly, new: readWrite)
+        #expect(changes.count == 1)
+        #expect(changes.first?.status == .modified)
+        #expect(changes.first?.kind == .variable)
+    }
+
+    /// An exported init accessor is ABI: a client's inlined initializer calls
+    /// it (evolution proposal `init-accessor-recovery`).
+    @Test("gaining an init accessor diffs as .modified")
+    func gainingInitAccessorIsModified() {
+        let withoutInitAccessor = [MemberRecord.make(variable("value", accessors: [.getter, .setter]))]
+        let withInitAccessor = [MemberRecord.make(variable("value", accessors: [.getter, .setter, .initAccessor]))]
+        #expect(withInitAccessor.first?.payloadKey.sortKey.hasSuffix("|acc:get,init,set") == true)
+        let changes = ABIDiffer().diffMembers(old: withoutInitAccessor, new: withInitAccessor)
         #expect(changes.count == 1)
         #expect(changes.first?.status == .modified)
         #expect(changes.first?.kind == .variable)

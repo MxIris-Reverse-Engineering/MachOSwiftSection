@@ -32,6 +32,7 @@ class SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge: NSObject {
 @objc(SymbolTestsCoreObjCBridgeWithProto)
 class SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto: NSObject {
     // ObjC ancestor chain: NSObject
+    // ObjC protocols: SymbolTestsCore.ObjCClassWrapperFixtures.ObjCProto
 
     /* [Method] */ func SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> ()
 

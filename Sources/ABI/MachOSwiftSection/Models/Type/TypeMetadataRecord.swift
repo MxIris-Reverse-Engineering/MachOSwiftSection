@@ -10,8 +10,8 @@ import MachOBase
 /// `RelativeDirectPointerIntPair<…, TypeReferenceKind>` with identical
 /// in-memory layout, so a single storage field is enough; the
 /// `TypeReferenceKind` tag picks which arm to resolve at access time.
-@LocatableLayoutWrapping
-public struct TypeMetadataRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct TypeMetadataRecord {
     public struct Layout: LayoutProtocol {
         public let nominalTypeDescriptor: RelativeDirectPointerIntPair<ContextDescriptorWrapper, TypeReferenceKind>
     }
@@ -54,14 +54,5 @@ extension TypeMetadataRecord {
         case .directObjCClassName, .indirectObjCClass:
             return nil
         }
-    }
-}
-
-// MARK: - Deprecated Mach-O form
-
-extension TypeMetadataRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: contextDescriptor(in: machO.context).")
-    public func contextDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ContextDescriptorWrapper? {
-        try contextDescriptor(in: machO.context)
     }
 }

@@ -45,12 +45,11 @@ extension StaticTypeLayoutResolver {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
 
-        let key = ImageReference<MachO>.associatedTypeWitnessKey(
+        guard let witness = imageUniverse.resolveAssociatedTypeWitness(
             conformingName: conformingName,
             protocolName: protocolName,
             associatedTypeName: associatedTypeName
-        )
-        guard let witness = imageUniverse.resolveAssociatedTypeWitness(forKey: key) else {
+        ) else {
             throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: "\(conformingName).\(associatedTypeName)"))
         }
 

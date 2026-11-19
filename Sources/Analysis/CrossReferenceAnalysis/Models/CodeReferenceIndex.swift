@@ -1,4 +1,6 @@
 import Foundation
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// One image's references, filed by what they reference and stored small
 /// enough for a host to keep for every image it has open: a name is stored
@@ -6,8 +8,9 @@ import Foundation
 /// instruction as 32-bit offsets into the image's `__text`.
 ///
 /// It holds what a query for callers or for a type's references reads —
-/// calls and tail calls, sends, imported names, class and Swift type
-/// references — and leaves out indirect calls and branches into no image.
+/// calls and tail calls, sends, imported names, class, instance variable and
+/// Swift type references, and string literals when the scan records them —
+/// and leaves out indirect calls and branches into no image.
 /// Read from it, ``references(to:)`` answers exactly what
 /// ``CrossReferenceAnalyzer/references(to:inImageAt:)`` scans for, and
 /// ``CrossReferenceAnalyzer/references(toSwiftType:in:)`` what
@@ -27,7 +30,7 @@ public struct CodeReferenceIndex: Sendable {
         /// one. Zero for none.
         let className: UInt32
         /// Bits 0–1 the kind, bit 2 a runtime helper call, bits 3–4 how a
-        /// send's receiver is known.
+        /// send's receiver is known, bits 5–7 the route.
         let flags: UInt8
     }
 
@@ -41,6 +44,9 @@ public struct CodeReferenceIndex: Sendable {
         case objectiveCClass(name: String, location: CodeLocation)
         case swiftType(descriptor: CodeLocation)
         case swiftTypeName(SwiftTypeName)
+        case objectiveCInstanceVariable(className: String, name: String)
+        case cString(String)
+        case constantString(String)
     }
 
     struct Group {
@@ -137,6 +143,7 @@ public struct CodeReferenceIndex: Sendable {
             instructionAddress: codeStart + UInt64(entry.instructionOffset),
             kind: Self.kind(entry.flags),
             target: Self.target(of: group.target, receiver: receiver, className: className),
+            route: CodeReference.Route(rawValue: entry.flags >> 5) ?? .direct,
             isRuntimeHelperCall: entry.flags & 0b100 != 0
         )
     }
@@ -157,6 +164,12 @@ public struct CodeReferenceIndex: Sendable {
             return .swiftType(descriptor: descriptor)
         case .swiftTypeName(let name):
             return .swiftTypeName(name)
+        case .objectiveCInstanceVariable(let className, let name):
+            return .objectiveCInstanceVariable(className: className, name: name)
+        case .cString(let characters):
+            return .cString(characters)
+        case .constantString(let characters):
+            return .constantString(characters)
         }
     }
 
@@ -218,6 +231,12 @@ public struct CodeReferenceIndex: Sendable {
                 target = .swiftType(descriptor: descriptor)
             case .swiftTypeName(let name):
                 target = .swiftTypeName(name)
+            case .objectiveCInstanceVariable(let className, let name):
+                target = .objectiveCInstanceVariable(className: className, name: name)
+            case .cString(let characters):
+                target = .cString(characters)
+            case .constantString(let characters):
+                target = .constantString(characters)
             case .indirect, .unrecognized:
                 // No query for callers or for a type reads them.
                 return
@@ -240,7 +259,7 @@ public struct CodeReferenceIndex: Sendable {
                 functionOffset: UInt32(truncatingIfNeeded: reference.function.address &- codeStart),
                 instructionOffset: UInt32(truncatingIfNeeded: reference.instructionAddress &- codeStart),
                 className: classNamePosition,
-                flags: kindBits | (reference.isRuntimeHelperCall ? 0b100 : 0) | (receiverBits << 3)
+                flags: kindBits | (reference.isRuntimeHelperCall ? 0b100 : 0) | (receiverBits << 3) | (reference.route.rawValue << 5)
             )
             entriesByTarget[target, default: []].append(entry)
         }
@@ -269,6 +288,12 @@ public struct CodeReferenceIndex: Sendable {
                     keyedTargets[.selector(selector), default: []].append(target)
                 case .objectiveCClass(let name, _):
                     keyedTargets[.objectiveCClass(name), default: []].append(target)
+                case .objectiveCInstanceVariable(let className, let name):
+                    keyedTargets[.instanceVariable(className: className, name: name), default: []].append(target)
+                case .cString(let characters):
+                    keyedTargets[.cString(characters), default: []].append(target)
+                case .constantString(let characters):
+                    keyedTargets[.constantString(characters), default: []].append(target)
                 case .swiftType:
                     swiftTypeTargets.append(target)
                 case .swiftTypeName:
@@ -332,8 +357,10 @@ public struct CodeReferenceIndex: Sendable {
 
         private static func heapByteCount(of target: Target) -> Int {
             switch target {
-            case .importedSymbol(let name), .messageSend(let name), .superMessageSend(let name), .objectiveCClass(let name, _):
+            case .importedSymbol(let name), .messageSend(let name), .superMessageSend(let name), .objectiveCClass(let name, _), .cString(let name), .constantString(let name):
                 return heapByteCount(of: name)
+            case .objectiveCInstanceVariable(let className, let name):
+                return heapByteCount(of: className) + heapByteCount(of: name)
             case .swiftTypeName(.accessorSymbol(let symbol)):
                 return heapByteCount(of: symbol)
             case .function, .swiftType, .swiftTypeName(.mangledName):

@@ -6,7 +6,8 @@ import MachOFoundation
 @testable import SwiftDump
 import SwiftDeclarationRendering
 import SwiftInspection
-@testable import MachOTestingSupport
+import SwiftObjCInterop
+@testable import SwiftSectionTestingSupport
 
 /// The dump path's rendering of a class the source renamed for the
 /// Objective-C runtime (evolution proposal `objc-custom-class-name`): the

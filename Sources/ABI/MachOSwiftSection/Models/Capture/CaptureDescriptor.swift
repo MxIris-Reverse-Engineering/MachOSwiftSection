@@ -30,7 +30,7 @@ import MachOBase
 ///
 /// Mirrors `swift::reflection::CaptureDescriptor`
 /// (`swift/RemoteInspection/Records.h`).
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct CaptureDescriptor: TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         /// Number of captured values, and hence of trailing
@@ -83,29 +83,5 @@ extension CaptureDescriptor {
     public func metadataSourceRecords(in context: some ReadingContext) throws -> [MetadataSourceRecord] {
         guard metadataSourceCount > 0 else { return [] }
         return try context.readWrapperElements(at: try context.addressFromOffset(metadataSourceRecordsOffset), numberOfElements: metadataSourceCount)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension CaptureDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: captureTypeRecords(in: machO.context).")
-    public func captureTypeRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [CaptureTypeRecord] {
-        try captureTypeRecords(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: metadataSourceRecords(in: machO.context).")
-    public func metadataSourceRecords(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [MetadataSourceRecord] {
-        try metadataSourceRecords(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: captureTypeRecords(in: .inProcess).")
-    public func captureTypeRecords() throws -> [CaptureTypeRecord] {
-        try captureTypeRecords(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: metadataSourceRecords(in: .inProcess).")
-    public func metadataSourceRecords() throws -> [MetadataSourceRecord] {
-        try metadataSourceRecords(in: InProcessContext.shared)
     }
 }

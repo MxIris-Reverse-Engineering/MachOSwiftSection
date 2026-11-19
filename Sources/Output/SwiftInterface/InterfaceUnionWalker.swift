@@ -122,16 +122,22 @@ struct InterfaceUnionWalker<Strategy: InterfaceUnionEmitting> {
     func blocks() async -> [[Strategy.Line]] {
         var blocks: [[Strategy.Line]] = []
 
+        // A version made up of a group of images lists each image's globals
+        // through that image's own unit.
         blocks += await memberListUnits(
-            perVersion: versions.enumerated().map { versionIndex, version in
-                version.globalVariableDefinitions.map { variableMember($0, versionIndex: versionIndex) }
+            perVersion: versions.map { version in
+                version.globalRenderingUnits.flatMap { unit in
+                    unit.globalVariableDefinitions.map { variableMember($0, renderedBy: unit) }
+                }
             },
             scope: .global,
             level: 0
         )
         blocks += await memberListUnits(
-            perVersion: versions.enumerated().map { versionIndex, version in
-                version.globalFunctionDefinitions.map { functionMember($0, versionIndex: versionIndex) }
+            perVersion: versions.map { version in
+                version.globalRenderingUnits.flatMap { unit in
+                    unit.globalFunctionDefinitions.map { functionMember($0, renderedBy: unit) }
+                }
             },
             scope: .global,
             level: 0
@@ -174,10 +180,15 @@ struct InterfaceUnionWalker<Strategy: InterfaceUnionEmitting> {
 
         units += await memberListUnits(perVersion: fieldMembers(elements: elements), scope: .container(containerKey), level: level)
 
+        // Over a group of images, the plain extensions another image declares
+        // on the type render in its body, where the evolution counts their
+        // members (evolution proposal `image-group-evolution`).
         for category in MemberCategory.allCases {
             units += await memberListUnits(
                 perVersion: elements.enumerated().map { versionIndex, definition in
-                    renderableMembers(definition, in: category, versionIndex: versionIndex)
+                    let foldedExtensionDefinitions = definition.map { versions[versionIndex].foldedExtensionDefinitions(of: $0) } ?? []
+                    return renderableMembers(definition, in: category, versionIndex: versionIndex)
+                        + extensionRenderableMembers(foldedExtensionDefinitions, in: category, versionIndex: versionIndex)
                 },
                 scope: .container(containerKey),
                 level: level
@@ -297,27 +308,27 @@ struct InterfaceUnionWalker<Strategy: InterfaceUnionEmitting> {
     // Every render closure is built at printer level 0 — see
     // `UnionRenderableMember`.
 
-    private func variableMember(_ variable: VariableDefinition, versionIndex: Int) -> UnionRenderableMember {
-        let version = versions[versionIndex]
+    /// `unit` is the one that renders the member: the version's, or — for a
+    /// version made up of a group of images — the unit of the image whose
+    /// definition declares it.
+    private func variableMember(_ variable: VariableDefinition, renderedBy unit: any InterfaceVersionRendering) -> UnionRenderableMember {
         let record = MemberRecord.make(variable)
         return UnionRenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) {
-            await version.printVariable(variable, level: 0)
+            await unit.printVariable(variable, level: 0)
         }
     }
 
-    private func functionMember(_ function: FunctionDefinition, versionIndex: Int) -> UnionRenderableMember {
-        let version = versions[versionIndex]
+    private func functionMember(_ function: FunctionDefinition, renderedBy unit: any InterfaceVersionRendering) -> UnionRenderableMember {
         let record = MemberRecord.make(function)
         return UnionRenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) {
-            await version.printFunction(function, level: 0)
+            await unit.printFunction(function, level: 0)
         }
     }
 
-    private func subscriptMember(_ subscriptDefinition: SubscriptDefinition, versionIndex: Int) -> UnionRenderableMember {
-        let version = versions[versionIndex]
+    private func subscriptMember(_ subscriptDefinition: SubscriptDefinition, renderedBy unit: any InterfaceVersionRendering) -> UnionRenderableMember {
         let record = MemberRecord.make(subscriptDefinition)
         return UnionRenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) {
-            await version.printSubscript(subscriptDefinition, level: 0)
+            await unit.printSubscript(subscriptDefinition, level: 0)
         }
     }
 
@@ -331,14 +342,15 @@ struct InterfaceUnionWalker<Strategy: InterfaceUnionEmitting> {
         versionIndex: Int
     ) -> [UnionRenderableMember] {
         guard let definition else { return [] }
+        let unit = versions[versionIndex].renderingUnit(for: definition)
         return definition.members(in: category).map { member in
             switch member {
             case .allocator(let function), .function(let function):
-                functionMember(function, versionIndex: versionIndex)
+                functionMember(function, renderedBy: unit)
             case .variable(let variable):
-                variableMember(variable, versionIndex: versionIndex)
+                variableMember(variable, renderedBy: unit)
             case .subscript(let subscriptDefinition):
-                subscriptMember(subscriptDefinition, versionIndex: versionIndex)
+                subscriptMember(subscriptDefinition, renderedBy: unit)
             }
         }
     }
@@ -357,7 +369,7 @@ struct InterfaceUnionWalker<Strategy: InterfaceUnionEmitting> {
     private func fieldMembers(elements: [TypeDefinition?]) -> [[UnionRenderableMember]] {
         elements.enumerated().map { versionIndex, definition -> [UnionRenderableMember] in
             guard let definition else { return [] }
-            let version = versions[versionIndex]
+            let version = versions[versionIndex].renderingUnit(for: definition)
             if case .enum = definition.typeContextDescriptorWrapper {
                 return definition.fields.enumerated().map { tag, field in
                     let record = MemberRecord.makeCase(field, tag: tag)
@@ -379,7 +391,7 @@ struct InterfaceUnionWalker<Strategy: InterfaceUnionEmitting> {
     private func deinitMembers(elements: [TypeDefinition?]) -> [[UnionRenderableMember]] {
         elements.enumerated().map { versionIndex, definition -> [UnionRenderableMember] in
             guard let definition, definition.hasDeallocator else { return [] }
-            let version = versions[versionIndex]
+            let version = versions[versionIndex].renderingUnit(for: definition)
             let record = MemberRecord.makeDeinit()
             return [UnionRenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) {
                 version.printDeinit()
@@ -390,7 +402,7 @@ struct InterfaceUnionWalker<Strategy: InterfaceUnionEmitting> {
     private func associatedTypeMembers(elements: [ProtocolDefinition?]) -> [[UnionRenderableMember]] {
         elements.enumerated().map { versionIndex, definition -> [UnionRenderableMember] in
             guard let definition else { return [] }
-            let version = versions[versionIndex]
+            let version = versions[versionIndex].renderingUnit(for: definition)
             return definition.associatedTypes.map { name in
                 let record = MemberRecord.makeAssociatedType(name)
                 return UnionRenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) {

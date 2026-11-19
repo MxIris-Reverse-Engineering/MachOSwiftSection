@@ -4,6 +4,8 @@ import MachOKit
 import MachOSwiftSection
 import Demangling
 @testable import CrossReferenceAnalysis
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// The names a function gets when the symbol table has none: the export
 /// trie, the Objective-C method lists, the Swift metadata. Each source is
@@ -49,7 +51,7 @@ struct FallbackNamingTests {
     @Test func methodListsAgreeWithMethodSymbols() throws {
         let appKit = try imageIndex(endingWith: "/AppKit.framework/Versions/C/AppKit")
         let table = analyzer.functionTable(ofImageAt: appKit)
-        let methods = table.fallbackNames.objectiveCMethods()
+        let methods = ObjCMethodNames.of(table).methodsByAddress
         #expect(methods.count > 50000)
         var compared = 0
         var agreeing = 0
@@ -90,7 +92,7 @@ struct FallbackNamingTests {
         var mismatches: [String] = []
         for index in table.starts.indices {
             guard let name = table.primaryName(ofFunctionAt: index),
-                  let rebuilt = table.fallbackNames.swiftName(at: table.starts[index])
+                  let rebuilt = SwiftMetadataNames.of(table).name(at: table.starts[index])
             else { continue }
             compared += 1
             let symbol = String(cString: name)

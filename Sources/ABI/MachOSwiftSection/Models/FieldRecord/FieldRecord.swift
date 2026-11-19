@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct FieldRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct FieldRecord {
     public struct Layout: LayoutProtocol {
         public let flags: FieldRecordFlags
         public let mangledTypeName: RelativeDirectPointer<MangledName>
@@ -26,29 +26,5 @@ extension FieldRecord {
     public func fieldName(in context: some ReadingContext) throws -> String {
         guard !layout.fieldName.isNull else { return "" }
         return try layout.fieldName.resolve(at: try context.addressFromOffset(offset(of: \.fieldName)), in: context)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension FieldRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: machO.context).")
-    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try mangledTypeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: fieldName(in: machO.context).")
-    public func fieldName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
-        try fieldName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: mangledTypeName(in: .inProcess).")
-    public func mangledTypeName() throws -> MangledName {
-        try mangledTypeName(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: fieldName(in: .inProcess).")
-    public func fieldName() throws -> String {
-        try fieldName(in: InProcessContext.shared)
     }
 }

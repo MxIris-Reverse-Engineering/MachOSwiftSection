@@ -1,3 +1,5 @@
+import SwiftStdlibToolbox
+
 /// The second flag word of a function type metadata record, present only
 /// when ``FunctionTypeFlags/hasExtendedFlags`` is set.
 ///
@@ -20,38 +22,32 @@ public struct FunctionTypeExtendedFlags: RawRepresentable, Hashable, Sendable {
         self.rawValue = rawValue
     }
 
-    private enum Constants {
-        static let typedThrowsMask: UInt32 = 0x0000_0001
-        /// Three bits holding one of the isolation kinds below.
-        static let isolationMask: UInt32 = 0x0000_000E
-        static let isolatedAny: UInt32 = 0x0000_0002
-        static let nonIsolatedNonsending: UInt32 = 0x0000_0004
-        static let hasSendingResultMask: UInt32 = 0x0000_0010
-        static let invertedProtocolShift: UInt32 = 16
-    }
-
     /// The function declares a concrete error type (`throws(MyError)`), so a
     /// thrown-error type trails the record.
-    public var isTypedThrows: Bool { rawValue & Constants.typedThrowsMask != 0 }
+    @BitField(bits: 0)
+    public var isTypedThrows: Bool
+
+    /// Three bits holding one isolation kind: 1 is `@isolated(any)` and 2 is
+    /// `nonisolated(nonsending)`.
+    @BitField(bits: 1..<4)
+    private var isolationKind: UInt8
 
     /// `@isolated(any)`: the function carries its own isolation with it.
     public var isIsolatedAny: Bool {
-        rawValue & Constants.isolationMask == Constants.isolatedAny
+        isolationKind == 1
     }
 
     /// `nonisolated(nonsending)`: the function runs on its caller's executor.
     public var isNonIsolatedNonsending: Bool {
-        rawValue & Constants.isolationMask == Constants.nonIsolatedNonsending
+        isolationKind == 2
     }
 
     /// The result is `sending` — transferred across an isolation boundary.
-    public var hasSendingResult: Bool {
-        rawValue & Constants.hasSendingResultMask != 0
-    }
+    @BitField(bits: 4)
+    public var hasSendingResult: Bool
 
     /// The set of invertible protocols the function type suppresses
     /// (`~Copyable` and friends), carried in the high 16 bits.
-    public var invertedProtocols: InvertibleProtocolSet {
-        InvertibleProtocolSet(rawValue: UInt16(truncatingIfNeeded: rawValue >> Constants.invertedProtocolShift))
-    }
+    @BitField(bits: 16..<32)
+    public var invertedProtocols: InvertibleProtocolSet
 }

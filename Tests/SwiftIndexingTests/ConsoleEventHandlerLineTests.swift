@@ -37,4 +37,37 @@ struct ConsoleEventHandlerLineTests {
         let line = handler.line(for: .phaseTransition(phase: .indexing, state: .failed(Failure())), timestamp: "12:00:00")
         #expect(line == "[12:00:00] [new] [ERROR] Indexing failed: boom")
     }
+
+    /// Most events — one per type, conformance and printed declaration —
+    /// print nothing. Stamping each of them with the local time built a date
+    /// formatter per event: a quarter of `swift-section interface` over SwiftUI.
+    @Test func unreportedEventsAskForNoTimestamp() {
+        let timestampRequests = TimestampRequestCounter()
+        let handler = ConsoleEventHandler(label: nil) {
+            timestampRequests.increment()
+            return "12:00:00"
+        }
+
+        handler.handle(event: .moduleCollectionStarted)
+        handler.handle(event: .phaseTransition(phase: .indexing, state: .started))
+
+        #expect(timestampRequests.count == 0)
+    }
+}
+
+private final class TimestampRequestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requestCount = 0
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestCount
+    }
+
+    func increment() {
+        lock.lock()
+        defer { lock.unlock() }
+        requestCount += 1
+    }
 }

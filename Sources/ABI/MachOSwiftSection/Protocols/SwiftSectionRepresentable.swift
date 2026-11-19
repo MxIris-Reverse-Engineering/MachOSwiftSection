@@ -13,5 +13,6 @@ public protocol SwiftSectionRepresentable {
     var builtinTypeDescriptors: [BuiltinTypeDescriptor] { get throws }
     var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] { get throws }
     var captureDescriptors: [CaptureDescriptor] { get throws }
+    var fieldDescriptors: [FieldDescriptor] { get throws }
     var accessibleFunctionRecords: [AccessibleFunctionRecord] { get throws }
 }

@@ -1,15 +1,17 @@
 import Foundation
+import SwiftStdlibToolbox
 
-public struct InvertibleProtocolSet: OptionSet, Sendable {
-    public let rawValue: UInt16
-
-    public init(rawValue: UInt16) {
-        self.rawValue = rawValue
+/// The invertible protocols a type or a generic parameter suppresses, one bit
+/// per protocol.
+///
+/// Mirrors `swift::InvertibleProtocolSet` (`swift/ABI/InvertibleProtocols.h`),
+/// whose kinds `swift/ABI/InvertibleProtocols.def` numbers.
+@FlagSet
+public struct InvertibleProtocolSet: Hashable, Sendable {
+    public enum Flag: UInt16, CaseIterable, Sendable {
+        case copyable = 0
+        case escapable = 1
     }
-
-    public static let copyable = InvertibleProtocolSet(rawValue: 1 << InvertibleProtocolKind.copyable.rawValue)
-
-    public static let escapable = InvertibleProtocolSet(rawValue: 1 << InvertibleProtocolKind.escapable.rawValue)
 
     public var hasCopyable: Bool {
         contains(.copyable)

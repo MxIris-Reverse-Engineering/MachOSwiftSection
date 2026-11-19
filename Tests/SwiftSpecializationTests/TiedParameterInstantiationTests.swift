@@ -8,7 +8,7 @@ import Demangling
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 
 /// A same-type requirement between two parameters — `TiedParameterPair<First,
 /// Second> where First == Second` — leaves the second without a key argument:

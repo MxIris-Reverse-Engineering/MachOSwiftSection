@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ExistentialTypeMetadata: MetadataProtocol {
     public struct Layout: ExistentialTypeMetadataLayout {
         public let kind: StoredPointer
@@ -21,10 +21,13 @@ extension ExistentialTypeMetadata {
     }
     
     public var representation: ExistentialTypeRepresentation {
+        // Spelled out: `specialProtocol` is optional and `SpecialProtocolKind`
+        // has a `none` case, so a bare `.none` would mean "not read".
         switch layout.flags.specialProtocol {
-        case .error:
+        case .some(.error):
             return .error
-        case .none:
+        case .some(.none),
+             nil:
             break
         }
         
@@ -58,29 +61,5 @@ extension ExistentialTypeMetadata {
             offset.offset(of: ConstMetadataPointer<Metadata>.self)
         }
         return try context.readElements(at: try context.addressFromOffset(offset), numberOfElements: layout.numberOfProtocols.cast())
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension ExistentialTypeMetadata {
-    @available(*, deprecated, message: "Pass a ReadingContext: superclassConstraint(in: machO.context).")
-    public func superclassConstraint(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ConstMetadataPointer<Metadata>? {
-        try superclassConstraint(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: protocols(in: machO.context).")
-    public func protocols(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [ProtocolDescriptorRef] {
-        try protocols(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: superclassConstraint(in: .inProcess).")
-    public func superclassConstraint() throws -> ConstMetadataPointer<Metadata>? {
-        try superclassConstraint(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: protocols(in: .inProcess).")
-    public func protocols() throws -> [ProtocolDescriptorRef] {
-        try protocols(in: InProcessContext.shared)
     }
 }

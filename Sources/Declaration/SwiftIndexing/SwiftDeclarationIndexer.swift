@@ -7,12 +7,13 @@ import OrderedCollections
 @_spi(Internals) import Demangling
 import SwiftThunkAnalysis
 import SwiftInspection
+import SwiftObjCInterop
 import SwiftStdlibToolbox
 import MachOKit
 import MachOFoundation
 import Dependencies
 import Utilities
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import SwiftInspection
 
@@ -28,8 +29,8 @@ public struct MachOIndexedValue<MachO: MachOSwiftSectionRepresentableWithCache, 
 }
 
 extension MachOIndexedValue: Equatable where Value: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.value == rhs.value
+    public static func == (left: Self, right: Self) -> Bool {
+        left.value == right.value
     }
 }
 
@@ -112,6 +113,18 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @usableFromInline @Mutex
         var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
 
+        /// The image's `@objc` protocols declared in Swift (evolution
+        /// proposal `swift-declared-objc-protocols`), which no protocol
+        /// descriptor lists.
+        @usableFromInline @Mutex
+        var objcProtocolDefinitions: OrderedDictionary<ProtocolName, ObjCProtocolDefinition> = [:]
+
+        /// The Objective-C protocols the image's extensions of other
+        /// modules' classes adopt, from their categories (evolution proposal
+        /// `swift-declared-objc-protocols`).
+        @usableFromInline @Mutex
+        var objcCategoryConformances: [ObjCCategoryConformance] = []
+
         @usableFromInline @Mutex
         var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
@@ -139,6 +152,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var allAllTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>>?
         var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>?
         var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>?
+        var allObjCProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ObjCProtocolDefinition>>?
         var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
         var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
         var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
@@ -231,7 +245,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// Registration is what keeps a per-image indexer — and therefore its whole
     /// declaration graph, including the `NodeStore` its definitions reference —
     /// alive for as long as the aggregate lives. Dropping the last reference
-    /// lets the sub-indexer deinit, which in turn evicts its `SymbolIndexStore`
+    /// lets the sub-indexer deinit, which in turn evicts its `SwiftSymbolIndexStore`
     /// entry (see this type's `deinit`), so per-image memory is actually
     /// reclaimed. Callers that hold the indexer rather than its position should
     /// prefer this over the index-based overload.
@@ -307,7 +321,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             currentStorage.associatedTypes = []
         }
 
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         // Register this indexer as a live owner of the image's caches before
@@ -453,6 +467,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .protocolIndexing))
             try await indexProtocols()
+            indexObjCProtocols()
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .protocolIndexing))
         } catch {
             eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .protocolIndexing, error: error))
@@ -462,6 +477,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .conformanceIndexing))
             try await indexConformances()
+            currentStorage.objcCategoryConformances = ObjCCategoryConformance.all(in: machO)
             eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .conformanceIndexing))
         } catch {
             eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .conformanceIndexing, error: error))
@@ -687,6 +703,23 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         eventDispatcher.dispatch(.protocolIndexingCompleted(result: SwiftIndexEvents.ProtocolIndexingResult(totalProcessed: currentStorage.protocols.count, successful: successfulCount, failed: failedCount)))
     }
 
+    /// The image's `@objc` protocols declared in Swift (evolution proposal
+    /// `swift-declared-objc-protocols`): the compiler gives them no protocol
+    /// descriptor, so `indexProtocols()` never sees them. Their requirements
+    /// are read lazily, by each definition's `index(in:)`.
+    private func indexObjCProtocols() {
+        var objcProtocolDefinitions: OrderedDictionary<ProtocolName, ObjCProtocolDefinition> = [:]
+        for declaredProtocol in SwiftDeclaredObjCProtocolIndex.shared.protocols(in: machO) {
+            do {
+                let definition = try ObjCProtocolDefinition(declaredProtocol: declaredProtocol, in: machO)
+                objcProtocolDefinitions[definition.protocolName] = definition
+            } catch {
+                eventDispatcher.dispatch(.protocolProcessingFailed(protocolName: declaredProtocol.qualifiedName, error: error))
+            }
+        }
+        currentStorage.objcProtocolDefinitions = objcProtocolDefinitions
+    }
+
     private func indexConformances() async throws {
         eventDispatcher.dispatch(.conformanceIndexingStarted(input: SwiftIndexEvents.ConformanceIndexingInput(totalConformances: currentStorage.protocolConformances.count, totalAssociatedTypes: currentStorage.associatedTypes.count)))
         var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
@@ -755,8 +788,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes))
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: SymbolicDemangler.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO.context).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedAssociatedTypeWitnesses(of: conformanceAssociatedTypes))
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
+                    extensionDefinition.generatingMacro = generatingMacro(ofConformanceOf: typeName, to: protocolName)
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
                     eventDispatcher.dispatch(.conformanceExtensionCreated(context: SwiftIndexEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
@@ -769,7 +803,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
         for (remainingTypeName, remainingAssociatedTypeByProtocolName) in associatedTypesByTypeNameCopy {
             for (_, remainingAssociatedType) in remainingAssociatedTypeByProtocolName {
-                let extensionDefinition = ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: [remainingAssociatedType]))
+                let extensionDefinition = ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], resolvedAssociatedTypeWitnesses: resolvedAssociatedTypeWitnesses(of: [remainingAssociatedType]))
                 conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
             }
         }
@@ -817,7 +851,21 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftIndexEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
 
-    /// Freezes associated-type witness records into Mach-O-free projections
+    /// The macro attached to the extended type that generated this
+    /// conformance, or `nil` (evolution proposal `observable-macro-folding`):
+    /// `@Observable` writes `extension Model: Observation.Observable {}` for
+    /// the class it expands. Every type definition exists by now, so the
+    /// extended class's `attachedMacros` already says whether it was
+    /// expanded; a hand-written conformance of a class the macro did not
+    /// expand is left alone.
+    private func generatingMacro(ofConformanceOf typeName: TypeName, to protocolName: ProtocolName) -> SwiftAttachedMacro? {
+        guard currentStorage.allTypeDefinitions[typeName]?.attachedMacros.contains(.observable) == true,
+              ObservableMacroRecognition.isObservableProtocol(protocolName.node.materialize())
+        else { return nil }
+        return .observable
+    }
+
+    /// Freezes associated-type witness records into Mach-O-free values
     /// while the Mach-O is still in hand — the record accessors cannot be
     /// resolved later by the snapshot layer. An unresolvable record is skipped
     /// (same tolerance as the printers' record collection).
@@ -830,9 +878,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// every `Body` as modified. An availability-conditional thunk's other
     /// branches ride along as `conditionalCandidates` (evolution proposal
     /// `offline-opaque-accessor-thunk-resolution`).
-    private func resolvedWitnessProjections(of associatedTypes: [AssociatedType]) -> [AssociatedTypeWitnessProjection] {
+    private func resolvedAssociatedTypeWitnesses(of associatedTypes: [AssociatedType]) -> [ResolvedAssociatedTypeWitness] {
         var seenNames: Set<String> = []
-        var projections: [AssociatedTypeWitnessProjection] = []
+        var witnesses: [ResolvedAssociatedTypeWitness] = []
         for associatedType in associatedTypes {
             for record in associatedType.records {
                 guard let recordName = try? record.name(in: machO.context),
@@ -846,29 +894,29 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     in: machO
                 )
                 let conditionalCandidates = resolution.conditionalCandidates.map { candidate in
-                    ConditionalWitnessCandidate(
+                    ResolvedAssociatedTypeWitness.ConditionalCandidate(
                         availability: candidate.availability,
                         candidateTypeText: candidate.candidateTypeNode.print(using: .default),
                         substitutedTypeText: candidate.substitutedNode.print(using: .default)
                     )
                 }
-                projections.append(AssociatedTypeWitnessProjection(
+                witnesses.append(ResolvedAssociatedTypeWitness(
                     name: recordName,
                     substitutedTypeText: resolution.node.print(using: .default),
                     conditionalCandidates: conditionalCandidates
                 ))
             }
         }
-        return projections
+        return witnesses
     }
 
     private func indexExtensions() async throws {
         eventDispatcher.dispatch(.extensionIndexingStarted)
 
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
-        let memberSymbolsByName = await symbolIndexStore.memberSymbols(
+        var extensionMemberSymbolsByName = await symbolIndexStore.memberSymbols(
             of: .allocator(inExtension: true),
             .variable(inExtension: true, isStatic: false, isStorage: false),
             .variable(inExtension: true, isStatic: true, isStorage: false),
@@ -878,6 +926,61 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             .subscript(inExtension: true, isStatic: false),
             .subscript(inExtension: true, isStatic: true),
             excluding: [],
+            in: machO
+        )
+
+        // The members this image declares on a type another image defines,
+        // with no extension context in their mangling (evolution proposal
+        // `image-group-evolution`): SwiftUI's members of the types SwiftUICore
+        // defines under `@_originallyDefinedIn(module: "SwiftUI", …)` mangle
+        // like members of the type's own body. Only a definition of this image
+        // gathers such members, so these belonged to none; they join the
+        // extension members of their type instead.
+        //
+        // Only a struct, class or enum of one of this image's own Swift
+        // modules qualifies, reached from its module through other nominal
+        // types, and none this image defines or names as a protocol. The
+        // image also carries other modules' members it never declared — the
+        // standard library's inlinable code emitted into it, the importer's
+        // `init?(rawValue:)` for a C enum — and the symbols of its own types
+        // and protocols can carry a context their definitions do not gather by
+        // name: a type nested in a constrained extension, a protocol's
+        // requirements. A stored instance property cannot be declared outside
+        // its type's body, so none is taken.
+        let namesDefinedInThisImage = Set(currentStorage.allTypeDefinitions.keys.map(\.name))
+            .union(currentStorage.allProtocolDefinitions.keys.map(\.name))
+        let swiftModuleNamesOfThisImage = Set(
+            (currentStorage.allTypeDefinitions.keys.map(\.node) + currentStorage.allProtocolDefinitions.keys.map(\.node))
+                .compactMap(Self.moduleName(of:))
+        ).subtracting([CImportedModuleNames.objectiveC, CImportedModuleNames.cSynthesized])
+        let membersOfOtherImagesTypes = await symbolIndexStore.memberSymbols(
+            of: .allocator(inExtension: false),
+            .variable(inExtension: false, isStatic: false, isStorage: false),
+            .variable(inExtension: false, isStatic: true, isStorage: false),
+            .variable(inExtension: false, isStatic: true, isStorage: true),
+            .function(inExtension: false, isStatic: false),
+            .function(inExtension: false, isStatic: true),
+            .subscript(inExtension: false, isStatic: false),
+            .subscript(inExtension: false, isStatic: true),
+            excluding: namesDefinedInThisImage,
+            in: machO
+        )
+        for (typeNodeKey, memberSymbolsByKind) in membersOfOtherImagesTypes {
+            guard let moduleName = Self.moduleNameOfNominalTypeReachedThroughNominalTypes(typeNodeKey.reference),
+                  swiftModuleNamesOfThisImage.contains(moduleName)
+            else { continue }
+            for (kind, memberSymbols) in memberSymbolsByKind {
+                extensionMemberSymbolsByName[typeNodeKey, default: [:]][Self.extensionMemberKind(of: kind), default: []].append(contentsOf: memberSymbols)
+            }
+        }
+
+        // The members an optimized image kept only another entry point of —
+        // their `@objc` thunk, an initializer's initializing entry point —
+        // join the real symbols as stand-ins (evolution proposal
+        // `thunk-only-objc-members`).
+        let memberSymbolsByName = StandInMemberSymbolBuilder.supplementingExtensionMembers(
+            extensionMemberSymbolsByName,
+            symbolIndexStore: symbolIndexStore,
             in: machO
         )
 
@@ -904,38 +1007,38 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 continue
             }
 
-            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: NodeReference?) throws -> ExtensionDefinition {
+            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: NodeReference?) throws -> ExtensionDefinition {
                 let extensionDefinition = ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil)
                 var memberCount = 0
 
                 for (kind, memberSymbols) in memberSymbolsByKind {
                     switch kind {
                     case .allocator(inExtension: true):
-                        let allocators = DefinitionBuilder.allocators(for: memberSymbols.mapToAnnotatedSymbols())
+                        let allocators = MemberDefinitionBuilder.allocators(for: memberSymbols.mapToAnnotatedSymbols())
                         extensionDefinition.allocators.append(contentsOf: allocators)
                         memberCount += allocators.count
                     case .variable(inExtension: true, isStatic: false, isStorage: false):
-                        let variables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: false)
+                        let variables = MemberDefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: false)
                         extensionDefinition.variables.append(contentsOf: variables)
                         memberCount += variables.count
                     case .function(inExtension: true, isStatic: false):
-                        let functions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: false)
+                        let functions = MemberDefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: false)
                         extensionDefinition.functions.append(contentsOf: functions)
                         memberCount += functions.count
                     case .variable(inExtension: true, isStatic: true, _):
-                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
+                        let staticVariables = MemberDefinitionBuilder.variables(for: memberSymbols.mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
                         extensionDefinition.staticVariables.append(contentsOf: staticVariables)
                         memberCount += staticVariables.count
                     case .function(inExtension: true, isStatic: true):
-                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: true)
+                        let staticFunctions = MemberDefinitionBuilder.functions(for: memberSymbols.mapToAnnotatedSymbols(), isGlobalOrStatic: true)
                         extensionDefinition.staticFunctions.append(contentsOf: staticFunctions)
                         memberCount += staticFunctions.count
                     case .subscript(inExtension: true, isStatic: false):
-                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: false)
+                        let subscripts = MemberDefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: false)
                         extensionDefinition.subscripts.append(contentsOf: subscripts)
                         memberCount += subscripts.count
                     case .subscript(inExtension: true, isStatic: true):
-                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: true)
+                        let staticSubscripts = MemberDefinitionBuilder.subscripts(for: memberSymbols.mapToAnnotatedSymbols(), isStatic: true)
                         extensionDefinition.staticSubscripts.append(contentsOf: staticSubscripts)
                         memberCount += staticSubscripts.count
                     default:
@@ -985,8 +1088,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 return extensionDefinition
             }
 
-            var memberSymbolsByGenericSignature: OrderedDictionary<NodeReference, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
-            var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
+            var memberSymbolsByGenericSignature: OrderedDictionary<NodeReference, OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
+            var memberSymbolsByKind: OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
 
             for (kind, memberSymbols) in memberSymbols {
                 for memberSymbol in memberSymbols {
@@ -1081,7 +1184,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         currentStorage.typeAliasExtensionDefinitions = typeAliasExtensionDefinitions
 
         // Surfaced here rather than logged where they happened: the index is
-        // built in SwiftInspection, below the event layer.
+        // built in SwiftObjCInterop, below the event layer.
         for skippedClass in ObjCImplementationClasses.skipped(in: machO) {
             eventDispatcher.dispatch(.objcImplementationClassSkipped(className: skippedClass.className, reason: skippedClass.reason))
         }
@@ -1089,12 +1192,67 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftIndexEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
     }
 
+    /// The module of the struct, class or enum `typeNode` names when its
+    /// context is that module, possibly through other structs, classes and
+    /// enums — no extension, protocol or function context on the way — and
+    /// `nil` for any other shape. That is the only shape a member of a type
+    /// another image defines can carry without an extension context of its
+    /// own.
+    private static func moduleNameOfNominalTypeReachedThroughNominalTypes(_ typeNode: NodeReference) -> String? {
+        var currentNode: NodeReference? = typeNode.kind == .type ? typeNode.children.first : typeNode
+        guard let nominalNode = currentNode, [.structure, .class, .enum].contains(nominalNode.kind) else { return nil }
+        currentNode = nominalNode.children.first
+        while let contextNode = currentNode {
+            switch contextNode.kind {
+            case .module:
+                return contextNode.text
+            case .structure, .class, .enum:
+                currentNode = contextNode.children.first
+            default:
+                return nil
+            }
+        }
+        return nil
+    }
+
+    /// The module a type or protocol name's node is declared in: the module
+    /// at the root of its context chain, whatever contexts lie on the way.
+    private static func moduleName(of nameNode: NodeReference) -> String? {
+        var currentNode: NodeReference? = nameNode
+        while let node = currentNode {
+            if node.kind == .module {
+                return node.text
+            }
+            currentNode = node.children.first
+        }
+        return nil
+    }
+
+    /// The extension-member counterpart of `kind`, under which a member of a
+    /// type another image defines joins the extension members of that type.
+    private static func extensionMemberKind(of kind: SwiftSymbolIndexStore.MemberKind) -> SwiftSymbolIndexStore.MemberKind {
+        switch kind {
+        case .allocator:
+            .allocator(inExtension: true)
+        case .constructor:
+            .constructor(inExtension: true)
+        case .subscript(_, let isStatic):
+            .subscript(inExtension: true, isStatic: isStatic)
+        case .variable(_, let isStatic, let isStorage):
+            .variable(inExtension: true, isStatic: isStatic, isStorage: isStorage)
+        case .function(_, let isStatic):
+            .function(inExtension: true, isStatic: isStatic)
+        case .deallocator, .destructor:
+            kind
+        }
+    }
+
     private func indexGlobals() async throws {
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
-        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
-        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToAnnotatedSymbols(), isGlobalOrStatic: true)
+        currentStorage.globalVariableDefinitions = MemberDefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToAnnotatedSymbols(), fieldNames: [], isGlobalOrStatic: true)
+        currentStorage.globalFunctionDefinitions = MemberDefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToAnnotatedSymbols(), isGlobalOrStatic: true)
     }
 
     // MARK: - Extension container unification (evolution proposal 0007)
@@ -1163,6 +1321,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             }
             protocolDefinition.defaultImplementationExtensions = definitions
         }
+
+        // The same for the `@objc` protocols declared in Swift, whose names
+        // take a Swift protocol's `Type > Protocol` shape for this lookup.
+        var objcProtocolDefinitionsByName: [ExtensionName: ObjCProtocolDefinition] = [:]
+        for (protocolName, objcProtocolDefinition) in currentStorage.objcProtocolDefinitions {
+            objcProtocolDefinitionsByName[protocolName.extensionName] = objcProtocolDefinition
+        }
+        for (extensionName, definitions) in currentStorage.protocolExtensionDefinitions {
+            guard let objcProtocolDefinition = objcProtocolDefinitionsByName[extensionName] else { continue }
+            for definition in definitions {
+                definition.isAttachedToProtocolDefinition = true
+            }
+            objcProtocolDefinition.defaultImplementationExtensions = definitions
+        }
     }
 
     private func mergingSameIdentityContainers(_ buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>) -> OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
@@ -1225,6 +1397,11 @@ extension SwiftDeclarationIndexer {
     @inlinable
     public var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> { currentStorage.allProtocolDefinitions }
 
+    /// The image's `@objc` protocols declared in Swift (evolution proposal
+    /// `swift-declared-objc-protocols`), in field-descriptor order.
+    @inlinable
+    public var objcProtocolDefinitions: OrderedDictionary<ProtocolName, ObjCProtocolDefinition> { currentStorage.objcProtocolDefinitions }
+
     @inlinable
     public var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.typeExtensionDefinitions }
 
@@ -1236,6 +1413,13 @@ extension SwiftDeclarationIndexer {
 
     @inlinable
     public var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.conformanceExtensionDefinitions }
+
+    /// The Objective-C protocols the image's extensions of other modules'
+    /// classes adopt (evolution proposal `swift-declared-objc-protocols`),
+    /// in category-list order: no conformance record names them, so no
+    /// conformance extension carries them.
+    @inlinable
+    public var objcCategoryConformances: [ObjCCategoryConformance] { currentStorage.objcCategoryConformances }
 
     @inlinable
     public var globalVariableDefinitions: [VariableDefinition] { currentStorage.globalVariableDefinitions }
@@ -1319,6 +1503,16 @@ extension SwiftDeclarationIndexer {
             result.merge(subIndexer.allAllProtocolDefinitions) { prevValue, nextValue in prevValue }
         }
         allStorageCache.allAllProtocolDefinitions = result
+        return result
+    }
+
+    public var allObjCProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ObjCProtocolDefinition>> {
+        if let cached = allStorageCache.allObjCProtocolDefinitions { return cached }
+        var result = currentStorage.objcProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allObjCProtocolDefinitions) { current, _ in current }
+        }
+        allStorageCache.allObjCProtocolDefinitions = result
         return result
     }
 

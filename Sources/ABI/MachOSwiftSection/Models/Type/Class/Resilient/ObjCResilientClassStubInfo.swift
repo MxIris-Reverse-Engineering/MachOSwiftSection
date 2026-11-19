@@ -1,8 +1,9 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ObjCResilientClassStubInfo: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ObjCResilientClassStubInfo {
     public struct Layout: LayoutProtocol {
         public let stub: RelativeDirectRawPointer
     }

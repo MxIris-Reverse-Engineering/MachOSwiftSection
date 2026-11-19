@@ -5,21 +5,8 @@
 /// cache that holds the reference.
 extension SharedCacheEvictionGroup {
     /// `SymbolicManglingIndex`: holds the symbol store's symbolic-mangling
-    /// table, so it follows `symbolStore`.
+    /// table, so it follows `swiftSymbolStore`.
     package static let symbolicMangling = SharedCacheEvictionGroup("symbolicMangling")
-
-    /// `ObjCImplementationClassIndex`: holds `NodeReference`s into the
-    /// symbol store's arena, so it follows `symbolStore`.
-    package static let objcImplementationClasses = SharedCacheEvictionGroup("objcImplementationClasses")
-
-    /// `ObjCClassMethodIndex`, `SwiftClassObjectIndex` and the host's
-    /// `ObjCClassHierarchyProviderStore` registration: ObjC-side per-image
-    /// state of the symbol store's lifetime, so it follows `symbolStore`.
-    package static let objcHierarchy = SharedCacheEvictionGroup("objcHierarchy")
-
-    /// `ObjCAncestorResolverStore`: holds the file's dependency images once
-    /// it has resolved them; same lifetime, follows `symbolStore`.
-    package static let objcAncestorResolver = SharedCacheEvictionGroup("objcAncestorResolver")
 
     /// `SymbolicDemanglerCache` and `AnonymousContextNameIndex`:
     /// the memo's values are references into the interned arena, so the

@@ -7,8 +7,8 @@ import OrderedCollections
 @testable import SwiftDeclarationRendering
 import SwiftThunkAnalysis
 import Demangling
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A stand-in for `SwiftThunkAnalysis`: answers from a table keyed by the
 /// thunk offset the kind-9 node carries, so the rewriter's contract can be

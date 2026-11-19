@@ -8,7 +8,7 @@
 // exercise each branch (none / copyable-only / escapable-only / both).
 
 enum InvertibleProtocolSetBaseline {
-    static let registeredTestMethodNames: Set<String> = ["copyable", "escapable", "hasCopyable", "hasEscapable", "init(rawValue:)", "rawValue"]
+    static let registeredTestMethodNames: Set<String> = ["hasCopyable", "hasEscapable"]
 
     struct Entry {
         let rawValue: UInt16

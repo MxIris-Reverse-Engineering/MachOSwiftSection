@@ -1,5 +1,6 @@
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 import Demangling
 
 /// Resolves a Swift type (given by its mangled name or demangled `Node`) to its
@@ -98,7 +99,10 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return try referenceStorageLayout(forNode: node, storage: .unmanaged, in: originImage)
         case .metatype:
             return try metatypeLayout(forNode: node)
-        case .protocolList, .protocolListWithAnyObject, .protocolListWithClass:
+        case .protocolList, .protocolListWithAnyObject, .protocolListWithClass, .constrainedExistential:
+            // A constrained existential (`any P<Int>`) has the container of
+            // its protocols; `SymbolicDemangler` hands a field's one over in
+            // this form, its shape already resolved.
             return try existentialLayout(forNode: node, in: originImage)
         case .symbolicExtendedExistentialType:
             return try extendedExistentialLayout(forNode: node, in: originImage)
@@ -278,7 +282,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         guard let referent = referentType(of: node) else { return referenceWord }
         let containerSize: Int
         switch referent.kind {
-        case .protocolList, .protocolListWithAnyObject, .protocolListWithClass:
+        case .protocolList, .protocolListWithAnyObject, .protocolListWithClass, .constrainedExistential:
             containerSize = try existentialLayout(forNode: referent, in: originImage).size
         case .symbolicExtendedExistentialType:
             containerSize = try extendedExistentialLayout(forNode: referent, in: originImage).size

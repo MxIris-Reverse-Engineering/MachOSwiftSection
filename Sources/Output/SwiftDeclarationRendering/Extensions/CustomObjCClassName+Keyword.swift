@@ -1,5 +1,6 @@
 import Semantic
 import SwiftInspection
+import SwiftObjCInterop
 
 extension CustomObjCClassName.Attribute {
     /// The keyword a renamed class's attribute prints with (evolution proposal

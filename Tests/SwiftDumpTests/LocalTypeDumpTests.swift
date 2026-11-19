@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// The dump declares a local type under the compiler's full name and lists
 /// the members its symbols attribute to it (evolution proposal

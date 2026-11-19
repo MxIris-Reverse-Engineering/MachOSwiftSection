@@ -57,7 +57,7 @@ extension SwiftDeclarationPrinter {
     /// node still wins, because it resolves generic parameters, which the
     /// accessor symbol's node does not. When no getter symbol joined, the
     /// storage type renders unchanged — the honest fallback.
-    private func fieldTypeNode(for field: FieldDefinition, substitutedTypeNode: Node?) -> Node {
+    func fieldTypeNode(for field: FieldDefinition, substitutedTypeNode: Node?) -> Node {
         if let substitutedTypeNode {
             return substitutedTypeNode
         }
@@ -78,7 +78,7 @@ extension SwiftDeclarationPrinter {
     /// name demangled.
     public func printEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async -> SemanticString {
         if field.name.isEmpty {
-            return SemanticString { Comment(Self.namelessEnumCaseComment) }
+            return comment(.note(Self.namelessEnumCaseComment), as: .note)
         }
         var result = SemanticString {
             if field.flags.contains(.isIndirectCase) {
@@ -128,7 +128,7 @@ extension SwiftDeclarationPrinter {
             // Swift 6.4: an element unavailable at run time keeps its tag,
             // but the compiler emits neither its name nor its payload type.
             // Say so rather than print a nameless `case`.
-            Comment(Self.namelessEnumCaseComment)
+            comment(.note(Self.namelessEnumCaseComment), as: .note)
         } else {
             if field.flags.contains(.isIndirectCase) {
                 Keyword(.indirect)
@@ -165,7 +165,7 @@ extension SwiftDeclarationPrinter {
     /// of inspecting the type node, since indexing already folded the
     /// `weak` / `unowned` / `lazy` signal into `flags`.
     @SemanticStringBuilder
-    private func fieldDeclarationKeywords(for flags: FieldFlags) -> SemanticString {
+    func fieldDeclarationKeywords(for flags: FieldFlags) -> SemanticString {
         if flags.contains(.isWeak) {
             Keyword(.weak)
             Space()

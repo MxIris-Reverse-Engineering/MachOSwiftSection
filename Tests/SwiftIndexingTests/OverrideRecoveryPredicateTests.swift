@@ -2,7 +2,7 @@ import Foundation
 import MachOResolving
 import Testing
 import Demangling
-import MachOSymbols
+import SwiftSymbols
 @testable import MachOSwiftSection
 import SwiftDeclaration
 

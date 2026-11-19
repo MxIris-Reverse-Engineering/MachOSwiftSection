@@ -6,7 +6,7 @@ import MachOFoundation
 @testable import SwiftDeclarationRendering
 import Demangling
 @_spi(Internals) import SwiftInspection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// A declaration may produce more than one opaque type — `-> Pair<some P, some P>`
 /// is two — and the demangled `opaqueType` node says which one it is in its
@@ -129,7 +129,7 @@ struct OpaqueTypeOrdinalTests {
     /// mangles its two results as `Qr` and `QR_`, which is what makes it the
     /// two-ordinal fixture.
     private func opaqueTypeDescriptorOffset(in machOFile: MachOFile) throws -> Int {
-        let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machOFile)
+        let symbols = SwiftSymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machOFile)
         // Taken as the only one rather than matched by name: `makeOpaquePair`
         // is not a substring of its own symbol, because the mangler
         // substitutes the repeated module prefix and spells it `04makeA4Pair`.

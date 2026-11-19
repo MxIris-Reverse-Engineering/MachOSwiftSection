@@ -5,8 +5,10 @@ import MachOFoundation
 import SwiftDeclaration
 import SwiftInterface
 import SwiftInspection
-@_spi(Internals) import MachOSymbols
-@testable import MachOTestingSupport
+import SwiftObjCInterop
+import Semantic
+@_spi(Internals) import SwiftSymbols
+@testable import SwiftSectionTestingSupport
 
 /// `@objc @implementation` recognition on the interface path (evolution
 /// proposal `objc-implementation-class-recognition`), over the on-the-fly
@@ -16,12 +18,29 @@ import SwiftInspection
 @Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCImplementationClassRecognitionTests {
     private func interface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool = false) async throws -> String {
+        try await printInterface(of: variant, printFieldOffset: printFieldOffset, marksCommentStructure: false).string
+    }
+
+    private func printInterface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool, marksCommentStructure: Bool) async throws -> SemanticString {
         let machOFile = try ObjCImplementationFixture.machOFile(variant)
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.printConfiguration.printFieldOffset = printFieldOffset
+        configuration.printConfiguration.marksCommentStructure = marksCommentStructure
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
-        return try await builder.printRoot().string
+        return try await builder.printRoot()
+    }
+
+    /// The notes of a recognized `@objc @implementation` — inferred
+    /// evidence, an ivar's unrecoverable type — and its ivars' field offsets
+    /// are marked like every other comment (evolution proposal
+    /// `comment-structure`).
+    @Test(arguments: ObjCImplementationFixture.Variant.allCases)
+    func markingCommentStructureKeepsTheContract(variant: ObjCImplementationFixture.Variant) async throws {
+        let marked = try await printInterface(of: variant, printFieldOffset: true, marksCommentStructure: true).frozen()
+        let plain = try await printInterface(of: variant, printFieldOffset: true, marksCommentStructure: false).frozen()
+        let violation = CommentStructureContract.violation(marked: marked, unmarked: plain)
+        #expect(violation == nil, "\(violation ?? "")")
     }
 
     private func block(named header: String, in interface: String) -> String? {
@@ -161,9 +180,10 @@ struct ObjCImplementationClassRecognitionTests {
         #expect(facts.properties.map(\.name).sorted() == ["count", "title"])
 
         #expect(ObjCImplementationClasses.facts(forClassNamed: "ClangWidget", in: machOFile) == nil)
-        // Two `@implementation` bodies: `Widget` and the override-recovery
-        // fixture's `DerivedImplementationWidget`.
-        #expect(Set(ObjCImplementationClasses.all(in: machOFile).map(\.className)) == ["Widget", "DerivedImplementationWidget"])
+        // Three `@implementation` bodies: `Widget`, the override-recovery
+        // fixture's `DerivedImplementationWidget` and the imported
+        // declarations' `ScenePresentationWidget`.
+        #expect(Set(ObjCImplementationClasses.all(in: machOFile).map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget"])
     }
 
     /// An imported ObjC class has `PublicNonUnique` linkage, so any module
@@ -174,7 +194,7 @@ struct ObjCImplementationClassRecognitionTests {
     /// `DateFormattingContext` (caught by the rendering A/B).
     @Test func aHiddenNonUniqueAccessorIsNotEvidence() throws {
         let machOFile = try ObjCImplementationFixture.machOFile(.full)
-        let symbolIndexStore = SymbolIndexStore.shared
+        let symbolIndexStore = SwiftSymbolIndexStore.shared
         // The premise: the fixture really does carry the clang class's accessor,
         // and it really is not exported.
         #expect(symbolIndexStore.containsSymbol(named: "_$sSo11ClangWidgetCMa", in: machOFile), "the fixture no longer emits the non-unique accessor the test is about")
@@ -200,7 +220,7 @@ struct ObjCImplementationClassRecognitionTests {
             guard case .objcImplementationClassRecognized(let context) = event else { return nil }
             return context
         }
-        #expect(Set(recognized.map(\.className)) == ["Widget", "DerivedImplementationWidget"])
+        #expect(Set(recognized.map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget"])
         let widget = try #require(recognized.first { $0.className == "Widget" })
         #expect(widget.isInferred == false)
         #expect(widget.instanceVariableCount == 5)

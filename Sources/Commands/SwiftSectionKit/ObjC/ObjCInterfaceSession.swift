@@ -8,6 +8,7 @@ import ObjCMetadataSource
 import ObjCOutputTransformer
 import OutputTransformer
 import Semantic
+import SwiftIndexing
 
 /// The kinds of Objective-C declaration `objc dump` and `objc interface` can
 /// print. With none given, `objc dump` prints all of them in this order.
@@ -53,9 +54,12 @@ struct ObjCInterfaceSession {
         let eventHandler: (@Sendable (ObjCIndexingEvent) -> Void)? = reportsIndexingProgress
             ? { @Sendable event in reportProgress(event, to: output) }
             : nil
+        // Generic Swift classes and the ones `__objc_stublist` registers have
+        // no class object; their `class_ro_t` is found through Swift metadata.
         let indexer = ObjCInterfaceIndexer(
             machO: machOFile,
             imagePath: machOFile.imagePath,
+            suppliedClasses: ObjCSuppliedClass.swiftClassesWithoutClassObjects(in: machOFile),
             eventHandler: eventHandler
         )
         try await indexer.prepare()

@@ -4,9 +4,10 @@ import MachOKit
 import MachOObjCSection
 @testable import Demangling
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
+@testable @_spi(Internals) import SwiftObjCInterop
 
 /// A private type's descriptor hangs off an anonymous context, and the private
 /// discriminator its name needs is recorded in only two places the demangler

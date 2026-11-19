@@ -172,6 +172,7 @@
 - **与 main 基线对比**：标注是 PR #111 新增，无基线可比。
 - **既往修复**：无。
 - **复审条件**：出现「实现符号保留而 `To` thunk 被选择性剥除」的真实输入（自定义 strip 脚本 / 非常规链接产物）。届时 dump 侧已有的 `containsSymbol(named: name + "To")` 口径可以直接搬到 interface 侧作第二道豁免。
+- **2026-10-27 复核**：论证 ② 的前提「未剥离时实现符号与 `To` thunk 同在」不成立。整模块优化的 app 会把 internal `@objc` 成员的函数体内联进 thunk、删掉实现符号，只留 thunk（issue #137，Xcode 27.2 的 `Xcode Service` 里 22 个）。这种成员原先根本不进模型，没有行可标；现在由 thunk 造的替身建出（提案 `thunk-only-objc-members`），`applyThunkAttributes` 照常打 `@objc`，豁免照常生效。裁决不变，也不是上面的复审条件。
 
 ---
 
@@ -685,6 +686,7 @@
 - **二、离线特化把 `.metadata` 实参当指针用，文件里读出的 `Metadata` 会成野指针**：不成立。离线 `specialize` 的文档（`GenericSpecializer+StaticSpecialization.swift` 开头）与 [OfflineGenericSpecialization.md](OfflineGenericSpecialization.md) 都写明 `.metatype` / `.metadata` / `.specialized` 是宿主进程自己的类型；`.specialized` 的 `metadata()` 先从内存读 kind，只可能是已经解引用过的进程内地址。在线路径对 `.metadata` 一直有同样的前提，误用时同样会崩，不是本 PR 引入的新风险。
 - **三、特化后的泛型 enum 跳过解析不出的 payload，会算出错误的 Enum Layout**：不成立。`RuntimeFieldLayoutBackend` 在打印布局前用 value witness table 的 size 交叉校验（`impliedTotalSize` 与 `typeLayout.size` 不等就不出注释），这条校验是 `12232bee` 专门为这类缺口加的，对特化的泛型 enum 同样生效；跳过 payload 只会让注释消失，不会印出错的布局。非泛型 enum 在基线上就这样跳过。
 - **四、`GenericParameterDepthLayout` 跳过匿名上下文，让泛型方法的 opaque 描述符层号算错、thunk 名字跟着错**：不成立。层结构确实把方法的参数与 opaque 参数并成一层，但 kind-9 thunk 的实参缓冲只按命名声明的签名绑定（编译器 `AbstractMetadataAccessor::emit` 取 `O->getGenericSignature()`），不含 opaque 参数；两种层结构只在第三个字及以后不同，那里放的是 witness table，从不被命名。基线用 `AccessorThunkOwnerLayout(genericContext:)` 算出的是同一个结构，PR 只是把计算挪了位置。
+- **四的复审（2026-10-31）**：结论不变，前提的描述过时了。opaque 描述符的层布局已改由 `GenericParameterDepthLayout.make(forOpaqueType:genericContext:in:)` 计算（[ProjectEvolutionLog](ProjectEvolutionLog.md) 第 118 节）：匿名上下文增加参数也开一层，方法的参数与 opaque 参数各占一层，不再「并成一层」。就这一条说的泛型方法而言，thunk 实参的命名不受影响：实参缓冲仍只含命名声明的参数，它们在两种结构下的坐标相同。但「跳过匿名上下文无害」只在泛型方法上成立：Debug 构建里属性的 opaque 类型挂在一个带着类型泛型签名、父级却是类型父级的匿名上下文下，跳过它就找不到类型，provider 给约束定的层号与 opaque 改写给实参的分层都会算错，RuntimeViewer 的 Debug 构建因此 trap，这次一并修掉。
 - **既往修复**：无。
 - **复审条件**：上面任何一条的前提被改动——打印器或 RuntimeViewer 改了追加扩展的条件；离线特化开始接受文件里读出的 `Metadata`；enum 布局的 size 交叉校验被拿掉；thunk 的实参缓冲开始带 opaque 参数。
 
@@ -769,6 +771,7 @@
 - **为什么暂缓**：修法简单（`.direct` 的目标按运行时地址解析；槽位解析为 `.unrecognized` 时退回名字），但仓库规则要求修复带修复前失败的测试，本机没有 26.x 的进程可扫。
 - **既往修复**：无。第一批（`0c0ebce3`）在 macOS 27.2 上写成，那时缓存已无桩。
 - **复审条件**：有 macOS 26 或 iOS 26 的环境可跑测试（另一台机器、或用户批准的 Simulator）——那时先写测试再修，同时让 RuntimeViewer 的调用者键带上改名再导出的别名（只有按名字报的调用需要它）。
+- **复核（2026-10-27，macOS 26.6）**：在 26.6 的机器上看过，仍复现不了。AppKit、Foundation、SwiftUI、libswiftCore 的 `__auth_stubs` 全是经槽位的四条指令（`adrp x17` / `add x17` / `ldr x16, [x17]` / `braa`，各 4,815、2,832、6,588、224 个），没有 `.direct` 形态，所以上面「macOS 26 及更早的缓存里有」的说法至少对 26.6 不成立。继续暂缓，复审条件改为能拿到 iOS 26 真机或更早 macOS 的缓存。同一轮另有一种桩 MachOKit 也读不出槽位：ld64 改写过的 `nop` / `ldr x16, <槽>` / `br x16`，已由 `ARM64Trampoline` 补读（第二轮审查第 1 条的横向排查，见 [2026-10-27 审查记录](../../Roadmaps/2026-10-27-cross-reference-analysis-second-review-findings.md)）。
 
 ---
 
@@ -901,3 +904,127 @@
 - **为什么不修**：diff / evolution 的 `associatedtype` 行按名字逐行比较、不带约束，约束挪过去就丢了。显式传值正是为了防这件事，提案 [0073-protocol-requirement-placement](../Evolutions/0073-protocol-requirement-placement.md) 的决策日志记了这个选择。
 - **既往修复**：无。
 - **复审条件**：diff 开始比较每个关联类型的约束（那时 `associatedtype` 行要带上约束，协议头才能按配置走）。
+
+---
+
+## A76 — 目标算得出来的寄存器调用仍记成没有目标的 `.indirect`（交叉引用第二轮审查 3）
+
+- **裁决**：不修（2026-10-27，数据裁决）。
+- **发现**：`ReferenceScanner.indirectReference(through:at:in:kind:)` 只记载入的偏移与指针认证常量，不看寄存器里有没有已知的地址或槽位。`adrp` / `add` 算出函数地址、或从 GOT 槽载入后再 `blr` 的调用，目标算得出来，仍报成 `.indirect`。
+- **复现 / 是否误报**：属实。macOS 26.6 的 AppKit 有 15,034 处 `blr`，目标算得出来的约 100 处，其中 97 处是从全局变量载入的函数指针，多是软链接的函数指针，变量里放的是运行时才写入的值。抽查的一个第三方 App 有 314 处，312 处调的是 `___chkstk_darwin`，即编译器为大栈帧插入的栈探测。
+- **与 main 基线对比**：模块在 0.24.0 新写，0.23.0 没有。
+- **为什么不修**：算得出目标的不到 1%。其中多数是变量里的运行时状态，按扫描「只记确定的事」的规矩不该当成目标；剩下的栈探测函数没有查询价值。
+- **既往修复**：无。
+- **复审条件**：某类常见代码让这种调用的占比明显变大，比如某个编译器版本改为经寄存器调用跨库函数。
+
+---
+
+## A77 — `swiftTypeIdentity(ofDescriptorAt:)` 每次都把镜像里的类线性走一遍（交叉引用第二轮审查 10）
+
+- **裁决**：暂不修（2026-10-27）。
+- **发现**：`ObjectiveCClassIndex.swiftClassObject(describedBy:)` 为找描述符对应的 Swift 类，逐个检查镜像里的全部类；`swiftTypeIdentity(ofDescriptorAt:)` 对结构体、枚举的描述符也照样走一遍。RuntimeViewer 在 `CrossReferenceQuery.swift` 里为每条 Swift 类型结果调一次。
+- **复现 / 是否误报**：写法属实。估算每次几十微秒；没有实测，在用的 10 核 Mac Studio 不适合做性能测量。
+- **与 main 基线对比**：0.24.0 新写。
+- **为什么不修**：一次查询的结果通常几十到几百条，合计在毫秒级。修法便宜：先看描述符的种类是不是类，或者为类索引建一张「描述符 → 类」的表。等有实际需要再做。
+- **既往修复**：无。
+- **复审条件**：RuntimeViewer 的大结果列表出现可感知的卡顿，或在更强的机器上测得单次超过 100 微秒。
+
+---
+
+## A78 — 没有 `…Mn` 符号的类型算 key 时，demangle 的结果留在按镜像的缓存里（交叉引用第二轮审查 5，**有意设计**）
+
+- **裁决**：不修（2026-10-27）。
+- **发现**：`SwiftTypeIndex.key(ofDescriptorAt:)` 与 `ImageFallbackNames` 给类型起名时，没有符号就调 `SymbolicDemangler.demangleContext`，结果记在按镜像的 `SharedCache` 里；分析器的 `releaseImageData(exceptForImagesAt:)` 不碰这份缓存。
+- **复现 / 是否误报**：属实。
+- **与 main 基线对比**：0.24.0 新写。
+- **为什么不修**：有意设计。上一轮审查的 B2（`6d3b80ed`）把类型查询里不受控的 demangle 改成用完即弃，同时写明保留这份按镜像的记忆。它和库里其它按镜像的缓存一样归 `SharedCacheRegistry` 管，宿主调 `evictImagesWithoutLiveOwners()` 就能回收，这是库统一的释放方式，理由仍成立。模块文档原先说它「随镜像淘汰」，容易读成 `releaseImageData` 会放掉它，这次改写成由宿主经注册表回收。
+- **既往修复**：B2（`6d3b80ed`）处理过同一片代码，这一处是当时有意留下的。
+- **复审条件**：分析器要求一次放干净它碰过的所有按镜像状态；或实测这份缓存在 RuntimeViewer 里占用可观。
+
+---
+
+## A79 — `isMapped` 一类函数线性查找映射区间（交叉引用第二轮审查 7）
+
+- **裁决**：不修（2026-10-27，数据裁决）。
+- **发现**：`isExecutable(runtimeAddress:length:)`、`isMapped(runtimeAddress:length:)`、`mappedLength(fromRuntimeAddress:)` 对区间数组线性查找；数组是缓存的每个映射加上缓存外镜像的每个段，几百项。审查认为每次发送都要查，全缓存「上千万次」。
+- **复现 / 是否误报**：写法属实，量级不成立。这几个函数只在解析调用目标（每个目标由扫描器记住，只解析一次）、读槽位、读 selector 字符串和 mangled 名字时用到。macOS 26.6 的 AppKit 里 148,494 处发送经 selector 桩，不查；要查的只有传统发送 174 处与 super 发送 7,859 处，约占发送的 5%。
+- **与 main 基线对比**：0.24.0 新写。
+- **为什么不修**：次数不大，每次也只是几百次比较，扫描时间不花在这里。同类的性能发现 A66 也是看过数据后判的不修。
+- **既往修复**：无。
+- **复审条件**：profiling 显示这几个函数占扫描时间可观。修法现成：区间排序后二分查找。
+
+---
+
+## A80 — 懒绑定的槽位可能指向 `__stub_helper`（交叉引用第二轮审查 4，**误报**）
+
+- **裁决**：误报（2026-10-27）。
+- **发现**：审查认为不用 chained fixups 的懒绑定二进制，槽位在第一次调用前指向镜像自己的 `__stub_helper`，扫描直接读槽会把调用解析到那里。
+- **复现 / 是否误报**：造不出。dyld 在加载时就绑定每个槽位，懒指针也一样。`LazyBindingTests` 现编一个部署目标 macOS 11、`-no_fixup_chains` 的 dylib，以 `RTLD_LAZY` 加载，断言函数第一次被调用之前槽里已经是 `puts`；macOS 27.2 上通过，2026-10-27 在 macOS 26.6 上也通过。
+- **与 main 基线对比**：—。
+- **为什么判误报**：这个测试就是为该场景设的哨兵，模块文档「缓存外镜像的 GOT 槽」一节写着依据。
+- **既往修复**：无。当初有意这样设计，并留了哨兵。
+- **复审条件**：`LazyBindingTests` 变红。那时让解析失败的桩退回导入名，修法与 A64 的后半相同。
+
+---
+
+## A81 — MachOKit 的 `StubDecoder` 读不出 ld64 改写过的桩的槽位（交叉引用第二轮审查第 1 条的横向排查，上游缺口）
+
+- **裁决**：不报上游，也不在 fork 里修（2026-10-27，用户决定暂不处理）。
+- **发现**：ld64 按 linker optimization hint 把桩改写成 `nop` / `ldr x16, <槽>` / `br x16` 之后，MachOKit（0.54.101）的 `StubDecoder` 不认这种形态，`Stub.branch` 给 `.unknown`，读不出槽位。`StubDecoder` 是上游作者写的，上游的 MachOKit 同样如此。
+- **复现 / 是否误报**：属实。Asset Catalog Viewer（macOS 12 SDK）的 212 个桩全是这种形态；`LinkerOptimizationHintTests` 里改写过的桩，本库补读之前只认出 `.importedSymbol("_puts")`。
+- **与 main 基线对比**：缺口在依赖里，一直都有；本库从 0.24.0 的交叉引用分析起用 MachOKit 解桩。
+- **为什么不修**：用户决定暂不向上游报，也不在 fork 里改。本库已经不靠它：`ImageFunctionTable` 在 MachOKit 给不出 `.viaSlot` 时，用 `ARM64Trampoline` 读桩自己的字节取槽位；SwiftThunkAnalysis 认桩本来就从文件读出字节交给 `ARM64Trampoline`，不经 `StubDecoder`。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Analysis/CrossReferenceAnalysis/Scanning/ImageFunctionTable.swift` 的 `trampoline(in:)` 回退。
+- **复审条件**：本库有新代码直接拿 MachOKit 的 `Stub.branch` 取槽位、不经 `ARM64Trampoline`；或上游自己修了 `StubDecoder`，那时这个回退成了多余，可以删。
+
+---
+
+## A82 — 单字母的泛型参数（交叉引用第二轮审查第 12 条的同类）
+
+- **裁决**：暂不清理（2026-10-27，用户决定暂不安排）。
+- **发现**：第 12 条把 `pc`、`lhs` / `rhs` 这些缩写的名字改成了完整的名字；同类的单字母泛型参数（`<T>`、`<M: …>` 一类）没有一起改。审查时数过，`Sources` 约 167 处、`Tests` 约 126 处，其中一部分在字符串里。
+- **复现 / 是否误报**：属实。
+- **与 main 基线对比**：main 上同样有，分布在各模块，不是这次的改动引入的；这次的修复批次一处也没有新加。
+- **为什么不修**：用户决定暂不安排清理。改名不改行为，但公开泛型类型的参数名可能被下游的 extension 按名字用到，真要清理时那部分要连同下游一起改。`AbbreviatedIdentifierScanTests` 只扫 `pc`、`lhs`、`rhs`，不管泛型参数。
+- **既往修复**：没有专门清理过。提案 [0044-opaque-parameters-for-single-use-generics](../Evolutions/0044-opaque-parameters-for-single-use-generics.md)（`7d429938`）把只用一次的泛型参数改写成 `some P`，为的是去掉多余的泛型参数列表，剩下的没有改名；`4e8f4a7f`（2026-10-08）只改了特化器新代码里的缩写。
+- **复审条件**：用户安排清理时。这条只覆盖已有的这些；改动里新加的单字母泛型参数照常算发现。
+
+---
+
+## A83 — `@Observable` 的折叠特例叠在共享的字段渲染上（2026-11-16 代码库体检，结构类，**有意设计**）
+
+- **裁决**：不修（2026-11-16，用户确认）。
+- **发现**：`SwiftDeclarationPrinter+Headers.swift` 的 `renderedModelFieldDeclarations` 为 `@Observable` 分了 `ModelMembersSelection` 三种模式（`.typeBody`、`.observableMacroExpansion`、`.observableMacroComputedProperties`），`.typeBody` 下还有几个分支各自组合可见性，成员循环里另外穿着 `folding` 与 `marksObservationIgnored`。下一个要折叠的宏还得在同一个函数里加模式和分支。
+- **复现 / 是否误报**：结构属实，没有错误输出。
+- **与 main 基线对比**：`f0fd4447`（2026-11-11）引入，main 上没有。
+- **为什么不修**：提案 [0093-observable-macro-folding](../Evolutions/0093-observable-macro-folding.md) 有意把折叠接进字段块与成员块，为的是展开形态与折叠形态用同一套打印代码，两种形态的注释逐字节一致。拆成「各个宏的折叠规则先产出字段列表、字段渲染只消费列表」要动这套共用，眼下只有一个宏，收益不抵风险。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+Headers.swift` 的 `renderedModelFieldDeclarations`；体检报告 [CodebaseAudit20261116](Reviews/CodebaseAudits/CodebaseAudit20261116.md)。
+- **复审条件**：出现第二个要折叠的宏时。
+
+---
+
+## A84 — 交叉引用索引里同一条指令上几条引用的先后每个进程不同（2026-11-16 代码库体检，**不修**）
+
+- **裁决**：不修（2026-11-16，用户确认）。
+- **发现**：`CodeReferenceIndex` 查询结果先按指令排，同一条指令上的引用再按分组号排，而分组的顺序取自 `keyedTargets` 字典的遍历（`Models/CodeReferenceIndex.swift:117`、`:291`），Swift 的 `Hasher` 每个进程随机播种。一次查 `{.selector("alloc"), .selector("init")}` 两个键时，`objc_alloc_init` 那条指令上的两条发送谁先谁后每个进程都可能不同；扫描路径 `references(to:inImageAt:)` 固定 `alloc` 在前。类型文档说两条路径的答案一致。
+- **复现 / 是否误报**：属实，只差顺序，内容一致。
+- **与 main 基线对比**：`3ca49d4d`（2026-10-18）的索引在 main 上也有；同一条指令上出现两条引用要等 `e64b1085`（2026-10-27，入口点发送）之后，那部分 main 上没有。
+- **为什么不修**：宿主只拿结果显示调用者，不逐数组比较两条路径；现有测试也不比这种组合。要修只是在分组时按键排序，代价很小，但眼下没有消费者受影响。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Analysis/CrossReferenceAnalysis/Models/CodeReferenceIndex.swift`；体检报告 [CodebaseAudit20261116](Reviews/CodebaseAudits/CodebaseAudit20261116.md)。
+- **复审条件**：有宿主或测试开始逐数组比较索引与扫描两条路径的结果，或类型文档要继续承诺「答案完全一致」时。
+
+---
+
+## A85 — `reader-benchmark` 用 `print` 输出测量结果（2026-11-16 代码库体检，规则类，**有意如此**）
+
+- **裁决**：不修（2026-11-16，用户确认）。
+- **发现**：全局指令「编码风格」要求打日志不用 `print`；`Sources/Executables/reader-benchmark/ReaderBenchmark.swift:221-232` 用 `print` 输出测量结果。
+- **复现 / 是否误报**：写法属实，但输出的是基准的结果，不是日志。
+- **与 main 基线对比**：`b28d8887`（2026-11-06）引入，main 上没有。
+- **为什么不修**：基准可执行文件的标准输出就是它的产品；`swift-section` 经 `StandardStreamOutput` 的规定只管那个 CLI，`reader-benchmark` 不随库发布。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Executables/reader-benchmark/ReaderBenchmark.swift`；体检报告 [CodebaseAudit20261116](Reviews/CodebaseAudits/CodebaseAudit20261116.md)。
+- **复审条件**：它被并进 `swift-section`，或开始输出诊断与进度信息。

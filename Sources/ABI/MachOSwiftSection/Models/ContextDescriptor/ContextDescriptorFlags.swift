@@ -1,4 +1,5 @@
 import Foundation
+import SwiftStdlibToolbox
 
 /// https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1849
 public struct ContextDescriptorFlags: OptionSet, Sendable {
@@ -8,13 +9,10 @@ public struct ContextDescriptorFlags: OptionSet, Sendable {
         self.rawValue = rawValue
     }
 
-    /// The kind of context this descriptor describes.
-    public var kind: ContextDescriptorKind {
-        if let kind = ContextDescriptorKind(rawValue: UInt8(rawValue & 0x1F)) {
-            return kind
-        }
-        return ContextDescriptorKind.unknown
-    }
+    /// The kind of context this descriptor describes, or `.unknown` for a
+    /// kind this reader does not know.
+    @BitField(bits: 0..<5, default: ContextDescriptorKind.unknown)
+    public var kind: ContextDescriptorKind
 
     /// Whether the context has information about invertible protocols, which
     /// will show up as a trailing field in the context descriptor.
@@ -28,13 +26,11 @@ public struct ContextDescriptorFlags: OptionSet, Sendable {
 
     /// The format version of the descriptor. Higher version numbers may have
     /// additional fields that aren't present in older versions.
-    public var version: UInt8 {
-        return UInt8((rawValue >> 8) & 0xFF)
-    }
+    @BitField(bits: 8..<16)
+    public var version: UInt8
 
-    public var kindSpecificFlagsRawValue: UInt16 {
-        return UInt16((rawValue >> 16) & 0xFFFF)
-    }
+    @BitField(bits: 16..<32)
+    public var kindSpecificFlagsRawValue: UInt16
 
     /// The most significant two bytes of the flags word, which can have
     /// kind-specific meaning.
@@ -54,15 +50,12 @@ public struct ContextDescriptorFlags: OptionSet, Sendable {
         }
     }
 
-    public var hasInvertibleProtocols: Bool {
-        contains(.hasInvertibleProtocols)
-    }
+    @BitField(bits: 5)
+    public var hasInvertibleProtocols: Bool
 
-    public var isUnique: Bool {
-        contains(.isUnique)
-    }
+    @BitField(bits: 6)
+    public var isUnique: Bool
 
-    public var isGeneric: Bool {
-        contains(.isGeneric)
-    }
+    @BitField(bits: 7)
+    public var isGeneric: Bool
 }

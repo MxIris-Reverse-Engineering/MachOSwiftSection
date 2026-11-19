@@ -182,6 +182,8 @@ ABI 事实。同一协议一侧带符号、一侧被 strip 时，diff 会报"解
 pwtslot added"的假差异——无名可匹配，无廉价对策；比较双方应处于相近的 strip
 状态。
 
+同一不对称的另一半——**非导出成员**——现已处理（演进提案 `evolution-unobservable-presence`，规则见 [`ABIEvolutionDesign.md`](ABIEvolutionDesign.md) 第六批）：快照记下镜像有没有 local Swift 符号、每个成员是否导出；一侧没有 local Swift 符号时，另一侧只靠非导出符号出现的成员（以及只由这种成员组成的 extension）不报 removed / added，而是进 `ABIDiff.unobservableDeclarations`，文本报告单列一节，不算 breaking。仍未处理的有两处：上面的 `pwtslot:` 互换照旧；`diff --interface` 按两侧结构直接比对、不读 `ABIDiff`，这类成员在那里仍显示为 `-` / `+`。
+
 ## 局限 → 代码位置对照
 
 | 局限 | 状态 / 位置 |
@@ -191,4 +193,4 @@ pwtslot added"的假差异——无名可匹配，无廉价对策；比较双方
 | 3. keyed 碰撞 | **已解决**（拆分消解 + 诊断兜底）。`Keying.swift` + `ABIDiagnostics.swift` |
 | 4. 字段顺序 / flags | enum case `indirect` **已修**；resilient/frozen 感知的字段顺序敏感性仍开放。`MemberRecord.swift` |
 | 5. per-conformance 归属 | **已解决**。`ABIDiffer.swift` `extensionContainerSnapshots` + [`PerConformanceAttribution.md`](PerConformanceAttribution.md) |
-| 6. stripped requirement 投影 | **已解决**（`pwtslot:` 命名空间）。`MemberRecord.makeProtocolRequirement` + `memberRecords(of: ProtocolDefinition)` + [`ProtocolRequirementProjection.md`](ProtocolRequirementProjection.md)；符号化状态不对称为新的文档化局限 |
+| 6. stripped requirement 投影 | **已解决**（`pwtslot:` 命名空间）。`MemberRecord.makeProtocolRequirement` + `memberRecords(of: ProtocolDefinition)` + [`ProtocolRequirementProjection.md`](ProtocolRequirementProjection.md)；符号化状态不对称为新的文档化局限，其中非导出成员一半已解决（`UnobservablePresence.swift` + `ABIDiff.unobservableDeclarations`），`pwtslot:` 互换与 `diff --interface` 仍开放 |

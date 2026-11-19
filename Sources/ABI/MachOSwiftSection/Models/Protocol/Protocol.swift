@@ -68,17 +68,3 @@ extension `Protocol` {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension `Protocol` {
-    @available(*, deprecated, message: "Pass a ReadingContext: Protocol(descriptor:in: machO.context).")
-    public init(descriptor: ProtocolDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws {
-        try self.init(descriptor: descriptor, in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: Protocol(descriptor:in: .inProcess).")
-    public init(descriptor: ProtocolDescriptor) throws {
-        try self.init(descriptor: descriptor, in: InProcessContext.shared)
-    }
-}

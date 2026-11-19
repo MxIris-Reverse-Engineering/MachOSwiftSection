@@ -49,37 +49,3 @@ extension ProtocolDescriptorRef {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension ProtocolDescriptorRef {
-    @available(*, deprecated, message: "Pass a ReadingContext: objcProtocol(in: machO.context).")
-    public func objcProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ObjCProtocolPrefix {
-        try objcProtocol(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: swiftProtocol(in: machO.context).")
-    public func swiftProtocol(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolDescriptor {
-        try swiftProtocol(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: name(in: machO.context).")
-    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
-        try name(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: objcProtocol(in: .inProcess).")
-    public func objcProtocol() throws -> ObjCProtocolPrefix {
-        try objcProtocol(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: swiftProtocol(in: .inProcess).")
-    public func swiftProtocol() throws -> ProtocolDescriptor {
-        try swiftProtocol(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: name(in: .inProcess).")
-    public func name() throws -> String {
-        try name(in: InProcessContext.shared)
-    }
-}

@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import MachOSwiftSection
 @testable import SwiftDump
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
@@ -14,7 +14,7 @@ final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendab
         for protocolDescriptor in protocolDescriptors {
             let proto = try Protocol(descriptor: protocolDescriptor, in: machO.context)
             for requirement in proto.requirements {
-                print(requirement.flags.kind)
+                print(requirement.flags.kind.map { "\($0)" } ?? "unknown")
             }
             print("-------------------------------")
         }

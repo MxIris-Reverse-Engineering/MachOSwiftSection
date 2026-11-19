@@ -246,6 +246,17 @@ struct ObjCSectionCommandTests {
         #expect(command.kind == .categories)
     }
 
+    @Test("The interface subcommand prints the Swift view only with --swift, and the request knows")
+    func parsesSwiftView() throws {
+        let header = try ObjCInterfaceCommand.parse(["NSColor", "/tmp/Sample"])
+        #expect(!header.printsSwiftImport)
+        #expect(try !header.makeRequest().printsSwiftImport)
+
+        let swiftView = try ObjCInterfaceCommand.parse(["NSColor", "/tmp/Sample", "--swift"])
+        #expect(swiftView.printsSwiftImport)
+        #expect(try swiftView.makeRequest().printsSwiftImport)
+    }
+
     // MARK: - Command Tree
 
     @Test("dump is the default objc subcommand")

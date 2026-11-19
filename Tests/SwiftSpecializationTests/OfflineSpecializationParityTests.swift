@@ -7,7 +7,7 @@ import Testing
 import MachOKit
 import Demangling
 @testable import MachOSwiftSection
-import MachOTestingSupport
+import SwiftSectionTestingSupport
 import SwiftDeclarationRendering
 
 /// One instantiation, specialized and printed both ways, must read the same

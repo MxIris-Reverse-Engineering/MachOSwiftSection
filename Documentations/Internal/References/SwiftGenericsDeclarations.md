@@ -828,7 +828,7 @@ Subscript 用 `subscript` 关键字引入。它们只能作为 nominal type 和 
 
 每条 storage declaration 都有一组 **accessor declaration**，它们是一种特殊的 function declaration。在 declaration context 的层级里，accessor declaration 是 storage declaration 的兄弟节点。Accessor 的 interface type 取决于 accessor 的种类。例如 getter 返回值，setter 则把新值作为参数接收。变量的 accessor 不接收任何其它参数；subscript 的 accessor 还会接收 subscript 的 index 参数。本书不再需要关于 accessor 和 storage declaration 的更多细节。
 
-> 译注：这组 accessor declaration 在二进制里表现为一族独立的符号（`g`/`s`/`m` 等后缀），本库的 `DefinitionBuilder` 要把它们按所属成员重新分组，才能还原出「一个 computed property」而不是散落的若干函数；stored `var` 的 accessor 组一度在按字段名去重时被丢弃，以及 lazy 字段应当打印调用方可见的 getter 类型而非 `Optional` 存储类型这两件事，见 [FinalKeywordAndLazyAccessorTypeRecovery.md](../FinalKeywordAndLazyAccessorTypeRecovery.md)。
+> 译注：这组 accessor declaration 在二进制里表现为一族独立的符号（`g`/`s`/`m` 等后缀），本库的 `MemberDefinitionBuilder` 要把它们按所属成员重新分组，才能还原出「一个 computed property」而不是散落的若干函数；stored `var` 的 accessor 组一度在按字段名去重时被丢弃，以及 lazy 字段应当打印调用方可见的 getter 类型而非 `Optional` 存储类型这两件事，见 [FinalKeywordAndLazyAccessorTypeRecovery.md](../FinalKeywordAndLazyAccessorTypeRecovery.md)。
 
 ## Source Code Reference
 

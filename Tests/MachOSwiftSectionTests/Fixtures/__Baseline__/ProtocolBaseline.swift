@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum ProtocolBaseline {
-    static let registeredTestMethodNames: Set<String> = ["baseRequirement", "descriptor", "init(descriptor:)", "init(descriptor:in:)", "name", "numberOfRequirements", "numberOfRequirementsInSignature", "protocolFlags", "requirementInSignatures", "requirements"]
+    static let registeredTestMethodNames: Set<String> = ["baseRequirement", "descriptor", "init(descriptor:in:)", "name", "numberOfRequirements", "numberOfRequirementsInSignature", "protocolFlags", "requirementInSignatures", "requirements"]
 
     struct Entry {
         let name: String

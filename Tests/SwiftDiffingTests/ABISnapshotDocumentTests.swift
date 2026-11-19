@@ -34,6 +34,21 @@ struct ABISnapshotDocumentTests {
         #expect(decoded == document)
     }
 
+    @Test("the symbol-table facts survive a round trip")
+    func symbolTableFactsRoundTrip() throws {
+        let member = MemberRecord(
+            identityKey: .mangled("$s3Foo3baryyF"),
+            payloadKey: .mangled("$s3Foo3baryyF"),
+            kind: .function,
+            signature: "bar()",
+            isExported: false
+        )
+        let document = ABISnapshotDocument(snapshot: ABISnapshot(globalFunctions: [member], hasLocalSwiftSymbols: false))
+        let decoded = try ABISnapshotDocument.decode(from: document.encoded())
+        #expect(decoded.snapshot.hasLocalSwiftSymbols == false)
+        #expect(decoded.snapshot.globalFunctions.first?.isExported == false)
+    }
+
     @Test("encoding is byte-stable")
     func byteStableEncoding() throws {
         let document = sampleDocument()

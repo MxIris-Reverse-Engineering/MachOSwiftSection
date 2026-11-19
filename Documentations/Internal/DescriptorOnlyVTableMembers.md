@@ -32,7 +32,7 @@ interface 的成员一直是从「实现函数的符号」建出来的。用 lib
 
 ## 替身符号为什么长这样
 
-**名字用实现函数的 mangled 名，不用 `Tq` 符号的名字。** 下游有三处按「成员的实现符号名」推导别的东西：导出判定往名字后面拼 `Tj` / `Tq` / `Tu` 去查 export trie（`isExportedIncludingDerivedSymbols`）；ObjC 方法表按实现符号名 join（`ObjCMemberApplication`）；ABI diff 的成员身份是重整后的声明节点。用实现函数的名字，这三处把替身当成它顶替的那个符号来读，一行不用改；用 `Tq` 的名字，导出判定会去查 `…TqTj` 这种不存在的符号。去掉后缀就能得到实现名，是因为 mangling 规则是把 `Tq` 原样追加在实体名后面。
+**名字用实现函数的 mangled 名，不用 `Tq` 符号的名字。** 下游有三处按「成员的实现符号名」推导别的东西：导出判定往名字后面拼 `Tj` / `Tq` / `Tu` 去查 export trie（`isExportedIncludingDerivedSymbols`）；ObjC 方法表按实现符号名 join（`ObjCMemberMatcher`）；ABI diff 的成员身份是重整后的声明节点。用实现函数的名字，这三处把替身当成它顶替的那个符号来读，一行不用改；用 `Tq` 的名字，导出判定会去查 `…TqTj` 这种不存在的符号。去掉后缀就能得到实现名，是因为 mangling 规则是把 `Tq` 原样追加在实体名后面。
 
 **偏移用 descriptor 记录的实现偏移，async 方法再跳一次。** 地址注释读的是成员符号的偏移，替身的偏移必须和「有实现符号时」的那个一样，fixture 的完整版与剥离版逐字比对才能对上。async 方法的 vtable 槽里放的不是代码地址，而是 async function pointer（`Tu` 常量，调用方从它读 async context 的大小），实现符号在它指向的函数入口，所以要经 `AsyncFunctionPointer` 读一次 `function` 字段。读这个记录时要显式标注非可选类型：`resolve(from:in:)` 有一个返回可选值的重载，推断到那个重载会按另一种内存形状去读。
 
@@ -46,7 +46,7 @@ interface 的成员一直是从「实现函数的符号」建出来的。用 lib
 
 ## 什么时候不补
 
-- **ABI 墓碑**：实现指针是 null，镜像里没有这个成员的代码，只剩槽位。dump 带着墓碑注释列出它；interface 不补，和改动前一致。
+- **ABI 墓碑**：实现指针是 null，槽位指向的那个入口在镜像里没有代码。dump 带着墓碑注释列出它；interface 不从墓碑槽补，和改动前一致。不过成员本身未必没有代码了：整模块优化的 app 里，`@objc` 方法常常只剩它的 ObjC thunk，class 的 initializer 的 allocating entry point 被删、initializing entry point 还在。这两种由 [ThunkOnlyObjCMembers.md](ThunkOnlyObjCMembers.md) 的替身补上，槽号经节点联结照常挂到替身上。
 - **modify / read 协程**：符号索引从不把这两种访问器当成员，有实现符号的 class 在 interface 里也看不到它们，补了会让剥离前后的输出形态不同。属性的 `{ get set }` 已经由 getter / setter 表达。
 - **真实符号已经声明了这个成员**：按成员实体节点结构相等判断，merged function thunk 先跳过它开头的标记节点，因为 builder 会把 thunk 归到它代表的成员上。所以 fixture 这种没剥离的二进制，模型一个成员都不会多，也一个都不会变。
 - **叫不出名字的槽**：internal 成员的 `Tq` 和实现符号一样是 local 的，剥离后这个槽谁也叫不出名字。按用户的指示跳过，不打占位符；dump 里它显示为 `sub_…` 或 `<unnamed vtable slot>`。

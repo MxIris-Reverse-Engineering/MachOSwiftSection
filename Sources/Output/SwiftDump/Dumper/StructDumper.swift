@@ -5,7 +5,7 @@ import Semantic
 import Utilities
 import Dependencies
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
@@ -22,7 +22,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
     package let machO: MachO
 
-    @Dependency(\.symbolIndexStore)
+    @Dependency(\.swiftSymbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
@@ -151,7 +151,7 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
 
             let interfaceNameString = try await interfaceName.string
 
-            for kind in SymbolIndexStore.MemberKind.allCases {
+            for kind in SwiftSymbolIndexStore.MemberKind.allCases {
                 let memberSymbols = if let contextNode {
                     symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, node: contextNode, in: machO)
                 } else {
@@ -177,6 +177,8 @@ package struct StructDumper<MachO: MachOFieldLayoutRenderable>: TypedDumper {
                     if configuration.printExportStatus, symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbol.name, in: machO) == false {
                         configuration.exportStatusComment()
                     }
+
+                    initAccessorFieldsComment(for: symbol)
 
                     Indent(level: 1)
 

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOFoundation
-import Demangling
+@_spi(Internals) import Demangling
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
@@ -257,5 +257,65 @@ struct WrappedPropertyRecoveryTests {
         #expect(attributeSpelling(of: count) == "ProbeWrapperKit.Tagged<Swift.String, Swift.Int>")
         // A hand-written `_manual` / `manual` pair: `Int` is no wrapper.
         #expect(byName["manual"] == nil)
+    }
+}
+
+/// The node-level rule that decides how a recovered wrapper attribute is
+/// spelled, pinned on hand-built trees.
+struct WrappedPropertyAttributeSpellingTests {
+    private static let intStructureNode = Node.createTransient(kind: .structure, children: [
+        Node.createTransient(kind: .module, text: "Swift"),
+        Node.createTransient(kind: .identifier, text: "Int"),
+    ])
+
+    private static let wrapperNominalTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .structure, children: [
+        Node.createTransient(kind: .module, text: "ProbeWrapperKit"),
+        Node.createTransient(kind: .identifier, text: "Box"),
+    ]))
+
+    /// `() -> sending Swift.Int`, or `() -> Swift.Int`.
+    private static func functionTypeNode(sendingResult: Bool) -> Node {
+        var children: [Node] = sendingResult ? [Node.createTransient(kind: .sendingResultFunctionType)] : []
+        children.append(Node.createTransient(kind: .argumentTuple, child: Node.createTransient(kind: .type, child: Node.createTransient(kind: .tuple))))
+        children.append(Node.createTransient(kind: .returnType, child: Node.createTransient(kind: .type, child: intStructureNode)))
+        return Node.createTransient(kind: .type, child: Node.createTransient(kind: .functionType, children: children))
+    }
+
+    /// The wrapper's generic argument comes from the field record, which
+    /// keeps `sending` in a function type nested in the bound type; the
+    /// property's type comes from its getter's symbol, which leaves `sending`
+    /// out of the declaration's own function type. The argument is the
+    /// property's type all the same, so the attribute stays bare
+    /// (`@Box var make: () -> sending Int`).
+    @Test func anArgumentDifferingOnlyInSendingLeavesTheAttributeBare() {
+        let fieldTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .boundGenericStructure, children: [
+            Self.wrapperNominalTypeNode,
+            Node.createTransient(kind: .typeList, child: Self.functionTypeNode(sendingResult: true)),
+        ]))
+        let attributeTypeNode = WrappedPropertyRecovery.attributeTypeNode(
+            fieldTypeNode: fieldTypeNode,
+            wrapperNominalTypeNode: Self.wrapperNominalTypeNode,
+            wrappedPropertyTypeNode: Self.functionTypeNode(sendingResult: false)
+        )
+        #expect(attributeTypeNode == Self.wrapperNominalTypeNode)
+    }
+
+    /// `sending` is all that is set aside: an argument of another type keeps
+    /// the attribute's arguments.
+    @Test func anArgumentOfAnotherTypeKeepsTheArguments() {
+        let fieldTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .boundGenericStructure, children: [
+            Self.wrapperNominalTypeNode,
+            Node.createTransient(kind: .typeList, child: Self.functionTypeNode(sendingResult: true)),
+        ]))
+        let stringTypeNode = Node.createTransient(kind: .type, child: Node.createTransient(kind: .structure, children: [
+            Node.createTransient(kind: .module, text: "Swift"),
+            Node.createTransient(kind: .identifier, text: "String"),
+        ]))
+        let attributeTypeNode = WrappedPropertyRecovery.attributeTypeNode(
+            fieldTypeNode: fieldTypeNode,
+            wrapperNominalTypeNode: Self.wrapperNominalTypeNode,
+            wrappedPropertyTypeNode: stringTypeNode
+        )
+        #expect(attributeTypeNode == fieldTypeNode)
     }
 }

@@ -1,9 +1,9 @@
 import Foundation
 import Testing
 import MachO
-@_spi(Internals) @testable import MachOSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@_spi(Internals) @testable import SwiftSymbols
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 @Suite
 enum SymbolIndexStoreTests {
@@ -15,7 +15,7 @@ enum SymbolIndexStoreTests {
 
         @Test func main() async throws {
             ContinuousClock().measure {
-                SymbolIndexStore.shared.prepare(in: machOImage)
+                SwiftSymbolIndexStore.shared.prepare(in: machOImage)
             }.print()
             
             ProcessMemory.report()
@@ -30,7 +30,7 @@ enum SymbolIndexStoreTests {
 
         @Test func main() async throws {
             ContinuousClock().measure {
-                SymbolIndexStore.shared.prepare(in: machOImage)
+                SwiftSymbolIndexStore.shared.prepare(in: machOImage)
             }.print()
             ProcessMemory.report()
         }

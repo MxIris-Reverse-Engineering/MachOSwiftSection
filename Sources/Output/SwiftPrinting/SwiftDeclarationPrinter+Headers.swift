@@ -6,7 +6,7 @@ import Demangling
 import OrderedCollections
 import Dependencies
 import SwiftDeclarationRendering
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 
 /// Model-driven declaration-header rendering for the interface path.
@@ -34,7 +34,7 @@ extension SwiftDeclarationPrinter {
     /// getters. Without it (the default), the clean unbound interface form
     /// renders straight from the descriptor as before.
     @SemanticStringBuilder
-    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil, boundTypeNode: Node? = nil) async throws -> SemanticString {
+    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil, boundTypeNode: Node? = nil, objcProtocolNames: [ProtocolName] = []) async throws -> SemanticString {
         let resolver = typeDemangleResolver
         switch type {
         case .struct(let dumped):
@@ -71,7 +71,7 @@ extension SwiftDeclarationPrinter {
             } else {
                 try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO.context), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             }
-            let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
+            let superclass = try await renderClassInheritanceClause(dumped, objcProtocolNames: objcProtocolNames, resolver: resolver)
             if boundTypeNode == nil, let genericContext = dumped.genericContext {
                 let depthLayout = GenericParameterDepthLayout.make(for: genericContext, ownedBy: .type(.class(dumped.descriptor)), in: machO.context)
                 try await genericContext.dumpGenericSignature(resolver: resolver, depthLayout: depthLayout, in: machO.context) {
@@ -141,6 +141,19 @@ extension SwiftDeclarationPrinter {
         }
     }
 
+    /// The superclass, then the Objective-C protocols the class declaration
+    /// adopts (evolution proposal `swift-declared-objc-protocols`).
+    @SemanticStringBuilder
+    private func renderClassInheritanceClause(_ dumped: Class, objcProtocolNames: [ProtocolName], resolver: DemangleResolver) async throws -> SemanticString {
+        let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
+        superclass
+        for (offset, protocolName) in objcProtocolNames.offsetEnumerated() {
+            Standard(offset.isStart && superclass.string.isEmpty ? ":" : ",")
+            Space()
+            try await resolver.resolve(for: protocolName.node.materialize())
+        }
+    }
+
     @SemanticStringBuilder
     private func renderClassSuperclass(_ dumped: Class, resolver: DemangleResolver) async throws -> SemanticString {
         let hasInvertedProtocols = dumped.invertibleProtocolSet?.hasInvertedProtocols ?? false
@@ -171,7 +184,7 @@ extension SwiftDeclarationPrinter {
     /// whose class context matches it — mirroring `ClassDumper.isDistributedActor`.
     private func isDistributedActor(_ dumped: Class) -> Bool {
         guard dumped.descriptor.isActor else { return false }
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
 
         guard let currentTypeNode = try? SymbolicDemangler.demangleContext(for: .type(.class(dumped.descriptor)), in: machO.context) else { return false }
         let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
@@ -300,11 +313,7 @@ extension SwiftDeclarationPrinter {
                     in: machO,
                     reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name)
                 )
-            for line in try await resolution.conditionalWitnessCommentLines(associatedTypeName: record.name, resolvedBy: resolver) {
-                BreakLine()
-                Indent(level: level)
-                Comment(line)
-            }
+            conditionalWitnessComment(try await resolution.conditionalWitnessComments(associatedTypeName: record.name, resolvedBy: resolver), level: level)
             BreakLine()
             Indent(level: level)
             Keyword(.typealias)
@@ -317,6 +326,25 @@ extension SwiftDeclarationPrinter {
             if offset.isEnd {
                 BreakLine()
             }
+        }
+    }
+
+    /// The lines above an availability-conditional witness, each on a line of
+    /// its own. Marking comment structure, they are one `conditionalWitness`
+    /// region, every line after the first a `conditionalWitnessBranch`.
+    @SemanticStringBuilder
+    private func conditionalWitnessComment(_ lines: [StructuredComment], level: Int) -> SemanticString {
+        let printedLines = SemanticString {
+            for (lineIndex, line) in lines.enumerated() {
+                BreakLine()
+                Indent(level: level)
+                comment(line, as: lineIndex == 0 ? nil : .conditionalWitnessBranch)
+            }
+        }
+        if marksCommentStructure, !lines.isEmpty {
+            AnnotationRegion(.conditionalWitness, content: printedLines)
+        } else {
+            printedLines
         }
     }
 
@@ -370,6 +398,43 @@ extension SwiftDeclarationPrinter {
     /// and threads it into both the header renderer and this function.
     @SemanticStringBuilder
     func renderModelFields(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int) async throws -> SemanticString {
+        let fieldBlock = try await modelFieldBlock(typeDefinition, typeContext: typeContext, level: level, selection: .typeBody)
+        fieldBlock.prologue
+        for renderedField in fieldBlock.fields {
+            VisibilityRegion(renderedField.visibility) {
+                BreakLine()
+                renderedField.content
+            }
+        }
+        if !fieldBlock.fields.isEmpty {
+            VisibilityRegion(.any(fieldBlock.fields.map(\.visibility))) {
+                BreakLine()
+            }
+        }
+    }
+
+    /// The field declarations of `selection` by field name, each its comments
+    /// and its declaration at `level`, without line breaks around it, and
+    /// visible where the configuration prints it — for the expansion
+    /// (`printMacroExpansion(of:attachedTo:level:)`,
+    /// `printMacroExpansionParts(of:attachedTo:)`), which arranges them in
+    /// rows of its own.
+    func renderedModelFieldDeclarations(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int, selection: ModelMembersSelection) async throws -> [(fieldName: String, declaration: SemanticString)] {
+        try await modelFieldBlock(typeDefinition, typeContext: typeContext, level: level, selection: selection).fields.map { renderedField in
+            (renderedField.fieldName, renderedField.content.visible(under: renderedField.visibility))
+        }
+    }
+
+    /// A type's rendered fields: an enum's layout prologue, then each field
+    /// the selection prints, in field order, with the visibility it prints
+    /// under and its content — the comments and the declaration, without the
+    /// line break that opens it.
+    struct ModelFieldBlock {
+        var prologue = SemanticString()
+        var fields: [(fieldName: String, visibility: VisibilityCondition, content: SemanticString)] = []
+    }
+
+    private func modelFieldBlock(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int, selection: ModelMembersSelection) async throws -> ModelFieldBlock {
         let isEnum = typeDefinition.typeName.kind == .enum
 
         // Shared metadata-comment renderer (single source of truth with
@@ -393,7 +458,7 @@ extension SwiftDeclarationPrinter {
             staticFieldLayoutProvider: staticFieldLayoutProvider(),
             staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution,
             marksOptionalContent: configuration.marksOptionalContent
-        )
+        ).markingCommentStructure(configuration.marksCommentStructure)
         // An offline specialization carries its arguments instead of
         // metadata (evolution proposal `offline-generic-specialization`): the
         // static layout path computes the comments for them, and the fields
@@ -401,7 +466,9 @@ extension SwiftDeclarationPrinter {
         let staticSpecialization: GenericArgumentBinding? = typeDefinition.isSpecialized ? typeDefinition.staticSpecialization : nil
         let fieldLayoutRenderer = FieldLayoutRenderer(type: typeContext, metadata: typeDefinition.metadata, genericArgumentBinding: staticSpecialization, machO: machO, configuration: renderConfiguration)
         let fieldRecords = try typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.fieldDescriptor(in: machO.context).records(in: machO.context)
-        let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
+        // The generated computed properties carry no layout comments: those
+        // describe their storage.
+        let fieldOffsets = isEnum || selection == .observableMacroComputedProperties ? nil : fieldLayoutRenderer.fieldOffsets
 
         // Specialized definitions substitute each field's generic-parameter
         // references through the runtime metadata (`var value: A` →
@@ -413,10 +480,11 @@ extension SwiftDeclarationPrinter {
 
         let enumLayout = isEnum ? await fieldLayoutRenderer.enumLayout : nil
 
+        var fieldBlock = ModelFieldBlock()
         // Type-level enum prologue (Enum Layout strategy + spare-bit summary),
         // emitted once before the cases — mirrors `EnumDumper.fields`.
-        if isEnum {
-            await fieldLayoutRenderer.enumPrefixComments(enumLayout: enumLayout)
+        if isEnum, selection == .typeBody {
+            fieldBlock.prologue = await fieldLayoutRenderer.enumPrefixComments(enumLayout: enumLayout)
         }
 
         // Exported-only filter (evolution proposal
@@ -436,52 +504,140 @@ extension SwiftDeclarationPrinter {
         // member variable `x` renders instead; when `x`'s accessors are
         // stripped, `_x` stays in the list and the recovered declaration
         // prints in its place (`synthesizedPropertyWrapperMembers(of:)`).
+        // When marking, a field the filter rules out renders too, visible
+        // only while the filter is off, and the trailing break is visible
+        // whenever any field is (evolution proposal
+        // `exported-only-marking-mode`).
+        // In an `@Observable` class (evolution proposal
+        // `observable-macro-folding`) the registrar prints with the expansion
+        // only; a tracked property's storage prints as the property in the
+        // folded form and as itself in the expansion, and a stored `var` the
+        // macro left alone with `@Observation.ObservationIgnored` in the folded
+        // form. Marking, both forms print, each where its option value shows it.
         let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: typeDefinition)
-        let renderedFields = Array(typeDefinition.fields.enumerated()).filter { !$0.element.flags.contains(.isArtificial) && !synthesizedPropertyWrapperMembers.hiddenFieldNames.contains($0.element.name) && (isEnum || !isExcludedByExportFilter(field: $0.element)) }
-        for (offset, indexedField) in renderedFields.offsetEnumerated() {
-            let fieldIndex = indexedField.offset
-            let field = indexedField.element
-            BreakLine()
+        let folding = observableMacroFolding(of: typeDefinition)
+        var renderedFields: [(index: Int, field: FieldDefinition, visibility: VisibilityCondition, form: ModelFieldForm)] = []
+        for (fieldIndex, field) in typeDefinition.fields.enumerated() {
+            guard !field.flags.contains(.isArtificial), !synthesizedPropertyWrapperMembers.hiddenFieldNames.contains(field.name) else { continue }
+            let exportVisibility: VisibilityCondition? = isEnum ? .always : exportFilterVisibility(excluded: isExcludedByExportFilter(field: field))
+            switch selection {
+            case .observableMacroExpansion:
+                guard folding.isExpansionOnly(field) || folding.trackedProperty(storedIn: field) != nil, let exportVisibility else { continue }
+                renderedFields.append((fieldIndex, field, exportVisibility, .asDeclared))
+            case .observableMacroComputedProperties:
+                guard let trackedProperty = folding.trackedProperty(storedIn: field),
+                      let visibility = trackedPropertyExportVisibility(trackedProperty, storedIn: field, folding: folding)
+                else { continue }
+                renderedFields.append((fieldIndex, field, visibility, .generatedComputedProperty(trackedProperty)))
+            case .typeBody:
+                if !folding.hasExpansion || isEnum {
+                    if let exportVisibility {
+                        renderedFields.append((fieldIndex, field, exportVisibility, .asDeclared))
+                    }
+                } else if folding.isExpansionOnly(field) {
+                    if let visibility = combinedVisibility(exportVisibility, macroExpansionVisibility()) {
+                        renderedFields.append((fieldIndex, field, visibility, .asDeclared))
+                    }
+                } else if let trackedProperty = folding.trackedProperty(storedIn: field) {
+                    // The folded property is ruled on by the computed property
+                    // the macro generated, the storage by its own accessors.
+                    let foldedExportVisibility = trackedPropertyExportVisibility(trackedProperty, storedIn: field, folding: folding)
+                    if let visibility = combinedVisibility(foldedExportVisibility, foldedMacroVisibility()) {
+                        renderedFields.append((fieldIndex, field, visibility, .trackedProperty(trackedProperty)))
+                    }
+                    if let visibility = combinedVisibility(exportVisibility, macroExpansionVisibility()) {
+                        renderedFields.append((fieldIndex, field, visibility, .asDeclared))
+                    }
+                } else if folding.ignoredStoredPropertyNames.contains(field.name) {
+                    if let visibility = combinedVisibility(exportVisibility, foldedMacroVisibility()) {
+                        renderedFields.append((fieldIndex, field, visibility, .observationIgnored))
+                    }
+                    if let visibility = combinedVisibility(exportVisibility, macroExpansionVisibility()) {
+                        renderedFields.append((fieldIndex, field, visibility, .asDeclared))
+                    }
+                } else if let exportVisibility {
+                    renderedFields.append((fieldIndex, field, exportVisibility, .asDeclared))
+                }
+            }
+        }
+
+        @SemanticStringBuilder
+        func fieldContent(atIndex fieldIndex: Int, field: FieldDefinition, form: ModelFieldForm) async throws -> SemanticString {
             let fieldRecord = fieldRecords[safe: fieldIndex]
             let mangledTypeName = try fieldRecord?.mangledTypeName(in: machO.context)
             // Per-record metadata comments (single source of truth with the
             // `SwiftDump` dumpers): struct/class fields get the offset +
             // type-layout block; enum cases get the type-layout + enum-layout
-            // block.
-            if let mangledTypeName {
+            // block. A generated computed property has no storage of its own.
+            let isGeneratedComputedProperty: Bool = {
+                guard case .generatedComputedProperty = form else { return false }
+                return true
+            }()
+            if let mangledTypeName, !isGeneratedComputedProperty {
                 if isEnum {
                     try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: fieldIndex, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
                 } else {
                     try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: fieldIndex, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
                 }
             }
-            // A non-final stored `var`'s getter/setter occupy vtable slots
-            // (evolution proposal 0006) — surface them with the same comment
-            // the computed members get, so a stored property without any
-            // vtable comment genuinely is statically dispatched rather than
-            // silently unattributed (issue #106 §1).
-            if !isEnum {
-                for accessor in field.accessors {
+            // A tracked property printed in place of its storage carries the
+            // computed property's accessors: where its slots and code are.
+            let trackedMemberVariable: VariableDefinition? = {
+                switch form {
+                case .trackedProperty(let trackedProperty), .generatedComputedProperty(let trackedProperty):
+                    return folding.trackedMemberVariablesByName[trackedProperty.name]
+                case .asDeclared, .observationIgnored:
+                    return nil
+                }
+            }()
+            if let trackedMemberVariable {
+                for accessor in trackedMemberVariable.accessors {
                     if let accessorVTableOffset = accessor.vtableOffset {
                         renderConfiguration.optionalContent(.printVTableOffset) {
                             renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
                         }
                     }
+                    if let addressString = memberAddressString(forOffset: accessor.symbol.offset) {
+                        optionalContent(.printMemberAddress) {
+                            Indent(level: level)
+                            AddressComment(addressString: addressString, label: accessor.kind.addressLabel, emit: true, marksStructure: marksCommentStructure)
+                            BreakLine()
+                        }
+                    }
                 }
-            }
-            // Export status for stored `var`s whose accessor group joined
-            // (evolution proposal 0008): a field with no accessor symbols
-            // stays silent — "not checked", never "confirmed exported"; the
-            // header digest states this explicitly. The same two exemptions
-            // as `renderMember`: `override` accessors link through the
-            // parent's dispatch thunk, and an `@objc` accessor (identified
-            // by its `To` thunk's presence in the symbol population)
-            // dispatches through objc_msgSend.
-            if !isEnum, configuration.printExportStatus, !field.accessors.isEmpty, !field.isOverride {
-                @Dependency(\.symbolIndexStore) var symbolIndexStore
-                let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
-                if !hasObjCEntryPoint, exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false {
+                let objcFacts = trackedMemberVariable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
+                if configuration.printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC, exportVerdict(forSymbolNames: trackedMemberVariable.accessors.map(\.symbol.name)) == false {
                     renderConfiguration.exportStatusComment()
+                }
+            } else if !isGeneratedComputedProperty {
+                // A non-final stored `var`'s getter/setter occupy vtable slots
+                // (evolution proposal 0006) — surface them with the same comment
+                // the computed members get, so a stored property without any
+                // vtable comment genuinely is statically dispatched rather than
+                // silently unattributed (issue #106 §1).
+                if !isEnum {
+                    for accessor in field.accessors {
+                        if let accessorVTableOffset = accessor.vtableOffset {
+                            renderConfiguration.optionalContent(.printVTableOffset) {
+                                renderConfiguration.vtableOffsetComment(slotOffset: accessorVTableOffset, label: accessor.kind.addressLabel)
+                            }
+                        }
+                    }
+                }
+                // Export status for stored `var`s whose accessor group joined
+                // (evolution proposal 0008): a field with no accessor symbols
+                // stays silent — "not checked", never "confirmed exported"; the
+                // header digest states this explicitly. The same two exemptions
+                // as `renderMember`: `override` accessors link through the
+                // parent's dispatch thunk, and an `@objc` accessor (identified
+                // by its `To` thunk's presence in the symbol population)
+                // dispatches through objc_msgSend.
+                if !isEnum, configuration.printExportStatus, !field.accessors.isEmpty, !field.isOverride {
+                    @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
+                    let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
+                    if !hasObjCEntryPoint, exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false {
+                        renderConfiguration.exportStatusComment()
+                    }
                 }
             }
             let substitutedTypeNode: Node? = {
@@ -503,20 +659,59 @@ extension SwiftDeclarationPrinter {
                 // `EnumDumper` gating — so a `Void` payload keeps its
                 // parentheses and both paths spell the same case.
                 try await printThrowingEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
+            } else if case .trackedProperty(let trackedProperty) = form {
+                if trackedProperty.origin == .synthesized {
+                    // The storage's comments above describe the property's
+                    // storage; the declaration is the source's, recovered from it.
+                    comment(.note(FieldRecordRendering.synthesizedTrackedPropertyComment(backingFieldName: field.name)), as: .note)
+                    BreakLine()
+                    Indent(level: level)
+                }
+                let declaration = try await printThrowingTrackedProperty(trackedProperty, storedIn: field, memberVariable: trackedMemberVariable, level: level, substitutedTypeNode: substitutedTypeNode)
+                // The anchor a host places this property's expansion part below.
+                if configuration.marksAttachedMacros {
+                    AnnotationRegion(.attachedMacroTrackedProperty(.observable, named: trackedProperty.name), content: declaration)
+                } else {
+                    declaration
+                }
+            } else if case .generatedComputedProperty(let trackedProperty) = form {
+                if trackedProperty.origin == .synthesized {
+                    // The image keeps none of the computed property's
+                    // accessors; the macro wrote it all the same.
+                    comment(.note(FieldRecordRendering.synthesizedTrackedPropertyComment(backingFieldName: field.name)), as: .note)
+                    BreakLine()
+                    Indent(level: level)
+                }
+                try await printThrowingTrackedProperty(trackedProperty, storedIn: field, memberVariable: trackedMemberVariable, level: level, substitutedTypeNode: substitutedTypeNode)
+                Space()
+                observableTrackedPropertyAccessorBlock(for: trackedProperty, level: level)
             } else if let synthesizedWrappedProperty = synthesizedPropertyWrapperMembers.synthesizedDeclaration(inPlaceOfField: field) {
                 // The field's layout comments above still describe this
                 // storage; the declaration is the source's, recovered from it.
-                Comment(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name))
+                comment(.note(FieldRecordRendering.synthesizedWrappedPropertyComment(backingFieldName: field.name)), as: .note)
                 BreakLine()
                 Indent(level: level)
-                try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level)
+                let isObservationIgnored: Bool = {
+                    guard case .observationIgnored = form else { return false }
+                    return true
+                }()
+                if isObservationIgnored {
+                    try await observationIgnoredAttribute(level: level)
+                }
+                try await printThrowingSynthesizedWrappedProperty(synthesizedWrappedProperty, level: level, placesAttributeOnItsOwnLine: isObservationIgnored)
             } else {
+                if case .observationIgnored = form {
+                    try await observationIgnoredAttribute(level: level)
+                }
                 try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
             }
-            if offset.isEnd {
-                BreakLine()
-            }
         }
+
+        for renderedField in renderedFields {
+            let content = try await fieldContent(atIndex: renderedField.index, field: renderedField.field, form: renderedField.form)
+            fieldBlock.fields.append((renderedField.field.name, renderedField.visibility, content))
+        }
+        return fieldBlock
     }
 
     // MARK: - Local types (evolution proposal `local-type-context-names`)

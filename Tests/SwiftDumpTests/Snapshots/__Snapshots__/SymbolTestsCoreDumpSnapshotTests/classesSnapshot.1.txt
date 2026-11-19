@@ -34,7 +34,7 @@ class SymbolTestsCore.Classes.ExternalObjCSubclassTest: NSObject {
     SymbolTestsCore.Classes.ExternalObjCSubclassTest.init() -> SymbolTestsCore.Classes.ExternalObjCSubclassTest // overrides -[NSObject init] (To thunk symbol at the IMP)
 
     /* Function */
-    SymbolTestsCore.Classes.ExternalObjCSubclassTest.isKind(of: Swift.AnyObject.Type) -> Swift.Bool // overrides -[NSObject isKindOfClass:] (To thunk symbol at the IMP)
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.isKind(of: any Swift.AnyObject.Type) -> Swift.Bool // overrides -[NSObject isKindOfClass:] (To thunk symbol at the IMP)
 }
 class SymbolTestsCore.Classes.ClassTest {
     /* [Getter] */ SymbolTestsCore.Classes.ClassTest.instanceVariable.getter : Swift.Bool

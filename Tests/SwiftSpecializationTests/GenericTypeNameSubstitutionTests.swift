@@ -6,10 +6,10 @@ import Foundation
 import Testing
 import MachOKit
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 @_spi(Internals) import SwiftInspection
 
 // MARK: - Pure helper unit tests (no fixture)

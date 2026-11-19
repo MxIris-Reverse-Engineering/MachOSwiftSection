@@ -42,8 +42,17 @@
 
 **这也是不要靠 bind 来判定墓碑的原因之一**：离线读一个 Resilient 策略的类，`MachOFile` 里只有 metadata pattern，根本没有 vtable word 可读——判据必须回到 descriptor 的 null 本身。
 
+**墓碑只说明槽指向的那个入口没有代码，不说明成员没有代码**：整模块优化的 app 里，一个 `@objc` 方法的槽可以是墓碑而它的 ObjC thunk 还在（Swift 函数体内联进了 thunk），一个 initializer 的 `__allocating_init` 槽可以是墓碑而它的 initializing entry point（`…fc`）还在。这两种成员由替身成员符号补建，槽号经节点联结照常挂上（见 thunk-only member）。
+
 - **主要出现在**：`ClassDumper` 的 vtable 循环、`DeclarationRenderConfiguration.deletedMethodSlotComment`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[PR #123 review findings 第 1 条](../Roadmaps/2026-09-06-pr123-review-findings.md)
+
+### address symbolication（地址符号化）
+
+回答「这个未滑动地址是什么」：落在哪个镜像的哪个段与节，以及在那里的意思——某个函数体里、离起点多远（函数名的来源与列函数时相同，含 ObjC 方法表与 Swift 元数据给的后备名），一个桩或一串 stub island 以及最终通向哪里，一个指针槽（GOT、selector / class / superclass / protocol 引用、ivar 偏移变量）以及里面装的东西，一个 C 字符串或 `CFString`，或者最近的符号加偏移。结构由核心层的 `AddressPlace` 判断，语言层知道的（selector、类、ivar、Swift 类型）由门面补上。`dyld_info` 在 macOS 26 的 SwiftUICore 上给两千多个桩标错名，原因是它按间接符号表认桩，而符号化按桩实际加载的槽认。
+
+- **主要出现在**：`CrossReferenceAnalyzer.symbolication(of:)`、`swift-section symbolicate`、RuntimeViewer 的 `symbolicate` 命令与 `Symbolicate` MCP 工具
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「地址符号化」
 
 ### anchor 协议（anchor protocol）
 
@@ -56,35 +65,56 @@
 
 一个 dylib load name（`@rpath/Foo.framework/Versions/A/Foo`、`/usr/lib/libobjc.A.dylib`）归约成的镜像名：末段路径去**第一个**扩展名（`Foo`、`libobjc`）。这是与 MachOKit 的契约——`MachOImage(name:)` 对进程内每个镜像的路径做同一归约再比较，把未归约的 load name 喂给它永远匹配不到。它也是所有依赖集合的去重键：同一个库会被不同镜像以不同拼写链接，只有裸名跨拼写稳定。
 
-- **主要出现在**：`Sources/MachO/MachODependencies/DependencyLoadName.swift`、`DependencyClosure`、`FileDependencyLocator`
-- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md) §2
+- **主要出现在**：MachOKitExtensions `Sources/MachODependencies/DependencyLoadName.swift`、`DependencyClosure`、`FileDependencyLocator`
+- **延伸阅读**：MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md) §2
 
 ### bucket（桶）
 
 分类索引里「一个键对应的一组符号表行号」（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。旧形态是 `[UInt32]` 小数组——绝大多数桶只有一个元素，却各付一次堆分配；提案 0003 落地后值形态为 `SymbolRowBucket`（单元素内联于字典槽，第二个元素起才落堆数组），迭代序保持插入序。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachO/MachOSymbols/SymbolRowBucket.swift`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`、MachOKitExtensions `Sources/MachOSymbols/SymbolRowBucket.swift`
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 
 ### cache scope（缓存范围，`ReadingContextCacheScope`）
 
 一个 `ReadingContext` 声明的「按它读出来的东西，memo 缓存该存到哪一层」：`.image(identifier:)` 按镜像存（键就是 reader 的 `identifier`，与其它按镜像缓存同一个键，随镜像一起驱逐），`.process` 存进全进程共享的一层（地址是绝对地址，两个镜像不会撞），`.uncached` 不缓存。`MachOContext` 声明 `.image`，`InProcessContext` 声明 `.process`，其余实现默认 `.uncached`——以文件偏移为地址的第三方 context 如果落进全进程那层，两个镜像的偏移会互相串结果。反混淆 memo（`SymbolicDemanglerCache`）与节点驻留池（`InternedNodeReferenceCache`）按它选层。
 
-- **主要出现在**：`Sources/MachO/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/MachO/MachOSymbols/InternedNodeReferenceCache.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOReading/ReadingContext/ReadingContext.swift`、`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`、`Sources/Symbols/SwiftSymbols/InternedNodeReferenceCache.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### cache-shared stub（全缓存共用桩）
 
 macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__objc_stubs` / `__auth_stubs`（这两个段在镜像里大小为 0），而是把桩收成整个缓存共用的一份，放在不属于任何镜像的区域：ObjC 消息走 selector 桩（`adrp x1; add x1; b <objc_msgSend 副本>`，`x1` 就是 selector 字符串），跨库调用走 GOT 桩（`adrp x17; add x17; ldr x16, [x17]; braa x16, x17`）。同一个 selector 在不同子缓存里各有一份桩，所以认 selector 要以字符串地址为键。与 stub island 的区别：island 自己算出目标、不读槽位。macOS 26、iOS 26 及更早，以及 Simulator 的缓存仍是镜像自带的桩。
 
-- **主要出现在**：`Sources/Support/ARM64InstructionDecoding/ARM64Trampoline.swift`、`Sources/Analysis/CrossReferenceAnalysis/Scanning/ReferenceScanner.swift`
+- **主要出现在**：MachOKitExtensions 的 `Sources/ARM64InstructionDecoding/ARM64Trampoline.swift`、MachOKitExtensions 的 `Sources/MachOCodeReferences/Scanning/ReferenceScanner.swift`
 - **延伸阅读**：[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)、[0072-cross-reference-analysis](Evolutions/0072-cross-reference-analysis.md)
+
+### category conformance（category 遵循，`ObjCCategoryConformance`）
+
+本镜像 extension 别的模块的类（ObjC 类，或别的模块的 Swift 类）时采纳的 ObjC 协议，记在那个 extension 的 category 的协议表里，没有 Swift 的 conformance record。interface 把每个 category 打成一个 `extension X: P {}`。与类头部列出的 ObjC 协议的区别：同一模块里的 extension 会被编译器并进类自己的 `class_ro_t`，那些遵循打在类头部，不算 category 遵循。
+
+- **主要出现在**：`Sources/Declaration/SwiftDeclaration/Model/ObjCCategoryConformance.swift`、`Sources/Analysis/SwiftObjCInterop/ObjCProtocolAdoptionIndex.swift`
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
+
+### category merging（category 并进类）
+
+同一镜像里给本镜像的类写的 category 不会以 category 的形式留下来：同模块 Swift extension 的成员由编译器直接并进类，其余的（ObjC 写的 category、Swift 给 ObjC 类写的 extension、`@objc(Name) @implementation extension`）由链接器并进类自己的表，`__objc_catlist` 里不再有它们，事后也分不出哪些成员来自 category。所以本库读到的 category 只有给别的镜像的类写的那些；`ObjCImplementationFixture` 整个没有 `__objc_catlist`。别与 dyld cache 的「预先附加」混淆：那是构建 cache 时把 category（含别的镜像的）挂到类上，类的表变成「多张表的表」，类自己的那张仍分得出来。
+
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedContainerIndex.swift`、`ObjCImplementationClassIndex.swift` 的 `importedMethods(of:)`
+- **延伸阅读**：[0090-objc-imported-declarations](Evolutions/0090-objc-imported-declarations.md)
+
+### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
+
+`__objc_classlist` 里没有 class object 的 Swift 类：泛型类，父类在别的 resilience domain 的类，父类是本模块泛型类的类。它们的 `class_ro_t` 都静态存在，但只有经 Swift 元数据才找得到（generic metadata pattern、`ResilientClassMetadataPattern`、静态的 incomplete metadata）。后两种有 ObjC 祖先时还在 `__objc_stublist` 里登记一个 stub。交给 MachOObjCSection 时它们叫 supplied class（`ObjCSuppliedClass`），即宿主补进 ObjC 索引器的类。与 `@objc @implementation` 类的区别：那种类有 class object，没有的是 Swift 元数据。
+
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/SwiftClassWithoutClassObjectIndex.swift`、`Sources/Declaration/SwiftIndexing/ObjCSuppliedClass+SwiftClassesWithoutClassObjects.swift`
+- **延伸阅读**：[ClassesWithoutClassObjects.md](Internal/ClassesWithoutClassObjects.md)、[0078-objc-classes-without-class-objects](Evolutions/0078-objc-classes-without-class-objects.md)
 
 ### context form / Mach-O form / pointer form（读取接口的三种形式）
 
-同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现，另外两种是 0.22.0 废弃、0.25.0 删除的一行转发（`machO.context` / `.inProcess`）。
+同一个读取接口曾经最多有三份手写实现：context form 收 `some ReadingContext`（`name(in: context)`、静态 `resolve(at:in:)`），Mach-O form 收一个 Mach-O reader、按偏移读（`name(in: machO)`、`resolve(from:in:)`），pointer form 不收读取器、直接用裸指针读本进程内存（`name()`、`resolve(from: pointer)`）。2026-09-30 起 context form 是唯一实现；另外两种改成一行转发（`machO.context` / `.inProcess`），0.22.0 废弃，0.25.0 删除。
 
-- **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、`Sources/MachO/MachOPointers/`、`Sources/MachO/MachOResolving/Resolvable.swift`
+- **主要出现在**：`Sources/ABI/MachOSwiftSection/Models/`、MachOKitExtensions `Sources/MachOPointers/`、MachOKitExtensions `Sources/MachOResolving/Resolvable.swift`
 - **延伸阅读**：[提案 0057](Evolutions/0057-reading-context-migration.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### depth（泛型参数层号，`GenericParameterDepthLayout`）
@@ -98,21 +128,21 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 
 一个 root 二进制经 `LC_LOAD_DYLIB` 家族 load command 解析出的依赖镜像集合（`MachODependencies.DependencyClosure`）。本项目里的「闭包」默认指**传递**闭包：BFS 递归、按裸镜像名去重、root 排除、解析顺序是契约的一部分（`SwiftLayout.ImageUniverse` 按此顺序惰性索引、命中即停）。同一类型也承载 `.direct` 遍历（只取 root 自己的一层），`SwiftInterfaceBuilderDependencies` 用的是这一种——名字里的「闭包」在那里只是复用同一个结果类型。定位不到的依赖记入 `unresolvedLoadNames`，不算失败。
 
-- **主要出现在**：`Sources/MachO/MachODependencies/DependencyClosure.swift`、`Sources/Analysis/SwiftLayout/ImageUniverse+DependencyClosure.swift`
-- **延伸阅读**：[Modules/MachODependencies.md](Internal/Modules/MachODependencies.md)、[StaticLayoutDependencyClosure.md](Internal/StaticLayoutDependencyClosure.md)
+- **主要出现在**：MachOKitExtensions `Sources/MachODependencies/DependencyClosure.swift`、`Sources/Analysis/SwiftLayout/ImageUniverse+DependencyClosure.swift`
+- **延伸阅读**：MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md)、[StaticLayoutDependencyClosure.md](Internal/StaticLayoutDependencyClosure.md)
 
 ### derived symbol forms（派生符号形态）
 
 一个成员实现符号经追加后缀派生出的入口符号：`Tj`（dispatch thunk）、`Tq`（method descriptor）、`Tu`（async function pointer）、`TjTu`。library-evolution 构建的常态是**实现符号不导出、`Tj` 导出**（外部调用方经 thunk 派发），所以判断成员导出状态必须查全形态（`isExportedIncludingDerivedSymbols`）——裸查实现符号会把整个 resilient 库误判为未导出。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`
 - **延伸阅读**：[提案 0008](Evolutions/0008-interface-header-and-export-status-annotations.md)、[InterfaceHeaderAndExportStatusAnnotations.md](Internal/InterfaceHeaderAndExportStatusAnnotations.md)
 
 ### descriptor-only member（只剩 method descriptor 符号的成员）
 
 class 的 vtable 成员里，实现函数没有符号、只剩它自己 method descriptor 的 `Tq` 符号能说出它是谁的那一类。library-evolution 构建本来就只导出 `Tj` / `Tq`，实现符号保持 local（见上一条 derived symbol forms），所以镜像的 local 符号一旦被剥掉——系统 dyld shared cache 里的 AppKit、`strip -x` 过的二进制——public 的 class 方法和访问器就全都属于这一类：macOS 26.7 的 AppKit 因此在 interface 里少了 53 个成员。「实现符号没导出」不等于「没符号」：同一份 cache 里的 SwiftUI、SwiftUICore、Foundation 保留了 local 符号，不属于这一类。协议 requirement 也有 `Tq`，但它们从协议描述符打印，也不在此列。interface 过去只从实现符号建成员，这一类整个缺席；现在 `classDispatchLookups` 为每个有 `Tq`、实现指针非 null 的槽造一个成员符号（名字是 `Tq` 名去掉后缀，也就是实现函数本来的 mangled 名；偏移是 descriptor 记录的实现偏移，async 方法再跳一次到函数入口），`indexMembers` 在实现符号没有声明这个成员时用它补建。
 
-和 ABI 墓碑的区别：墓碑的实现指针是 null，镜像里根本没有这个成员的代码，所以不补建；descriptor-only member 的代码还在，只是没有名字。
+和 ABI 墓碑的区别：墓碑的实现指针是 null，槽指向的入口在镜像里没有代码，所以不从槽补建；descriptor-only member 的代码还在，只是没有名字。墓碑槽的成员若还剩 `@objc` thunk 或 initializing entry point，由那一边的替身补建（见 thunk-only member）。
 
 - **主要出现在**：`TypeDefinition+ClassDispatch.swift`、`ClassDispatchLookups.vtableSlotMemberSymbols`、`TypeDefinition+MemberIndexing.swift`
 - **延伸阅读**：[提案 0054-interface-descriptor-only-vtable-members](Evolutions/0054-interface-descriptor-only-vtable-members.md)
@@ -121,7 +151,7 @@ class 的 vtable 成员里，实现函数没有符号、只剩它自己 method d
 
 把一个查询期 vend 出来的 `DemangledSymbol` 从共享 `SymbolTable` 上摘下来、换成自带单行表的独立值。共享表对「vend 十万个、随手丢弃」是正确的取舍，但**存进声明模型的长命值必须先 detach**——一个存活值会把整张表（几十万行 + 对镜像映射内存的引用）钉在内存里，让按镜像回收失效。六个存储点由 `SymbolTableRetentionTests` 钉住；查询路径**不要** detach。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/DemangledSymbol.swift`、AGENTS.md「Symbol indexing」段
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/DemangledSymbol.swift`、AGENTS.md「Symbol indexing」段
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
 ### 等价类塌缩（equivalence-class collapse）
@@ -133,11 +163,11 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 
 ### eviction group（驱逐分组）、claim（认领）、live owner（活持有者）
 
-按镜像缓存的三个所有权概念（`MachOCaches.SharedCacheRegistry`，2026-09-28 提案 `0053-shared-cache-composition-and-eviction-registry`）。**eviction group** 是一个 `SharedCache` 在创建时声明的家族（`SharedCacheEvictionGroup`，只有名字的结构体；`MachOCaches` 不定义任何家族，各模块在自己的扩展里声明 `symbolStore`、`internedNames`、`demangleMemo`、`objcHierarchy`……），一个镜像的缓存按家族而不是按 cache 驱逐；条目引用着别的家族存储的 cache 在创建时用 `follows:` 声明跟谁走（`symbolicMangling` / `objcImplementationClasses` / `objcHierarchy` / `objcAncestorResolver` 跟 `symbolStore`，`demangleMemo` 跟 `internedNames`），因为单独留下它们什么都释放不了；注册表据此反向建表、传递展开。**live owner** 是向注册表登记「我在用这个镜像的缓存」的对象，今天只有 `SwiftDeclarationIndexer`；**claim** 是它登记时在注册表锁内采样得到的「这个镜像还没有条目的家族」——那些是它即将建的，由它负责；镜像的最后一个 live owner 注销时驱逐它们认领的家族及其 dependents，提早注销的什么都不清。非持有者（渲染器、SwiftLayout）在登记之前填的条目永远不被认领。
+按镜像缓存的三个所有权概念（`MachOCaches.SharedCacheRegistry`，2026-09-28 提案 `0053-shared-cache-composition-and-eviction-registry`）。**eviction group** 是一个 `SharedCache` 在创建时声明的家族（`SharedCacheEvictionGroup`，只有名字的结构体；`MachOCaches` 不定义任何家族，各模块在自己的扩展里声明 `swiftSymbolStore`、`internedNames`、`demangleMemo`、`objcHierarchy`……），一个镜像的缓存按家族而不是按 cache 驱逐；条目引用着别的家族存储的 cache 在创建时用 `follows:` 声明跟谁走（`symbolicMangling` / `objcImplementationClasses` / `objcHierarchy` / `objcAncestorResolver` 跟 `swiftSymbolStore`，`demangleMemo` 跟 `internedNames`），因为单独留下它们什么都释放不了；注册表据此反向建表、传递展开。**live owner** 是向注册表登记「我在用这个镜像的缓存」的对象，今天只有 `SwiftDeclarationIndexer`；**claim** 是它登记时在注册表锁内采样得到的「这个镜像还没有条目的家族」——那些是它即将建的，由它负责；镜像的最后一个 live owner 注销时驱逐它们认领的家族及其 dependents，提早注销的什么都不清。非持有者（渲染器、SwiftLayout）在登记之前填的条目永远不被认领。
 
 - **不要混淆**：`evict(groups:for:)` 是显式驱逐，只清点名的家族、不展开 followers；followers 只在最后一个持有者注销时展开。「内存压力驱逐」已不存在，宿主要清就调 `evictImagesWithoutLiveOwners()`。
-- **主要出现在**：`Sources/MachO/MachOCaches/SharedCacheRegistry.swift`、`Sources/MachO/MachOCaches/SharedCacheEvictionGroup.swift`、各模块的 `SharedCacheEvictionGroup+<模块>.swift`、`Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift`（`prepare()` 与 `deinit`）
-- **延伸阅读**：[Modules/MachOCaches.md](Internal/Modules/MachOCaches.md)
+- **主要出现在**：MachOKitExtensions `Sources/MachOCaches/SharedCacheRegistry.swift`、`Sources/MachOCaches/SharedCacheEvictionGroup.swift`、各模块的 `SharedCacheEvictionGroup+<模块>.swift`、`Sources/Declaration/SwiftIndexing/SwiftDeclarationIndexer.swift`（`prepare()` 与 `deinit`）
+- **延伸阅读**：MachOKitExtensions 的 [SharedCache.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/SharedCache.md)
 
 ### export status（导出状态标注，`// not exported`）
 
@@ -148,10 +178,10 @@ Requirement Machine 最小化泛型签名时，把 pin 到同一具体类型的�
 
 ### exported-only 过滤（`--exported-only`，`printExportedDeclarationsOnly`）
 
-export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底）裁决，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。
+export status 的**过滤形态**：interface 只输出镜像导出的声明。类型 / 协议按描述符符号（`…Mn` / `…Mp`，优先取描述符 offset 处的符号，重整名只兜底；都判不了时私有或局部声明算未导出）裁决，Swift 声明的 `@objc` 协议没有描述符、私有的算未导出，成员沿用 export status 的派生形态判定，扩展按「被扩展类型 / 遵循协议是否为本镜像内未导出声明」裁决（依据 **`ExportFilterScope`**——`printRoot` 从索引器表算出的本镜像内未导出 `TypeName` / `ProtocolName` 集合）。只在判定为 `false` 时删，`nil` 一律保留（绝不靠猜删）；普通扩展被清空则整块删，conformance 扩展留 `{}`。与 export status 是同一个事实的两种呈现：删除条件即标注条件，两开关同开输出零标注。C 导入类型（`__C` 模块）不裁决：它的描述符是本镜像自己的副本。标记模式下被删的内容照常打出，条件是 `swift.printExportedDeclarationsOnly` 关着。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ExportFilter.swift`、`SwiftInterfaceBuilder.printRoot()`
-- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
+- **延伸阅读**：[提案 0016](Evolutions/0016-exported-only-interface.md)、[提案 0083](Evolutions/0083-exported-only-marking-mode.md)、[ExportedOnlyInterfaceFiltering.md](Internal/ExportedOnlyInterfaceFiltering.md)
 
 ### emission strategy（发射策略）
 
@@ -167,6 +197,20 @@ linker 把字节相同的函数体合并到同一地址的优化。后果是「�
 - **主要出现在**：`Descriptor+MethodDescriptorSymbols.swift`、`ClassDumper`、`TypeDefinition.index`、`FinalKeywordICFRegressionTests`、`VTableSlotAttributionTests`
 - **延伸阅读**：[提案 vtable-slot-attribution](Evolutions/0020-vtable-slot-attribution-via-method-descriptor-symbols.md)、[提案 0006](Evolutions/0006-final-keyword-and-lazy-accessor-type-recovery.md)
 
+### image group（image 组）与 move（搬家）
+
+evolution 里组成一个版本的一组 image，主 image 在前：Apple 拆过的框架以组为单位比较，例如 SwiftUI 与 SwiftUICore（macOS 15 起）、AppKit 与 UIFoundation、CollectionViewCore、CoreAutoLayout。组里的声明合成一个 API 面，一个声明从一个 image 挪到另一个 image（SwiftUI 的类型带 `@_originallyDefinedIn` 挪进 SwiftUICore，mangled name 不变）不再读成删除加新增，而是记一条 **move**：两侧都观测到它在场、所在的 image 不同，报告写 `> moved in 15.0: SwiftUI → SwiftUICore`。只跟着容器一起挪的成员不另记；move 不进兼容性判定。组里定义了的类型，另一个 image 给它加的普通 extension 并回类型本体比较。
+
+- **主要出现在**：`Sources/Output/SwiftDiffing/ImageGroups.swift`（`ABIImageSnapshot`、`ImageMove`、`MergedImageGroup`）、`ABIEvolutionBuilder.evolution(ofImageGroups:versions:)`、`Sources/Output/SwiftInterface/InterfaceVersionRendering.swift`（`InterfaceVersionGroupUnit`）；ObjC 一侧在 MachOObjCSection 的 `ObjCDiffing`（`ObjCAPIImageSnapshot`、`ObjCImageMove`）
+- **延伸阅读**：[提案 0082](Evolutions/0082-image-group-evolution.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第七批
+
+### implied ObjC protocol（隐含的 ObjC 协议）
+
+类遵循一个继承了 ObjC 协议的 Swift 协议时（`protocol CopyingRefinement: NSCopying`），编译器也把那个 ObjC 协议记进类（或 category）的协议表（`getObjCProtocols` 的递归），尽管源码没写。interface 不打它，Swift 遵循已经说明了；dump 在类的 `// ObjC protocols:` 一行里标注 `(implied by a Swift conformance)`。只认得出本镜像的 Swift 协议隐含的。
+
+- **主要出现在**：`ObjCProtocolAdoption.impliedProtocolRuntimeNames`（`Sources/Analysis/SwiftObjCInterop/ObjCProtocolAdoptionIndex.swift`）
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)
+
 ### instantiated type name（实例化类型名）
 
 一个泛型类型某个实例化的名字，实参挂在声明对应参数的那一层：`Outer<Swift.Int>.Inner<Swift.String>`、`Outer<Swift.Int>.Middle`。这是运行时 `_buildDemanglingForContext` 给实例化起名的形状；`SymbolicDemangler.instantiatedTypeNode(for:binding:in:)` 移植它，离线特化的结果与在线特化的 `TypeDefinition.typeName` 都用它。不要与把全部实参放进最内层的旧形状（`Outer.Inner<Int, String>`）混淆。
@@ -176,36 +220,43 @@ linker 把字节相同的函数体合并到同一地址的优化。后果是「�
 
 ### large-stack executor（大栈执行器，`LargeStackTaskExecution`）
 
-swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `MachOSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
+swift-demangling 0.6.3 起提供的 `TaskExecutor`（`StackSafeExecutor.taskExecutor`，线程栈 16 MB，`@_spi(Internals)`）。demangler 每次 demangle / print / remangle 都按**调用线程的剩余栈**决定要不要跳到它的 8 MB 线程池——协作线程只有 512 KB，探针永远不过，async 打印循环因此每打印一个符号付一次线程往返；task 跑在大栈执行器的线程上时探针每个入口都通过，全程原地执行、零跳转。本库通过 `SwiftSymbols.LargeStackTaskExecution.run` 在库入口（索引器 prepare、interface builder、printer 逐定义入口、diff / evolution、dump）自装偏好，宿主零改动；macOS 15 / iOS 18 以下静默回退为原样执行。与「跳转池」（demangler 自己的 8 MB `LargeStackThreadPool`，同步 `withLargeStack` 批次用）是两个池：执行器的 job 是整段 task，会占线程上百秒，不能挤占同步跳转的额度。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/LargeStackTaskExecution.swift`、各 async 入口的 `LargeStackTaskExecution.run { … }`
 - **延伸阅读**：[LargeStackTaskExecutorAdoption.md](Internal/LargeStackTaskExecutorAdoption.md)、提案 [0019-large-stack-executor-and-cross-version-parallelism](Evolutions/0019-large-stack-executor-and-cross-version-parallelism.md)、上游 swift-demangling `Documentations/StackSafety.md` 第八节
 
 ### late-name 路径（`lateDemangledNode(forName:)`）
 
 sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage` 自持的一个可追加 side store，名字 → 裁决字典保证一个名字只 demangle 一次（拒绝也缓存为 `nil` 裁决、不再重试）。与主表冻结不可变的性质相对。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`
 
 ### leg（腿，reader-split）
 
 同一逻辑按 reader 类型分出的并行实现路径，口语记作「镜像腿 / 文件腿」：`MachOImage`（进程内映射，符号名可直指 LINKEDIT 字符串表、零拷贝）与 `MachOFile`（离线文件，名字须读进私有缓冲）。0001 的 sweep 收集与名字来源都是按腿分叉的。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）、`Sources/MachO/MachOSymbols/SymbolTable.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolSweep.swift`、`Sources/MachOSymbols/SymbolTable.swift`
 
 ### lifecycle annotation（生命周期注解）
 
-演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。打开 `--emit-available` 时，生命周期能完整写成一条 `@available` 的声明上方还会多一行真属性，它由同一份事实派生，是补充不是替代，注解照旧都在。
+演进并集接口里每条「变过的」声明行尾的注释：`// [●●○] removed in 26.0` —— 存在位图（每版本一位，文件头图例映射位置到版本标签）+ 按 ` · ` 连接的事件短语（added / removed / modified in 版本；modified 带 `旧签名 → 新签名`，两侧文本相同时省略箭头段）。**没有注解本身就是信息**：全程存在且从未变化。注解事实唯一来源是 `ABIEvolution` 的 lineage 查表，渲染器不自行推导。打开 `--emit-available` 时，生命周期能完整写成一条 `@available` 的声明上方还会多一行真属性，它由同一份事实派生，是补充不是替代，注解照旧都在。有版本看不到这条声明时（见 unobservable），位图另用 `◍` / `◌`，短语多出 `inferred present in …`、`not observable in …` 与 `… between A and B`。
 
 - **主要出现在**：`Sources/Output/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
 - **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)、[提案 0060](Evolutions/0060-evolution-interface-available-annotations.md)（`@available` 属性）
 
+### macro folding（宏展开的折叠，folded form / expanded form）
+
+interface 把一个 attached macro 生成的东西收回成源码里的写法：`@Observable` 展开的类印成 `@Observation.Observable` 加普通的 `var x: T`，这是**折叠形态**；`expandsMacros` 打开时照二进制原样印出 registrar、存储 `_x`、computed `x`、生成的方法与 conformance，这是**展开形态**。二进制不记宏本身，只记它生成的东西，所以「这个类用了宏」是从生成物推断出来的（`TypeDefinition.attachedMacros`）。折叠只发生在单版本 interface；模型、dump、diff、evolution 始终是展开形态，dump 另在类头上写出宏的名字。
+
+- **主要出现在**：`SwiftDeclarationPrinter+ObservableMacro.swift`、`TypeDefinition+ObservableMacro.swift`、`ObservableMacroRecognition`
+- **延伸阅读**：[0093-observable-macro-folding](Evolutions/0093-observable-macro-folding.md)
+
 ### marking mode（标记模式，`marksOptionalContent`）
 
-`SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字与全部打开时逐字节相同。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。
+`SwiftDeclarationPrintConfiguration.marksOptionalContent` 为 `true` 时的打印：受显示选项控制的输出（偏移 / 地址 / 布局注释、stripped symbolic item、opaque 类型的约束、按 selector 名推断的 `@objc override`、exported-only 过滤删掉的声明）不再由选项决定打不打，而是全部打出，包进 swift-semantic-string 的 `VisibilityRegion`，条件是对应的 `SwiftVisibilityOption`。条件记在原子的 `identifier` 上，所以文字就是每段受控内容都打出来的全量文字（exported-only 过滤关着）。冻结后拆出区域表，按某组配置的 `isVisibilityOptionEnabled(_:resolvesOpaqueTypes:)` 投影，与按那组配置直接打印（「普通打印」，即该开关为 `false`）完全相同。「可见性区域」「投影」是 swift-semantic-string 的术语，定义见其 `docs/VisibilityRegions.md`；MachOObjCSection 的对应物叫 marked rendering（其提案 0011）。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+VisibilityRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`、`Sources/Output/SwiftDeclarationRendering/DeclarationRenderConfiguration.swift`、`SwiftVisibilityOption.swift`
-- **延伸阅读**：[提案 0056](Evolutions/0056-visibility-regions.md)
+- **延伸阅读**：[提案 0056](Evolutions/0056-visibility-regions.md)；导出过滤进入标记模式：[0083-exported-only-marking-mode](Evolutions/0083-exported-only-marking-mode.md)
 
 ### materialize（物化）
 
@@ -224,15 +275,22 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 `SymbolTable` 里一行的名字字节从哪里读：**mapped 字符串表**（`MachOImage` 行直指镜像 mmap 的 LINKEDIT 字符串表，clean 页、零拷贝，代价是要求镜像保持加载）或**私有缓冲**（`MachOFile` 行与 export-trie 解码名，字节存进表自有的连续缓冲）。`PackedNameReference` 用 1 个 bit 区分两者。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolTable.swift`
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
 ### nested-definition region（定义区域，`marksNestedDefinitions`）
 
-`SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。
+`SwiftDeclarationPrintConfiguration.marksNestedDefinitions` 为 `true` 时，父定义打印结果里每个内联打印的嵌套类型或协议被包进 swift-semantic-string 的 `DefinitionRegion`，身份是名字节点的 mangled name，与 RuntimeViewer 的对象名相同。冻结后用 `separatingDefinitionRegions()` 拆出区域表；对深度为 d 的区域，`content(ofDefinitionRegion:)` 再加 `removingIndentation(levels: d + 1)` 得到的值，与该定义单独打印的结果逐项相同（文本、span、identifier，以及两种分离得到的表）。宿主因此只需打印父定义，不必再单独打印每个嵌套定义。与标记模式同时打开时，定义区域的编码放在可见性标记的内层，两者互不影响。唯一的例外：exported-only 过滤保留、外层却被它过滤掉的嵌套定义，在父定义的标记打印里随外层只在过滤关着时可见，与它单独打印不同，宿主要单独打印它（提案 0083-exported-only-marking-mode）。
 
 - **主要出现在**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+DefinitionRegions.swift`、`SwiftDeclarationPrintConfiguration.swift`
-- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`
+- **延伸阅读**：[提案 0068-nested-definition-regions](Evolutions/0068-nested-definition-regions.md)；swift-semantic-string 的 `docs/DefinitionRegions.md`；例外见 [0083-exported-only-marking-mode](Evolutions/0083-exported-only-marking-mode.md)
+
+### comment structure（注释结构，`marksCommentStructure`）
+
+`SwiftDeclarationPrintConfiguration.marksCommentStructure` 为 `true` 时，打印器给输出的每一条注释标出它是什么：注释包进 swift-semantic-string 的 `AnnotationRegion`，种类（kind）是 `AnnotationRegion.Kind` 的常量（本库扩展的 `memberAddress`、`fieldOffset`……，以及它自带的 `note`）；注释的每一段包进 `AnnotationSegment`，角色（role）是 marker、label、qualifier、separator、key、value、name、type、treePrefix、text 之一。字段偏移树、枚举 case 块、元组 Type Layout、条件 witness 用区域的嵌套表达层级。冻结后 `separatingAnnotationRegions()` 得到与关着时逐个相同的冻结串，外加一张区域与段的表。宿主据此把注释画成标签，不必解析注释文本。
+
+- **主要出现在**：`Sources/Output/SwiftDeclarationRendering/StructuredComment.swift`（每条注释的文字与段）、`AnnotationRegionKind+SwiftComments.swift`（种类清单）、`SwiftDeclarationPrintConfiguration.swift`
+- **延伸阅读**：[提案 0084-comment-structure](Evolutions/0084-comment-structure.md)；swift-semantic-string 的 `docs/AnnotationRegions.md`
 
 ### NodeStore / NodeReference
 
@@ -248,25 +306,53 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 - **主要出现在**：提案 0046-objc-implementation-class-recognition 的判据与证据分级
 - **延伸阅读**：[提案 0046-objc-implementation-class-recognition](Evolutions/0046-objc-implementation-class-recognition.md)
 
+### ObjC imported declaration（ObjC 导入声明，`ObjCImportedClassDefinition` 等）
+
+镜像里的 ObjC 类、category 或协议，按 Swift 导入它们的样子建成的声明，即 Xcode 的 Generated Interface 显示的那种。名字由本库移植的 ClangImporter 命名规则从 selector 与属性名推出，类型取自方法编码、采纳的协议里的扩展编码与属性特性串；Swift 实现的部分（桥接出去的 Swift 类、`@objc @implementation` 类、Swift extension 的成员）照抄 Swift 的声明，Swift 实现的类整个以 Swift 一侧为准（提案 [0096](Evolutions/0096-swift-first-imported-declarations.md)）。与「Swift 声明的 `@objc` 协议」的区别：那是 Swift 源码声明、只有 ObjC 记录的协议，导入声明面向镜像里任意的 ObjC 声明。
+
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedContainerIndex.swift`、`ObjCImportedMemberBuilder.swift`，`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCImported*Definition.swift`，`swift-section objc interface --swift`
+- **延伸阅读**：[0090-objc-imported-declarations](Evolutions/0090-objc-imported-declarations.md)
+
+### recognizer（识别器，`CodeReferenceRecognitionSession`）
+
+交叉引用扫描里认某一种语言的那一层。核心层只认与语言无关的东西（调用、桩、槽、寄存器跟踪、字符串），在五个时机问各语言层的识别会话：进入函数、遇到只有它认得的调用目标、调用点、算出一个地址、读一个槽。ObjC 层认发送、类与 ivar，Swift 层认类型元数据与 mangled name。核心不 import 任何语言层，新语言加识别器即可，不改核心。
+
+- **主要出现在**：MachOKitExtensions 的 `Sources/MachOCodeReferences/Recognition/`、MachOObjCSection 的 `ObjCCodeReferences`、`CrossReferenceAnalysis/Scanning/SwiftCodeReferenceRecognizer.swift`
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、MachOKitExtensions 的 [MachOCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md)
+
+### reference route（引用路线，`CodeReferenceRoute`）
+
+一条交叉引用是怎么到达目标的，与目标是什么无关：直接 `bl` / `b`（`direct`）、本镜像的桩（`imageStub`）、cache 镜像之间的 stub island（`stubIsland`）、全缓存共用桩（`cacheSharedStub`）、经指针槽（`pointerSlot`）、算出地址（`addressMaterialization`）、近距离的字面量 `ldr`（`literalLoad`）、经寄存器（`indirect`）。经桩的调用和直接调用一样真；路线是读者在采信之前核对、或亲自去看时顺着走的那条路。
+
+- **主要出现在**：`CodeReference.route`、`swift-section refs` 每行的第五列与 JSON 的 `route`
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「引用种类与路线」
+
+### refined member（改名成员，`NS_REFINED_FOR_SWIFT`）
+
+头文件标了 `NS_REFINED_FOR_SWIFT` 的 ObjC 成员：Swift 导入它时名字前加 `__`（属性名、方法基名、初始化器的第一个标签），原名留给一个包装它的纯 Swift 声明。二进制不记这个宏，本库从 Swift 一侧认：有凭据的是配上了 `__` 开头的 Swift 成员（`layerFilter` ↔ `__layerFilter`）；推断的是没有 Swift 成员回答的 ObjC 属性，而同名的 Swift 属性类型明显不可能是它（`settings` 对上本模块的 struct）——Swift 不允许一个类型里有两个同名属性。方法只认前者：方法能按参数类型重载，同名说明不了改过名。导入声明把推断出的这种属性打成 `// NS_REFINED_FOR_SWIFT: var __name: …` 注释，挂在占了它原名的 Swift 属性正上方；`SwiftDeclarationPrinter.objcMembersRefinedForSwift(in:)` 交给宿主，由它在 ObjC 头文件里打回这个宏。
+
+- **主要出现在**：`Sources/Output/SwiftPrinting/ObjCImplementingSwiftMembers.swift`、`ObjCRefinedForSwiftMember.swift`，`Sources/Analysis/SwiftObjCInterop/ObjCSwiftTypeCompatibility.swift`
+- **延伸阅读**：[0096-swift-first-imported-declarations](Evolutions/0096-swift-first-imported-declarations.md)
+
 ### ObjC ancestor override（ObjC 祖先覆写）
 
 一个 Swift 成员覆写了从 ObjC 继承来的成员——NSView 的 `layout()`、NSObject 的 `description`——这件事在 Swift 元数据里没有记录：编译器给这种覆写发的是一条**新的**普通 vtable 项而不是 override 表项（`NeedsNewVTableEntryRequest` 对「被覆写者来自 clang」答「需要新项」），`@objc @implementation` 类更是没有 vtable。本仓库从 ObjC 侧判：类自己的 ObjC 方法表里某条方法的 selector 在祖先链（NSView → NSResponder → NSObject，跨镜像）上有人实现，它就是覆写；再把那条方法联结到 Swift 成员——IMP 处的 `To` 符号、或反汇编 IMP 找它引用的成员实现、或（默认关）只按 selector 名字唯一匹配。三档证据记在 `ObjCMember.evidence` 里，dump 打出来，interface 只打 `override`。自提案 `objc-member-selector-recovery` 起它是「ObjC member table」的一个投影（`overriddenAncestorClassName` 非空的成员）。
 
-- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftThunkAnalysis/ObjCMembers/`
+- **主要出现在**：`SwiftObjCInterop/ObjCMember.swift`、`SwiftThunkAnalysis/ObjCMembers/`
 - **延伸阅读**：[提案 0047-objc-ancestor-override-recovery](Evolutions/0047-objc-ancestor-override-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC member table（ObjC 成员表）
 
 一个类的 ObjC 方法表——实例方法表、元类方法表、本镜像 `__objc_catlist` 里指向它的 category——的每一条联结到实现它的 Swift 成员之后得到的 per-class 表（`ObjCMemberTable`，按 Swift 符号名索引 `ObjCMember`）。方法表就是类的 `@objc` 成员清单，运行时靠它派发、strip 不会碰，所以它是三个 Swift 元数据不记的事实的来源：成员是 `@objc`（OS 框架 strip 掉 `To` thunk 符号后这是唯一证据）、它覆写了哪个祖先的成员（selector 在祖先链上有人实现）、它的 selector 是不是源码里 `@objc(name)` 写出来的（与编译器从 Swift 名正向推出的默认值不同，且不是从被覆写者或协议要求继承的——祖先链或协议没读完就不下这个判定）。联结证据分三档：IMP 处的 `To` 符号；反汇编无名 thunk 收它引用的成员实现，配「所属类」与「importer 拼法」两道守卫；只按名字（只对覆写）。三档**都在索引期跑完**并记进 `ObjCMember.evidence`，用不用是消费者的事：dump 每条都标证据，第三档写成 `(selector name, no symbol evidence)` 照常渲染；interface 只有 `override` 一个关键字、没处说明证据来源，默认不打，`--infer-objc-overrides` 才打。`@objc @implementation` 体不是例外：编译器同样从 Swift 名推导 selector 并要求头文件里有它，`draw(in:)` 要对上 `drawInRect:` 就得写 `@objc(drawInRect:)`。
 
-- **主要出现在**：`SwiftInspection/ObjCMember.swift`、`SwiftInspection/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Components/Building/ObjCMemberApplication.swift`、`SwiftDeclaration/Components/Definitions/ResolvedObjCMemberFacts.swift`
+- **主要出现在**：`SwiftObjCInterop/ObjCMember.swift`、`SwiftObjCInterop/ObjCMemberShape.swift`、`SwiftThunkAnalysis/ObjCMembers/`、`SwiftDeclaration/Indexing/Building/ObjCMemberMatcher.swift`、`SwiftDeclaration/Model/Members/ResolvedObjCMemberFacts.swift`
 - **延伸阅读**：[提案 0048-objc-member-selector-recovery](Evolutions/0048-objc-member-selector-recovery.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### ObjC ancestor resolver（ObjC 祖先解析器）
 
 独立 Mach-O 文件的父类指针是 bind，ObjC 读取器跟不过去；祖先解析器（`ObjCAncestorResolver`）拿 bind 符号里的类名（`_OBJC_CLASS_$_UIView` 去前缀，Swift 父类是 `_TtC…` 运行时名）在文件的传递依赖闭包里找定义它的镜像——先问每个镜像的 export trie（bind 只能落到导出符号），有才建那个镜像的名字表，第一个命中即返回——祖先链从那个镜像继续走。祖先链的每一跳还把根镜像与闭包里每个独立文件对该祖先的 category 折进它的 selector 集合（cache 里的类由 dyld 预挂，文件世界里离线看不到）。按镜像登记在 `ObjCAncestorResolverStore`：indexer 与 `dump` 用各自的搜索路径注册，无人注册的文件默认走系统 cache，进程内镜像没有解析器。hierarchy 的 memo 键带解析器身份，宿主 provider 交出的断链也用它续。配套的平台守卫在 MachODependencies：cache 里另一个平台的同名镜像（macOS cache 的 Catalyst UIKit）永远不是候选。
 
-- **主要出现在**：`SwiftInspection/ObjCAncestorResolver.swift`、`SwiftInspection/ObjCClassMethodIndex.swift`、`MachODependencies/DependencyPlatforms.swift`
+- **主要出现在**：`SwiftObjCInterop/ObjCAncestorResolver.swift`、`SwiftObjCInterop/ObjCClassMethodIndex.swift`、MachOKitExtensions `Sources/MachODependencies/DependencyPlatforms.swift`
 - **延伸阅读**：[提案 0049-objc-ancestor-dependency-closure](Evolutions/0049-objc-ancestor-dependency-closure.md)、[ObjCMemberRecovery.md](Internal/ObjCMemberRecovery.md)
 
 ### offline specialization（离线特化）
@@ -280,7 +366,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 不给数据本体排序，而是另存一条「按某序排列的下标数组」（permutation），查询时在这条下标序列上二分。`SymbolTable.rowsSortedByName` 即名字序 permutation：行本体保持插入序不动，名字查找二分这条 `[UInt32]`。替代了被退役的名字键字典 `tableRowByName`。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`（`row(forName:)`）
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolTable.swift`（`row(forName:)`）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)
 
 ### position-based name（按位置起的名字）
@@ -301,27 +387,41 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 宿主自己的读取器类型：手里拿着一个 `MachOFile` 或 `MachOImage`，把读取协议的每个要求原样转发给它（MachOKitUI 的 `MachOFileSource` / `MachOImageSource`）。声明 MachOKitExtensions 的 `MachOReaderWrapper` 之后，库里每个「这是哪种读取器」的问题——`asMachOImage`、`asMachOFile`、`underlyingReader`——都问到它底下的读取器；不声明，库就把它当成两种都不是，读得出，但进程内路径、符号偏移换算、ObjC 与依赖闭包这些按读取器种类做的事都做不了。契约是在每个偏移读到的内容与底下的读取器相同，`identifier` 也相同（两者共用按镜像的缓存）。
 
-- **主要出现在**：MachOKitExtensions `MachOReaderWrapper.swift`、`Sources/MachO/MachOReading/ReadingContext/MachOContext.swift`、`Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderable+MachOReaderWrapper.swift`、`Tests/SwiftInterfaceTests/ReaderKindCastScanTests.swift`
+- **主要出现在**：MachOKitExtensions `MachOReaderWrapper.swift` 与 `Sources/MachOReading/ReadingContext/MachOContext.swift`、`Sources/Output/SwiftDeclarationRendering/FieldLayoutRenderable+MachOReaderWrapper.swift`、`Tests/SwiftInterfaceTests/ReaderKindCastScanTests.swift`
 - **延伸阅读**：[提案 0075](Evolutions/0075-wrapped-reader-recognition.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
 
 ### renamed class（改名类，`@objc(Name)` / `@_objcRuntimeName(Name)`）
 
 源码给 ObjC 运行时另起了名字的 Swift 类：类对象的 `class_ro_t` 名是源码写的名字（`NSScrollPocket`），而不是 `_TtC6AppKit14NSScrollPocket` 这样的 mangling。二进制里只剩类元数据 flag 字里的 `HasCustomObjCName` 与名字本身，`SwiftClassObjectIndex` 顺着类元数据自带的描述符指针把它们配到 Swift 类上（父类在另一个 resilience domain、不进 classlist 的类读 metadata pattern）。本仓库凡是「demangle 运行时名找 Swift 类」的地方都要为它回退，否则一律配不上——成员恢复与布局引擎以前就是这样漏掉它们的。interface 与 dump 打印 `@objc(Name)`，原生 Swift 对象模型的类打印 `@_objcRuntimeName(Name)`。
 
-- **主要出现在**：`SwiftInspection/SwiftClassObjectIndex.swift`、`SwiftInspection/CustomObjCClassName.swift`
+- **主要出现在**：`SwiftObjCInterop/SwiftClassObjectIndex.swift`、`SwiftObjCInterop/CustomObjCClassName.swift`
 - **延伸阅读**：[提案 0052-objc-custom-class-name](Evolutions/0052-objc-custom-class-name.md)、[CustomObjCClassNames.md](Internal/CustomObjCClassNames.md)
 
 ### row / `SymbolRow`（行）
 
 `SymbolTable` 的最小单位：每个唯一符号名一行，16 字节（canonical offset + `PackedNameReference`），行号（`UInt32`）是全部分类索引引用符号的方式。「一名一行」意味着按名字查询的语义是纯函数——同名必同行。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolTable.swift`
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolTable.swift`
+
+### stand-in member symbol（替身成员符号）
+
+为镜像里没有实现符号的成员造的成员符号，照它顶替的那个实现符号的样子造：mangled 名与成员树都与实现符号相同，偏移是镜像里留下的那个入口。下游按名字推导的东西（导出判定、ObjC 方法表联结、`@objc` 标记）和按树推导的东西（vtable 联结、ABI 身份）因此都把它当成实现符号来读，不用分支。来源有三种：vtable 槽的 `Tq`（descriptor-only member）、`@objc` thunk（thunk-only member）、只剩 initializing entry point 的 initializer（`…fc` 改写成 allocator 的形状）。只补真实符号没有声明的成员，按成员实体节点结构相等判断。
+
+- **主要出现在**：`StandInMemberSymbolBuilder`、`ClassDispatchLookups.vtableSlotMemberSymbols`
+- **延伸阅读**：[DescriptorOnlyVTableMembers.md](Internal/DescriptorOnlyVTableMembers.md)、[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### store-identity vs 结构相等（structural equality）
 
 `NodeReference` 的两种相等语义，混用会静默出错：intrinsic `Hashable` 按**store 身份**（同一 store 里的同一下标才相等），跨 store 的结构相同树不相等；**结构相等**（`structurallyEquals` / `StructuralNodeReferenceKey`）逐节点比对，跨 store 成立。规则：键和查询可能来自**不同 store** 的任何 `Dictionary` / `Set` 必须用 `StructuralNodeReferenceKey`，裸 `NodeReference` 键只在单一 hash-consed store 内部安全。踩过的坑：override/vtable 注释丢失、subscript getter/setter 分桶、merged thunk 重复输出。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/StructuralNodeReferenceKey.swift`；键位清单见 AGENTS.md「Symbol indexing」段
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/StructuralNodeReferenceKey.swift`；键位清单见 AGENTS.md「Symbol indexing」段
+
+### stub island（桩岛）
+
+dyld shared cache 在子缓存之间放的跳板：`bl` 只能跳 ±128 MB，跨子缓存的调用先落到 island，由 island 用 `adrp` / `add` / `br` 算出目标再跳过去。island 不属于任何镜像，也不读槽位——这是它与 [cache-shared stub](#cache-shared-stub全缓存共用桩) 的区别。一串调用可能连过几个 island，交叉引用把整串记作一跳路线 `stubIsland`，符号化列出经过的每一个。
+
+- **主要出现在**：`ARM64Trampoline`、`StubChainResolver`、`CodeReferenceRoute.stubIsland`
+- **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)
 
 ### supplementary APINotes（补充映射）
 
@@ -332,10 +432,17 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 
 ### sweep（构建扫描）
 
-对一个镜像的**全量符号一遍扫过**的批处理构建过程：`SymbolIndexStore` 首次索引某镜像时，`buildStorageSweep` 遍历整张符号表 + export trie，收集行、对每个 Swift 符号 demangle 一次、把结果分类进各查询索引——与之相对的是查询期的按需单点操作。RuntimeViewer 语境里「按需索引 sweep」指用户打开某镜像才触发这一遍构建；sweep 期的临时缓冲是瞬态内存峰值的来源（完即释放）。
+对一个镜像的**全量符号一遍扫过**的批处理构建过程：`SwiftSymbolIndexStore` 首次索引某镜像时，先由 MachOKitExtensions 的 `SymbolSweep`（按 `SwiftSymbolTableRouting` 分表）遍历整张符号表 + export trie 收集行，再对每个 Swift 符号 demangle 一次、把结果分类进各查询索引——与之相对的是查询期的按需单点操作。RuntimeViewer 语境里「按需索引 sweep」指用户打开某镜像才触发这一遍构建；sweep 期的临时缓冲是瞬态内存峰值的来源（完即释放）。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolIndexStore.swift`（`buildStorageSweep`）
+- **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolSweep.swift`（采集）、`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`（`buildSymbolTableStage` 与第二段的 demangle 分类）
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[SymbolIndexStoreMemoryOptimization.md](Internal/SymbolIndexStoreMemoryOptimization.md)
+
+### Swift-declared `@objc` protocol（Swift 声明的 `@objc` 协议，`ObjCProtocolDefinition`）
+
+Swift 源码里声明的 `@objc protocol`。它没有 protocol descriptor（不在 `__swift5_protos` 里），要求也没有任何 Swift 符号；镜像里只有一条 kind 为 `ObjCProtocol` 的 field descriptor 与一条 ObjC 协议记录（`protocol_t`）。本库据 field descriptor 认定本镜像声明了它，要求从记录读出：有本镜像的类实现时照抄那个成员（**取自实现者**），没有时按 ClangImporter 的规则从 selector 推出 Swift 名并用 `@objc(selector)` 钉住（**按 selector 命名**）。与 `@objc @implementation` 类无关：那是 ObjC 声明、Swift 实现的类。
+
+- **主要出现在**：`Sources/Analysis/SwiftObjCInterop/SwiftDeclaredObjCProtocolIndex.swift`、`Sources/Declaration/SwiftDeclaration/Model/Definitions/ObjCProtocolDefinition.swift`
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)、[0079-swift-declared-objc-protocols](Evolutions/0079-swift-declared-objc-protocols.md)
 
 ### symbolic-mangling symbol（`_symbolic` 符号）与被引用者（referent）
 
@@ -345,7 +452,7 @@ TypeIndexing 的外部知识入口：标准 `.apinotes` 格式的**用户自备*
 名字的地方，dyld shared cache 也保留着。被引用者不能单独 demangle：同一个 mangler 依次写出它们，后面的会借用前面的
 substitution，必须连在一个 `$s` 后面一起 demangle。
 
-- **主要出现在**：`Sources/MachO/MachOSymbols/SymbolicManglingSymbols.swift`（收集）、`Sources/Analysis/SwiftInspection/SymbolicManglingIndex.swift`（配对与解码）
+- **主要出现在**：`Sources/Symbols/SwiftSymbols/SymbolicManglingSymbols.swift`（收集）、`Sources/Analysis/SwiftInspection/SymbolicManglingIndex.swift`（配对与解码）
 - **延伸阅读**：[SymbolicManglingSymbols.md](Internal/SymbolicManglingSymbols.md)、[提案 0050-symbolic-mangling-symbol-index](Evolutions/0050-symbolic-mangling-symbol-index.md)
 
 ### SymbolicDemangler（旧名 MetadataReader）
@@ -354,6 +461,13 @@ substitution，必须连在一个 `$s` 后面一起 demangle。
 
 - **主要出现在**：`Sources/Analysis/SwiftInspection/SymbolicDemangler.swift`
 - **延伸阅读**：[提案 0022](Evolutions/0022-rename-metadata-reader-to-symbolic-demangler.md)、[ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md)
+
+### thunk-only member（只剩 `@objc` thunk 的成员）
+
+`@objc` 成员里，Swift 函数体被优化器内联进它的 Objective-C thunk（`$s…To`）、Swift entry point 随后被删掉的那一类：thunk 是它唯一的代码，也是唯一的符号。只有整模块优化下的 internal 成员会这样，因为每一处使用都可见、都内联完了才能删，所以这是 app 和 app 内嵌组件的形状，例如 Xcode 27.2 的 `Xcode Service` 里有 22 个。它和 OS 框架 strip 掉 `To` 符号正好相反：那里实现符号还在，thunk 没了名字。成员模型过去只从实现符号建成员，这一类在 dump 和 interface 里整个缺席；现在从 thunk 造替身成员符号补上。class 的 initializer 有同类的情形：allocating entry point 被内联掉后只剩 initializing entry point（`…fc`），Swift 6.4 连它也换成函数签名特化副本（`…fcTf…`），替身就从副本造。
+
+- **主要出现在**：`SwiftSymbolIndexStore.objcThunkMemberSymbols`、`StandInMemberSymbolBuilder.memberStandIn(forObjCThunkSymbol:in:)`、`ClassDumper` 的 `[ObjC Thunk]` 一节
+- **延伸阅读**：[ThunkOnlyObjCMembers.md](Internal/ThunkOnlyObjCMembers.md)
 
 ### TypeImportInfo（C 导入类型身份）
 
@@ -373,7 +487,7 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 - **定义**：`DependencySearchPath.systemRoot(path:)`，一棵目录树，把依赖的绝对 install name 直接拼在它下面找文件：`<root>/System/Library/Frameworks/Foo.framework/Foo`。iOS 26 及更早的模拟器运行时的 `RuntimeRoot` 就是这个形状；iOS 27 起模拟器改带自己的 `dyld_sim_shared_cache`，对应 `.dyldSharedCache(path:)`。
 - **为什么要有**：不在 cache 里的二进制（第三方 app、老模拟器框架）调别的镜像里的 metadata accessor 时只有一个 bind 名，得先找到那个镜像才能查它的 accessor 索引。`DependencySearchPath.inferred(forRoot:)` 从根文件的磁盘位置推断出 cache 或 system root。
 - **不要混淆**：`.machOFile(path:)` 是显式指定一个文件；system root 是按 install name 在目录树里现找。
-- **延伸阅读**：[MachODependencies 模块文档](Internal/Modules/MachODependencies.md)、[提案 standalone-file-thunk-resolution](Evolutions/0030-standalone-file-thunk-resolution.md)
+- **延伸阅读**：MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md)、[提案 standalone-file-thunk-resolution](Evolutions/0030-standalone-file-thunk-resolution.md)
 
 ### type-construction evaluation（类型构造求值）
 
@@ -382,12 +496,28 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 - **主要出现在**：`Sources/Analysis/SwiftThunkAnalysis/Analysis/ThunkTypeEvaluator.swift`、`AccessorThunkAnalyzer.swift`
 - **延伸阅读**：[专题导读](Internal/AccessorThunkResolutionExplained.md)、[提案 0029](Evolutions/0029-thunk-type-construction-evaluation.md)、[提案 0028](Evolutions/0028-offline-opaque-accessor-thunk-resolution.md)
 
+### unclaimed record（没认领的记录）
+
+本镜像 `__objc_protolist` 里 Swift 生成、却没有本镜像的声明认领的 ObjC 协议记录。名字是 `_TtP…` 的已经按名字归了别的模块，剩下的都是改过名的协议：别的模块用 `@objc(Name)` 改过名、被本镜像引用的（Swift 会给引用到的协议生成一份副本），以及本镜像里改成与 Swift 名不同的名字、配不上 field descriptor 的。前一种才到依赖闭包里找它的 Swift 名；dump 在 `protocols` 段末尾一行列出它们。
+
+- **主要出现在**：`SwiftDeclaredObjCProtocolIndex.unclaimedSwiftEmittedRecords(in:)`、`ObjCRuntimeNames.swiftProtocolNode(forRuntimeName:in:)`
+- **延伸阅读**：[SwiftDeclaredObjCProtocols.md](Internal/SwiftDeclaredObjCProtocols.md)
+
 ### union interface（并集接口）
 
 `evolution --interface` 的输出形态：N 个版本所有声明的**并集**只渲染一次的 Swift 接口——每条声明由「最后一个拥有它的版本」的模型与 printer 渲染文本，变化写进生命周期注解，同一成员改签名不裂成多行。与「逐 transition 串联 diff」（同一声明重复出现 N−1 次）和「只渲染最新版 + since 注解」（丢中间版本细节）相对。排序规则：最新版本声明序为脊柱，不在最新版的声明按其最后存在版本的顺序追加。
 
-- **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）
-- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)
+ObjC 一侧的同一种视图是 `objc evolution --interface` 输出的合并头文件，由 MachOObjCSection 的 `ObjCEvolutionInterfaceBuilder` 渲染：每条声明按 `objc dump` 的方式渲染，标注与 `objc evolution` 报告里的 lineage 一一对应。容器内以最新版本的顺序为准，删掉的成员插在它在最后那一版里的前一个成员之后。
+
+- **主要出现在**：`Sources/Output/SwiftInterface/SwiftEvolutionInterfaceRenderer.swift`（`matchAcrossVersions`）；ObjC 一侧在 MachOObjCSection 的 `ObjCInterface` 模块，本库经 `ObjCAPIEvolutionRequest` 的 `annotatedInterface` 调用
+- **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)；ObjC 一侧见 [提案 0080](Evolutions/0080-objc-evolution-interface.md)
+
+### unobservable（看不见，`LineagePresenceState`）
+
+evolution 与 diff 里「这个版本看不到这条声明」的状态，与「不在」相对。镜像没有 local Swift 符号的版本（macOS 13.0–14.8 dyld shared cache 里的 SwiftUI）里，只靠非导出符号才出现的成员没有名字，它缺席并不说明它不存在；类型、conformance、存储属性、导出的成员不受影响。一段看不见的版本，两侧观测到的版本都有这条声明时记为 **inferred present**（推断存在，位图 `◍`），否则记为 unobservable（位图 `◌`）；两侧不同时，变化写成 `removed between 12.7 and 15.0` 这样的跨段事件。diff 里一侧看不见的成员进 `unobservableDeclarations`，不算删除或新增。
+
+- **主要出现在**：`Sources/Output/SwiftDiffing/UnobservablePresence.swift`、`ABIEvolutionBuilder.swift`、`Sources/Output/SwiftInterface/EvolutionMarking.swift`
+- **延伸阅读**：[提案 0081](Evolutions/0081-evolution-unobservable-presence.md)、[ABIEvolutionDesign.md](Internal/ABIEvolutionDesign.md) 第六批
 
 ### wrapper vs descriptor（高层包装 vs 描述符）
 

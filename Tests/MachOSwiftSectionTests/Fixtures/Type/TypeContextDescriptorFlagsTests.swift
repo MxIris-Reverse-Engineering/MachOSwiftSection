@@ -2,8 +2,8 @@ import Foundation
 import Testing
 import MachOFoundation
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based Suite for `TypeContextDescriptorFlags`.
 ///
@@ -149,8 +149,8 @@ final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, Fixt
     @Test func classResilientSuperclassReferenceKind() async throws {
         let flags = try loadClassTestFlags()
         let result = try acrossAllReaders(
-            file: { flags.file.classResilientSuperclassReferenceKind.rawValue },
-            image: { flags.image.classResilientSuperclassReferenceKind.rawValue }
+            file: { flags.file.classResilientSuperclassReferenceKind?.rawValue },
+            image: { flags.image.classResilientSuperclassReferenceKind?.rawValue }
         )
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classResilientSuperclassReferenceKindRawValue)
     }

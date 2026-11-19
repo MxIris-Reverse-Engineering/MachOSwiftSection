@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor {
+@ResolvableLocatableLayoutWrapper
+public struct BuiltinTypeDescriptor: TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName?>
         public let size: UInt32
@@ -32,19 +32,5 @@ extension BuiltinTypeDescriptor {
 extension BuiltinTypeDescriptor {
     public func typeName(in context: some ReadingContext) throws -> MangledName? {
         return try layout.typeName.resolve(at: try context.addressFromOffset(offset(of: \.typeName)), in: context)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension BuiltinTypeDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: machO.context).")
-    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
-        try typeName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: typeName(in: .inProcess).")
-    public func typeName() throws -> MangledName? {
-        try typeName(in: InProcessContext.shared)
     }
 }

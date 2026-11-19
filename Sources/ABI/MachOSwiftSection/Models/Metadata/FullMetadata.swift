@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct FullMetadata<Metadata: MetadataProtocol>: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct FullMetadata<Metadata: MetadataProtocol> {
     @dynamicMemberLookup
     public struct Layout: LayoutProtocol {
         public let header: Metadata.HeaderType.Layout

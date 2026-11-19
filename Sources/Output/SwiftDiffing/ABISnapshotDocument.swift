@@ -16,6 +16,48 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 13: a property's SE-0400 init accessor is one of its accessors, so
+    ///   the `|acc:` tag of a property with one gains `init` (evolution
+    ///   proposal `init-accessor-recovery`). An older baseline, which never
+    ///   saw the accessor, would report every such property as changed.
+    /// - 12: a constrained existential in a field record (`any Boxed<Int>`) is
+    ///   recorded as the existential type it stands for — the shape with its
+    ///   generalization arguments substituted — instead of the symbolic
+    ///   reference to the shape, which printed as the arguments alone (every
+    ///   such field of `[Swift.Int]` read the same, whatever its protocol;
+    ///   evolution proposal `existential-any`). Key scheme unchanged; an older
+    ///   baseline would misreport every such field as changed.
+    /// - 11: a class initializer of an optimized image whose only code is the
+    ///   function signature specialization of its initializing entry point
+    ///   (`…fcTf…`, what Swift 6.4's whole-module optimization leaves of an
+    ///   internal class's initializer) is recorded, rebuilt from the
+    ///   specialization, which the index used to drop. Key scheme unchanged;
+    ///   an older baseline of such an image would misreport each as added.
+    /// - 10: an image's extension containers also carry the members of its
+    ///   own module's types that no definition in the image gathers, mangled
+    ///   with no extension context (evolution proposal
+    ///   `image-group-evolution`) — SwiftUI's members of the types SwiftUICore
+    ///   defines under `@_originallyDefinedIn`, the static members of an
+    ///   internal namespace whose type descriptor was stripped — which the
+    ///   index used to drop. Key scheme unchanged; an older baseline of such
+    ///   an image would misreport all of them as added.
+    /// - 9: a snapshot records whether its image carries any local Swift
+    ///   symbol (`ABISnapshot.hasLocalSwiftSymbols`), and each symbol-backed
+    ///   member record whether the member is exported
+    ///   (`MemberRecord.isExported`) — what an evolution or a diff needs to
+    ///   tell a member an image stripped of its local symbols cannot show
+    ///   from one that is gone (evolution proposal
+    ///   `evolution-unobservable-presence`). Key scheme unchanged; an older
+    ///   baseline would read as an image with local symbols and no export
+    ///   verdicts, so every non-exported member of a stripped version would
+    ///   report as removed again.
+    /// - 8: a class or extension container carries the members whose only
+    ///   symbol is their `@objc` thunk, and the initializers whose only
+    ///   symbol is their initializing entry point (evolution proposal
+    ///   `thunk-only-objc-members`) — what an optimized build leaves of a
+    ///   member once the optimizer has inlined its other entry points, which
+    ///   the index used to drop. Key scheme unchanged; an older baseline of
+    ///   such an image would misreport all of them as added.
     /// - 7: a type declared in a function or closure body is keyed by the
     ///   compiler's name for it (`Visitor #1 in Holder.countValues()`), or by
     ///   the address of its anonymous context when the image records no name
@@ -49,7 +91,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 7
+    public static let currentFormatVersion = 13
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

@@ -10,9 +10,9 @@
 
 | 层 | 文件 | 做什么 |
 |---|---|---|
-| SwiftInspection | `CustomObjCClassName.swift` | 公开值类型：名字 + 写法（`.objc` / `.objcRuntimeName`）。 |
-| SwiftInspection | `SwiftClassObjectIndex.swift` | 按镜像的 `SharedCache`，只记改过名的类：描述符 offset → 名字与写法、类对象自己的 `instanceStart`；另有「Swift 限定名 → 运行时名」，给按名字查找的 ObjC 侧索引合并用。随 `ObjCClassHierarchies.removeCache(for:)` 驱逐。 |
-| SwiftInspection | `ObjCClassMethodIndex.runtimeNames(forSwiftClassQualifiedName:in:)` | 查询时把上面那张限定名表的结果并进自己的表的结果。四个调用点（类本体、类的 extension、dump 的祖先链注释与成员注释）都不用改。 |
+| SwiftObjCInterop | `CustomObjCClassName.swift` | 公开值类型：名字 + 写法（`.objc` / `.objcRuntimeName`）。 |
+| SwiftObjCInterop | `SwiftClassObjectIndex.swift` | 按镜像的 `SharedCache`，只记改过名的类：描述符 offset → 名字与写法、类对象自己的 `instanceStart`；另有「Swift 限定名 → 运行时名」，给按名字查找的 ObjC 侧索引合并用。随 `ObjCClassHierarchies.removeCache(for:)` 驱逐。 |
+| SwiftObjCInterop | `ObjCClassMethodIndex.runtimeNames(forSwiftClassQualifiedName:in:)` | 查询时把上面那张限定名表的结果并进自己的表的结果。四个调用点（类本体、类的 extension、dump 的祖先链注释与成员注释）都不用改。 |
 | SwiftLayout | `StaticTypeLayoutResolver.classFieldStartOffset` | classlist 的 `instanceStart` 表按限定名查不到时，按描述符问改名类的 `instanceStart`。 |
 | SwiftDeclaration | `TypeDefinition.customObjCClassName`、`attributeArgument(for:)`；`SwiftAttribute.objcRuntimeName` | `index(in:)` 里填；新 case 放在枚举末尾，已有 case 的 raw value 不变。 |
 | SwiftAttributeInference | `TypeAttributeInferrer.inferObjCType` | 原来是个空函数，现在按写法产出 `.objcType` / `.objcRuntimeName`。 |

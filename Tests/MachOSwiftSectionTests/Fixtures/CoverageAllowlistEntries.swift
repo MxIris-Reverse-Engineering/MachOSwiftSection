@@ -1,6 +1,6 @@
 import Foundation
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Public members of `Sources/ABI/MachOSwiftSection/Models/` that are intentionally
 /// not under cross-reader fixture coverage. Each entry MUST carry either a

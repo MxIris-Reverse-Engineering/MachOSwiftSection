@@ -51,6 +51,19 @@ public struct ABIModule {
     public let globalVariableDefinitions: [VariableDefinition]
     public let globalFunctionDefinitions: [FunctionDefinition]
 
+    // MARK: Symbol-table facts (evolution proposal `evolution-unobservable-presence`)
+
+    /// Whether the image carries any local (non-external) Swift symbol —
+    /// frozen into ``ABISnapshot/hasLocalSwiftSymbols``.
+    public let hasLocalSwiftSymbols: Bool
+
+    /// The export verdict of a member, asked with its symbol names (a
+    /// function's one symbol, a property's or subscript's accessors) and
+    /// frozen into ``MemberRecord/isExported``. `nil` freezes every record
+    /// without a verdict. The builder that indexed the image supplies it,
+    /// since only the image's symbol index can answer.
+    public let memberExportVerdict: ((_ symbolNames: [String]) -> Bool?)?
+
     public init(
         rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:],
         allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:],
@@ -61,7 +74,9 @@ public struct ABIModule {
         typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:],
         conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:],
         globalVariableDefinitions: [VariableDefinition] = [],
-        globalFunctionDefinitions: [FunctionDefinition] = []
+        globalFunctionDefinitions: [FunctionDefinition] = [],
+        hasLocalSwiftSymbols: Bool = true,
+        memberExportVerdict: ((_ symbolNames: [String]) -> Bool?)? = nil
     ) {
         self.rootTypeDefinitions = rootTypeDefinitions
         self.allTypeDefinitions = allTypeDefinitions
@@ -73,5 +88,7 @@ public struct ABIModule {
         self.conformanceExtensionDefinitions = conformanceExtensionDefinitions
         self.globalVariableDefinitions = globalVariableDefinitions
         self.globalFunctionDefinitions = globalFunctionDefinitions
+        self.hasLocalSwiftSymbols = hasLocalSwiftSymbols
+        self.memberExportVerdict = memberExportVerdict
     }
 }

@@ -50,17 +50,3 @@ extension TypeContextWrapper {
         }
     }
 }
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension TypeContextWrapper {
-    @available(*, deprecated, message: "Pass a ReadingContext: forTypeContextDescriptorWrapper(_:in: .inProcess).")
-    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper) throws -> Self {
-        try forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: forTypeContextDescriptorWrapper(_:in: machO.context).")
-    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
-        try forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO.context)
-    }
-}

@@ -558,7 +558,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
                 return .failure(TypeLookupError("protocol has no requirement base descriptor"))
             }
             let accessFunctionRequirements = declaredProtocol.requirements.filter {
-                $0.flags.kind.isAssociatedTypeAccessFunction
+                $0.flags.kind?.isAssociatedTypeAccessFunction == true
             }
             guard associatedTypeIndex < accessFunctionRequirements.count else {
                 return .failure(TypeLookupError("associated type index \(associatedTypeIndex) exceeds the requirement list"))

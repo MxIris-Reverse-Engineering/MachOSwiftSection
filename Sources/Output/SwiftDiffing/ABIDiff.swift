@@ -153,6 +153,12 @@ public struct ABIDiff: Sendable, Codable, Equatable {
     /// `nil` when nothing. Not part of `isEmpty` — a clean diff with
     /// collisions still warns, because a dropped record can hide a change.
     public let diagnostics: ABIDiffDiagnostics?
+    /// What one side has and the other side's image could not show — it
+    /// carries no local Swift symbols, and only a non-exported symbol
+    /// evidences these — listed apart from the changes and never part of the
+    /// verdict or of `isEmpty`; `nil` when there is none (evolution proposal
+    /// `evolution-unobservable-presence`).
+    public let unobservableDeclarations: [UnobservableDeclaration]?
 
     public init(
         types: [ContainerChange] = [],
@@ -165,7 +171,8 @@ public struct ABIDiff: Sendable, Codable, Equatable {
         globalFunctions: [MemberChange] = [],
         oldProvenance: ABIProvenance? = nil,
         newProvenance: ABIProvenance? = nil,
-        diagnostics: ABIDiffDiagnostics? = nil
+        diagnostics: ABIDiffDiagnostics? = nil,
+        unobservableDeclarations: [UnobservableDeclaration]? = nil
     ) {
         self.types = types
         self.protocols = protocols
@@ -178,6 +185,7 @@ public struct ABIDiff: Sendable, Codable, Equatable {
         self.oldProvenance = oldProvenance
         self.newProvenance = newProvenance
         self.diagnostics = diagnostics
+        self.unobservableDeclarations = unobservableDeclarations
     }
 
     public var isEmpty: Bool {

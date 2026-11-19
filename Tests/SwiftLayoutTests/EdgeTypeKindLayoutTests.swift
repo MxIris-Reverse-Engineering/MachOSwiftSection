@@ -4,8 +4,8 @@ import MachOKit
 import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftLayout
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Covers the edge function-reference type kinds the resolver now models as a
 /// single pointer: C function pointers (`@convention(c)`/`@convention(thin)`)

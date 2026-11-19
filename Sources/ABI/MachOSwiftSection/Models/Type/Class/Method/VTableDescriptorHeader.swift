@@ -1,8 +1,9 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct VTableDescriptorHeader: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct VTableDescriptorHeader {
     public struct Layout: LayoutProtocol {
         public let vTableOffset: UInt32
         public let vTableSize: UInt32

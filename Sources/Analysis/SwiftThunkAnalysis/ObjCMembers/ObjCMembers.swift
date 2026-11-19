@@ -3,8 +3,9 @@ import FoundationToolbox
 import MachOKit
 import MachOKitExtensions
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// The public face of the ObjC member recovery (evolution proposals
 /// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`):
@@ -25,8 +26,8 @@ import MachOKitExtensions
 /// that it rests on a name rather than a symbol.
 ///
 /// Lives in `SwiftThunkAnalysis` rather than next to the hierarchy in
-/// `SwiftInspection` because the second tier decodes the thunk, and the
-/// decoder sits here, above `SwiftInspection`.
+/// `SwiftObjCInterop` because the second tier decodes the thunk, and the
+/// decoder sits here, above `SwiftObjCInterop`.
 @Loggable(.private, subsystem: "com.machoswiftsection.swift-thunk-analysis", category: "ObjCMembers")
 public enum ObjCMembers {
     /// The table for the class the image defines under ObjC runtime name
@@ -42,7 +43,10 @@ public enum ObjCMembers {
         // rejected against a header saying `drawInRect:`), so a header
         // selector the derivation does not produce means the Swift source
         // wrote `@objc(drawInRect:)` — exactly what the flag reports.
-        return table(for: hierarchy, ownerQualifiedName: "\(objcModule).\(runtimeName)", in: machO)
+        // Another image's Swift class owns its members under its Swift name,
+        // which its mangled runtime name spells.
+        let ownerQualifiedName = NodeTypeNaming.swiftClassQualifiedName(fromRuntimeName: runtimeName) ?? "\(objcModule).\(runtimeName)"
+        return table(for: hierarchy, ownerQualifiedName: ownerQualifiedName, in: machO)
     }
 
     /// The table for the Swift class whose qualified name is `qualifiedName`

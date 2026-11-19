@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 

@@ -43,6 +43,7 @@ struct VariableNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrin
         self.indentation = indentation
         self.delegate = delegate
         context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
+        context.usesExistentialAny = delegate?.usesExistentialAny ?? false
     }
 
     init(isStored: Bool, isOverride: Bool, isClassMember: Bool = false, isFinal: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {

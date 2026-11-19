@@ -3,6 +3,7 @@ import SwiftDeclarationRendering
 import Demangling
 import Semantic
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 // The interface-side rendering of an `@objc @implementation` class's stored
 // properties (evolution proposal `objc-implementation-class-recognition`).
@@ -16,13 +17,15 @@ struct ObjCImplementationFieldOffsetComment: SemanticStringComponent {
     let instanceVariable: ObjCImplementationClassFacts.InstanceVariable
     let emit: Bool
     let transformer: FieldOffsetTransformer?
+    let marksStructure: Bool
 
     package func buildComponents() -> [AtomicComponent] {
         guard emit else { return [] }
         if let transformer {
-            return transformer((instanceVariable.offset, instanceVariable.offset + instanceVariable.size)).buildComponents()
+            let output = transformer((instanceVariable.offset, instanceVariable.offset + instanceVariable.size))
+            return StructuredComment.printedTemplate(output, markingStructure: marksStructure, as: .fieldOffset).components
         }
-        return Comment("Field offset: 0x\(String(instanceVariable.offset, radix: 16))").buildComponents()
+        return StructuredComment.fieldOffset(instanceVariable.offset).atoms(markingStructure: marksStructure, as: .fieldOffset)
     }
 }
 
@@ -30,16 +33,19 @@ extension SwiftDeclarationPrinter {
     /// A member built from accessor symbols that the ObjC ivar list shows to
     /// be STORED: rendered as `var name: Type` (no accessor block), the type
     /// taken from the field-offset symbol when it survived and from the
-    /// accessor otherwise.
+    /// accessor otherwise. `objcProperty` is the Objective-C property it is
+    /// exposed as, if any: it makes the property `var` when the class offers
+    /// Objective-C a setter whose Swift symbol `-O` inlined away, and `weak`
+    /// when it is one (evolution proposal `swift-first-imported-declarations`).
     @SemanticStringBuilder
-    func printObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, level: Int) async -> SemanticString {
+    func printObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, objcProperty: ObjCImplementationClassFacts.Property?, level: Int) async -> SemanticString {
         await dispatchingCatchedThrowing(.init(name: variable.name, kind: .variable)) {
-            try await printThrowingObjCImplementationStoredProperty(variable, storage: storage, level: level)
+            try await printThrowingObjCImplementationStoredProperty(variable, storage: storage, objcProperty: objcProperty, level: level)
         }
     }
 
     @SemanticStringBuilder
-    func printThrowingObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, level: Int) async throws -> SemanticString {
+    func printThrowingObjCImplementationStoredProperty(_ variable: VariableDefinition, storage: ObjCImplementationClassFacts.InstanceVariable, objcProperty: ObjCImplementationClassFacts.Property?, level: Int) async throws -> SemanticString {
         try await printUnderObjCVerdicts(of: variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
             objcAttributes(objcFacts)
             let isLazy = storage.lazyPropertyName != nil
@@ -47,9 +53,16 @@ extension SwiftDeclarationPrinter {
                 Keyword(.lazy)
                 Space()
                 Keyword(.var)
+            } else if objcProperty?.isWeak == true {
+                // A `weak` property is a `var`, settable or not.
+                Keyword(.weak)
+                Space()
+                Keyword(.var)
             } else {
-                // A stored property with no setter symbol was declared `let`.
-                Keyword(variable.hasSetter ? .var : .let)
+                // A stored property with no setter symbol and no Objective-C
+                // setter was declared `let`.
+                let isSettable = variable.hasSetter || objcProperty.map { !$0.isReadOnly } == true
+                Keyword(isSettable ? .var : .let)
             }
             Space()
             MemberDeclaration(variable.name)
@@ -64,7 +77,7 @@ extension SwiftDeclarationPrinter {
             if let typeNode {
                 try await printThrowingType(typeNode, isProtocol: false, level: level)
             } else {
-                InlineComment("type not recoverable")
+                comment(.inlineNote("type not recoverable"), as: .note)
             }
         }
     }
@@ -74,17 +87,26 @@ extension SwiftDeclarationPrinter {
     /// still renders as a declaration (the symbol carries name and type); one
     /// without renders as an honest comment naming what the binary does say
     /// (ObjC name, offset, size, encoding) rather than a fabricated type.
+    ///
+    /// `standIns` replace that comment with a declaration the Objective-C side
+    /// gives, keyed by the ivar's identity: the Generated Interface prints the
+    /// Objective-C property synthesized on the ivar as Swift imports it,
+    /// whose type is the one Objective-C sees (evolution proposal
+    /// `swift-first-imported-declarations`). The Swift interface passes none —
+    /// that type is not the Swift property's.
     @SemanticStringBuilder
-    func renderUnrepresentedObjCImplementationInstanceVariables(_ extensionDefinition: ExtensionDefinition, level: Int) async -> SemanticString {
+    func renderUnrepresentedObjCImplementationInstanceVariables(_ extensionDefinition: ExtensionDefinition, level: Int, standIns: [ObjectIdentifier: ObjCImportedMemberDefinition] = [:]) async -> SemanticString {
         let instanceVariables = extensionDefinition.unrepresentedObjCImplementationInstanceVariables
         if !instanceVariables.isEmpty {
             await MemberList(level: level) {
                 for instanceVariable in instanceVariables {
                     await Rows(level: level) {
                         optionalContent(.printFieldOffset) {
-                            ObjCImplementationFieldOffsetComment(instanceVariable: instanceVariable, emit: true, transformer: configuration.fieldOffsetTransformer)
+                            ObjCImplementationFieldOffsetComment(instanceVariable: instanceVariable, emit: true, transformer: configuration.fieldOffsetTransformer, marksStructure: marksCommentStructure)
                         }
-                        if let typeNode = instanceVariable.swiftTypeNode, let propertyName = instanceVariable.swiftPropertyName {
+                        if let standIn = standIns[ObjectIdentifier(instanceVariable)] {
+                            await printObjCImportedMember(standIn, level: level)
+                        } else if let typeNode = instanceVariable.swiftTypeNode, let propertyName = instanceVariable.swiftPropertyName {
                             SemanticString {
                                 // With no getter joined, a `lazy var`'s storage
                                 // type is the honest fallback, as for a Swift
@@ -105,7 +127,7 @@ extension SwiftDeclarationPrinter {
                             }
                             await printType(typeNode.materialize(), isProtocol: false, level: level)
                         } else {
-                            Comment(Self.unrecoverableStoredPropertyComment(for: instanceVariable))
+                            comment(.note(Self.unrecoverableStoredPropertyComment(for: instanceVariable)), as: .note)
                         }
                     }
                 }

@@ -2,8 +2,8 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct MethodDescriptor {
     public struct Layout: LayoutProtocol {
         public let flags: MethodDescriptorFlags
         public let implementation: RelativeDirectRawPointer

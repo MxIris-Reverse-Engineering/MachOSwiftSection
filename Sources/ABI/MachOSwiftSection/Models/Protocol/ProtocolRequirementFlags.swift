@@ -1,3 +1,6 @@
+import SwiftStdlibToolbox
+
+/// Mirrors `swift::ProtocolRequirementFlags` (`swift/ABI/MetadataValues.h`).
 public struct ProtocolRequirementFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -8,10 +11,13 @@ public struct ProtocolRequirementFlags: OptionSet, Sendable {
     public static let isInstance = ProtocolRequirementFlags(rawValue: 0x10)
     public static let maybeAsync = ProtocolRequirementFlags(rawValue: 0x20)
 
-    public var kind: ProtocolRequirementKind {
-        return ProtocolRequirementKind(rawValue: UInt8(rawValue & 0x0F))!
-    }
+    /// The kind of requirement, or `nil` for a kind this reader does not
+    /// know. Four bits hold it and nine values are defined so far.
+    @BitField(bits: 0..<4)
+    public var kind: ProtocolRequirementKind?
 
+    /// Whether the requirement is a coroutine accessor. A kind this reader
+    /// does not know is not taken for one.
     public var isCoroutine: Bool {
         switch kind {
         case .baseProtocol,
@@ -20,7 +26,8 @@ public struct ProtocolRequirementFlags: OptionSet, Sendable {
              .getter,
              .setter,
              .associatedTypeAccessFunction,
-             .associatedConformanceAccessFunction:
+             .associatedConformanceAccessFunction,
+             nil:
             return false
         case .readCoroutine,
              .modifyCoroutine:
@@ -32,7 +39,6 @@ public struct ProtocolRequirementFlags: OptionSet, Sendable {
         return !isCoroutine && contains(.maybeAsync)
     }
 
-    public var isInstance: Bool {
-        return contains(.isInstance)
-    }
+    @BitField(bits: 4)
+    public var isInstance: Bool
 }

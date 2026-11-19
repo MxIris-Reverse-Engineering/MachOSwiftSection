@@ -11,8 +11,8 @@ import MachOBase
 ///
 /// Mirrors `swift::TargetGenericMetadataPartialPattern`
 /// (`swift/ABI/Metadata.h`).
-@LocatableLayoutWrapping
-public struct GenericMetadataPartialPattern: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct GenericMetadataPartialPattern {
     public struct Layout: LayoutProtocol {
         /// The words to copy.
         public let pattern: RelativeDirectRawPointer

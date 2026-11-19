@@ -1,0 +1,110 @@
+import Demangling
+import MachOSwiftSection
+@_spi(Internals) import SwiftSymbols
+
+extension TypeDefinition {
+    /// Builds every symbol-backed member of this type — the six member
+    /// categories plus the two `deinit` symbols — from the image's symbol
+    /// index, joining each to its dispatch facts through `dispatchLookups`.
+    ///
+    /// A class's vtable member the image has no implementation symbol for is
+    /// built from the symbol its method descriptor's `Tq` stands in for
+    /// (`ClassDispatchLookups.supplementing(_:in:)`, evolution proposal
+    /// `interface-descriptor-only-vtable-members`): a library-evolution image
+    /// exports only the `Tj` / `Tq` forms of a public class method, so with
+    /// the local symbols stripped — AppKit in the OS dyld shared cache, or any
+    /// binary run through `strip -x` — those members had nothing else to be
+    /// built from and went missing.
+    ///
+    /// After those, a member none of the symbols declares is built from the
+    /// entry point an optimized image kept of it
+    /// (`StandInMemberSymbolBuilder.TypeMembers`, evolution proposal
+    /// `thunk-only-objc-members`): an initializer from its initializing entry
+    /// point when the allocating one was inlined away, an `@objc` member from
+    /// its Objective-C thunk when its Swift body was inlined into the thunk.
+    ///
+    /// Returns the accessor groups that were suppressed because their name
+    /// matches a stored field record: those carry dispatch facts the field
+    /// still needs, and `foldStoredPropertyAccessors(_:into:)` folds them back
+    /// on. Every other product is assigned onto the definition in place.
+    func indexMembers(
+        fieldNames: Set<String>,
+        dispatchLookups: ClassDispatchLookups,
+        symbolIndexStore: SwiftSymbolIndexStore,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) -> [String: [Accessor]] {
+        let name = typeName.name
+        let node = typeName.node
+        let standIns = StandInMemberSymbolBuilder.TypeMembers(typeName: name, typeNode: node, symbolIndexStore: symbolIndexStore, in: machO)
+
+        /// The builder input of `category`: the real symbols, then the
+        /// vtable slots' stand-ins, then the optimized-away entry points'.
+        func builderInput(_ realSymbols: [DemangledSymbol], in category: MemberCategory) -> [DemangledSymbol] {
+            standIns.supplementing(dispatchLookups.supplementing(realSymbols, in: category), in: category)
+        }
+
+        allocators = MemberDefinitionBuilder.allocators(
+            for: builderInput(symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO), in: .allocators).mapToAnnotatedSymbols(),
+            dispatchLookups: dispatchLookups
+        )
+
+        // See the property doc comments for the role each symbol plays.
+        // The deallocator drives whether `deinit` is printed at all; the
+        // destructor (only present on classes) is exposed as an extra
+        // address comment. Both go through the node-matched overload like
+        // every other member kind — a name-only `.first` could hand a
+        // same-named private sibling's deinit address to this type
+        // (issue #115's family).
+        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: name, node: node, in: machO).first?.detachedFromSharedTable()
+        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: name, node: node, in: machO).first?.detachedFromSharedTable()
+
+        let variablesProduct = MemberDefinitionBuilder.variablesProduct(
+            for: builderInput(symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO), in: .variables).mapToAnnotatedSymbols(),
+            fieldNames: fieldNames,
+            dispatchLookups: dispatchLookups,
+            isGlobalOrStatic: false
+        )
+        variables = variablesProduct.variables
+
+        staticVariables = MemberDefinitionBuilder.variables(
+            for: builderInput(
+                symbolIndexStore.memberSymbols(
+                    of: .variable(inExtension: false, isStatic: true, isStorage: false),
+                    .variable(inExtension: false, isStatic: true, isStorage: true),
+                    for: name,
+                    node: node,
+                    in: machO
+                ),
+                in: .staticVariables
+            ).mapToAnnotatedSymbols(),
+            dispatchLookups: dispatchLookups,
+            isGlobalOrStatic: true
+        )
+
+        functions = MemberDefinitionBuilder.functions(
+            for: builderInput(symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO), in: .functions).mapToAnnotatedSymbols(),
+            dispatchLookups: dispatchLookups,
+            isGlobalOrStatic: false
+        )
+
+        staticFunctions = MemberDefinitionBuilder.functions(
+            for: builderInput(symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO), in: .staticFunctions).mapToAnnotatedSymbols(),
+            dispatchLookups: dispatchLookups,
+            isGlobalOrStatic: true
+        )
+
+        subscripts = MemberDefinitionBuilder.subscripts(
+            for: builderInput(symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO), in: .subscripts).mapToAnnotatedSymbols(),
+            dispatchLookups: dispatchLookups,
+            isStatic: false
+        )
+
+        staticSubscripts = MemberDefinitionBuilder.subscripts(
+            for: builderInput(symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO), in: .staticSubscripts).mapToAnnotatedSymbols(),
+            dispatchLookups: dispatchLookups,
+            isStatic: true
+        )
+
+        return variablesProduct.storedPropertyAccessorsByFieldName
+    }
+}

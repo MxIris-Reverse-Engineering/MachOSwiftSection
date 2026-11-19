@@ -1,5 +1,6 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct AnyLocatableLayoutWrapper<Layout: LayoutProtocol>: ResolvableLocatableLayoutWrapper {}
+@ResolvableLocatableLayoutWrapper
+public struct AnyLocatableLayoutWrapper<Layout: LayoutProtocol> {}

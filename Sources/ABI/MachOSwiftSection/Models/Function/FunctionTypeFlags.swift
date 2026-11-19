@@ -1,4 +1,5 @@
 import Foundation
+import SwiftStdlibToolbox
 
 public enum FunctionMetadataConvention: UInt8 {
     case swift
@@ -7,6 +8,7 @@ public enum FunctionMetadataConvention: UInt8 {
     case cFunctionPointer
 }
 
+/// Mirrors `swift::TargetFunctionTypeFlags` (`swift/ABI/MetadataValues.h`).
 public struct FunctionTypeFlags<IntType: FixedWidthInteger & Sendable>: OptionSet, Equatable, Sendable {
     public typealias RawValue = IntType
 
@@ -16,59 +18,34 @@ public struct FunctionTypeFlags<IntType: FixedWidthInteger & Sendable>: OptionSe
         self.rawValue = rawValue
     }
 
-    // swiftformat:disable all
-    private enum Constants {
-        static var numParametersMask:    RawValue { 0x0000FFFF }
-        static var conventionMask:       RawValue { 0x00FF0000 }
-        static var conventionShift:      RawValue { 16 }
-        static var throwsMask:           RawValue { 0x01000000 }
-        static var paramFlagsMask:       RawValue { 0x02000000 }
-        static var escapingMask:         RawValue { 0x04000000 }
-        static var differentiableMask:   RawValue { 0x08000000 }
-        static var globalActorMask:      RawValue { 0x10000000 }
-        static var asyncMask:            RawValue { 0x20000000 }
-        static var sendableMask:         RawValue { 0x40000000 }
-        static var extendedFlagsMask:    RawValue { 0x80000000 }
-    }
-    // swiftformat:enable all
+    @BitField(bits: 0..<16)
+    public var numberOfParameters: IntType
 
-    public var numberOfParameters: IntType {
-        rawValue & Constants.numParametersMask
-    }
+    @BitField(bits: 29)
+    public var isAsync: Bool
 
-    public var isAsync: Bool {
-        rawValue & Constants.asyncMask != .zero
-    }
+    @BitField(bits: 24)
+    public var isThrowing: Bool
 
-    public var isThrowing: Bool {
-        rawValue & Constants.throwsMask != .zero
-    }
+    @BitField(bits: 26)
+    public var isEscaping: Bool
 
-    public var isEscaping: Bool {
-        rawValue & Constants.escapingMask != .zero
-    }
+    @BitField(bits: 30)
+    public var isSendable: Bool
 
-    public var isSendable: Bool {
-        rawValue & Constants.sendableMask != .zero
-    }
+    @BitField(bits: 25)
+    public var hasParameterFlags: Bool
 
-    public var hasParameterFlags: Bool {
-        rawValue & Constants.paramFlagsMask != .zero
-    }
+    @BitField(bits: 27)
+    public var isDifferentiable: Bool
 
-    public var isDifferentiable: Bool {
-        rawValue & Constants.differentiableMask != .zero
-    }
+    @BitField(bits: 28)
+    public var hasGlobalActor: Bool
 
-    public var hasGlobalActor: Bool {
-        rawValue & Constants.globalActorMask != .zero
-    }
+    @BitField(bits: 31)
+    public var hasExtendedFlags: Bool
 
-    public var hasExtendedFlags: Bool {
-        rawValue & Constants.extendedFlagsMask != .zero
-    }
-
-    public var convention: FunctionMetadataConvention {
-        .init(rawValue: UInt8(rawValue))!
-    }
+    /// The calling convention, or `nil` for one this reader does not know.
+    @BitField(bits: 16..<24)
+    public var convention: FunctionMetadataConvention?
 }

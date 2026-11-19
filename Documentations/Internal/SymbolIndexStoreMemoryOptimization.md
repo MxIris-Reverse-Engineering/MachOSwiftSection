@@ -2,6 +2,8 @@
 
 日期：2026-08-09（覆盖 2026-07 至 2026-08 的三波优化）；最后更新：2026-08-28（8 月中回填了 0002/0003 落地、262 MB 曲线与 opaque 索引的结构键形态；本日做表述层重写，技术内容不变）
 
+> **0.25.0 起的名字**：本文写于模块拆分之前，文中的 `SymbolIndexStore` 即今天的 `SwiftSymbolIndexStore`（模块 `SwiftSymbols`，见 [Modules/SwiftSymbols.md](Modules/SwiftSymbols.md)）；`SymbolTable`、`SymbolRowBucket` 与采集已迁到 MachOKitExtensions 的 `MachOSymbols`。MachOKitExtensions 里另有一个只收 C/C++/ObjC 名字的 `SymbolIndexStore`，与本文无关。
+
 ## 导读
 
 这篇文档回答一个问题：`SymbolIndexStore`——RuntimeViewer 浏览二进制时的符号查询底座——的内存占用是怎么从 842 MB 降到 262 MB 的。答案分三波优化：第一波把 demangle 结果从堆上的 class 对象树换成紧凑的连续缓冲存储；第二波把散落各处的小缓存合并、清退；第三波把几十万个驻留的符号名字符串换成「指向原始数据的引用 + 用时再取」。每一波各解决一类浪费，本文逐波讲清它解决什么、付出了什么约束，最后给出实测数字和当前的存储模型全貌。

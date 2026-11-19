@@ -115,7 +115,7 @@ var x: Element
 
 更一般地，可以这样变换一个类型：按 kind 把它拆开，递归地变换每个 structural component，再由新的 component 组出一个同 kind 的新类型。先预告一下 `substitution-maps.tex`（中译 [SwiftGenericsSubstitutionMaps.md](SwiftGenericsSubstitutionMaps.md)）：若 `Element` 是一个 generic parameter type，那么把 `Array<Element>` 里的 `Element` 换成 `Int` 就得到 `Array<Int>`，这叫 **type substitution**。编译器提供了各种工具来简化「按 type kind 做递归遍历与变换」的实现，type substitution 就是这类变换的一个例子。
 
-> 译注：本库拿到的是这棵类型树被 mangler 序列化之后再 demangle 回来的形态——一棵 `Node` 树。结构完全同构：`Node.Kind` 对应本章的 type kind，子节点对应 structural component，「不可变、整棵替换」这条纪律在本库里同样成立（`NodeReference` 走 intern 后共享，任何改写都是重建）。索引与共享机制见 [MachOSymbols.md](../Modules/MachOSymbols.md) 与 [SharedNodeStoreMigration.md](../SharedNodeStoreMigration.md)。
+> 译注：本库拿到的是这棵类型树被 mangler 序列化之后再 demangle 回来的形态——一棵 `Node` 树。结构完全同构：`Node.Kind` 对应本章的 type kind，子节点对应 structural component，「不可变、整棵替换」这条纪律在本库里同样成立（`NodeReference` 走 intern 后共享，任何改写都是重建）。索引与共享机制见 [SwiftSymbols.md](../Modules/SwiftSymbols.md) 与 [SharedNodeStoreMigration.md](../SharedNodeStoreMigration.md)。
 
 ### Canonical types
 

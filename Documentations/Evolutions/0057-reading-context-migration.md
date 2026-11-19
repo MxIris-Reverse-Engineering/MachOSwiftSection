@@ -3,7 +3,7 @@
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-09-30
-- **最后更新**: 2026-10-01
+- **最后更新**: 2026-11-11
 - **所属愿景**: 无
 - **关联提案**: [0018-self-contained-abi-layer](0018-self-contained-abi-layer.md)（「`ReadingContext` 只管读、不带符号服务」的定位出自这里，本提案延续它）、[0025-key-path-component-and-property-descriptor](0025-key-path-component-and-property-descriptor.md)（记下了「新接口三套都写」的惯例，本提案推翻它）、[0053-shared-cache-composition-and-eviction-registry](0053-shared-cache-composition-and-eviction-registry.md)（按镜像缓存与驱逐的现行规则）
 - **实现分支 / PR**: `refactor/reading-context-migration`（worktree `.worktrees/MachOSwiftSection-ReadingContextMigration`），[PR #129](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/pull/129)
@@ -261,7 +261,7 @@ extension ReadingContext {
 
 10. 0.22.0 发布（Changelog 写明废弃清单与三处行为变化）。
 11. RuntimeViewer、MachOKitUI、swift-decompiler 各提迁移 PR。
-12. 0.25.0（原定 0.23.0，2026-10-15 与 2026-10-26 两次推迟，见决策日志）：删除全部废弃转发与转发套件，更新覆盖率登记表（13 个指针版初始化器键），本提案决策日志补一行。
+12. 0.25.0（原定 0.23.0，2026-10-15 与 2026-10-26 两次推迟，见决策日志）：删除全部废弃转发与转发套件，更新覆盖率登记表（13 个指针版初始化器键），本提案决策日志补一行。**已完成**（2026-11-11，见决策日志）。
 
 **收尾判断**（落地时写进决策日志）：是否需要配套实现说明（预期更新 `ReadingContextAbstraction.md` 即可，不另写）；新术语「缓存范围」登记进术语表。
 
@@ -342,3 +342,4 @@ extension ReadingContext {
 | 2026-10-01 | 收尾判断：不另写使用指南，实现说明是 `ReadingContextAbstraction.md`「单一实现与废弃」一节；术语表的「cache scope」与「context form / Mach-O form / pointer form」已在实现批次登记；账本记第 73 节 | 迁移写法只有三种替换（`x(in: machO)` → `x(in: machO.context)`，`x()` → `x(in: .inProcess)`，`resolve(from:in:)` → `resolve(at:in:)`），废弃消息本身就给出了替代写法，0.22.0 的 Changelog 再列一遍 |
 | 2026-10-15 | 删除推迟到 0.24.0 | 用户决定：发 0.23.0 时 RuntimeViewer 的 `next` 已迁完（`44607ba6`），MachOKitUI（`from: "0.19.0"`，会自动解析到 0.23.0）与 swift-decompiler（跟本库 `next`）都还没迁，0.23.0 删除会让它们下次解析时编不过。0.23.0 的 Changelog 写明新期限；两个下游迁完后再删。 |
 | 2026-10-26 | 删除再推迟到 0.25.0 | 用户批准按建议发 0.24.0、这一版不删。两个下游仍没迁：MachOKitUI 的 `main`（`db0d03d`，`MachOSwiftSectionDetailBuilder.swift` 里一串 `(in: source)`，依赖 `from: "0.19.0"`，会自动解析到 0.24.0）与 swift-decompiler 的 `main`（`0e186ec`，`SwiftMetadataProvider.swift` 的 `(in: machOFile)`，跟本库 `next`）。0.24.0 的 Changelog 写明新期限。 |
+| 2026-11-11 | 删除全部废弃转发与转发套件 | 按 MachOKitExtensions 的提案「把 MachOReading 与 MachOResolving 迁入本包」，与迁移放在同一版：废弃写法不随模块进入 MachOKitExtensions。下游已迁完：MachOKitUI 的 `main` 与 RuntimeViewer 的 `next` 早已改用 `ReadingContext`，swift-decompiler 在同名功能分支 `feature/move-reading-and-resolving-modules` 上迁掉最后 13 处（编译器报出的，比文本搜到的多 3 处 `dumpName(using:in:)`）。删去 344 个读取写法的转发与整个 `AsyncResolvable`；`ResilientWitness.implementationAddress(in: machO)` 是本提案改名留下的旧名，同属废弃转发，一并删除；`DeprecatedReadingFormsTests` 删除。13 个基线生成器去掉指针版初始化器的键；另有两个名字独一份的指针版写法（`MetadataWrapper.metadata`、`TargetGenericContext.uniqueCurrentRequirementsInProcess`）删后连键一起消失，覆盖率不变式报为多余登记，按它的要求从登记表删去，并删掉对着它们的两个测试——它们测的是替代写法的本进程路径，`asMetadata` 另有自己的测试，顶层类型的 `uniqueCurrentRequirements` 也不读内存，覆盖没有损失。基线用 CI 的 Xcode 26.6 按 CI 设置编出的样本重新生成，只有这 14 个文件的登记行变化（用 Xcode 27.2 编的样本会让 70 个基线的偏移整体漂移，不能用）。 |

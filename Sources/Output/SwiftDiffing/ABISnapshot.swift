@@ -27,6 +27,15 @@ public struct ABISnapshot: Codable, Equatable, Sendable {
     // "…|acc:…") are the de-facto format, so a key-scheme bump must invalidate
     // old snapshots.
 
+    /// Whether the image this snapshot was frozen from carries any local
+    /// (non-external) Swift symbol. `false` for an image stripped of its
+    /// local symbols — SwiftUI in the macOS 13.0–14.8 dyld shared caches —
+    /// which shows only its exported Swift names: a member whose only
+    /// evidence is a non-exported symbol cannot be seen there, so a
+    /// comparison treats its absence as unobservable rather than as a
+    /// removal (evolution proposal `evolution-unobservable-presence`).
+    public var hasLocalSwiftSymbols: Bool
+
     public init(
         types: [ContainerSnapshot] = [],
         protocols: [ContainerSnapshot] = [],
@@ -35,7 +44,8 @@ public struct ABISnapshot: Codable, Equatable, Sendable {
         typeAliasExtensions: [ContainerSnapshot] = [],
         conformanceExtensions: [ContainerSnapshot] = [],
         globalVariables: [MemberRecord] = [],
-        globalFunctions: [MemberRecord] = []
+        globalFunctions: [MemberRecord] = [],
+        hasLocalSwiftSymbols: Bool = true
     ) {
         self.types = types
         self.protocols = protocols
@@ -45,6 +55,7 @@ public struct ABISnapshot: Codable, Equatable, Sendable {
         self.conformanceExtensions = conformanceExtensions
         self.globalVariables = globalVariables
         self.globalFunctions = globalFunctions
+        self.hasLocalSwiftSymbols = hasLocalSwiftSymbols
     }
 }
 

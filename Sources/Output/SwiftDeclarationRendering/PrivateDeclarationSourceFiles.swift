@@ -56,6 +56,23 @@ package enum PrivateDeclarationSourceFileComments {
         enclosedBy enclosingNodes: [any DemanglingNode],
         provider: any PrivateDeclarationSourceFileProviding
     ) -> [String] {
+        lineBodies(for: nodes, enclosedBy: enclosingNodes, provider: provider).map(\.text)
+    }
+
+    /// `lines(for:enclosedBy:provider:)` as the comments the printers emit.
+    package static func comments(
+        for nodes: [any DemanglingNode],
+        enclosedBy enclosingNodes: [any DemanglingNode],
+        provider: any PrivateDeclarationSourceFileProviding
+    ) -> [StructuredComment] {
+        lineBodies(for: nodes, enclosedBy: enclosingNodes, provider: provider).map(StructuredComment.line)
+    }
+
+    private static func lineBodies(
+        for nodes: [any DemanglingNode],
+        enclosedBy enclosingNodes: [any DemanglingNode],
+        provider: any PrivateDeclarationSourceFileProviding
+    ) -> [[StructuredComment.Segment]] {
         let enclosingDiscriminators = Set(enclosingNodes.flatMap { $0.privateDeclarations.map(\.discriminator) })
         var discriminators: [String] = []
         var lastDeclarationByDiscriminator: [String: (declaration: PrivateDeclaration, moduleName: String?)] = [:]
@@ -69,7 +86,7 @@ package enum PrivateDeclarationSourceFileComments {
             }
         }
         return discriminators.compactMap { discriminator in
-            lastDeclarationByDiscriminator[discriminator].map { line(for: $0.declaration, sourceFile: provider.sourceFile(forPrivateDiscriminator: discriminator), printedModuleName: $0.moduleName) }
+            lastDeclarationByDiscriminator[discriminator].map { lineBody(for: $0.declaration, sourceFile: provider.sourceFile(forPrivateDiscriminator: discriminator), printedModuleName: $0.moduleName) }
         }
     }
 
@@ -79,13 +96,36 @@ package enum PrivateDeclarationSourceFileComments {
     /// One nothing recovered says so, with its discriminator: the interface
     /// prints none anywhere else.
     package static func line(for privateDeclaration: PrivateDeclaration, sourceFile: PrivateDeclarationSourceFile?, printedModuleName: String?) -> String {
-        let subject = privateDeclaration.name.map { "\($0) is declared in" } ?? "Declared in"
-        guard let sourceFile else {
-            return "\(subject) a source file whose name could not be recovered (private discriminator \(privateDeclaration.discriminator))"
+        lineBody(for: privateDeclaration, sourceFile: sourceFile, printedModuleName: printedModuleName).text
+    }
+
+    /// `line(for:sourceFile:printedModuleName:)` as segments: the
+    /// declaration's name, the file's and the module's (evolution proposal
+    /// `comment-structure`).
+    package static func lineBody(for privateDeclaration: PrivateDeclaration, sourceFile: PrivateDeclarationSourceFile?, printedModuleName: String?) -> [StructuredComment.Segment] {
+        var body: [StructuredComment.Segment] = []
+        let predicate: String
+        if let name = privateDeclaration.name {
+            body += [.name(name), .separator(" ")]
+            predicate = "is declared in"
+        } else {
+            predicate = "Declared in"
         }
-        let file = sourceFile.isSynthesized ? "the file the compiler synthesized for \(sourceFile.fileName)" : sourceFile.fileName
-        let module = sourceFile.moduleName == printedModuleName ? "" : " of module \(sourceFile.moduleName)"
-        return "\(subject) \(file)\(module)"
+        guard let sourceFile else {
+            return body + [
+                .text("\(predicate) a source file whose name could not be recovered"), .separator(" ("),
+                .key("private discriminator"), .separator(" "), .value(privateDeclaration.discriminator), .separator(")"),
+            ]
+        }
+        if sourceFile.isSynthesized {
+            body += [.text("\(predicate) the file the compiler synthesized for"), .separator(" "), .value(sourceFile.fileName)]
+        } else {
+            body += [.text(predicate), .separator(" "), .value(sourceFile.fileName)]
+        }
+        if sourceFile.moduleName != printedModuleName {
+            body += [.separator(" "), .text("of module"), .separator(" "), .name(sourceFile.moduleName)]
+        }
+        return body
     }
 
     /// The module a name is declared in: the end of its chain of contexts,

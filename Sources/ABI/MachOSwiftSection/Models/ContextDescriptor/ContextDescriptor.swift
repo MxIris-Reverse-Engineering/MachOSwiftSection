@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ContextDescriptor: ContextDescriptorProtocol {
     public struct Layout: ContextDescriptorLayout {
         public let flags: ContextDescriptorFlags

@@ -5,8 +5,8 @@ import MachOFoundation
 import MachOSwiftSection
 import Demangling
 @_spi(Internals) import SwiftInspection
-import MachOTestingSupport
-import MachOFixtureSupport
+import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// A host's wrapper around an in-process `MachOImage` — MachOKitUI's
 /// `MachOImageSource` — demangling the image's names.

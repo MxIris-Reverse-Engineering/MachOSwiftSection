@@ -6,7 +6,7 @@ import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 
 /// How the interface prints a protocol's requirement signature (evolution
 /// proposal `protocol-requirement-placement`): every requirement in the
@@ -50,7 +50,7 @@ struct ProtocolRequirementPlacementInterfaceTests {
             var requirements: [String] = []
             for requirement in protocolModel.requirementInSignatures {
                 let requirementText = try await requirement.descriptor.dump(using: .default, in: machOFile.context).string
-                requirements.append("\(requirement.descriptor.flags.kind) \(requirementText)")
+                requirements.append("\(requirement.descriptor.flags.kind.map { "\($0)" } ?? "unknown") \(requirementText)")
             }
             requirementSignatures[protocolModel.name] = requirements
         }

@@ -1,8 +1,8 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOFixtureSupport
-@testable import MachOTestingSupport
+import SwiftSectionFixtureSupport
+@testable import SwiftSectionTestingSupport
 import Demangling
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing

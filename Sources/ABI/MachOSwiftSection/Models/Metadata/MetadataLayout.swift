@@ -1,5 +1,6 @@
 import Foundation
 import MachOBase
+import Utilities
 
 @Layout
 public protocol MetadataLayout: LayoutProtocol {

@@ -11,9 +11,10 @@ import SwiftStdlibToolbox
 import MachOKit
 import Dependencies
 import Utilities
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 @_spi(Support)
 public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: Sendable {
@@ -46,7 +47,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// The in-image non-exported declaration names the exported-only filter
     /// consults for `extension` targets — installed by
     /// `installExportFilterScope(types:protocols:)`, consulted only while
-    /// `configuration.printExportedDeclarationsOnly` is set.
+    /// `configuration.printExportedDeclarationsOnly` or
+    /// `configuration.marksOptionalContent` is set.
     @Mutex
     var exportFilterScope: ExportFilterScope = .empty
 
@@ -65,13 +67,39 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// Memoized static field-layout provider for the offline (`MachOFile`) path,
     /// built once on first use — only when the reader is a `MachOFile` and a
     /// layout-bearing flag is on. `.computed(nil)` records "no provider", so the
-    /// (relatively expensive) dependency-closure build is attempted at most once.
+    /// (relatively expensive) dependency-closure build is attempted at most once
+    /// per set of inputs it was built from.
     @Mutex
     private var memoizedStaticFieldLayoutProvider: StaticFieldLayoutProviderState = .uncomputed
 
     private enum StaticFieldLayoutProviderState: Sendable {
         case uncomputed
-        case computed((any StaticFieldLayoutProvider)?)
+        case computed((any StaticFieldLayoutProvider)?, builtFrom: StaticFieldLayoutProviderInputs)
+    }
+
+    /// The part of a configuration the static field-layout provider is built
+    /// from, and nothing else: whether any flag needs a provider at all, and
+    /// the dependency resolution it lays types out over.
+    ///
+    /// `updateConfiguration(_:)` keeps the memoized provider while these stay
+    /// equal. Hosts hand the printer a configuration before every print —
+    /// RuntimeViewer does, mostly an unchanged one — and over the default
+    /// resolution every rebuild opens a new dependency closure, whose first
+    /// lookup in a dyld cache reads that cache's image directory and whose
+    /// image universe indexes every dependency's types again from scratch.
+    private struct StaticFieldLayoutProviderInputs: Equatable, Sendable {
+        /// The resolution a provider is built over, or `nil` when no flag of
+        /// the configuration needs one.
+        let requiredDependencyResolution: StaticLayoutDependencyResolution?
+
+        init(_ configuration: SwiftDeclarationPrintConfiguration) {
+            let needsProvider = configuration.marksOptionalContent
+                || configuration.printFieldOffset
+                || configuration.printTypeLayout
+                || configuration.printEnumLayout
+                || configuration.printExpandedFieldOffsets
+            requiredDependencyResolution = needsProvider ? configuration.staticLayoutDependencyResolution : nil
+        }
     }
 
     /// What names the source files of private declarations; see
@@ -115,24 +143,25 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// double-checked compute-and-install inside one critical section, so the
     /// (relatively expensive) dependency-closure build cannot race or duplicate
     /// even when the printer is shared across concurrent renders.
+    ///
+    /// The configuration is read inside that critical section, which is also
+    /// where `updateConfiguration(_:)` replaces it: a provider is therefore
+    /// always recorded with the inputs of the configuration it was built from.
     func staticFieldLayoutProvider() -> (any StaticFieldLayoutProvider)? {
-        if case .computed(let provider) = memoizedStaticFieldLayoutProvider {
+        if case .computed(let provider, _) = memoizedStaticFieldLayoutProvider {
             return provider
         }
-        let configurationSnapshot = self.configuration
         return _memoizedStaticFieldLayoutProvider.withLock { state in
-            if case .computed(let provider) = state {
+            if case .computed(let provider, _) = state {
                 return provider
             }
-            let provider: (any StaticFieldLayoutProvider)?
-            if configurationSnapshot.marksOptionalContent || configurationSnapshot.printFieldOffset || configurationSnapshot.printTypeLayout || configurationSnapshot.printEnumLayout || configurationSnapshot.printExpandedFieldOffsets {
-                // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
-                // provider; `MachOImage` returns nil.
-                provider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: configurationSnapshot.staticLayoutDependencyResolution)
-            } else {
-                provider = nil
+            let inputs = StaticFieldLayoutProviderInputs(self.configuration)
+            // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
+            // provider; `MachOImage` returns nil.
+            let provider = inputs.requiredDependencyResolution.flatMap { resolution in
+                MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: resolution)
             }
-            state = .computed(provider)
+            state = .computed(provider, builtFrom: inputs)
             return provider
         }
     }
@@ -173,11 +202,18 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     }
 
     public func updateConfiguration(_ configuration: SwiftDeclarationPrintConfiguration) {
-        self.configuration = configuration
-        // The memoized provider was built against the previous configuration's
-        // layout flags + dependency resolution. Reset it so the next
-        // `staticFieldLayoutProvider()` call rebuilds against the new one.
-        _memoizedStaticFieldLayoutProvider.withLock { $0 = .uncomputed }
+        let inputs = StaticFieldLayoutProviderInputs(configuration)
+        _memoizedStaticFieldLayoutProvider.withLock { state in
+            self.configuration = configuration
+            // A provider built from other inputs — a layout flag turning the
+            // need on or off, another dependency resolution — is dropped, so
+            // the next `staticFieldLayoutProvider()` call builds one from the
+            // new configuration. One built from the same inputs is the
+            // provider the new configuration would build, and is kept.
+            if case .computed(_, let builtFrom) = state, builtFrom != inputs {
+                state = .uncomputed
+            }
+        }
     }
 
     public func addTypeNameResolver(_ resolver: any TypeNameResolving) {
@@ -215,13 +251,14 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         privateDeclarationSourceFileProvider = provider
     }
 
-    /// The source-file comment lines of a declaration named `nodes`, printed
+    /// The source-file comments of a declaration named `nodes`, printed
     /// inside the declaration named `enclosingNodes` (evolution proposal
-    /// `private-declaration-source-files`); each call site lays them out. None
-    /// without a provider, and the nodes are only worked out with one.
-    package func privateDeclarationSourceFileLines(for nodes: @autoclosure () -> [any DemanglingNode], enclosedBy enclosingNodes: @autoclosure () -> [any DemanglingNode] = []) -> [String] {
+    /// `private-declaration-source-files`), one per line; each call site lays
+    /// them out. None without a provider, and the nodes are only worked out
+    /// with one.
+    package func privateDeclarationSourceFileComments(for nodes: @autoclosure () -> [any DemanglingNode], enclosedBy enclosingNodes: @autoclosure () -> [any DemanglingNode] = []) -> [StructuredComment] {
         guard let privateDeclarationSourceFileProvider else { return [] }
-        return PrivateDeclarationSourceFileComments.lines(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider)
+        return PrivateDeclarationSourceFileComments.comments(for: nodes(), enclosedBy: enclosingNodes(), provider: privateDeclarationSourceFileProvider)
     }
 
     /// The names a definition prints in its header: a conformance
@@ -245,6 +282,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// an empty result every enclosing `BlockList` / `NestedDeclaration`
     /// skips without a stray break. Ruled before the start event, so a
     /// filtered definition leaves no unpaired `definitionPrintStarted`.
+    /// When marking, it prints as usual, visible only while the filter is
+    /// off (evolution proposal `exported-only-marking-mode`).
     ///
     /// The four per-definition entries (`printTypeDefinition` /
     /// `printProtocolDefinition` / `printExtensionDefinition` /
@@ -256,10 +295,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// from a parent's nested-children loop the task is already on the
     /// executor and the wrap is a no-op.
     public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
-        guard !isExcludedByExportFilter(typeDefinition) else { return SemanticString() }
+        guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(typeDefinition)) else { return SemanticString() }
         return try await LargeStackTaskExecution.run {
             try await printIncludedTypeDefinition(typeDefinition, level: level, displayParentName: displayParentName)
-        }
+        }.visible(under: visibility)
     }
 
     @SemanticStringBuilder
@@ -275,7 +314,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // `local-type-context-names`).
         if let localTypeComment = localTypeDeclarationComment(for: typeDefinition.typeName) {
             Indent(level: level - 1)
-            Comment(localTypeComment)
+            comment(.note(localTypeComment), as: .note)
             BreakLine()
         }
 
@@ -286,9 +325,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // declaring it, which prints nowhere above it. And the parent at any
         // level: a nested definition printed on its own must read as the one
         // taken out of its parent's print (`marksNestedDefinitions`).
-        for line in privateDeclarationSourceFileLines(for: [typeDefinition.typeName.node], enclosedBy: typeDefinition.parent.map { [$0.typeName.node] } ?? []) {
+        for sourceFileComment in privateDeclarationSourceFileComments(for: [typeDefinition.typeName.node], enclosedBy: typeDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
-            Comment(line)
+            comment(sourceFileComment, as: .privateDeclarationSource)
             BreakLine()
         }
 
@@ -310,6 +349,16 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             BreakLine()
         }
 
+        // `@Observation.Observable`, where the folded form stands for what the
+        // macro generated (evolution proposal `observable-macro-folding`).
+        if typeDefinition.observableMacroExpansion != nil, let foldedVisibility = foldedMacroVisibility() {
+            try await VisibilityRegion(foldedVisibility) {
+                Indent(level: level - 1)
+                try await attachedMacroAttribute(.observable, level: level)
+                BreakLine()
+            }
+        }
+
         // `@_rawLayout(like: T)`: a Swift 6.4 compiler records the like type
         // as an artificial `_rawLayout` field so offline tools can size the
         // struct. The source attribute is what it stands for, so print that;
@@ -329,7 +378,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Indent(level: level - 1)
             Standard("@_rawLayout(size: \(rawLayoutBuiltinStorage.size), alignment: \(rawLayoutBuiltinStorage.alignment))")
             Space()
-            Comment(FieldRecordRendering.rawLayoutBuiltinStorageComment)
+            comment(.note(FieldRecordRendering.rawLayoutBuiltinStorageComment), as: .note)
             BreakLine()
         }
 
@@ -345,7 +394,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         let materializedTypeContext = try typeDefinition.materializedTypeContext(in: machO.context)
 
         try await DeclarationBlock(level: level) {
-            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, boundTypeNode: boundTypeNode)
+            // The Objective-C protocols the class adopts print here only: the
+            // diff and evolution renderers leave them out, as the ABI
+            // snapshot does (evolution proposal `swift-declared-objc-protocols`).
+            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, boundTypeNode: boundTypeNode, objcProtocolNames: typeDefinition.objcProtocolNames)
         } body: {
             // Per-CHILD catch: one nested child whose printing throws drops
             // only itself — the same per-definition contract `printRoot`
@@ -384,9 +436,11 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 }
             }
 
-            try await renderModelFields(typeDefinition, typeContext: materializedTypeContext, level: level)
+            try await bodyAfterNestedDefinitions(of: typeDefinition) {
+                try await renderModelFields(typeDefinition, typeContext: materializedTypeContext, level: level)
 
-            try await printDefinition(typeDefinition, level: level)
+                try await printDefinition(typeDefinition, level: level)
+            }
         }
 
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
@@ -394,12 +448,13 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     /// Exported-only gate, same contract as `printTypeDefinition`: a protocol
     /// whose descriptor provably is not exported renders as nothing — its
-    /// trailing default-implementation extensions go with it.
+    /// trailing default-implementation extensions go with it — or, when
+    /// marking, as usual, visible only while the filter is off.
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
-        guard !isExcludedByExportFilter(protocolDefinition) else { return SemanticString() }
+        guard let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(protocolDefinition)) else { return SemanticString() }
         return try await LargeStackTaskExecution.run {
             try await printIncludedProtocolDefinition(protocolDefinition, level: level, displayParentName: displayParentName)
-        }
+        }.visible(under: visibility)
     }
 
     @SemanticStringBuilder
@@ -435,9 +490,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         )
 
         // As a type's (evolution proposal `private-declaration-source-files`).
-        for line in privateDeclarationSourceFileLines(for: [protocolDefinition.protocolName.node], enclosedBy: protocolDefinition.parent.map { [$0.typeName.node] } ?? []) {
+        for sourceFileComment in privateDeclarationSourceFileComments(for: [protocolDefinition.protocolName.node], enclosedBy: protocolDefinition.parent.map { [$0.typeName.node] } ?? []) {
             Indent(level: level - 1)
-            Comment(line)
+            comment(sourceFileComment, as: .privateDeclarationSource)
             BreakLine()
         }
 
@@ -453,9 +508,9 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                     for strippedSymbolicRequirement in protocolDefinition.strippedSymbolicRequirements {
                         MemberList(level: level) {
                             optionalContent(.printPWTOffset) {
-                                OffsetComment(prefix: "PWT offset", offset: strippedSymbolicRequirement.pwtOffset, emit: true)
+                                OffsetComment(prefix: "PWT offset", kind: .pwtOffset, offset: strippedSymbolicRequirement.pwtOffset, emit: true, marksStructure: marksCommentStructure)
                             }
-                            strippedSymbolicRequirement.strippedSymbolicInfo()
+                            strippedSymbolicRequirement.strippedSymbolicInfo(markingStructure: marksCommentStructure)
                         }
                     }
                 }
@@ -491,12 +546,17 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// `index(in:)` provides, so that rule is evaluated after the start
     /// event and the index — and reports a paired completion around an
     /// empty result, keeping the event stream's start/completion pairing
-    /// intact on that path too.
+    /// intact on that path too. When marking, either prints as usual,
+    /// visible only while the filter is off.
     public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
-        guard !isExcludedByExportFilter(extensionDefinition) else { return SemanticString() }
+        // The conformance an attached macro generated is part of the
+        // expansion: the folded form prints the macro attribute instead
+        // (evolution proposal `observable-macro-folding`).
+        let macroVisibility: VisibilityCondition? = extensionDefinition.generatingMacro == nil ? .always : macroExpansionVisibility()
+        guard let visibility = combinedVisibility(exportFilterVisibility(excluded: isExcludedByExportFilter(extensionDefinition)), macroVisibility) else { return SemanticString() }
         return try await LargeStackTaskExecution.run {
             try await printExtensionDefinitionContents(extensionDefinition, level: level)
-        }
+        }.visible(under: visibility)
     }
 
     private func printExtensionDefinitionContents(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
@@ -506,10 +566,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         try extensionDefinition.index(in: machO)
 
         let rendered: SemanticString
-        if isEmptiedByExportFilter(extensionDefinition) {
-            rendered = SemanticString()
+        if let visibility = exportFilterVisibility(excluded: isEmptiedByExportFilter(extensionDefinition)) {
+            rendered = try await printIncludedExtensionDefinition(extensionDefinition, level: level).visible(under: visibility)
         } else {
-            rendered = try await printIncludedExtensionDefinition(extensionDefinition, level: level)
+            rendered = SemanticString()
         }
 
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
@@ -521,60 +581,84 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // An extension of a private type, or a conformance to a private
         // protocol, is declared in that type's or protocol's file (evolution
         // proposal `private-declaration-source-files`).
-        for line in privateDeclarationSourceFileLines(for: headerNameNodes(of: extensionDefinition)) {
+        for sourceFileComment in privateDeclarationSourceFileComments(for: headerNameNodes(of: extensionDefinition)) {
             Indent(level: level - 1)
-            Comment(line)
+            comment(sourceFileComment, as: .privateDeclarationSource)
             BreakLine()
         }
 
         try await DeclarationBlock(level: level) {
             try await printExtensionHeader(extensionDefinition, level: level)
         } body: {
-            // Per-CHILD catch, same contract as `printTypeDefinition`'s
-            // nested loops: a nested definition whose printing throws
-            // drops only itself, never the whole extension.
-            for typeDefinition in extensionDefinition.types {
-                if let renderedChild = await printCatchedThrowing(
-                    dispatchingTo: eventDispatcher,
-                    context: .init(name: typeDefinition.typeName.name, kind: .type),
-                    {
-                        try await NestedDeclaration {
-                            try await nestedDefinition(named: typeDefinition.typeName.node) {
-                                try await printTypeDefinition(typeDefinition, level: level + 1)
-                            }
+            try await printExtensionBodyContents(extensionDefinition, level: level) {
+                // Stored properties of an `@objc @implementation` that no member
+                // definition represents (no accessor symbol survived) — rendered
+                // from the ObjC ivar list, ahead of the symbol-derived members.
+                await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1)
+            }
+        }
+    }
+
+    /// What an extension's braces hold: its nested types and protocols, then
+    /// `instanceVariables` and its members. Shared with the Generated
+    /// Interface of an `@objc @implementation` class, which prints the
+    /// implementation's body under the class's own declaration and words its
+    /// stored properties itself (evolution proposal
+    /// `swift-first-imported-declarations`). It also passes the
+    /// `NS_REFINED_FOR_SWIFT` comments that print above a variable, keyed by
+    /// `variableKey(of:)`.
+    @SemanticStringBuilder
+    func printExtensionBodyContents(
+        _ extensionDefinition: ExtensionDefinition,
+        level: Int,
+        refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]] = [:],
+        @SemanticStringBuilder instanceVariables: () async -> SemanticString
+    ) async throws -> SemanticString {
+        // Per-CHILD catch, same contract as `printTypeDefinition`'s
+        // nested loops: a nested definition whose printing throws
+        // drops only itself, never the whole extension.
+        for typeDefinition in extensionDefinition.types {
+            if let renderedChild = await printCatchedThrowing(
+                dispatchingTo: eventDispatcher,
+                context: .init(name: typeDefinition.typeName.name, kind: .type),
+                {
+                    try await NestedDeclaration {
+                        try await nestedDefinition(named: typeDefinition.typeName.node) {
+                            try await printTypeDefinition(typeDefinition, level: level + 1)
                         }
                     }
-                ) {
-                    renderedChild
                 }
+            ) {
+                renderedChild
             }
+        }
 
-            for protocolDefinition in extensionDefinition.protocols {
-                if let renderedChild = await printCatchedThrowing(
-                    dispatchingTo: eventDispatcher,
-                    context: .init(name: protocolDefinition.protocolName.name, kind: .protocol),
-                    {
-                        try await NestedDeclaration {
-                            try await nestedDefinition(named: protocolDefinition.protocolName.node) {
-                                try await printProtocolDefinition(protocolDefinition, level: level + 1)
-                            }
+        for protocolDefinition in extensionDefinition.protocols {
+            if let renderedChild = await printCatchedThrowing(
+                dispatchingTo: eventDispatcher,
+                context: .init(name: protocolDefinition.protocolName.name, kind: .protocol),
+                {
+                    try await NestedDeclaration {
+                        try await nestedDefinition(named: protocolDefinition.protocolName.node) {
+                            try await printProtocolDefinition(protocolDefinition, level: level + 1)
                         }
                     }
-                ) {
-                    renderedChild
                 }
+            ) {
+                renderedChild
             }
+        }
 
+        try await bodyAfterNestedDefinitions(of: extensionDefinition) {
             if !extensionDefinition.associatedTypes.isEmpty {
                 try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
             }
 
-            // Stored properties of an `@objc @implementation` that no member
-            // definition represents (no accessor symbol survived) — rendered
-            // from the ObjC ivar list, ahead of the symbol-derived members.
-            await renderUnrepresentedObjCImplementationInstanceVariables(extensionDefinition, level: 1)
+            await instanceVariables()
 
-            try await printDefinition(extensionDefinition, level: 1)
+            try await LargeStackTaskExecution.run {
+                try await printDefinitionContents(extensionDefinition, level: 1, refinedForSwiftCommentsByVariableKey: refinedForSwiftCommentsByVariableKey)
+            }
         }
     }
 
@@ -595,7 +679,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             Keyword(.atImplementation)
             Space()
             if objcImplementation.evidence.isInferred {
-                InlineComment(objcImplementation.evidence.description)
+                comment(.inlineNote(objcImplementation.evidence.description), as: .note)
                 Space()
             }
         }
@@ -693,33 +777,73 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     }
 
     @SemanticStringBuilder
-    private func printDefinitionContents(_ definition: some Definition, level: Int) async throws -> SemanticString {
+    private func printDefinitionContents(_ definition: some Definition, level: Int, refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]] = [:]) async throws -> SemanticString {
         if let mutableDefinition = definition as? MutableDefinition {
             try mutableDefinition.index(in: machO)
         }
 
         let isProtocol = definition is ProtocolDefinition
+        let context = memberRenderingContext(of: definition, isProtocol: isProtocol, refinedForSwiftCommentsByVariableKey: refinedForSwiftCommentsByVariableKey)
 
         switch configuration.memberSortOrder {
         case .byOffset:
-            await printMembersByOffset(definition, level: level, isProtocol: isProtocol)
+            await printMembersByOffset(definition, level: level, context: context)
         case .byCategory:
-            await printMembersByCategory(definition, level: level, isProtocol: isProtocol)
+            await printMembersByCategory(definition, level: level, context: context)
         }
     }
 
-    @SemanticStringBuilder
-    private func printMembersByOffset(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
-        let offsetCommentOption: SwiftVisibilityOption = isProtocol ? .printPWTOffset : .printFieldOffset
-        let printExportStatus = configuration.printExportStatus
-        let vtableTransformerClosure = vtableOffsetTransformerClosure
+    /// What every member of one definition renders with, hoisted once per
+    /// list: they depend on the enclosing definition, not on the member.
+    struct MemberRenderingContext {
+        let offsetCommentPrefix: String
+        let offsetCommentOption: SwiftVisibilityOption
+        let printExportStatus: Bool
+        let vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?
+        let synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers
+        /// The names of the definition the members are printed in, whose
+        /// private declarations their source-file comments leave out.
+        let enclosingNodes: [any DemanglingNode]
+        /// What the binary records about the class an `@objc @implementation`
+        /// extension implements: its stored properties' Objective-C
+        /// properties say what their symbols may not.
+        let objcImplementation: ObjCImplementationClassFacts?
+        /// The Generated Interface of an `@objc @implementation` class words
+        /// a property the header refines for Swift right above the Swift
+        /// property that took its plain name, before that property's own
+        /// comments; keyed by `variableKey(of:)` (evolution proposal
+        /// `swift-first-imported-declarations`). Empty everywhere else.
+        let refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]]
 
-        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
-        let enclosingNodes = headerNameNodes(of: definition)
+        func refinedForSwiftComments(above variable: VariableDefinition) -> [StructuredComment] {
+            guard !refinedForSwiftCommentsByVariableKey.isEmpty, let variableKey = SwiftDeclarationPrinter.variableKey(of: variable) else { return [] }
+            return refinedForSwiftCommentsByVariableKey[variableKey] ?? []
+        }
+    }
+
+    func memberRenderingContext(of definition: some Definition, isProtocol: Bool, refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]] = [:]) -> MemberRenderingContext {
+        MemberRenderingContext(
+            offsetCommentPrefix: isProtocol ? "PWT offset" : "Field offset",
+            offsetCommentOption: isProtocol ? .printPWTOffset : .printFieldOffset,
+            printExportStatus: configuration.printExportStatus,
+            vtableTransformerClosure: vtableOffsetTransformerClosure,
+            synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers(of: definition),
+            enclosingNodes: headerNameNodes(of: definition),
+            objcImplementation: (definition as? ExtensionDefinition)?.objcImplementation,
+            refinedForSwiftCommentsByVariableKey: refinedForSwiftCommentsByVariableKey
+        )
+    }
+
+    @SemanticStringBuilder
+    private func printMembersByOffset(_ definition: some Definition, level: Int, context: MemberRenderingContext) async -> SemanticString {
+        let folding = observableMacroFolding(of: definition)
         await MemberList(level: level) {
-            for member in definition.orderedMembers where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+            for member in definition.orderedMembers where !context.synthesizedPropertyWrapperMembers.contains(member) {
+                if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
+                    await renderMember(member, visibleUnder: visibility, folding: folding) { marksObservationIgnored in
+                        await renderMember(member, level: level, context: context, marksObservationIgnored: marksObservationIgnored)
+                    }
+                }
             }
 
             // Terminal step: emit `deinit` for classes and noncopyable
@@ -734,10 +858,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             // when the type is an actor or value type.
             if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true, marksStructure: marksCommentStructure)
                 }
                 Keyword(.deinit)
             }
@@ -745,14 +869,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     }
 
     @SemanticStringBuilder
-    private func printMembersByCategory(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
-        let offsetCommentOption: SwiftVisibilityOption = isProtocol ? .printPWTOffset : .printFieldOffset
-        let printExportStatus = configuration.printExportStatus
-        let vtableTransformerClosure = vtableOffsetTransformerClosure
-
-        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
-        let enclosingNodes = headerNameNodes(of: definition)
+    private func printMembersByCategory(_ definition: some Definition, level: Int, context: MemberRenderingContext) async -> SemanticString {
+        let folding = observableMacroFolding(of: definition)
         // A class's vtable members come first, in slot order — the order the
         // class metadata lays its vtable out in, and for the class's own
         // slots the source's declaration order — the way the dump walks them
@@ -761,14 +879,22 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         // class body has vtable members, so every other definition renders
         // exactly as before.
         await MemberList(level: level) {
-            for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+            for member in OrderedMember.vtableOrdered(OrderedMember.allMembers(from: definition)) where !context.synthesizedPropertyWrapperMembers.contains(member) {
+                if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
+                    await renderMember(member, visibleUnder: visibility, folding: folding) { marksObservationIgnored in
+                        await renderMember(member, level: level, context: context, marksObservationIgnored: marksObservationIgnored)
+                    }
+                }
             }
         }
         for category in MemberCategory.allCases {
             await MemberList(level: level) {
-                for member in definition.members(in: category) where member.minVTableOffset == nil && !isExcludedByExportFilter(member) && !synthesizedPropertyWrapperMembers.contains(member) {
-                    await renderMember(member, level: level, offsetCommentPrefix: offsetCommentPrefix, offsetCommentOption: offsetCommentOption, printExportStatus: printExportStatus, vtableTransformerClosure: vtableTransformerClosure, synthesizedPropertyWrapperMembers: synthesizedPropertyWrapperMembers, enclosingNodes: enclosingNodes)
+                for member in definition.members(in: category) where member.minVTableOffset == nil && !context.synthesizedPropertyWrapperMembers.contains(member) {
+                    if let visibility = exportFilterVisibility(excluded: isExcludedByExportFilter(member)) {
+                        await renderMember(member, visibleUnder: visibility, folding: folding) { marksObservationIgnored in
+                            await renderMember(member, level: level, context: context, marksObservationIgnored: marksObservationIgnored)
+                        }
+                    }
                 }
             }
         }
@@ -779,10 +905,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
             MemberList(level: level) {
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: true, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: true, marksStructure: marksCommentStructure)
                 }
                 Keyword(.deinit)
             }
@@ -805,31 +931,39 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// in, whose private declarations its source-file comments leave out
     /// (evolution proposal `private-declaration-source-files`): a member of a
     /// private type is declared in that type's file.
+    ///
+    /// `marksObservationIgnored` prints a member variable with
+    /// `@Observation.ObservationIgnored` in front of it: a wrapped property of
+    /// an `@Observable` class in the folded form (evolution proposal
+    /// `observable-macro-folding`).
     @SemanticStringBuilder
-    private func renderMember(
+    func renderMember(
         _ member: OrderedMember,
         level: Int,
-        offsetCommentPrefix: String,
-        offsetCommentOption: SwiftVisibilityOption,
-        printExportStatus: Bool,
-        vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?,
-        synthesizedPropertyWrapperMembers: SynthesizedPropertyWrapperMembers,
-        enclosingNodes: [any DemanglingNode]
+        context: MemberRenderingContext,
+        marksObservationIgnored: Bool
     ) async -> SemanticString {
+        let offsetCommentPrefix = context.offsetCommentPrefix
+        let offsetCommentOption = context.offsetCommentOption
+        let printExportStatus = context.printExportStatus
+        let vtableTransformerClosure = context.vtableTransformerClosure
+        let synthesizedPropertyWrapperMembers = context.synthesizedPropertyWrapperMembers
+        let enclosingNodes = context.enclosingNodes
+        let offsetCommentKind: AnnotationRegion.Kind = offsetCommentOption == .printPWTOffset ? .pwtOffset : .fieldOffset
         await Rows(level: level) {
             switch member {
             case .allocator(let function), .function(let function):
-                for line in privateDeclarationSourceFileLines(for: [function.node], enclosedBy: enclosingNodes) {
-                    Comment(line)
+                for sourceFileComment in privateDeclarationSourceFileComments(for: [function.node], enclosedBy: enclosingNodes) {
+                    comment(sourceFileComment, as: .privateDeclarationSource)
                 }
                 optionalContent(offsetCommentOption) {
-                    OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: true)
+                    OffsetComment(prefix: offsetCommentPrefix, kind: offsetCommentKind, offset: function.offset, emit: true, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printVTableOffset) {
-                    VTableOffsetComment(vtableOffset: function.vtableOffset, emit: true, transformer: vtableTransformerClosure)
+                    VTableOffsetComment(vtableOffset: function.vtableOffset, emit: true, transformer: vtableTransformerClosure, marksStructure: marksCommentStructure)
                 }
                 optionalContent(.printMemberAddress) {
-                    AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: true)
+                    AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: true, marksStructure: marksCommentStructure)
                 }
                 // Qualifies the address above (evolution proposal 0007): the
                 // witness resolved to a protocol-extension DEFAULT — the code
@@ -837,7 +971,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 // share one identical-code-folded address.
                 if function.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        Comment("protocol-extension default")
+                        comment(.protocolExtensionDefault, as: .protocolExtensionDefault)
                     }
                 }
                 // Export status is only ruled on for members whose OWN
@@ -850,72 +984,83 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
                 // `@objc public dynamic` members both trie-miss).
                 let objcFacts = function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]))
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: [function.symbol.name]), marksStructure: marksCommentStructure)
                 }
                 await printFunction(function, level: level)
 
             case .variable(let variable):
-                for line in privateDeclarationSourceFileLines(for: [variable.node], enclosedBy: enclosingNodes) {
-                    Comment(line)
+                for refinedForSwiftComment in context.refinedForSwiftComments(above: variable) {
+                    comment(refinedForSwiftComment, as: .refinedForSwiftMember)
+                }
+                for sourceFileComment in privateDeclarationSourceFileComments(for: [variable.node], enclosedBy: enclosingNodes) {
+                    comment(sourceFileComment, as: .privateDeclarationSource)
                 }
                 // A stored property of an `@objc @implementation` carries its
                 // REAL field offset (from the ObjC ivar list), so the generic
                 // symbol-offset comment gives way to the field-offset one.
                 if let storage = variable.objcImplementationStorage {
                     optionalContent(.printFieldOffset) {
-                        ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: true, transformer: configuration.fieldOffsetTransformer)
+                        ObjCImplementationFieldOffsetComment(instanceVariable: storage, emit: true, transformer: configuration.fieldOffsetTransformer, marksStructure: marksCommentStructure)
                     }
                 } else {
                     optionalContent(offsetCommentOption) {
-                        OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: true)
+                        OffsetComment(prefix: offsetCommentPrefix, kind: offsetCommentKind, offset: variable.offset, emit: true, marksStructure: marksCommentStructure)
                     }
                 }
                 for accessor in variable.accessors {
                     optionalContent(.printVTableOffset) {
-                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure)
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure, marksStructure: marksCommentStructure)
                     }
                     optionalContent(.printMemberAddress) {
-                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true)
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true, marksStructure: marksCommentStructure)
                     }
                 }
                 if variable.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        Comment("protocol-extension default")
+                        comment(.protocolExtensionDefault, as: .protocolExtensionDefault)
                     }
                 }
                 let objcFacts = variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)))
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: variable.accessors.map(\.symbol.name)), marksStructure: marksCommentStructure)
+                }
+                // The accessor block prints the bare `init` of a SE-0400 init
+                // accessor whose fields nothing in the image names, and says
+                // so here (evolution proposal `init-accessor-recovery`).
+                if variable.hasInitAccessor, variable.initializedFieldNames == nil, variable.objcImplementationStorage == nil, !marksObservationIgnored {
+                    comment(.initAccessorFieldsNotRecorded, as: .initAccessorFields)
                 }
                 if let storage = variable.objcImplementationStorage {
-                    await printObjCImplementationStoredProperty(variable, storage: storage, level: level)
+                    await printObjCImplementationStoredProperty(variable, storage: storage, objcProperty: context.objcImplementation?.objcProperty(storedIn: storage, swiftPropertyName: variable.name), level: level)
+                } else if marksObservationIgnored {
+                    await printObservationIgnoredVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
                 } else {
                     await printVariable(variable, level: level, propertyWrapperAttributeTypeNode: synthesizedPropertyWrapperMembers.wrapperAttributeTypeNode(for: variable))
                 }
 
             case .subscript(let `subscript`):
-                for line in privateDeclarationSourceFileLines(for: [`subscript`.node], enclosedBy: enclosingNodes) {
-                    Comment(line)
+                for sourceFileComment in privateDeclarationSourceFileComments(for: [`subscript`.node], enclosedBy: enclosingNodes) {
+                    comment(sourceFileComment, as: .privateDeclarationSource)
                 }
                 optionalContent(offsetCommentOption) {
-                    OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: true)
+                    OffsetComment(prefix: offsetCommentPrefix, kind: offsetCommentKind, offset: `subscript`.offset, emit: true, marksStructure: marksCommentStructure)
                 }
                 for accessor in `subscript`.accessors {
                     optionalContent(.printVTableOffset) {
-                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure)
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: true, transformer: vtableTransformerClosure, marksStructure: marksCommentStructure)
                     }
                     optionalContent(.printMemberAddress) {
-                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true)
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: true, marksStructure: marksCommentStructure)
                     }
                 }
                 if `subscript`.isProtocolExtensionDefault {
                     optionalContent(.printMemberAddress) {
-                        Comment("protocol-extension default")
+                        comment(.protocolExtensionDefault, as: .protocolExtensionDefault)
                     }
                 }
                 let objcFacts = `subscript`.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence)
                 if printExportStatus, !objcFacts.isOverride, !objcFacts.isObjC {
-                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)))
+                    ExportStatusComment(isExported: exportVerdict(forSymbolNames: `subscript`.accessors.map(\.symbol.name)), marksStructure: marksCommentStructure)
                 }
                 await printSubscript(`subscript`, level: level)
             }
@@ -936,7 +1081,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             // here would separate the comment from the declaration it
             // annotates by a blank line (the member path's `Rows` keeps
             // `ExportStatusComment` adjacent the same way).
-            Comment("not exported")
+            comment(.exportStatus, as: .exportStatus)
         }
     }
 
@@ -948,15 +1093,8 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     /// annotation never fires on a guess. Internal (not private): the
     /// stored-field leg lives in `SwiftDeclarationPrinter+Headers.swift`.
     func exportVerdict(forSymbolNames symbolNames: [String]) -> Bool? {
-        guard !symbolNames.isEmpty else { return nil }
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
-        for symbolName in symbolNames {
-            guard let isExported = symbolIndexStore.isExportedIncludingDerivedSymbols(name: symbolName, in: machO) else { return nil }
-            if isExported {
-                return true
-            }
-        }
-        return false
+        @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
+        return symbolIndexStore.isExportedIncludingDerivedSymbols(names: symbolNames, in: machO)
     }
 
     /// - Parameter propertyWrapperAttributeTypeNode: The wrapper type to print
@@ -1002,12 +1140,26 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     @SemanticStringBuilder
     public func printThrowingVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node? = nil) async throws -> SemanticString {
+        try await printThrowingVariable(variable, level: level, propertyWrapperAttributeTypeNode: propertyWrapperAttributeTypeNode, placesWrapperAttributeOnItsOwnLine: false)
+    }
+
+    /// `placesWrapperAttributeOnItsOwnLine` puts the wrapper attribute on a
+    /// line of its own, as the `@Observable` folding does under
+    /// `@Observation.ObservationIgnored` (evolution proposal
+    /// `observable-nested-expansion`).
+    @SemanticStringBuilder
+    func printThrowingVariable(_ variable: VariableDefinition, level: Int, propertyWrapperAttributeTypeNode: Node?, placesWrapperAttributeOnItsOwnLine: Bool) async throws -> SemanticString {
         // The wrapper attribute comes first, as the compiler's own
         // swiftinterface prints it (`@SwiftUICore.Binding public var isOn`).
         if let propertyWrapperAttributeTypeNode {
             Standard("@")
             try await printThrowingType(propertyWrapperAttributeTypeNode, isProtocol: false, level: level)
-            Space()
+            if placesWrapperAttributeOnItsOwnLine {
+                BreakLine()
+                Indent(level: level)
+            } else {
+                Space()
+            }
         }
         try await printUnderObjCVerdicts(of: variable.resolvedObjCMemberFacts(trustingSelectorNameEvidence:)) { objcFacts in
             objcAttributes(objcFacts)
@@ -1057,7 +1209,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
     }
 
-    private func memberAddressString(forOffset offset: Int?) -> String? {
+    func memberAddressString(forOffset offset: Int?) -> String? {
         guard let offset else { return nil }
         return machO.addressString(forOffset: offset)
     }
@@ -1065,6 +1217,18 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     private var vtableOffsetTransformerClosure: (@Sendable (Int, String?) -> SemanticString)? {
         guard let transformer = configuration.vtableOffsetTransformer else { return nil }
         return { slotOffset, label in transformer((slotOffset, label)) }
+    }
+
+    /// Whether every comment is marked with its kind and segments (evolution
+    /// proposal `comment-structure`).
+    package var marksCommentStructure: Bool {
+        configuration.marksCommentStructure
+    }
+
+    /// `comment` as printed, marked as a comment of `kind` when marking
+    /// comment structure.
+    package func comment(_ comment: StructuredComment, as kind: AnnotationRegion.Kind?) -> SemanticString {
+        comment.printed(markingStructure: marksCommentStructure, as: kind)
     }
 }
 
@@ -1118,11 +1282,16 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
     }
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {
-        await opaqueType(forNode: node, index: index, usesModuleSelectors: configuration.usesModuleSelectors)
+        await opaqueType(forNode: node, index: index, spellingOptions: configuration.spellingOptions)
     }
 
+    public func opaqueType(forNode node: Node, index: Int?, spellingOptions: DemangleOptions) async -> String? {
+        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index, spellingOptions: spellingOptions) }
+    }
+
+    @available(*, deprecated, renamed: "opaqueType(forNode:index:spellingOptions:)", message: "Pass the spelling options; module selectors are one of them.")
     public func opaqueType(forNode node: Node, index: Int?, usesModuleSelectors: Bool) async -> String? {
-        await typeNameResolverRegistry.opaqueTypeResolvers.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index, usesModuleSelectors: usesModuleSelectors) }
+        await opaqueType(forNode: node, index: index, spellingOptions: usesModuleSelectors ? .useModuleSelectors : [])
     }
 
     var marksOptionalContent: Bool {
@@ -1131,5 +1300,9 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
 
     var usesModuleSelectors: Bool {
         configuration.usesModuleSelectors
+    }
+
+    var usesExistentialAny: Bool {
+        configuration.usesExistentialAny
     }
 }

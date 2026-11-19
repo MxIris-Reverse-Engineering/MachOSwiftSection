@@ -18,8 +18,20 @@ public enum SwiftVisibilityOption: String, CaseIterable, Sendable {
     case printEnumLayout = "swift.printEnumLayout"
     case infersObjCOverridesFromSelectorNames = "swift.infersObjCOverridesFromSelectorNames"
 
+    /// What the exported-only filter leaves out: a declaration it rules out
+    /// is visible only while the option is OFF (evolution proposal
+    /// `exported-only-marking-mode`).
+    case printExportedDeclarationsOnly = "swift.printExportedDeclarationsOnly"
+
     /// What an opaque type resolver registered with the printer supplies:
     /// the constraint after `some`. Off, the interface reads as printed
     /// without such a resolver.
     case opaqueTypeResolution = "swift.opaqueTypeResolution"
+
+    /// What an attached macro the type was declared with generated, as the
+    /// binary has it (evolution proposal `observable-macro-folding`). The
+    /// folded form — the macro attribute and the declarations the source
+    /// wrote — is visible only while the option is OFF; the expansion only
+    /// while it is ON.
+    case expandsMacros = "swift.expandsMacros"
 }

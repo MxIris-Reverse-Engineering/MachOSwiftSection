@@ -1,7 +1,7 @@
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ClassMetadataObjCInterop: ClassMetadataObjCInteropProtocol {
     public struct Layout: ClassMetadataObjCInteropLayout, FinalClassMetadataLayout {
         public let kind: StoredPointer

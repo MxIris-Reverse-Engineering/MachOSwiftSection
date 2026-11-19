@@ -102,4 +102,25 @@ struct ObjCAPICommandParsingTests {
             try ObjCEvolutionCommand.parse(["/tmp/v1", "/tmp/v2", "--json", "--summary-only"])
         }
     }
+
+    @Test("evolution parses the annotated-header flags")
+    func evolutionParsesInterfaceFlags() throws {
+        let command = try ObjCEvolutionCommand.parse(["/tmp/v1", "/tmp/v2", "--interface", "--emit-available", "--platform", "ios"])
+        #expect(command.interface)
+        #expect(command.emitAvailable)
+        #expect(command.platform == "ios")
+    }
+
+    @Test("evolution rejects the annotated-header flags it cannot honor", arguments: [
+        (["--interface", "--json"], "--json and --interface are mutually exclusive"),
+        (["--interface", "--summary-only"], "--interface and --summary-only are mutually exclusive"),
+        (["--emit-available"], "--emit-available requires --interface"),
+        (["--interface", "--platform", "ios"], "--platform requires --emit-available"),
+    ])
+    func evolutionRejectsInterfaceFlagMisuse(flags: [String], messagePart: String) {
+        let error = #expect(throws: (any Error).self) {
+            try ObjCEvolutionCommand.parse(flags + ["/tmp/v1", "/tmp/v2"])
+        }
+        #expect(error.map { ObjCEvolutionCommand.message(for: $0) }?.contains(messagePart) == true)
+    }
 }

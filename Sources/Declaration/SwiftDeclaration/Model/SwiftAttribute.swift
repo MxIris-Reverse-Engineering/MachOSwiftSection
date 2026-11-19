@@ -1,0 +1,68 @@
+import Semantic
+import SwiftDeclarationRendering
+
+public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable, Codable {
+    // Type-level (inferred from members)
+    case propertyWrapper
+    case resultBuilder
+    case dynamicMemberLookup
+    case dynamicCallable
+
+    // Type-level (from metadata flags)
+    case objcType
+
+    // Member-level (from Node tree / descriptor flags)
+    case objc
+    case nonobjc
+    case dynamic
+    case distributed
+
+    // Type-level (from conformance: conforms to GlobalActor)
+    case globalActor
+
+    // Conformance-level
+    case retroactive
+
+    // Type-level (from metadata flags): a class on the native Swift object
+    // model renamed for the ObjC runtime, where `@objc` is not legal.
+    // Declared last so the raw values above stay put.
+    case objcRuntimeName
+
+    public static func < (left: SwiftAttribute, right: SwiftAttribute) -> Bool {
+        left.rawValue < right.rawValue
+    }
+
+    public var annotationString: String {
+        switch self {
+        case .propertyWrapper: return "@propertyWrapper"
+        case .resultBuilder: return "@resultBuilder"
+        case .dynamicMemberLookup: return "@dynamicMemberLookup"
+        case .dynamicCallable: return "@dynamicCallable"
+        case .objcType: return "@objc"
+        case .objc: return "@objc"
+        case .nonobjc: return "@nonobjc"
+        case .dynamic: return "dynamic"
+        case .distributed: return "distributed"
+        case .globalActor: return "@globalActor"
+        case .retroactive: return "@retroactive"
+        case .objcRuntimeName: return "@_objcRuntimeName"
+        }
+    }
+
+    package var keyword: Keyword.Swift {
+        switch self {
+        case .propertyWrapper: return .atPropertyWrapper
+        case .resultBuilder: return .atResultBuilder
+        case .dynamicMemberLookup: return .atDynamicMemberLookup
+        case .dynamicCallable: return .atDynamicCallable
+        case .objcType: return .atObjc
+        case .objc: return .atObjc
+        case .nonobjc: return .atNonobjc
+        case .dynamic: return .dynamic
+        case .distributed: return .distributed
+        case .globalActor: return .atGlobalActor
+        case .retroactive: return .atRetroactive
+        case .objcRuntimeName: return .atObjCRuntimeName
+        }
+    }
+}

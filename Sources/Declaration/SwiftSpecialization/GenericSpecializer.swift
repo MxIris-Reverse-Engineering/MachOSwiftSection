@@ -4,7 +4,7 @@ import Foundation
 import MachOSwiftSection
 import MachOKit
 import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
 
@@ -448,6 +448,11 @@ extension GenericSpecializer {
             // Capability declaration (~Copyable / ~Escapable) — surfaced on
             // Parameter.invertibleProtocols rather than as a Requirement, because
             // it relaxes rather than constrains the parameter.
+            return nil
+
+        case nil:
+            // A kind this reader does not know: there is no telling what it
+            // asks of an argument, so it is not offered as a requirement.
             return nil
         }
     }
@@ -1086,8 +1091,7 @@ extension GenericSpecializer where MachO == MachOImage {
             let argumentsPointer = UnsafeRawPointer(argumentsBase)
 
             for requirement in mergedRequirements {
-                let kind = requirement.layout.flags.kind
-                guard kind == .sameType || kind == .baseClass else { continue }
+                guard let kind = requirement.layout.flags.kind, kind == .sameType || kind == .baseClass else { continue }
 
                 evaluateConstraintRequirement(
                     kind: kind,
@@ -1992,7 +1996,7 @@ extension GenericSpecializer where MachO == MachOImage {
         }
 
         let accessFunctionRequirements = stepProtocol.requirements.filter {
-            $0.flags.kind.isAssociatedTypeAccessFunction
+            $0.flags.kind?.isAssociatedTypeAccessFunction == true
         }
 
         guard let accessFunctionRequirement = accessFunctionRequirements[safe: associatedTypeIndex] else {

@@ -7,8 +7,8 @@ import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Printing the SymbolTestsCore fixture's definitions from several tasks at
 /// once reads byte for byte as printing them one after another (evolution

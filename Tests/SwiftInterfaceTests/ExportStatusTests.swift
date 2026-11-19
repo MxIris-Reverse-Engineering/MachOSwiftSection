@@ -2,11 +2,11 @@ import Foundation
 import Testing
 import MachOKit
 @_spi(Internals) @testable import Demangling
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// `TypeDefinition.exportStatus` / `ProtocolDefinition.exportStatus` — the
 /// export fact carried on the declaration model (evolution proposal
@@ -42,19 +42,19 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
 
         for typeDefinition in indexer.allTypeDefinitions.values {
             let descriptorOffset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-            let symbolsAtDescriptor = SymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
+            let symbolsAtDescriptor = SwiftSymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
             let descriptorSymbol = symbolsAtDescriptor?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mn") }
             // Every type of this fixture carries a symbol at its own
             // descriptor — the measured norm on shipped binaries too, which is
             // why the remangling leg practically never runs.
             let descriptorSymbolName = try #require(descriptorSymbol?.name, "\(typeDefinition.typeName.name) has no descriptor symbol")
-            let trieVerdict = SymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
+            let trieVerdict = SwiftSymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
             #expect(typeDefinition.exportStatus.isExported == trieVerdict, "\(typeDefinition.typeName.name)")
 
             switch typeDefinition.exportStatus {
             case .exported: exportedCount += 1
             case .notExported: notExportedCount += 1
-            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable:
+            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol, .declarationIsCImported:
                 Issue.record("\(typeDefinition.typeName.name) reached a no-verdict case on an image that has an export trie")
             }
         }
@@ -72,16 +72,16 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
 
         for protocolDefinition in indexer.allProtocolDefinitions.values {
             let descriptorOffset = protocolDefinition.protocolDescriptor.offset
-            let symbolsAtDescriptor = SymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
+            let symbolsAtDescriptor = SwiftSymbolIndexStore.shared.symbols(for: descriptorOffset, in: unsafeMachOFile)
             let descriptorSymbol = symbolsAtDescriptor?.first { $0.name.isSwiftSymbol && $0.name.hasSuffix("Mp") }
             let descriptorSymbolName = try #require(descriptorSymbol?.name, "\(protocolDefinition.protocolName.name) has no descriptor symbol")
-            let trieVerdict = SymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
+            let trieVerdict = SwiftSymbolIndexStore.shared.isExported(name: descriptorSymbolName, in: unsafeMachOFile)
             #expect(protocolDefinition.exportStatus.isExported == trieVerdict, "\(protocolDefinition.protocolName.name)")
 
             switch protocolDefinition.exportStatus {
             case .exported: exportedCount += 1
             case .notExported: notExportedCount += 1
-            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable:
+            case .imageHasNoExportInformation, .descriptorSymbolNameUnresolvable, .declarationHasNoSymbol, .declarationIsCImported:
                 Issue.record("\(protocolDefinition.protocolName.name) reached a no-verdict case on an image that has an export trie")
             }
         }
@@ -101,7 +101,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
             try #require(
                 indexer.allTypeDefinitions.values.first { typeDefinition in
                     let offset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-                    return SymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == symbolName } == true
+                    return SwiftSymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == symbolName } == true
                 },
                 "expected a type definition whose descriptor carries \(symbolName)"
             )
@@ -118,12 +118,30 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
         let privateProtocolDescriptorName = "_$s15SymbolTestsCore27PrivateDoppelgangerProtocol33_1282F137F8790A6AF4B7E2738A640142LLMp"
         let privateProtocol = try #require(
             indexer.allProtocolDefinitions.values.first { protocolDefinition in
-                SymbolIndexStore.shared.symbols(for: protocolDefinition.protocolDescriptor.offset, in: unsafeMachOFile)?
+                SwiftSymbolIndexStore.shared.symbols(for: protocolDefinition.protocolDescriptor.offset, in: unsafeMachOFile)?
                     .contains { $0.name == privateProtocolDescriptorName } == true
             },
             "expected a protocol definition whose descriptor carries \(privateProtocolDescriptorName)"
         )
         #expect(privateProtocol.exportStatus == .notExported)
+    }
+
+    /// The fixture's one C-imported type, `CMTimeFlags`, carries a descriptor
+    /// the image emitted as its own copy — a private external, never in the
+    /// trie — so it reads as no verdict rather than as "not exported"
+    /// (evolution proposal `exported-only-marking-mode`). The verdict comes
+    /// from the descriptor's module, so it holds for any C type the indexer
+    /// shows.
+    @Test func cImportedTypeIsNotRuledOn() async throws {
+        let unsafeMachOFile = machOFile
+        let indexer = SwiftDeclarationIndexer(configuration: .init(showCImportedTypes: true), eventHandlers: [], in: machOFile)
+        try await indexer.prepare()
+        let cImportedType = try #require(indexer.allTypeDefinitions.values.first { typeDefinition in
+            let offset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
+            return SwiftSymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == "_$sSo11CMTimeFlagsVMn" } == true
+        })
+        #expect(SwiftSymbolIndexStore.shared.isExported(name: "_$sSo11CMTimeFlagsVMn", in: unsafeMachOFile) == false)
+        #expect(cImportedType.exportStatus == .declarationIsCImported)
     }
 
     /// Why the descriptor-symbol leg is not optional:
@@ -140,7 +158,7 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
         let nestedType = try #require(
             indexer.allTypeDefinitions.values.first { typeDefinition in
                 let offset = typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.offset
-                return SymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == descriptorSymbolName } == true
+                return SwiftSymbolIndexStore.shared.symbols(for: offset, in: unsafeMachOFile)?.contains { $0.name == descriptorSymbolName } == true
             }
         )
 
@@ -153,11 +171,13 @@ final class ExportStatusTests: MachOFileTests, @unchecked Sendable {
 /// The projections, which every consumer rule is written against.
 @Suite
 struct ExportStatusProjectionTests {
-    @Test func isExportedProjectsBothNoVerdictCasesToNil() {
+    @Test func isExportedProjectsEveryNoVerdictCaseToNil() {
         #expect(ExportStatus.exported.isExported == true)
         #expect(ExportStatus.notExported.isExported == false)
         #expect(ExportStatus.imageHasNoExportInformation.isExported == nil)
         #expect(ExportStatus.descriptorSymbolNameUnresolvable.isExported == nil)
+        #expect(ExportStatus.declarationHasNoSymbol.isExported == nil)
+        #expect(ExportStatus.declarationIsCImported.isExported == nil)
     }
 
     /// The rule proposals 0008 / 0016 are built on: act only on a definitive
@@ -167,5 +187,7 @@ struct ExportStatusProjectionTests {
         #expect(!ExportStatus.exported.isDefinitelyNotExported)
         #expect(!ExportStatus.imageHasNoExportInformation.isDefinitelyNotExported)
         #expect(!ExportStatus.descriptorSymbolNameUnresolvable.isDefinitelyNotExported)
+        #expect(!ExportStatus.declarationHasNoSymbol.isDefinitelyNotExported)
+        #expect(!ExportStatus.declarationIsCImported.isDefinitelyNotExported)
     }
 }

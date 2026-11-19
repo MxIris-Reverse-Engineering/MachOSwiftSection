@@ -5,7 +5,7 @@ import Testing
 import Foundation
 import Demangling
 import OrderedCollections
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 // MARK: - Per-conformance / per-where-block attribution
 //
@@ -62,7 +62,7 @@ struct ABIExtensionAttributionTests {
         _ target: String,
         to protocolText: String,
         where whereText: String? = nil,
-        witnesses: [AssociatedTypeWitnessProjection] = []
+        witnesses: [ResolvedAssociatedTypeWitness] = []
     ) -> (name: ExtensionName, definition: ExtensionDefinition) {
         let name = extensionName(target)
         let definition = ExtensionDefinition(

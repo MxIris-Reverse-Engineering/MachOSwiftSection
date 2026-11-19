@@ -3,7 +3,7 @@ import SwiftDeclaration
 @_spi(Internals) import Demangling
 import Dependencies
 import MachOSwiftSection
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// The in-image declarations the exported-only filter (evolution proposal
 /// `exported-only-interface`) needs in order to rule on an
@@ -41,10 +41,12 @@ extension SwiftDeclarationPrinter {
     /// Computes the ``ExportFilterScope`` for the given in-image definitions
     /// and installs it on this printer. `SwiftInterfaceBuilder.printRoot()`
     /// calls this with the indexer's complete tables whenever
-    /// `printExportedDeclarationsOnly` is set; a host that drives the printer
-    /// per definition (bypassing `printRoot`) installs its own scope the same
-    /// way. With no scope installed the extension leg of the filter
-    /// degrades to "keep" — the filter never drops on a guess.
+    /// `printExportedDeclarationsOnly` or `marksOptionalContent` is set; a
+    /// host that drives the printer per definition (bypassing `printRoot`)
+    /// installs its own scope the same way, for a marked print as for a
+    /// filtered one. With no scope installed the extension leg of the filter
+    /// degrades to "keep" — the filter never drops on a guess — and a marked
+    /// print marks no extension.
     public func installExportFilterScope(types: some Sequence<TypeDefinition>, protocols: some Sequence<ProtocolDefinition>) {
         var scope = ExportFilterScope.empty
         for typeDefinition in types where typeDefinition.exportStatus.isDefinitelyNotExported {
@@ -86,17 +88,29 @@ extension SwiftDeclarationPrinter {
 // MARK: - Exclusion predicates
 
 extension SwiftDeclarationPrinter {
-    var isExportFilterEnabled: Bool {
-        configuration.printExportedDeclarationsOnly
+    /// Whether the predicates below rule at all: when the filter is on, and
+    /// when marking, whatever `printExportedDeclarationsOnly` says — a
+    /// marked print records what the filter rules out instead of leaving it
+    /// out (`exportFilterVisibility(excluded:)`).
+    var evaluatesExportFilter: Bool {
+        configuration.printExportedDeclarationsOnly || configuration.marksOptionalContent
     }
 
     /// A type is dropped only on a definitive negative verdict; `nil` keeps it.
     package func isExcludedByExportFilter(_ typeDefinition: TypeDefinition) -> Bool {
-        isExportFilterEnabled && typeDefinition.exportStatus.isDefinitelyNotExported
+        evaluatesExportFilter && typeDefinition.exportStatus.isDefinitelyNotExported
     }
 
     package func isExcludedByExportFilter(_ protocolDefinition: ProtocolDefinition) -> Bool {
-        isExportFilterEnabled && protocolDefinition.exportStatus.isDefinitelyNotExported
+        evaluatesExportFilter && protocolDefinition.exportStatus.isDefinitelyNotExported
+    }
+
+    /// A Swift-declared `@objc` protocol is ruled on by its name alone — a
+    /// private one is not exported (evolution proposal
+    /// `export-verdict-without-local-symbols`). Its extensions print with it
+    /// and go with it, so it needs no place in the ``ExportFilterScope``.
+    package func isExcludedByExportFilter(_ objcProtocolDefinition: ObjCProtocolDefinition) -> Bool {
+        evaluatesExportFilter && objcProtocolDefinition.exportStatus.isDefinitelyNotExported
     }
 
     /// An extension is dropped when its target (the extended type or
@@ -111,7 +125,7 @@ extension SwiftDeclarationPrinter {
     /// query — a conformance of an exported type to an exported (or
     /// external) protocol is as exported as its parties.
     package func isExcludedByExportFilter(_ extensionDefinition: ExtensionDefinition) -> Bool {
-        guard isExportFilterEnabled else { return false }
+        guard evaluatesExportFilter else { return false }
         let scope = exportFilterScope
         let extensionName = extensionDefinition.extensionName
         switch extensionName.kind {
@@ -139,7 +153,7 @@ extension SwiftDeclarationPrinter {
     /// empty body: the conformance clause is itself the declaration.
     /// Requires the definition to be indexed (members come from `index(in:)`).
     package func isEmptiedByExportFilter(_ extensionDefinition: ExtensionDefinition) -> Bool {
-        guard isExportFilterEnabled,
+        guard evaluatesExportFilter,
               extensionDefinition.protocolConformanceDescriptor == nil,
               extensionDefinition.conformingProtocolName == nil else { return false }
         if !extensionDefinition.associatedTypes.isEmpty { return false }
@@ -156,7 +170,7 @@ extension SwiftDeclarationPrinter {
     /// zero exported symbols of their own while being perfectly callable,
     /// so both are kept, exactly as they are never annotated.
     package func isExcludedByExportFilter(_ member: OrderedMember) -> Bool {
-        guard isExportFilterEnabled else { return false }
+        guard evaluatesExportFilter else { return false }
         switch member {
         case .allocator(let function), .function(let function):
             return isExcludedByExportFilter(function.resolvedObjCMemberFacts(trustingSelectorNameEvidence: trustsSelectorNameEvidence), symbolNames: [function.symbol.name])
@@ -174,8 +188,8 @@ extension SwiftDeclarationPrinter {
     /// the accessor's `To` thunk in the symbol population. Enum cases never
     /// reach here — they own no symbols.
     package func isExcludedByExportFilter(field: FieldDefinition) -> Bool {
-        guard isExportFilterEnabled, !field.accessors.isEmpty, !field.isOverride else { return false }
-        @Dependency(\.symbolIndexStore) var symbolIndexStore
+        guard evaluatesExportFilter, !field.accessors.isEmpty, !field.isOverride else { return false }
+        @Dependency(\.swiftSymbolIndexStore) var symbolIndexStore
         let hasObjCEntryPoint = field.accessors.contains { symbolIndexStore.containsSymbol(named: $0.symbol.name + "To", in: machO) }
         return !hasObjCEntryPoint && exportVerdict(forSymbolNames: field.accessors.map(\.symbol.name)) == false
     }
@@ -183,10 +197,56 @@ extension SwiftDeclarationPrinter {
     /// Top-level globals: no `override` / `@objc` at top level, so the bare
     /// symbol verdict decides.
     package func isExcludedByExportFilter(globalSymbolNames symbolNames: [String]) -> Bool {
-        isExportFilterEnabled && exportVerdict(forSymbolNames: symbolNames) == false
+        evaluatesExportFilter && exportVerdict(forSymbolNames: symbolNames) == false
     }
 
     private func isExcludedByExportFilter(_ objcFacts: ResolvedObjCMemberFacts, symbolNames: [String]) -> Bool {
         !objcFacts.isOverride && !objcFacts.isObjC && exportVerdict(forSymbolNames: symbolNames) == false
+    }
+
+    /// Whether the filter rules out every declaration a type's or an
+    /// extension's body prints after its nested definitions, and there is at
+    /// least one. Only stored fields and members are ever ruled out; an enum
+    /// case, a `deinit`, an associated type and an Objective-C instance
+    /// variable never are, so any one of them answers `false`. Requires the
+    /// definition to be indexed.
+    ///
+    /// When marking, the last line break of such a body is visible only while
+    /// the filter is off; see `bodyAfterNestedDefinitions(of:content:)`.
+    ///
+    /// What only an attached macro's expansion prints counts as ruled out as
+    /// well: marking, it is visible only while `expandsMacros` is on
+    /// (evolution proposal `observable-macro-folding`). A tracked property's
+    /// storage prints in one form or the other under either value, so it
+    /// keeps the break when neither form is ruled out.
+    package func excludesEveryDeclarationAfterNestedDefinitions(of definition: some Definition) -> Bool {
+        guard evaluatesExportFilter else { return false }
+        let synthesizedPropertyWrapperMembers = synthesizedPropertyWrapperMembers(of: definition)
+        let folding = observableMacroFolding(of: definition)
+        var hasDeclaration = false
+        if let typeDefinition = definition as? TypeDefinition {
+            if typeDefinition.deallocatorSymbol != nil { return false }
+            let isEnum = typeDefinition.typeName.kind == .enum
+            for field in typeDefinition.fields where !field.flags.contains(.isArtificial) && !synthesizedPropertyWrapperMembers.hiddenFieldNames.contains(field.name) {
+                hasDeclaration = true
+                if isEnum { return false }
+                if folding.isExpansionOnly(field) { continue }
+                if let trackedProperty = folding.trackedProperty(storedIn: field),
+                   let memberVariable = folding.trackedMemberVariablesByName[trackedProperty.name],
+                   isExcludedByExportFilter(.variable(memberVariable)) {
+                    continue
+                }
+                if !isExcludedByExportFilter(field: field) { return false }
+            }
+        }
+        if let extensionDefinition = definition as? ExtensionDefinition {
+            if !extensionDefinition.associatedTypes.isEmpty || !extensionDefinition.unrepresentedObjCImplementationInstanceVariables.isEmpty { return false }
+        }
+        for member in definition.orderedMembers where !synthesizedPropertyWrapperMembers.contains(member) {
+            hasDeclaration = true
+            if folding.isExpansionOnly(member) { continue }
+            if !isExcludedByExportFilter(member) { return false }
+        }
+        return hasDeclaration
     }
 }

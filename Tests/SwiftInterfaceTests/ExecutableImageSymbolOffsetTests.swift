@@ -1,3 +1,4 @@
+@_spi(Internals) import MachOSymbols
 import Foundation
 import Testing
 import MachOKit
@@ -7,9 +8,9 @@ import Demangling
 import SwiftDeclarationRendering
 import SwiftInterface
 @testable import SwiftDump
-@_spi(Internals) @testable import MachOSymbols
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@_spi(Internals) @testable import SwiftSymbols
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// An on-the-fly fixture compiled twice from one class: as a main executable,
 /// whose `__TEXT` sits at 0x100000000, and as a dylib, whose `__TEXT` sits at
@@ -240,7 +241,7 @@ struct ExecutableImageSymbolOffsetTests {
             expectedOffsetByName[symbol.name] = Int(try #require(machOFile.fileOffset(of: symbol.address)))
         }
         try #require(!expectedOffsetByName.isEmpty, "premise: the fixture carries `_symbolic` symbols")
-        let collectedSymbols = try #require(SymbolIndexStore.shared.symbolicManglingSymbols(in: machOFile))
+        let collectedSymbols = try #require(SwiftSymbolIndexStore.shared.symbolicManglingSymbols(in: machOFile))
         var collectedOffsetByName: [String: Int] = [:]
         for symbol in collectedSymbols {
             collectedOffsetByName[symbol.name] = symbol.offset

@@ -1,50 +1,22 @@
 import Foundation
-import MachOKit
-
-/// Which images link which: what tells the images that can bind to another
-/// image's Swift symbols.
-///
-/// Only 245 of the macOS 27.2 shared cache's 4,113 images keep any Swift
-/// symbol among their undefined symbols. The rest bind Swift symbols with
-/// nothing left to show: SharedWithYou keeps 314 undefined symbols, all C
-/// functions and Objective-C classes, yet calls `URL`'s metadata accessor
-/// through a GOT stub the cache builder bound; 44 images import `URL.path`
-/// by name, and many more call it. A Swift symbol another image uses is told
-/// by the linkage instead: an image binds only to the images it links and
-/// the ones those re-export.
-struct Linkage {
-    /// The images that link each image.
-    let dependents: [Int: [Int]]
-    /// The images that re-export each image.
-    let reexporters: [Int: [Int]]
-}
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 extension CrossReferenceAnalyzer {
+    /// Where the images among `candidates` define a symbol named `name`,
+    /// with its leading underscore — a function, a class object, a variable —
+    /// unslid, in image order: what each image's export trie and the defined
+    /// entries of its symbol table say. A re-export is left out; one image
+    /// may define a name at more than one address.
+    public func locations(ofSymbolNamed name: String, among candidates: some Sequence<Int>) -> [CodeLocation] {
+        imageSet.locations(ofSymbolNamed: name, among: candidates)
+    }
+
     /// The images among `candidates` that can bind to the symbols of the
     /// image at `imageIndex`: the image itself, the images re-exporting it —
     /// SwiftUI re-exports SwiftUICore — and every image linking one of those.
     public func imageIndices(linkingImageAt imageIndex: Int, among candidates: some Sequence<Int>) -> [Int] {
-        let linkage = self.linkage()
-        let providers = Self.providers(of: imageIndex, in: linkage)
-        var linkers = providers
-        for provider in providers {
-            linkers.formUnion(linkage.dependents[provider] ?? [])
-        }
-        return candidates.filter(linkers.contains)
-    }
-
-    /// The image at `imageIndex` and every image re-exporting it, directly or
-    /// through another re-exporter: the images its symbols can be bound
-    /// through under their own names.
-    private static func providers(of imageIndex: Int, in linkage: Linkage) -> Set<Int> {
-        var providers: Set<Int> = [imageIndex]
-        var pending = [imageIndex]
-        while let provider = pending.popLast() {
-            for reexporter in linkage.reexporters[provider] ?? [] where providers.insert(reexporter).inserted {
-                pending.append(reexporter)
-            }
-        }
-        return providers
+        imageSet.imageIndices(linkingImageAt: imageIndex, among: candidates)
     }
 
     /// The names other images re-export the symbols `symbolNames` of the
@@ -57,21 +29,7 @@ extension CrossReferenceAnalyzer {
     /// re-exports this one whole. The first call walks every image's export
     /// trie.
     public func reexportedNames(ofSymbolsNamed symbolNames: [String], inImageAt imageIndex: Int) -> [String] {
-        let index = renamedReexports()
-        let linkage = self.linkage()
-        var names: [String] = []
-        var visited = Set<RenamedReexport>()
-        var pending = symbolNames.map { RenamedReexport(imageIndex: imageIndex, name: $0) }
-        while let symbol = pending.popLast() {
-            guard visited.insert(symbol).inserted else { continue }
-            for provider in Self.providers(of: symbol.imageIndex, in: linkage) {
-                for reexport in index.reexportsByProvider[provider]?[symbol.name] ?? [] {
-                    if !symbolNames.contains(reexport.name), !names.contains(reexport.name) { names.append(reexport.name) }
-                    pending.append(reexport)
-                }
-            }
-        }
-        return names
+        imageSet.reexportedNames(ofSymbolsNamed: symbolNames, inImageAt: imageIndex)
     }
 
     /// The images among `candidates` that can call the function at
@@ -79,7 +37,7 @@ extension CrossReferenceAnalyzer {
     /// C or Objective-C name, the images importing it, by that name or by
     /// one another image re-exports it under; for a Swift name, which few
     /// cache images keep among their undefined symbols, every image that can
-    /// bind to the function's image.
+    /// bind to the function's image (`Linkage`).
     public func imageIndices(callingFunctionAt location: CodeLocation, symbolNames: [String], among candidates: some Sequence<Int>) -> [Int] {
         let candidates = Array(candidates)
         var result = Set<Int>()

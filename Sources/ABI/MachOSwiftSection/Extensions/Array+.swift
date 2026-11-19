@@ -1,13 +1,13 @@
 import Foundation
 
-func + <Element>(lhs: [Element]?, rhs: [Element]?) -> [Element] {
-    (lhs ?? []) + (rhs ?? [])
+func + <Element>(left: [Element]?, right: [Element]?) -> [Element] {
+    (left ?? []) + (right ?? [])
 }
 
-func + <Element>(lhs: [Element], rhs: [Element]?) -> [Element] {
-    lhs + (rhs ?? [])
+func + <Element>(left: [Element], right: [Element]?) -> [Element] {
+    left + (right ?? [])
 }
 
-func + <Element>(lhs: [Element]?, rhs: [Element]) -> [Element] {
-    (lhs ?? []) + rhs
+func + <Element>(left: [Element]?, right: [Element]) -> [Element] {
+    (left ?? []) + right
 }

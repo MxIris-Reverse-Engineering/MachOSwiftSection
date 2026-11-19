@@ -57,8 +57,9 @@ public struct InterfaceRequest: Sendable, Equatable {
     public var emitsPrivateDeclarationSourceFiles: Bool
     /// Only the declarations the image exports: types and protocols whose
     /// descriptor symbol has an export-trie entry, extensions targeting them,
-    /// and members with at least one exported symbol. `override` / `@objc`
-    /// members and anything without export evidence are kept.
+    /// and members with at least one exported symbol. A private or local
+    /// declaration with no symbol to judge by is dropped too. `override` /
+    /// `@objc` members and anything else without export evidence are kept.
     public var printsExportedDeclarationsOnly: Bool
     public var memberSortOrder: SwiftDeclarationMemberSortOrder
     /// Whether an ObjC method tied to its Swift member by the member's name
@@ -68,6 +69,16 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// Names qualified with SE-0491 module selectors (`Swift::Int`), as a
     /// Swift 6.4 `.swiftinterface` spells them.
     public var usesModuleSelectors: Bool
+    /// Existential types spelled with the `any` keyword (`any P`, `(any P)?`,
+    /// `any P.Type`), as the compiler writes a `.swiftinterface`. On by
+    /// default.
+    public var usesExistentialAny: Bool
+    /// What an attached macro generated, as the binary has it: an
+    /// `@Observable` class's registrar, the storage and computed properties of
+    /// its tracked properties, the generated methods and conformance. Off by
+    /// default: the class prints with `@Observation.Observable` and the
+    /// stored properties its source declared.
+    public var expandsMacros: Bool
     /// Where a requirement about one of a protocol's own associated types
     /// prints: in the protocol's `where` clause, or on that `associatedtype`
     /// (`associatedtype Body: SwiftUI.View`). The requirements are the same
@@ -96,6 +107,8 @@ public struct InterfaceRequest: Sendable, Equatable {
         memberSortOrder: SwiftDeclarationMemberSortOrder = .byCategory,
         infersObjCOverridesFromSelectorNames: Bool = false,
         usesModuleSelectors: Bool = false,
+        usesExistentialAny: Bool = true,
+        expandsMacros: Bool = false,
         protocolRequirementPlacement: ProtocolRequirementPlacement = .protocolWhereClause,
         emitsHeader: Bool = false,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
@@ -117,6 +130,8 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.memberSortOrder = memberSortOrder
         self.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         self.usesModuleSelectors = usesModuleSelectors
+        self.usesExistentialAny = usesExistentialAny
+        self.expandsMacros = expandsMacros
         self.protocolRequirementPlacement = protocolRequirementPlacement
         self.emitsHeader = emitsHeader
         self.commentTransformers = commentTransformers
@@ -154,6 +169,8 @@ public struct InterfaceRequest: Sendable, Equatable {
         // whether it prints as `@objc override`.
         printConfiguration.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         printConfiguration.usesModuleSelectors = usesModuleSelectors
+        printConfiguration.usesExistentialAny = usesExistentialAny
+        printConfiguration.expandsMacros = expandsMacros
         printConfiguration.protocolRequirementPlacement = protocolRequirementPlacement
 
         var configuration = SwiftInterfaceBuilderConfiguration(

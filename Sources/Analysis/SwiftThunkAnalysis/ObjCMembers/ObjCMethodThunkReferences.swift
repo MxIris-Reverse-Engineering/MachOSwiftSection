@@ -1,7 +1,8 @@
 import Foundation
 import MachOKit
+@_spi(Internals) import MachOAddressResolution
 import MachOKitExtensions
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// What an ObjC method's IMP references (evolution proposal
 /// `objc-ancestor-override-recovery`): the addresses its code calls,
@@ -39,7 +40,7 @@ package enum ObjCMethodThunkReferences {
 
     private static func referencedSwiftSymbolNames(atImplementationOffset implementationOffset: Int, in machO: MachOFile) -> [String] {
         guard machO.header.cpuType == .arm64 else { return [] }
-        let addressSpace = ThunkAddressSpace(of: machO)
+        let addressSpace = ImageAddressSpace(of: machO)
         guard let startAddress = addressSpace.address(forOffset: implementationOffset),
               addressSpace.isInTextSegment(startAddress),
               let bytes: [UInt8] = try? machO.readElements(offset: implementationOffset, numberOfElements: windowSize)

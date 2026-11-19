@@ -5,10 +5,15 @@ public struct ABIVersionDescriptor: Sendable, Codable, Equatable {
     /// positional fallback.
     public let label: String
     public let provenance: ABIProvenance?
+    /// For a version made up of a group of images (evolution proposal
+    /// `image-group-evolution`): the images it holds, in the group's order.
+    /// `nil` when the evolution compares one image per version.
+    public let imageNames: [String]?
 
-    public init(label: String, provenance: ABIProvenance? = nil) {
+    public init(label: String, provenance: ABIProvenance? = nil, imageNames: [String]? = nil) {
         self.label = label
         self.provenance = provenance
+        self.imageNames = imageNames
     }
 }
 
@@ -18,6 +23,11 @@ public struct ABIVersionDescriptor: Sendable, Codable, Equatable {
 /// `versionIndex` is always ≥ 1 — an event at index `i` describes the
 /// `versions[i-1] → versions[i]` step. Presence at the first version is not an
 /// event; it is the lineage's `presence[0]` baseline.
+///
+/// An event can also span versions that cannot show the declaration (see
+/// ``LineagePresenceState/unobservable``): then `earliestVersionIndex` names
+/// the first of them, the change happened at some version from there through
+/// `versionIndex`, and `versionIndex` is where it was first observed.
 public struct LineageEvent: Sendable, Codable, Equatable {
     public let versionIndex: Int
     public let status: ChangeStatus
@@ -30,25 +40,71 @@ public struct LineageEvent: Sendable, Codable, Equatable {
     /// `MemberRecord.compatibilityOverride(old:new:)`); `nil` means the plain
     /// status rule applies. Always `nil` on container-level events.
     public let compatibilityOverride: Compatibility?
+    /// For an event placed only between two observations (evolution
+    /// proposal `evolution-unobservable-presence`): the earliest version it
+    /// may have happened at — the first of the versions in between, none of
+    /// which could show the declaration. `nil` for an event placed exactly,
+    /// at `versionIndex`.
+    public let earliestVersionIndex: Int?
 
-    public init(versionIndex: Int, status: ChangeStatus, oldSignature: String? = nil, newSignature: String? = nil, compatibilityOverride: Compatibility? = nil) {
+    public init(
+        versionIndex: Int,
+        status: ChangeStatus,
+        oldSignature: String? = nil,
+        newSignature: String? = nil,
+        compatibilityOverride: Compatibility? = nil,
+        earliestVersionIndex: Int? = nil
+    ) {
         self.versionIndex = versionIndex
         self.status = status
         self.oldSignature = oldSignature
         self.newSignature = newSignature
         self.compatibilityOverride = compatibilityOverride
+        self.earliestVersionIndex = earliestVersionIndex
+    }
+}
+
+/// What one version of the axis shows of a lineage (evolution proposal
+/// `evolution-unobservable-presence`). A version whose image carries no
+/// local Swift symbols cannot show a member that only a non-exported symbol
+/// evidences, so its absence there is not an observation; the versions
+/// around such a span decide what is inferred inside it.
+public enum LineagePresenceState: String, Sendable, Codable, Equatable {
+    /// The version shows the declaration.
+    case present
+    /// The version would show the declaration and does not.
+    case absent
+    /// The version cannot show the declaration, and the nearest observations
+    /// on both sides found it present: inferred present.
+    case inferredPresent
+    /// The version cannot show the declaration, and its neighbours do not
+    /// both find it present — they disagree (an event spans the gap), both
+    /// find it absent, or the axis ends first.
+    case unobservable
+
+    /// Whether this state was seen rather than inferred or unknown.
+    public var isObserved: Bool {
+        self == .present || self == .absent
     }
 }
 
 /// The lifeline of one member identity across the version axis.
 ///
 /// Only lineages with at least one event are materialized — an API that never
-/// changes never appears, mirroring `ABIDiff`'s "changes only" contract.
+/// changes never appears, mirroring `ABIDiff`'s "changes only" contract — and
+/// lineages of members some version cannot show while it shows their
+/// container, when that span says something (inferred present, or a bound
+/// left unknown), so a reader learns which versions said nothing about them.
+/// A member unseen only where its container is unseen is the container's
+/// story, as the members of an added or removed container are. Over groups
+/// of images, a member that moved between images on its own — not along
+/// with its container — has a lineage for its moves too.
 public struct MemberLineage: Sendable, Codable, Equatable {
     public let key: ABIKey
     public let kind: MemberKind
-    /// Per-version existence, one entry per version on the axis. For a member
-    /// of a container this means "container present AND member present", so a
+    /// Per-version existence, one entry per version on the axis — observed or
+    /// inferred (``LineagePresenceState/inferredPresent``). For a member of
+    /// a container this means "container present AND member present", so a
     /// container-level disappearance turns every member's bit off too.
     public let presence: [Bool]
     /// Adjacent-version transitions, ordered by `versionIndex`. Member events
@@ -57,12 +113,37 @@ public struct MemberLineage: Sendable, Codable, Equatable {
     /// container's own event is the change (same rule as `ABIDiff`, whose
     /// added/removed containers carry no `memberChanges`).
     public let events: [LineageEvent]
+    /// What each version shows of the member, when some version cannot show
+    /// it; `nil` when every version was observed and `presence` is the whole
+    /// story (evolution proposal `evolution-unobservable-presence`).
+    public let presenceStates: [LineagePresenceState]?
+    /// The member's rendering from the latest version that shows it, carried
+    /// only by a lineage without events — one materialized for its
+    /// unobservable versions or its moves alone — since an event otherwise
+    /// carries it.
+    public let latestSignature: String?
+    /// Where the member moved between the images of a version's group
+    /// without its container moving the same way (evolution proposal
+    /// `image-group-evolution`), ordered by `versionIndex`; `nil` when it
+    /// never did, and always for an evolution of one image per version.
+    public let imageMoves: [ImageMove]?
 
-    public init(key: ABIKey, kind: MemberKind, presence: [Bool], events: [LineageEvent]) {
+    public init(
+        key: ABIKey,
+        kind: MemberKind,
+        presence: [Bool],
+        events: [LineageEvent],
+        presenceStates: [LineagePresenceState]? = nil,
+        latestSignature: String? = nil,
+        imageMoves: [ImageMove]? = nil
+    ) {
         self.key = key
         self.kind = kind
         self.presence = presence
         self.events = events
+        self.presenceStates = presenceStates
+        self.latestSignature = latestSignature
+        self.imageMoves = imageMoves
     }
 }
 
@@ -74,14 +155,27 @@ public struct ContainerLineage: Sendable, Codable, Equatable {
     /// appearance on the axis.
     public let name: String
     public let containerKind: ContainerKind
-    /// Per-version existence, one entry per version on the axis.
+    /// Per-version existence, one entry per version on the axis — observed or
+    /// inferred (``LineagePresenceState/inferredPresent``).
     public let presence: [Bool]
     /// Container-level presence transitions only (`.added` / `.removed`).
     /// "Modified at version i" is not a container event — it is derivable as
     /// "has a member event at i", so it is not stored twice.
     public let events: [LineageEvent]
-    /// Member lifelines with at least one event, sorted by key.
+    /// Member lifelines with at least one event or an unobservable version,
+    /// sorted by key.
     public let memberLineages: [MemberLineage]
+    /// What each version shows of the container, when some version cannot
+    /// show it — an extension only non-exported members make up, in a
+    /// version without local Swift symbols; `nil` when every version was
+    /// observed (evolution proposal `evolution-unobservable-presence`).
+    public let presenceStates: [LineagePresenceState]?
+    /// Where the container moved between the images of a version's group
+    /// (evolution proposal `image-group-evolution`), ordered by
+    /// `versionIndex`; `nil` when it never did, and always for an evolution
+    /// of one image per version. A container that only moved has a lineage
+    /// for its moves alone.
+    public let imageMoves: [ImageMove]?
 
     public init(
         key: ABIKey,
@@ -89,7 +183,9 @@ public struct ContainerLineage: Sendable, Codable, Equatable {
         containerKind: ContainerKind,
         presence: [Bool],
         events: [LineageEvent],
-        memberLineages: [MemberLineage]
+        memberLineages: [MemberLineage],
+        presenceStates: [LineagePresenceState]? = nil,
+        imageMoves: [ImageMove]? = nil
     ) {
         self.key = key
         self.name = name
@@ -97,6 +193,8 @@ public struct ContainerLineage: Sendable, Codable, Equatable {
         self.presence = presence
         self.events = events
         self.memberLineages = memberLineages
+        self.presenceStates = presenceStates
+        self.imageMoves = imageMoves
     }
 }
 
@@ -132,6 +230,11 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
     /// identity `.mangled`↔`.printed` — the reporters surface these as
     /// warnings (see `ABIRemangleFallback`).
     public let remangleFallbacksByVersion: [[ABIRemangleFallback]]?
+    /// The versions whose image carries no local Swift symbols, ascending, or
+    /// `nil` when every version has them. Such a version cannot show a
+    /// member only a non-exported symbol evidences (evolution proposal
+    /// `evolution-unobservable-presence`).
+    public let versionIndicesWithoutLocalSwiftSymbols: [Int]?
 
     public init(
         versions: [ABIVersionDescriptor],
@@ -144,7 +247,8 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
         globalVariables: [MemberLineage] = [],
         globalFunctions: [MemberLineage] = [],
         keyCollisionsByVersion: [[ABIKeyCollision]]? = nil,
-        remangleFallbacksByVersion: [[ABIRemangleFallback]]? = nil
+        remangleFallbacksByVersion: [[ABIRemangleFallback]]? = nil,
+        versionIndicesWithoutLocalSwiftSymbols: [Int]? = nil
     ) {
         self.versions = versions
         self.types = types
@@ -157,6 +261,7 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
         self.globalFunctions = globalFunctions
         self.keyCollisionsByVersion = keyCollisionsByVersion
         self.remangleFallbacksByVersion = remangleFallbacksByVersion
+        self.versionIndicesWithoutLocalSwiftSymbols = versionIndicesWithoutLocalSwiftSymbols
     }
 
     public var allContainerLineages: [ContainerLineage] {

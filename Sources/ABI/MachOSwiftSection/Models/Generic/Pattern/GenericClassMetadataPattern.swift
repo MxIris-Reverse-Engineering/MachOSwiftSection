@@ -14,7 +14,7 @@ import MachOBase
 /// class; a non-generic class with a resilient superclass gets a
 /// ``ResilientClassMetadataPattern`` instead, reached through its singleton
 /// metadata initialization record.
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct GenericClassMetadataPattern: GenericMetadataPatternProtocol {
     public struct Layout: GenericMetadataPatternLayout {
         public let instantiationFunction: RelativeDirectRawPointer
@@ -60,14 +60,5 @@ extension GenericClassMetadataPattern {
     public func immediateMembersPattern(in context: some ReadingContext) throws -> GenericMetadataPartialPattern? {
         guard hasImmediateMembersPattern else { return nil }
         return try partialPatterns(in: context).last
-    }
-}
-
-// MARK: - Deprecated Mach-O form
-
-extension GenericClassMetadataPattern {
-    @available(*, deprecated, message: "Pass a ReadingContext: immediateMembersPattern(in: machO.context).")
-    public func immediateMembersPattern(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericMetadataPartialPattern? {
-        try immediateMembersPattern(in: machO.context)
     }
 }

@@ -18,6 +18,7 @@ extension Keyword {
         case `override`
         case `static`
         case `dynamic`
+        case `optional`
         case `func`
         case `case`
         case `let`
@@ -29,7 +30,9 @@ extension Keyword {
         case `Self`
         case `each`
         case `repeat`
+        case convenience
         case atObjc = "@objc"
+        case atNSCopying = "@NSCopying"
         case atObjCRuntimeName = "@_objcRuntimeName"
         case atImplementation = "@implementation"
         case atNonobjc = "@nonobjc"

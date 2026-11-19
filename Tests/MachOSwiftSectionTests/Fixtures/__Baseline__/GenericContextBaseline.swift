@@ -3,7 +3,7 @@
 // Source fixture: SymbolTestsCore.framework
 
 enum GenericContextBaseline {
-    static let registeredTestMethodNames: Set<String> = ["allParameters", "allRequirements", "allTypePacks", "allValues", "asGenericContext", "conditionalInvertibleProtocolSet", "conditionalInvertibleProtocolsRequirements", "conditionalInvertibleProtocolsRequirementsCount", "currentParameters", "currentRequirements", "currentTypePacks", "currentValues", "depth", "header", "init(contextDescriptor:)", "init(contextDescriptor:in:)", "offset", "parameters", "parentParameters", "parentRequirements", "parentTypePacks", "parentValues", "requirements", "size", "typePackHeader", "typePacks", "uniqueCurrentRequirements", "uniqueCurrentRequirementsInProcess", "valueHeader", "values"]
+    static let registeredTestMethodNames: Set<String> = ["allParameters", "allRequirements", "allTypePacks", "allValues", "asGenericContext", "conditionalInvertibleProtocolSet", "conditionalInvertibleProtocolsRequirements", "conditionalInvertibleProtocolsRequirementsCount", "currentParameters", "currentRequirements", "currentTypePacks", "currentValues", "depth", "header", "init(contextDescriptor:in:)", "offset", "parameters", "parentParameters", "parentRequirements", "parentTypePacks", "parentValues", "requirements", "size", "typePackHeader", "typePacks", "uniqueCurrentRequirements", "valueHeader", "values"]
 
     struct Entry {
         let offset: Int

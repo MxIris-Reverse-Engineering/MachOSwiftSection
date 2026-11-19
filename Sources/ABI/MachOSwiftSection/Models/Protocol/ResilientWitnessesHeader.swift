@@ -1,8 +1,9 @@
 import Foundation
+import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
-public struct ResilientWitnessesHeader: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct ResilientWitnessesHeader {
     public struct Layout: LayoutProtocol {
         public let numWitnesses: UInt32
     }

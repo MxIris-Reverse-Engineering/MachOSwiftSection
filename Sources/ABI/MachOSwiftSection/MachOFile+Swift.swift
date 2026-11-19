@@ -96,6 +96,18 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
         }
     }
 
+    /// The `__swift5_fieldmd` records, every one the image emits — including
+    /// those no type descriptor points at: a Swift-declared `@objc`
+    /// protocol's, which is the only Swift metadata such a protocol gets.
+    ///
+    /// Throws `MachOSwiftSectionError.sectionNotFound` when the image was
+    /// built without reflection metadata.
+    public var fieldDescriptors: [FieldDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_fieldmd)
+        }
+    }
+
     /// The `__swift5_acfuncs` records: functions the runtime can find again
     /// by string key and call through a fully abstracted entry point
     /// (distributed actor targets, today).

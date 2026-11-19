@@ -2,8 +2,8 @@ import Foundation
 import Testing
 import MachOFoundation
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// Fixture-based Suite for `ProtocolRequirementFlags`.
 ///
@@ -46,8 +46,8 @@ final class ProtocolRequirementFlagsTests: MachOSwiftSectionFixtureTests, Fixtur
     @Test func kind() async throws {
         let (file, image) = try loadFirstRequirementFlags()
         let result = try acrossAllReaders(
-            file: { file.kind.rawValue },
-            image: { image.kind.rawValue }
+            file: { file.kind?.rawValue },
+            image: { image.kind?.rawValue }
         )
         #expect(result == ProtocolRequirementFlagsBaseline.witnessTableMethod.kindRawValue)
     }

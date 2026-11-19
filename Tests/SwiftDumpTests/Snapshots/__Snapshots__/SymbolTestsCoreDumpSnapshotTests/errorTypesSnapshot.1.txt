@@ -18,7 +18,7 @@ enum SymbolTestsCore.ErrorTypes.SimpleErrorTest {
 enum SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest {
     case withMessage(Swift.String)
     case withCode(Swift.Int)
-    case withContext(message: Swift.String, code: Swift.Int, underlying: Swift.Error?)
+    case withContext(message: Swift.String, code: Swift.Int, underlying: (any Swift.Error)?)
 }
 struct SymbolTestsCore.ErrorTypes.LocalizedErrorTest {
     let errorDescription: Swift.String?

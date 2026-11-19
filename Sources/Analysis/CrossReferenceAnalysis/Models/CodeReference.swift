@@ -1,51 +1,22 @@
-/// What an Objective-C send's receiver is known to be.
-public enum ReceiverClassHint: Hashable, Sendable {
-    /// The sending method's own receiver, still in `x0` where it arrived, or a
-    /// copy of it.
-    case methodReceiver
-    /// Loaded from a class reference: `[NSWindow alloc]`.
-    case classLiteral(String)
-    case unknown
-}
-
-/// Evidence for where an indirect call may go.
-public struct IndirectCallEvidence: Hashable, Sendable {
-    /// The table the callee was loaded from.
-    public enum Table: Hashable, Sendable {
-        case classVirtualTable
-        case protocolWitnessTable
-        case valueWitnessTable
-        /// A function value, or a table the analysis cannot identify.
-        case none
-    }
-
-    public let table: Table
-    /// The displacement of the load that produced the callee, when it came
-    /// from memory.
-    public let tableOffset: Int64?
-    /// The 16-bit arm64e discriminator constant, when there is one.
-    public let pointerAuthenticationConstant: UInt16?
-    /// Whether the constant was blended into an address (`movk xN, #imm,
-    /// lsl #48`) or used alone (`mov x17, #imm`).
-    public let isAddressBlended: Bool
-
-    public init(table: Table, tableOffset: Int64?, pointerAuthenticationConstant: UInt16?, isAddressBlended: Bool) {
-        self.table = table
-        self.tableOffset = tableOffset
-        self.pointerAuthenticationConstant = pointerAuthenticationConstant
-        self.isAddressBlended = isAddressBlended
-    }
-}
+@_spi(Internals) import MachOCodeReferences
+@_spi(Internals) import ObjCCodeReferences
 
 /// What one instruction references.
 public enum CodeReferenceTarget: Hashable, Sendable {
     /// A function: in the same image, in another, or wherever a stub, a GOT
     /// slot or a stub island led.
     case function(CodeLocation)
-    /// A stub whose slot could not be followed; the name its indirect symbol
-    /// carries.
+    /// A symbol of an image the analyzer does not cover, by the name the
+    /// referencing image imports it under: a stub whose slot could not be
+    /// followed — the name its indirect symbol carries — or, for a
+    /// ``CodeReference/Kind/reference``, a slot that binds to it, through
+    /// which a standalone file analyzed without its libraries reads another
+    /// image's class or data.
     case importedSymbol(name: String)
-    /// An Objective-C message send whose selector is known.
+    /// An Objective-C message send whose selector is known: through
+    /// `objc_msgSend` or a selector stub, or a call to a libobjc entry point
+    /// that stands for a send — `objc_alloc_init` for `[[Foo alloc] init]`,
+    /// reported as two sends at its instruction, `alloc` and then `init`.
     case messageSend(selector: String, receiver: ReceiverClassHint)
     /// A send through `objc_msgSendSuper2` whose selector is known, and the
     /// class the lookup starts above: the one the sending method loads from
@@ -66,6 +37,17 @@ public enum CodeReferenceTarget: Hashable, Sendable {
     /// Mac Catalyst variant of a framework, and both define its classes. A
     /// reference to a metaclass is reported as one to its class.
     case objectiveCClass(name: String, location: CodeLocation)
+    /// A load of an Objective-C instance variable's offset variable
+    /// (`_OBJC_IVAR_$_<class>.<variable>`): the class that declares it, by
+    /// its runtime name, and the variable's name.
+    case objectiveCInstanceVariable(className: String, name: String)
+    /// A C string literal whose address the code takes, by its characters.
+    /// Recorded only when string references are: see
+    /// ``CrossReferenceAnalyzer/recordsStringReferences``.
+    case cString(String)
+    /// A constant `CFString` / `NSString` literal whose address the code
+    /// takes, by its characters. Recorded only when string references are.
+    case constantString(String)
     case indirect(IndirectCallEvidence)
     /// Code that lies in no image and in no recognized trampoline — or data
     /// in `__text` that decoded as a branch.
@@ -74,17 +56,9 @@ public enum CodeReferenceTarget: Hashable, Sendable {
 
 /// One instruction's reference.
 public struct CodeReference: Hashable, Sendable {
-    public enum Kind: Hashable, Sendable {
-        case call
-        /// A branch out of the function that does not return to it.
-        case tailCall
-        /// A reference to a type: an instruction that takes the address of a
-        /// class object, a type's metadata or its metadata accessor — a load
-        /// from a GOT slot or class reference, or `adrp` / `add` of the object
-        /// itself — or a call to a metadata accessor or a mangled-name
-        /// instantiation, which is reported as the call it is as well.
-        case reference
-    }
+    /// Whether the instruction calls, leaves the function, or only takes an
+    /// address. Defined with the core of the analysis, which produces it.
+    public typealias Kind = CodeReferenceKind
 
     /// The first instruction of the function the referencing instruction
     /// belongs to.
@@ -94,16 +68,28 @@ public struct CodeReference: Hashable, Sendable {
     public let instructionAddress: UInt64
     public let kind: Kind
     public let target: CodeReferenceTarget
+    /// How the instruction reaches its target — straight, through a stub or
+    /// an island, through a slot. Defined with the core of the analysis,
+    /// which produces it.
+    public typealias Route = CodeReferenceRoute
+    public let route: Route
     /// A retain or release, an outlined value operation or another runtime
     /// helper; the target says which function.
     public let isRuntimeHelperCall: Bool
 
-    public init(function: CodeLocation, instructionAddress: UInt64, kind: Kind, target: CodeReferenceTarget, isRuntimeHelperCall: Bool) {
+    public init(function: CodeLocation, instructionAddress: UInt64, kind: Kind, target: CodeReferenceTarget, route: Route, isRuntimeHelperCall: Bool) {
         self.function = function
         self.instructionAddress = instructionAddress
         self.kind = kind
+        self.route = route
         self.target = target
         self.isRuntimeHelperCall = isRuntimeHelperCall
+    }
+
+    /// A reference whose route is not known, taken as a direct one.
+    @available(*, deprecated, renamed: "init(function:instructionAddress:kind:target:route:isRuntimeHelperCall:)")
+    public init(function: CodeLocation, instructionAddress: UInt64, kind: Kind, target: CodeReferenceTarget, isRuntimeHelperCall: Bool) {
+        self.init(function: function, instructionAddress: instructionAddress, kind: kind, target: target, route: .direct, isRuntimeHelperCall: isRuntimeHelperCall)
     }
 }
 

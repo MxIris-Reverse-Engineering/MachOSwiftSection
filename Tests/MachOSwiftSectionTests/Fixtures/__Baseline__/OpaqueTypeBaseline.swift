@@ -9,5 +9,5 @@
 // exercises members against a synthetic memberwise instance.
 
 enum OpaqueTypeBaseline {
-    static let registeredTestMethodNames: Set<String> = ["descriptor", "genericContext", "init(descriptor:)", "init(descriptor:in:)", "invertedProtocols", "underlyingTypeArgumentMangledNames"]
+    static let registeredTestMethodNames: Set<String> = ["descriptor", "genericContext", "init(descriptor:in:)", "invertedProtocols", "underlyingTypeArgumentMangledNames"]
 }

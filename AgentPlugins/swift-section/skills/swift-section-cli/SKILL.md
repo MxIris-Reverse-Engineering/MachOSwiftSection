@@ -4,11 +4,13 @@ description: >-
   Recovering Swift and Objective-C declarations and ABI facts from a Mach-O binary or a dyld
   shared cache with the `swift-section` CLI — dumping types / protocols / conformances,
   generating a .swiftinterface offline, Objective-C headers with IMP addresses, diffing the API
-  of two builds, tracking it across OS versions, and the static field-offset / type-layout /
-  enum-layout comments. Read before running swift-section, and whenever a task needs type
-  information out of a binary without loading it into a process. Triggers on swift-section,
-  swift-section objc, objc-section, MachOSwiftSection, __swift5_types, swiftinterface,
-  ABI diff, ABI baseline.
+  of two builds, tracking it across OS versions, the static field-offset / type-layout /
+  enum-layout comments, and — from arm64 code — the callers of a selector, symbol, class or
+  function across a whole dyld shared cache and what an address is. Read before running
+  swift-section, and whenever a task needs type information or cross references out of a binary
+  without loading it into a process. Triggers on swift-section, swift-section objc,
+  objc-section, swift-section refs, swift-section symbolicate, MachOSwiftSection,
+  __swift5_types, swiftinterface, ABI diff, ABI baseline, xrefs, callers.
 ---
 
 # swift-section
@@ -44,8 +46,12 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `--supplementary-apinotes`, from 0.20.0 `--dependency-search-path`,
 `--infer-objc-overrides` and the whole `objc` subcommand group, from 0.22.0
 `evolution --emit-available` / `--platform`, from 0.23.0 `interface --module-selectors`
-/ `dump --enable-module-selectors`, and from 0.24.0
-`interface --requirements-on-associated-types` and `--emit-private-source-files`. When one is
+/ `dump --enable-module-selectors`, from 0.24.0
+`interface --requirements-on-associated-types` and `--emit-private-source-files`, and from
+0.25.0 `objc evolution --interface` / `--emit-available` / `--platform`,
+`objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`,
+`interface --expand-macros` and the `refs` and `symbolicate` subcommands.
+When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
 
@@ -60,6 +66,8 @@ missing, say so rather than silently producing a weaker answer — the alternati
 | How did this API evolve across N OS versions? | `evolution` |
 | Reformat the memory-layout comments the two above emit | `transformer` |
 | Objective-C headers, IMP addresses, or an Objective-C API diff (0.20.0+, formerly the separate `objc-section` executable) | `objc` — read `references/objc.md` first |
+| Who calls this selector / symbol / function, who references this class, ivar or string — across a whole dyld shared cache or an app's files | `refs` — read `references/cross-references.md` first |
+| What is this address: which function and how far into it, a stub and where it leads, a slot and what it holds | `symbolicate` — same reference |
 
 `dump` is the default subcommand: `swift-section <path>` is `swift-section dump <path>`.
 
@@ -162,13 +170,38 @@ SE-0491 module selectors — `Swift::Int` instead of `Swift.Int`, the spelling a
 too: `interface --module-selectors`, `dump --enable-module-selectors` (one of the demangler
 switches below).
 
+Existential types carry the `any` keyword by default in both outputs (from 0.25.0), as the
+compiler writes a `.swiftinterface`: `any P`, `(any P)?`, `any P.Type` for the existential
+metatype, `(any P).Type` for the metatype of the existential (older builds print `P.Protocol`),
+and `any Any.Type` — a lone `Any` or `AnyObject` stays bare. Older builds print every
+existential bare, so `Swift.Collection` in their output is `any Collection`. The off switches:
+`interface --no-existential-any`, `dump --disable-existential-any`. A stored property of a
+constrained existential type (`any Boxed<Int>`) printed in older builds as its arguments alone —
+`var boxed: Swift.Int` in `interface`, `symbolic existential type … <Swift.Int>` in `dump` —
+so read such a line from an older build as a constrained existential of unknown protocol, not
+as the type it names.
+
+A class the `@Observable` macro expanded prints the way its source reads (from 0.25.0):
+`@Observation.Observable` above the class, each tracked property as the stored `var x: T` it
+was declared as, a stored `var` the macro left alone under `@Observation.ObservationIgnored`
+on a line of its own (a property wrapper's attribute gets a line of its own too), and no registrar, no `access(keyPath:)` / `withMutation(keyPath:_:)` / `shouldNotifyObservers`, no
+`extension X: Observation.Observable {}`. In the binary each tracked `x` is a computed property
+over private storage `_x`; `interface --expand-macros` prints that, as older builds always did.
+A tracked property whose accessors are stripped or dead-stripped (an internal class in an app or
+OS framework) carries a note naming the storage it was synthesized from; when nothing in the
+image names `y` or gives `_y` an initial value or accessors of its own, an
+`@ObservationIgnored var _y` reads as a tracked `y` behind such a note. SwiftData
+`@Model` classes are not folded. `dump` keeps every generated member and adds
+`@Observation.Observable` to the class's header line.
+
 Only `dump` has: `--sections`, `--preferred-binary-order`, and the demangler option group
 (`--demangle-options default|simplified|interface` plus ~22 `--enable-…` / `--disable-…`
 switches).
 
 Only `interface` has: `--exported-only`, `--sort-members-by-offset`,
 `--parse-opaque-return-type`, `--show-c-imported-types`, `--resolve-c-module-names`,
-`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`.
+`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`,
+`--expand-macros`.
 
 `--requirements-on-associated-types` changes where a protocol's requirements print, never which:
 `associatedtype Body: SwiftUI.View` instead of `protocol View where Self.Body: SwiftUI.View`,
@@ -263,9 +296,23 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
 - `evolution --interface --emit-available` adds a genuine `@available(<platform>, introduced: …, obsoleted: …)` line above each declaration whose whole lifecycle one attribute can express. **No attribute is not "no lifecycle"**: a declaration that disappeared and came back, one that was only `modified`, or any involved label that is not a numeric version (the file-name fallback!) gets none — pass numeric `--labels` and read the `// [●○●]` comment, which is always there. The versions are axis points, not exact release versions. The platform is inferred from every input's `LC_BUILD_VERSION` (a simulator counts as its device); an input whose platform `@available` has no name for (DriverKit), or inputs of different platforms, fail with exit code 64 — name it with `--platform` (only valid with `--emit-available`, which is only valid with `--interface`).
 - `--fail-on-breaking` makes a breaking change a nonzero exit — that, not the report text, is
   the CI signal.
-- Compare binaries in **similar strip states**. A symbol-rich build against a stripped one
-  reports the same protocol requirement as a member swap, because a stripped protocol diffs by
-  witness-table slot rather than by symbol.
+- **A version whose image carries no local Swift symbols cannot show non-exported members**
+  (SwiftUI in the macOS 13.0–14.8 caches is the case to know). It is detected per input, and
+  such a member's absence there is never read as a removal: in `evolution` its bitmap position
+  reads `◍` (not observable, but present in the versions on both sides — inferred) or `◌` (not
+  observable, nothing claimed), a change across such versions is phrased `removed between 12.7
+  and 15.0` / `added between …` (first observed at the later version, which is where it counts
+  for the verdict), the interface legend names those versions, and a lifecycle whose `◌` span
+  reaches an axis end or sits between different observations gets no `@available` (between two
+  absences it keeps it). A member unseen only because its container is unseen carries no
+  annotation of its own (read the container's); neither does one unseen only between two
+  absences, which says nothing. `diff` lists what one side cannot show in a
+  `Not observable on the old/new side` section (`unobservableDeclarations` in `--json`), never
+  as removed or added and never breaking. Types, conformances, stored fields, enum cases and exported members stay
+  observable, so their absence is still a real removal. `diff --interface` does not apply this.
+- Even so, compare binaries in **similar strip states** where you can. A symbol-rich build
+  against a stripped one reports the same protocol requirement as a member swap, because a
+  stripped protocol diffs by witness-table slot rather than by symbol.
 - **A snapshot does not cross format versions.** The JSON carries a `formatVersion`; any other
   version is rejected with a typed error, and the fix is to regenerate the baseline with the
   current tool. Format 6 (0.21.0 and later) rejects every format-5 baseline: in an image stripped
@@ -273,7 +320,20 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   descriptor names (see §9), which an old baseline would report as added wholesale. Format 7 (0.23.0
   and later) rejects every format-6 baseline: a type declared in a function or closure body is recorded
   under its own full name now (see §9), and an old baseline would report each one as removed —
-  a breaking change — and added again.
+  a breaking change — and added again. Format 13 (0.25.0 and later) rejects every earlier baseline,
+  for five reasons: in an optimized build the newer tool also records the members whose only symbol
+  is their `@objc` thunk, their initializing entry point or that entry point's function signature
+  specialization (see §9), which an old baseline would report as added; a snapshot now records whether its image keeps local Swift symbols and whether
+  each member is exported, which the not-observable rule above needs; an image's extensions now
+  hold the members of its own module's types that no definition in the image gathers — SwiftUI's
+  members of the types SwiftUICore defines, an internal namespace whose type descriptor was stripped —
+  which earlier tools left out of `interface` and the snapshot, and an old baseline would report as
+  added (`dump` does not show them); a stored field whose type is a constrained existential
+  (`any Boxed<Int>`) is recorded as that existential, where it used to read as its arguments alone,
+  and an old baseline would report each such field as changed; and a property's SE-0400 init
+  accessor is one of its accessors now, so an old baseline would report every property that has
+  one as changed. Formats 8 through 12 only ever existed on the development branch, between those
+  changes.
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
@@ -312,13 +372,49 @@ Attribution against a non-macOS binary is limited (it warns and degrades rather 
   `@objc` / ObjC-override facts are joined through the implementation's symbol and are
   missing. A vtable slot nothing names (an internal member in a stripped image) is
   left out; `dump` lists it as `sub_…` or `<unnamed vtable slot>`.
+- **In an optimized app binary, a member may print at the address of its `@objc` thunk, and an
+  `init` at its initializing entry point or at that entry point's specialization.** Whole-module
+  optimization can inline an internal `@objc` member's body into its Objective-C thunk (`$s…To`)
+  and delete the Swift entry point, and inline a class initializer's allocating entry point into
+  its callers; Swift 6.4 also replaces the initializing entry point by its function signature
+  specialization (`…fcTf…`), which takes its arguments differently. The member is then rebuilt
+  from the code that survived: `--emit-member-addresses` points at the thunk, which uses the
+  Objective-C calling convention (`self` in `x0`, `_cmd` in `x1`), at the initializing entry
+  point, or at its specialization. `dump` lists the members only a thunk names under
+  `/* [ObjC Thunk] … */` sections.
+- **A generic class, or one registered through `__objc_stublist` (its superclass is in another module, or is generic), has no class object, so its Objective-C method list comes from its Swift metadata.** `override` is printed where its superclass chain can be followed. When the superclass is a Swift class of another binary (SwiftUI's `NSHostingView<…>`), the chain stops there and the class's members print with `@objc` but without `override`.
 - **`associatedtype Element` without `: ~Copyable` / `: ~Escapable`** does not prove the
   associated type is Copyable. The binary does not record that suppression (SE-0503); it is
   printed only when an extension of the protocol in the same image proves it
   (`extension P where Element: ~Copyable`), which only a primary associated type
   (`protocol P<Element>`) can.
+- **`@storageRestrictions(initializes: _x) init` in an accessor block is inferred, not read**
+  (from 0.25.0). No binary records the attribute (SE-0400 init accessors): it is printed when
+  the type has a stored property `_x` of the property's own type — what `@Observable` and most
+  hand-written storage do — and it never lists `accesses:`. Otherwise a bare `init` prints under
+  `// init accessor: the binary does not record which stored properties it initializes`. **No
+  `init` line does not mean no init accessor**: the compiler gives one internal access unless it
+  is `@usableFromInline`, so an optimized, dead-stripped image (most OS frameworks, shipped
+  apps) keeps only the exported ones. `dump` lists each one it finds as `X.x.init : T`, with the
+  inference on the line above.
 - **Enum-layout patterns marked "not resolved offline"** mean only the extra-inhabitant *index*
   is derivable statically; the concrete bytes need the live metadata.
+- **An `@objc protocol` whose requirements carry `@objc(selector)`, under the comment
+  "Swift names follow the ClangImporter's rules for these selectors"**, is declared in Swift,
+  but the binary keeps no Swift name for any requirement of an `@objc` protocol. When no class
+  of the binary implements one, its Swift name is derived from the selector the way the
+  importer would, so it can differ from the source (`removeObject(at:)` for `remove(at:)`);
+  the selector, which is what the protocol means to the runtime, is exact. A requirement under
+  `// Taken from the conformer X.` is X's own member and exact. `__C.NSObject` after such a
+  protocol's colon is the `NSObject` *protocol* (Swift's `NSObjectProtocol`), spelled the way
+  the compiler mangles it. `dump --sections protocols` on an image with no Swift protocols
+  reports `__swift5_protos not found` and still lists these.
+- **Objective-C protocols after a class's superclass** (`class X: __C.NSObject, M.P,
+  __C.NSCopying`) come from the class's Objective-C metadata: a conformance to an `@objc`
+  protocol has no Swift conformance record. An extension in the class's own module is folded
+  into the class there, so its conformances show in the header too, while
+  `extension __C.NSView: M.P {}` is an extension of another module's class (its category).
+  Neither shows in `diff`, `evolution` or a snapshot.
 - **`@objc(Name)` above a class** is the name the Objective-C runtime knows it by, and matters
   even when it equals the Swift name (`@objc(NSScrollPocket) class NSScrollPocket`): without it
   the runtime name would be the `_TtC…` mangling. That is also the class name `objc` headers
@@ -345,4 +441,5 @@ The repository is [MachOSwiftSection](https://github.com/MxIris-Reverse-Engineer
 | How to read an enum-layout comment | `Documentations/SwiftEnumLayout.md` (`_zh` companion) |
 | Writing supplementary `.apinotes` for a private framework | `Documentations/SupplementaryTypeMappings.md` |
 | The `objc` subcommands in full, including the snapshot / diff / evolution workflow | `Documentations/ObjCCommandLine.md` (`_zh` companion); the traps are in `references/objc.md` beside this file |
+| `refs` and `symbolicate`: the line format, the routes, the traps | `references/cross-references.md` beside this file |
 | What each flag does, authoritatively | `swift-section <subcommand> --help` (and `swift-section objc <subcommand> --help`) — generated from the code, so it cannot drift |

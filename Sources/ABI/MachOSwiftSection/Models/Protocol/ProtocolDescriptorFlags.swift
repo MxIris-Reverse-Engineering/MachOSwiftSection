@@ -1,3 +1,7 @@
+import SwiftStdlibToolbox
+
+/// Mirrors `swift::ProtocolDescriptorFlags` (`swift/ABI/MetadataValues.h`).
+/// The high 16 bits are reserved by the Objective-C runtime.
 public struct ProtocolDescriptorFlags {
     public let rawValue: UInt32
 
@@ -5,40 +9,34 @@ public struct ProtocolDescriptorFlags {
         self.rawValue = rawValue
     }
 
-    private enum Bits {
-        static let isSwift: UInt32 = 1 << 0
-        static let classConstraint: UInt32 = 1 << 1
-        static let dispatchStrategyMask: UInt32 = 0xF << 2
-        static let dispatchStrategyShift: UInt32 = 2
-        static let specialProtocolMask: UInt32 = 0x0000_03C0
-        static let specialProtocolShift: UInt32 = 6
-        static let isResilient: UInt32 = 1 << 10
-        static let objcReserved: UInt32 = 0xFFFF_0000
-    }
+    @BitField(bits: 0)
+    public var isSwift: Bool
 
-    public var isSwift: Bool {
-        rawValue & Bits.isSwift != .zero
-    }
+    @BitField(bits: 10)
+    public var isResilient: Bool
 
-    public var isResilient: Bool {
-        rawValue & Bits.isResilient != .zero
-    }
+    /// Bit 1 is SET when the protocol is not class-constrained. A single bit,
+    /// both of whose values `ProtocolClassConstraint` names, so the default is
+    /// never read.
+    @BitField(bits: 1, default: ProtocolClassConstraint.any)
+    public var classConstraint: ProtocolClassConstraint
 
-    public var classConstraint: ProtocolClassConstraint {
-        .init(rawValue: UInt8(rawValue & Bits.classConstraint))!
-    }
+    /// How the protocol's requirements are dispatched, or `nil` for a
+    /// strategy this reader does not know. Four bits hold it.
+    @BitField(bits: 2..<6)
+    public var dispatchStrategy: ProtocolDispatchStrategy?
 
-    public var dispatchStrategy: ProtocolDispatchStrategy {
-        .init(rawValue: UInt8((rawValue & Bits.dispatchStrategyMask) >> Bits.dispatchStrategyShift))!
-    }
+    /// The special protocol this is, or `nil` for a value this reader does
+    /// not know.
+    @BitField(bits: 6..<10)
+    public var specialProtocolKind: SpecialProtocolKind?
 
-    public var specialProtocolKind: SpecialProtocolKind {
-        .init(rawValue: UInt8((rawValue & Bits.specialProtocolMask) >> Bits.specialProtocolShift))!
-    }
-
+    /// Whether the protocol has a witness table. A dispatch strategy this
+    /// reader does not know is not taken to have one.
     public var needsProtocolWitnessTable: Bool {
         switch dispatchStrategy {
-        case .objc:
+        case .objc,
+             nil:
             false
         case .swift:
             true

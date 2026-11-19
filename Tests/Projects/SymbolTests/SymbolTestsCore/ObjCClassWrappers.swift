@@ -14,15 +14,16 @@ public enum ObjCClassWrapperFixtures {
         @objc public var label: String = "objc"
     }
 
-    /// `@objc protocol` — emits a Swift protocol descriptor with an
-    /// `ObjCProtocolPrefix`-typed reference to the underlying ObjC
-    /// protocol.
+    /// `@objc protocol` — emits no Swift protocol descriptor: only an ObjC
+    /// protocol record in `__objc_protolist` and a field descriptor of kind
+    /// `ObjCProtocol` (evolution proposal `swift-declared-objc-protocols`).
     @objc public protocol ObjCProto {
         @objc func ping()
     }
 
-    /// Class conforming to `@objc protocol` — surfaces `RelativeObjCProtocolPrefix`
-    /// in the class's conformance descriptor.
+    /// Class conforming to an `@objc protocol` — an ObjC protocol has no
+    /// witness table, so no conformance descriptor records it; the class's
+    /// `class_ro_t` protocol list does.
     @objc(SymbolTestsCoreObjCBridgeWithProto)
     public class ObjCBridgeWithProto: NSObject, ObjCProto {
         public override init() { super.init() }

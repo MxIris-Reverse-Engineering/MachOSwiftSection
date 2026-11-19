@@ -415,9 +415,9 @@ public enum GenericFieldLayout {
     // MARK: - Swift-declared @objc protocol existentials
 
     /// Non-generic holder of existentials over a Swift-declared `@objc`
-    /// protocol (declared at file scope below — `@objc` protocols cannot nest).
-    /// Such a protocol emits no Swift protocol descriptor; its only runtime
-    /// artifact is the ObjC protocol record, so the existential is a single
+    /// protocol (declared at file scope below). Such a protocol emits no
+    /// Swift protocol descriptor and contributes no witness table, so the
+    /// existential is a single
     /// class reference with no Swift witness table. `anchoredElement` mirrors
     /// the SwiftUI shape that motivated the fallback
     /// (`PlatformAccessibilityElementProtocol & NSObject`); `composedElement`
@@ -669,10 +669,10 @@ extension GenericFieldLayout.ValueGenericBuffer where count == 5 {
     }
 }
 
-/// A Swift-declared `@objc` protocol (file scope — `@objc` protocols cannot be
-/// nested): it emits **no** Swift protocol descriptor (`__swift5_protos`); its
-/// only runtime artifact is the Objective-C protocol record
-/// (`__objc_protolist`, legacy `_TtP…_` name).
+/// A Swift-declared `@objc` protocol: it emits **no** Swift protocol
+/// descriptor (`__swift5_protos`); its runtime artifact is the Objective-C
+/// protocol record (`__objc_protolist`, legacy `_TtP…_` name), with a field
+/// descriptor of kind `ObjCProtocol` naming it.
 @objc public protocol ObjCOnlyElementProtocol {
     func identify() -> Int
 }

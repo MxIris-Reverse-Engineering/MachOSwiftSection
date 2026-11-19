@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOBase
 
-@LocatableLayoutWrapping
+@ResolvableLocatableLayoutWrapper
 public struct ClassDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: ClassDescriptorLayout {
         public let flags: ContextDescriptorFlags
@@ -84,29 +84,5 @@ extension ClassDescriptor {
 
     public func superclassTypeMangledName(in context: some ReadingContext) throws -> MangledName? {
         try layout.superclassType.resolve(at: try context.addressFromOffset(offset(of: \.superclassType)), in: context)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension ClassDescriptor {
-    @available(*, deprecated, message: "Pass a ReadingContext: resilientMetadataBounds(in: machO.context).")
-    public func resilientMetadataBounds(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> StoredClassMetadataBounds {
-        try resilientMetadataBounds(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: superclassTypeMangledName(in: machO.context).")
-    public func superclassTypeMangledName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName? {
-        try superclassTypeMangledName(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: resilientMetadataBounds(in: .inProcess).")
-    public func resilientMetadataBounds() throws -> StoredClassMetadataBounds {
-        try resilientMetadataBounds(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: superclassTypeMangledName(in: .inProcess).")
-    public func superclassTypeMangledName() throws -> MangledName? {
-        try superclassTypeMangledName(in: InProcessContext.shared)
     }
 }

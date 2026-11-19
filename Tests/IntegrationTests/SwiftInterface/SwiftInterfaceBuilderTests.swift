@@ -7,13 +7,15 @@ import SwiftDeclarationRendering
 import MachOKit
 import Dependencies
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 @testable import SwiftInterface
-@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) @testable import MachOCaches
 
-protocol SwiftInterfaceBuilderTests: SwiftInterfaceDumpTests {}
+protocol SwiftInterfaceBuilderTests: SwiftInterfaceDumpTests {
+    var builderConfiguration: SwiftInterfaceBuilderConfiguration { get }
+}
 
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 extension SwiftInterfaceBuilderTests {
@@ -30,6 +32,8 @@ extension SwiftInterfaceBuilderTests {
                 printVTableOffset: true,
                 printPWTOffset: true,
                 infersObjCOverridesFromSelectorNames: true,
+                usesModuleSelectors: true,
+                protocolRequirementPlacement: .associatedTypes,
                 memberSortOrder: .byOffset,
                 printTypeLayout: true,
                 printEnumLayout: true,
@@ -64,7 +68,7 @@ extension SwiftInterfaceBuilderTests {
 }
 
 enum SwiftInterfaceBuilderTestSuite {
-    class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class DyldCacheTests: SwiftSectionTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName {
             .AppKit
         }
@@ -87,7 +91,7 @@ enum SwiftInterfaceBuilderTestSuite {
     /// The same image from an archived macOS cache, picked by version: point
     /// `cacheVersion` at any directory under `/Volumes/DyldSharedCaches/macOS`
     /// that holds a cache.
-    class ArchivedDyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class ArchivedDyldCacheTests: SwiftSectionTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         class var cacheVersion: String {
             "26.6"
         }
@@ -111,7 +115,7 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class MachOFileTests: SwiftSectionTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName {
             .SymbolTestsCore
         }
@@ -127,7 +131,7 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+    class MachOImageTests: SwiftSectionTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var imageName: MachOImageName {
             .SwiftUICore
         }
@@ -143,7 +147,30 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
+    class XcodeMachOFileTests: SwiftSectionTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
+        var builderConfiguration: SwiftInterfaceBuilderConfiguration {
+            SwiftInterfaceBuilderConfiguration(
+                indexConfiguration: .init(
+                    showCImportedTypes: false,
+                ),
+                printConfiguration: .init(
+                    printStrippedSymbolicItem: true,
+                    printFieldOffset: true,
+                    printExpandedFieldOffsets: true,
+                    printMemberAddress: true,
+                    printVTableOffset: true,
+                    printPWTOffset: true,
+                    printExportedDeclarationsOnly: true,
+                    infersObjCOverridesFromSelectorNames: true,
+                    usesModuleSelectors: true,
+                    protocolRequirementPlacement: .associatedTypes,
+                    memberSortOrder: .byOffset,
+                    printTypeLayout: true,
+                    printEnumLayout: true,
+                ),
+            )
+        }
+        
         override class var fileName: XcodeMachOFileName {
             .sharedFrameworks(.SourceEditor)
         }

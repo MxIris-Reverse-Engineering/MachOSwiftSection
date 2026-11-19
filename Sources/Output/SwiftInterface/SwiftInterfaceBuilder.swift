@@ -13,7 +13,7 @@ import SwiftStdlibToolbox
 import MachOKit
 import Dependencies
 import Utilities
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 
 public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sendable {
@@ -145,8 +145,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         // the indexer's complete in-image tables — a stripped image carries no
         // symbol for a non-exported type, so only the index can say whether an
         // extension's target is a dropped in-image declaration. Installed per
-        // print so a configuration update between prints is honored.
-        if printer.configuration.printExportedDeclarationsOnly {
+        // print so a configuration update between prints is honored, and for
+        // a marked print too, which marks what the filter would drop
+        // (evolution proposal `exported-only-marking-mode`).
+        if printer.configuration.printExportedDeclarationsOnly || printer.configuration.marksOptionalContent {
             printer.installExportFilterScope(types: indexer.allTypeDefinitions.values, protocols: indexer.allProtocolDefinitions.values)
         }
         return try await LargeStackTaskExecution.run {
@@ -159,7 +161,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         // Leading header (evolution proposal 0008), deliberately independent
         // of the imports block below — flag-gated, default absent.
         if let interfaceHeaderInfo = configuration.interfaceHeaderInfo {
-            InterfaceHeaderBlock(interfaceHeaderInfo)
+            InterfaceHeaderBlock(interfaceHeaderInfo, marksCommentStructure: printer.marksCommentStructure)
         }
 
         ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
@@ -170,28 +172,40 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
         // `definitionPrintFailed`. These wrappers are belt-and-braces, so there
         // is no definition identity to attribute a block-level failure to, and
         // they report as `.definitionBlock` degradations instead.
+        // A global the exported-only filter rules out is left out, or, when
+        // marking, printed in a region visible only while the filter is off;
+        // a region keeps its items, so each comment line stays an item of
+        // its own.
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
-                for variable in indexer.globalVariableDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: variable.accessors.map(\.symbol.name)) {
-                    // One item per line: the list breaks before each
-                    // (evolution proposal `private-declaration-source-files`).
-                    for line in printer.privateDeclarationSourceFileLines(for: [variable.node]) {
-                        Comment(line)
+                for variable in indexer.globalVariableDefinitions {
+                    if let visibility = printer.exportFilterVisibility(excluded: printer.isExcludedByExportFilter(globalSymbolNames: variable.accessors.map(\.symbol.name))) {
+                        await VisibilityRegion(visibility) {
+                            // One item per line: the list breaks before each
+                            // (evolution proposal `private-declaration-source-files`).
+                            for sourceFileComment in printer.privateDeclarationSourceFileComments(for: [variable.node]) {
+                                printer.comment(sourceFileComment, as: .privateDeclarationSource)
+                            }
+                            printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
+                            await printer.printVariable(variable, level: 0)
+                        }
                     }
-                    printer.globalExportStatusComment(forSymbolNames: variable.accessors.map(\.symbol.name))
-                    await printer.printVariable(variable, level: 0)
                 }
             }
         }
 
         await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
-                for function in indexer.globalFunctionDefinitions where !printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name]) {
-                    for line in printer.privateDeclarationSourceFileLines(for: [function.node]) {
-                        Comment(line)
+                for function in indexer.globalFunctionDefinitions {
+                    if let visibility = printer.exportFilterVisibility(excluded: printer.isExcludedByExportFilter(globalSymbolNames: [function.symbol.name])) {
+                        await VisibilityRegion(visibility) {
+                            for sourceFileComment in printer.privateDeclarationSourceFileComments(for: [function.node]) {
+                                printer.comment(sourceFileComment, as: .privateDeclarationSource)
+                            }
+                            printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
+                            await printer.printFunction(function, level: 0)
+                        }
                     }
-                    printer.globalExportStatusComment(forSymbolNames: [function.symbol.name])
-                    await printer.printFunction(function, level: 0)
                 }
             }
         }
@@ -241,6 +255,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
             }
         }
 
+        // `@objc` protocols declared in Swift, which have no protocol
+        // descriptor (evolution proposal `swift-declared-objc-protocols`).
+        // Each trails its own default-implementation extensions, a nested
+        // one included: it prints in an `extension` of its parent.
+        await BlockList {
+            for objcProtocolDefinition in indexer.objcProtocolDefinitions.values {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: objcProtocolDefinition.protocolName.name, kind: .protocol)
+                ) {
+                    try await printer.printObjCProtocolDefinition(objcProtocolDefinition)
+                }
+            }
+        }
+
         await BlockList {
             // NESTED protocols' default-implementation / protocol-extension
             // blocks: the per-protocol printer emits them trailing TOP-LEVEL
@@ -278,6 +307,38 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
                 }
             }
         }
+
+        // The Objective-C protocols the image's extensions of other modules'
+        // classes adopt (evolution proposal `swift-declared-objc-protocols`),
+        // one extension per category; no conformance record names them.
+        await BlockList {
+            for conformance in indexer.objcCategoryConformances {
+                if let visibility = printer.exportFilterVisibility(excluded: isExcludedByExportFilter(conformance)) {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: conformance.extendedTypeName.name, kind: .extension)
+                    ) {
+                        try await printer.printObjCCategoryConformance(conformance).visible(under: visibility)
+                    }
+                }
+            }
+        }
+    }
+
+    /// A category conformance on a class of this image the export filter
+    /// drops goes with it — when marking, into the same region. So does one
+    /// whose every protocol is a Swift-declared `@objc` protocol of this
+    /// image that is not exported (a private one; evolution proposal
+    /// `export-verdict-without-local-symbols`), as a Swift type's
+    /// conformance to a non-exported protocol does. One that adopts an
+    /// exported or unjudged protocol as well is kept whole.
+    private func isExcludedByExportFilter(_ conformance: ObjCCategoryConformance) -> Bool {
+        if let typeDefinition = indexer.allTypeDefinitions[conformance.extendedTypeName], printer.isExcludedByExportFilter(typeDefinition) {
+            return true
+        }
+        return !conformance.protocolNames.isEmpty && conformance.protocolNames.allSatisfy { protocolName in
+            indexer.objcProtocolDefinitions[protocolName].map { printer.isExcludedByExportFilter($0) } ?? false
+        }
     }
 
     /// `protocolDefinition`'s default-implementation extensions, read once
@@ -296,23 +357,18 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
 
     private func collectModules() async throws {
         eventDispatcher.dispatch(.moduleCollectionStarted)
-        @Dependency(\.symbolIndexStore)
+        @Dependency(\.swiftSymbolIndexStore)
         var symbolIndexStore
 
         var usedModules: OrderedSet<String> = []
         let filterModules: Set<String> = [cModule, objcModule, stdlibName]
-        let allSymbols = symbolIndexStore.allSymbols(in: machO)
+        let (symbolCount, moduleNames) = symbolIndexStore.moduleNamesInAllSymbols(in: machO)
 
-        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftIndexEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
+        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftIndexEvents.SymbolScanContext(totalSymbols: symbolCount, filterModules: Array(filterModules.sorted()))))
 
-        for symbol in allSymbols {
-            for moduleNode in symbol.demangledNode.all(of: .module) {
-                if let module = moduleNode.text, !filterModules.contains(module) {
-                    if usedModules.append(module).inserted {
-                        eventDispatcher.dispatch(.moduleFound(context: SwiftIndexEvents.ModuleContext(moduleName: module)))
-                    }
-                }
-            }
+        for module in moduleNames where !filterModules.contains(module) {
+            usedModules.append(module)
+            eventDispatcher.dispatch(.moduleFound(context: SwiftIndexEvents.ModuleContext(moduleName: module)))
         }
 
         importedModules = usedModules

@@ -1,5 +1,6 @@
 import MachOKit
 import MachOBase
+import Utilities
 
 @Layout
 public protocol AnyClassMetadataLayout: HeapMetadataLayout {

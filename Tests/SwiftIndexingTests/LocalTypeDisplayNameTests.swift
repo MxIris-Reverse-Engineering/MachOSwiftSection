@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOSwiftSection
-@testable import MachOTestingSupport
+@testable import SwiftSectionTestingSupport
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 import SwiftInspection

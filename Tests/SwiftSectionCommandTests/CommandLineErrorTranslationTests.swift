@@ -52,6 +52,20 @@ struct CommandLineErrorTranslationTests {
         #expect((CommandLineErrorTranslation.translated(error) as? ValidationError)?.message == expectedMessage)
     }
 
+    @Test("A platform objc evolution --emit-available cannot infer is a usage error that points at --platform", arguments: [
+        (
+            ObjCAvailabilityPlatformInferenceError.noPlatform(path: "bridge.dylib"),
+            "--emit-available could not infer an availability-macro platform from bridge.dylib (no LC_BUILD_VERSION, or a platform the availability macros have no name for); pass --platform explicitly."
+        ),
+        (
+            .conflictingPlatforms(["ios", "macos"]),
+            "--emit-available found conflicting platforms across the inputs (ios, macos); pass --platform explicitly."
+        ),
+    ])
+    func objcAvailabilityPlatformInference(error: ObjCAvailabilityPlatformInferenceError, expectedMessage: String) {
+        #expect((CommandLineErrorTranslation.translated(error) as? ValidationError)?.message == expectedMessage)
+    }
+
     @Test("Errors the command line never reworded pass through unchanged")
     func unrelatedErrorsPassThrough() {
         let translated = CommandLineErrorTranslation.translated(ObjCDeclarationLookupError.declarationNotFound("NSString"))

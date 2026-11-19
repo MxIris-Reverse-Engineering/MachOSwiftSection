@@ -1,6 +1,6 @@
 import MachOSwiftSection
 @_spi(Internals) import Demangling
-@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftSymbols
 
 /// Which of a protocol's own associated types are declared `~Copyable` or
 /// `~Escapable` (SE-0503), inferred from the image's extensions of the
@@ -29,7 +29,7 @@ import MachOSwiftSection
 /// ordinary one suppresses nothing and mangles to nothing.
 package enum SuppressedAssociatedTypeInference {
     /// The member kinds an extension of a protocol can hold.
-    private static let extensionMemberKinds: [SymbolIndexStore.MemberKind] = SymbolIndexStore.MemberKind.allCases.filter(\.isInExtension)
+    private static let extensionMemberKinds: [SwiftSymbolIndexStore.MemberKind] = SwiftSymbolIndexStore.MemberKind.allCases.filter(\.isInExtension)
 
     /// The suppressed invertible protocols of `descriptor`'s own associated
     /// types, by associated type name; an associated type without evidence
@@ -62,7 +62,7 @@ package enum SuppressedAssociatedTypeInference {
         let protocolName = typeNode.print(using: .interfaceTypeBuilderOnly)
         var result: [String: InvertibleProtocolSet] = [:]
         for kind in extensionMemberKinds {
-            for memberSymbol in SymbolIndexStore.shared.memberSymbols(of: kind, for: protocolName, node: typeNode, in: machO) {
+            for memberSymbol in SwiftSymbolIndexStore.shared.memberSymbols(of: kind, for: protocolName, node: typeNode, in: machO) {
                 // The member's context is the first `extension` in preorder:
                 // its own entity's first child, ahead of every type the
                 // signature or the member's type mentions.
@@ -122,7 +122,7 @@ package enum SuppressedAssociatedTypeInference {
     }
 }
 
-extension SymbolIndexStore.MemberKind {
+extension SwiftSymbolIndexStore.MemberKind {
     fileprivate var isInExtension: Bool {
         switch self {
         case .allocator(let inExtension),

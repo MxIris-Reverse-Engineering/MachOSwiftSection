@@ -83,6 +83,32 @@
 | [0071](0071-swift-capstone-7.md) | 迁到 swift-capstone 7.0：解码器改用 `Disassembler<AArch64>` | Implemented |
 | [0072](0072-cross-reference-analysis.md) | 交叉引用分析：从机器码读出每个函数引用了什么 | Implemented |
 | [0073](0073-protocol-requirement-placement.md) | 协议约束可选写在各自的关联类型上 | Implemented |
-| draft | [evolution 与 diff 区分「不存在」和「看不见」](draft-evolution-unobservable-presence.md) | Accepted |
 | [0074](0074-private-declaration-source-files.md) | dump 与 interface 标出私有声明来自哪个源文件 | Implemented |
 | [0075](0075-wrapped-reader-recognition.md) | 包装类型读取器的识别：库看穿宿主的包装，按底下的读取器回答 | Implemented |
+| [0076](0076-objc-runtime-send-entry-points.md) | 交叉引用把 libobjc 的专用发送入口记成消息发送 | Implemented |
+| [0077](0077-thunk-only-objc-members.md) | 只剩 `@objc` thunk 或 initializing entry point 的成员照样建出来 | Implemented |
+| [0078](0078-objc-classes-without-class-objects.md) | 没有 class object 的 Swift 类：从 Swift 元数据读出它们的 ObjC 类数据 | Implemented |
+| [0079](0079-swift-declared-objc-protocols.md) | Swift 源码定义的 `@objc` 协议，以及类对 ObjC 协议的遵循 | Implemented |
+| [0080](0080-objc-evolution-interface.md) | `objc evolution --interface`：带演进标注的合并 ObjC 头文件 | Implemented |
+| [0081](0081-evolution-unobservable-presence.md) | evolution 与 diff 区分「不存在」和「看不见」 | Implemented |
+| [0082](0082-image-group-evolution.md) | 一个版本由一组 image 组成的演进 | Implemented |
+| [0083](0083-exported-only-marking-mode.md) | 导出过滤进入标记模式，C 导入类型不再判成未导出 | Implemented |
+| [0084](0084-comment-structure.md) | 注释结构标记：打印器给每条注释标出种类和各段角色 | Implemented |
+| [0085](0085-abi-flag-words-bit-field.md) | ABI 层的 flag word 改用 `@BitField`，修掉三个读错位的访问器 | Implemented |
+| [0086](0086-shared-dependency-openings.md) | 依赖定位器共享同一路径的打开，不再按根重开 cache 与显式文件 | Implemented |
+| [0087](0087-resolvable-locatable-layout-wrapper-macro.md) | `@ResolvableLocatableLayoutWrapper`：样板宏改名并补上遵循 | Implemented |
+| [0088](0088-machofile-performance.md) | 离线读取追平进程内：去掉 MachOFile 独有的开销，再压两边共用的部分 | Implemented |
+| [0089](0089-swift-objc-interop-module.md) | 把 SwiftInspection 的 ObjC 部分拆成 SwiftObjCInterop 模块 | Implemented |
+| [0090](0090-objc-imported-declarations.md) | ObjC 类、category 与协议按 ClangImporter 的规则建成 Swift 声明 | Implemented |
+| [0091](0091-export-verdict-without-local-symbols.md) | 没有本地符号的镜像里，扩展中的类型与私有 `@objc` 协议也给出导出结论 | Implemented |
+| [0092](0092-existential-any.md) | interface 与 dump 给 existential 写上 `any`，并修好 constrained existential 字段的类型 | Implemented |
+| [0093](0093-observable-macro-folding.md) | 识别 `@Observable` 宏：interface 默认折叠它的展开 | Implemented |
+| [0094](0094-init-accessor-recovery.md) | 还原 SE-0400 的 init accessor | Implemented |
+| [0095](0095-observable-nested-expansion.md) | `@Observable` 的展开分两层：先出 `@ObservationTracked`，再展开它 | Implemented |
+| [0096](0096-swift-first-imported-declarations.md) | Swift 实现的类，导入声明以 Swift 一侧为准 | Implemented |
+| [0097](0097-offline-cross-references-and-symbolication.md) | 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Implemented |
+| draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
+| draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
+| [0098](0098-move-cross-reference-layers.md) | 交叉引用的核心层与 ObjC 层迁出本库，进 MachOKitExtensions 与 MachOObjCSection（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Implemented |
+| [cross-repository MachOKitExtensions 0002](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0002-move-reading-and-resolving-modules.md) | 把 MachOReading 与 MachOResolving 迁入 MachOKitExtensions 2.0.0：由那边维护唯一提案；本库删掉这两个 target，同时删掉 0057 废弃的读取写法 | Implemented |
+| [cross-repository MachOKitExtensions 0003](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md) | 其余 MachO 基础模块迁入 MachOKitExtensions 2.0.0，`MachOSymbols` 拆出 C/C++ 符号索引：由那边维护唯一提案；本库的 Swift 符号索引改名 `SwiftSymbols` / `SwiftSymbolIndexStore` | Implemented |

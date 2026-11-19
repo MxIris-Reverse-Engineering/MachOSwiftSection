@@ -6,8 +6,8 @@ import Testing
 import MachOKit
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
-@testable import MachOTestingSupport
-import MachOFixtureSupport
+@testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
 
 /// End-to-end coverage for the `final` keyword recovery and the lazy-var
 /// accessor-type correction (evolution proposal 0006), pinned against the

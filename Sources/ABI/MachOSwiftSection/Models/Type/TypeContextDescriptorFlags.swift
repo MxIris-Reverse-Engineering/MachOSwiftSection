@@ -1,5 +1,10 @@
 import Foundation
+import SwiftStdlibToolbox
 
+/// Generic flags build upwards from bit 0; type-specific flags build
+/// downwards from bit 15.
+///
+/// Mirrors `swift::TypeContextDescriptorFlags` (`swift/ABI/MetadataValues.h`).
 public struct TypeContextDescriptorFlags: FlagSet {
     public let rawValue: UInt16
 
@@ -7,77 +12,56 @@ public struct TypeContextDescriptorFlags: FlagSet {
         self.rawValue = rawValue
     }
 
-    private enum Bits {
-        static let metadataInitialization = 0
-        static let metadataInitializationWidth = 2
-        static let hasImportInfo = 2
-        static let hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer = 3
-        static let hasLayoutString = 4
-        static let classHasDefaultOverrideTable = 6
-        static let classIsActor = 7
-        static let classIsDefaultActor = 8
-        static let classResilientSuperclassReferenceKind = 9
-        static let classResilientSuperclassReferenceKindWidth = 3
-        static let classAreImmdiateMembersNegative = 12
-        static let classHasResilientSuperclass = 13
-        static let classHasOverrideTable = 14
-        static let classHasVTable = 15
-    }
+    /// Whether there is something unusual about how the metadata is
+    /// initialized: 0 for nothing, 1 for singleton and 2 for foreign
+    /// metadata initialization.
+    @BitField(bits: 0..<2)
+    private var metadataInitialization: UInt8
 
     public var noMetadataInitialization: Bool {
-        field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 0
+        metadataInitialization == 0
     }
 
     public var hasSingletonMetadataInitialization: Bool {
-        field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 1
+        metadataInitialization == 1
     }
 
     public var hasForeignMetadataInitialization: Bool {
-        field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 2
+        metadataInitialization == 2
     }
 
-    public var hasImportInfo: Bool {
-        flag(bit: Bits.hasImportInfo)
-    }
+    @BitField(bits: 2)
+    public var hasImportInfo: Bool
 
-    public var hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: Bool {
-        flag(bit: Bits.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer)
-    }
+    @BitField(bits: 3)
+    public var hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: Bool
 
-    public var hasLayoutString: Bool {
-        flag(bit: Bits.hasLayoutString)
-    }
+    @BitField(bits: 4)
+    public var hasLayoutString: Bool
 
-    public var classHasDefaultOverrideTable: Bool {
-        flag(bit: Bits.classHasDefaultOverrideTable)
-    }
+    @BitField(bits: 6)
+    public var classHasDefaultOverrideTable: Bool
 
-    public var classIsActor: Bool {
-        flag(bit: Bits.classIsActor)
-    }
+    @BitField(bits: 7)
+    public var classIsActor: Bool
 
-    public var classIsDefaultActor: Bool {
-        flag(bit: Bits.classIsDefaultActor)
-    }
+    @BitField(bits: 8)
+    public var classIsDefaultActor: Bool
 
-    public var classResilientSuperclassReferenceKind: TypeReferenceKind {
-        let rawValue = field(firstBit: Bits.classResilientSuperclassReferenceKind, bitWidth: Bits.classResilientSuperclassReferenceKindWidth, fieldType: UInt8.self)
-        return .init(rawValue: rawValue)!
-    }
+    /// The kind of reference the class makes to its resilient superclass's
+    /// descriptor, or `nil` for a kind this reader does not know.
+    @BitField(bits: 9..<12)
+    public var classResilientSuperclassReferenceKind: TypeReferenceKind?
 
-    public var classAreImmdiateMembersNegative: Bool {
-        flag(bit: Bits.classAreImmdiateMembersNegative)
-    }
+    @BitField(bits: 12)
+    public var classAreImmdiateMembersNegative: Bool
 
-    public var classHasResilientSuperclass: Bool {
-        flag(bit: Bits.classHasResilientSuperclass)
-    }
+    @BitField(bits: 13)
+    public var classHasResilientSuperclass: Bool
 
-    public var classHasOverrideTable: Bool {
-        flag(bit: Bits.classHasOverrideTable)
-    }
+    @BitField(bits: 14)
+    public var classHasOverrideTable: Bool
 
-    public var classHasVTable: Bool {
-        flag(bit: Bits.classHasVTable)
-    }
+    @BitField(bits: 15)
+    public var classHasVTable: Bool
 }

@@ -30,6 +30,9 @@ swift-section objc dump <file>
 # One class, protocol, category, struct or union
 swift-section objc interface <name> <file>
 
+# The same class, protocol or category as Swift imports it
+swift-section objc interface <name> <file> --swift
+
 # Freeze a binary's Objective-C API as a baseline snapshot (JSON)
 swift-section objc snapshot <file> --label 26.0 -o baseline.json
 
@@ -38,6 +41,9 @@ swift-section objc diff <old> <new>
 
 # Follow every declaration across N ≥ 2 versions
 swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0
+
+# The same versions merged into one header, each declaration annotated with its lifecycle
+swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0 --interface -o evolution.h
 ```
 
 `dump` is the default, so `swift-section objc <file>` is `swift-section objc dump <file>`.
@@ -73,6 +79,47 @@ reads other images yet (see the first item under [Things you must know](#things-
 `interface` also takes `--kind` to disambiguate a name that is, say, both a class and a struct.
 Without it the first match wins, in the order classes → protocols → categories → structs →
 unions.
+
+## The Swift view (`interface --swift`)
+
+`interface --swift` prints a class, category or protocol the way Swift imports it, the
+declaration Xcode shows as its Generated Interface, instead of as an Objective-C header:
+
+```text
+$ swift-section objc interface NSColor --uses-system-dyld-shared-cache -n AppKit --swift
+class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __C.NSCopying, … {
+    // Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them.
+    @objc(encodeWithCoder:) func encode(with: __C.NSCoder!)
+    init!(coder: __C.NSCoder!)
+    …
+```
+
+- **The names are inferred.** They are the ClangImporter's naming rules applied to what the
+  binary records. On macOS 27.2's AppKit about 81 % of the public members get the name the SDK
+  gives them. The rest need what only the SDK has: API notes and `NS_SWIFT_NAME` renames, enum
+  and option-set type names, collection element types, nullability. Where the printed name would
+  not lead the compiler back to the selector, `@objc(selector)` pins it.
+- **The types are what the binary records.** An object whose nullability is unknown prints as
+  `T!`, as Swift imports a header without nullability annotations; an enum or option-set
+  argument prints as its integer type; imported types keep their Objective-C names under `__C`.
+- **What Swift implements prints as Swift declares it.** A Swift class prints as the Swift class.
+  An `@objc @implementation` class prints as its Swift side: the implementation's body under the
+  class's own declaration, its Swift-only members included, then the Objective-C methods no Swift
+  member answers to. A member of a Swift extension prints as that Swift member. An OS framework
+  strips the thunks and inlines the bodies into them, so a member the symbols do not tie is paired
+  with the Swift member the importer's rules name after its selector, when that is the only one
+  and its type fits. A property the header marks `NS_REFINED_FOR_SWIFT` is implemented under a
+  `__` name; when that implementation left no symbol, the property shows as a comment,
+  `// NS_REFINED_FOR_SWIFT: var __settings: …`, right above the Swift property that took its plain
+  name. A stored property whose type the binary does not
+  record prints as the Objective-C property synthesized on it. The binary's Swift declarations are
+  indexed first for this, so `--swift` takes longer than the header: about 16 seconds for AppKit.
+- **A class shows its own members.** The linker merges a binary's categories on its own classes
+  into the classes, so they print as members of the class; in a dyld shared cache, the categories
+  the cache attached to a class ahead of time are left out. Only a category on a class of
+  another binary is a category; name it by its unique name, such as `CIColor(NSAppKitAdditions)`.
+- A Swift class goes by its runtime name (`_TtC6AppKit11SliderModel`), as for the header. Structs
+  and unions have no Swift view.
 
 ## Ten generation switches
 
@@ -134,15 +181,37 @@ swift-section objc evolution CoreLocation-*.json --summary-only
 | Option (`diff` and `evolution`) | Meaning |
 |---|---|
 | `--summary-only` | Only the verdict (`diff`: the breaking line; `evolution`: the transition summary) |
-| `--json` | Structured JSON instead of the text report (not together with `--summary-only`) |
+| `--json` | Structured JSON instead of the text report (not together with `--summary-only` or `--interface`) |
 | `--fail-on-breaking` | Exit nonzero when there is an API-breaking change, for CI gating |
 | `-o, --output-path <path>` | Write to a file instead of stdout (progress and logs always go to stderr) |
 | `--labels a,b,c` | `evolution` only: the version axis, one label per input; defaults to each snapshot's stored label or the file name |
+| `--interface` | `evolution` only: one header merging every version, each declaration annotated with its lifecycle (see below); every input must be a binary or a cache |
+| `--emit-available` | With `--interface`: also spell each lifecycle one availability macro expresses (`API_AVAILABLE` / `API_OBSOLETED`) |
+| `--platform <name>` | With `--emit-available`: the macros' platform name, instead of the one inferred from `LC_BUILD_VERSION` |
 
 The input options (`--dyld-shared-cache` / `-n` / `-p` / `-a`) are the same as `dump`'s; for
 `diff` and `evolution` they mean "every input is a cache, extract the same image from each".
 `snapshot` rejects `--uses-system-dyld-shared-cache`: the running system's cache has no stable
 path to record in the baseline.
+
+### The annotated header (`evolution --interface`)
+
+`--interface` replaces the lineage report with one header that merges every version. Each declaration is rendered the way `objc dump` renders it, and the ones that changed carry their lifecycle at the end of the line — `// [○●●] added in 18.0`, `removed in …`, or `modified in …: old → new` — where the bitmap has one position per version and the header's second line says which. A removed declaration stays where it last was. A class, protocol or category that was added or removed is annotated on its `@interface` / `@protocol` line alone, not member by member, and a changed superclass or protocol adoption is a comment line above it. The annotations are the lineages the text and JSON reports print, read from the same snapshots.
+
+`--emit-available` also spells each lifecycle one availability macro can express: `API_AVAILABLE(macos(13.0))` for a declaration added inside the axis, and `API_OBSOLETED("Removed", macos(12.0, 13.0, 13.0))` for one added and later removed. The versions are axis points, not necessarily the releases that really introduced or removed a declaration. A declaration present from the first version and removed later gets no macro, because `API_OBSOLETED` needs the version that introduced it; neither does one that disappeared and came back, one that was only modified, or one whose labels are not version numbers. The platform comes from every input's `LC_BUILD_VERSION`, a simulator counting as its device. When the inputs name none or different ones, name it with `--platform` in the macros' own spelling: `macos`, `ios`, `tvos`, `watchos`, `visionos`, `macCatalyst` or `driverkit`.
+
+```bash
+swift-section objc evolution \
+    15.5/dyld_shared_cache_arm64e \
+    26.5/dyld_shared_cache_arm64e \
+    27.0/dyld_shared_cache_arm64e \
+    --dyld-shared-cache -n AppKit \
+    --labels 15.5,26.5,27.0 \
+    --interface --emit-available \
+    -o AppKit-evolution.h
+```
+
+Every input must be a binary or a cache: a snapshot does not carry rendered declarations, so a snapshot input is a usage error. Pass `--labels` when the inputs are caches, since each label otherwise defaults to the file name, which is `dyld_shared_cache_arm64e` for all of them. The versions are indexed one at a time and only what was rendered is kept: in a release build, AppKit across 52 macOS caches (11.0.1 to 27.2) takes about three minutes and peaks at 2 GB.
 
 ## Things you must know
 
@@ -212,3 +281,17 @@ complain about four kinds nobody asked for.
 
 **Keeping exit code 0 is deliberate**: these are diagnostics, not failures, and no existing
 script or CI job should turn red over them. For gating, use `diff --fail-on-breaking`.
+
+### 5. Swift classes without a class object are read from Swift metadata
+
+`__objc_classlist` holds a class object for every Swift class whose metadata the compiler can emit complete. Three kinds of class have none. They are listed from their Swift metadata instead, each under a comment line naming the kind:
+
+| Comment | Class | Listed as |
+|---|---|---|
+| `// Generic Swift class, instantiated at runtime` | A generic class. Its `class_ro_t` is the template its generic metadata pattern carries, and every instantiation gets a copy with a name of its own | Its Swift name with its generic parameters: `Module.Panel<A>` |
+| `// Swift class with resilient ancestry, registered through __objc_stublist` | A class whose superclass is in another module built with library evolution, such as SwiftUI | Its runtime name: `_TtC6Module5Label` |
+| `// Swift class with generic ancestry, registered through __objc_stublist` | A class whose superclass is a generic class of the same module | Its runtime name |
+
+The last two kinds are listed only when an Objective-C class is among their ancestors, since only then does the compiler register them in `__objc_stublist`. A superclass that is a Swift class of another binary keeps its Swift spelling (`SwiftUI.NSHostingView<Module.Label>`), and `--strip-overrides` cannot see past it.
+
+A `snapshot` written by `swift-section` 0.24.0 or earlier does not contain these classes, so a `diff` against it reports each of them as added. Regenerate the baseline with the current tool before you compare.

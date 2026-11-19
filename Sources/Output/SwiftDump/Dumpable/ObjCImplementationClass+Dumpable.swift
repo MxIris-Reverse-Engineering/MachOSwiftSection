@@ -2,10 +2,12 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import MachOFoundation
+import SwiftSymbols
 import Semantic
 import Utilities
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
+import SwiftObjCInterop
 
 /// A class implemented through `@objc @implementation` (evolution proposal
 /// `objc-implementation-class-recognition`), as the `dump` path's top-level

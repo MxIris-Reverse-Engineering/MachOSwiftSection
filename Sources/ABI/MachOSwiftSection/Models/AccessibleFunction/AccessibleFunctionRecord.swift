@@ -27,8 +27,8 @@ import MachOBase
 /// `swift.accessibleFunctionRecords` throws
 /// `MachOSwiftSectionError.sectionNotFound` rather than answering empty —
 /// the same contract as every other section accessor here.
-@LocatableLayoutWrapping
-public struct AccessibleFunctionRecord: ResolvableLocatableLayoutWrapper {
+@ResolvableLocatableLayoutWrapper
+public struct AccessibleFunctionRecord {
     public struct Layout: LayoutProtocol {
         public let name: RelativeDirectPointer<String>
         /// Null for a non-generic function — the only nullable pointer here.
@@ -75,34 +75,5 @@ extension AccessibleFunctionRecord {
     public func functionAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address? {
         guard let functionOffset = resolvedDirectOffset(from: \.function) else { return nil }
         return try context.addressFromOffset(functionOffset)
-    }
-}
-
-// MARK: - Deprecated Mach-O and pointer forms
-
-extension AccessibleFunctionRecord {
-    @available(*, deprecated, message: "Pass a ReadingContext: name(in: machO.context).")
-    public func name(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> String {
-        try name(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: functionType(in: machO.context).")
-    public func functionType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        try functionType(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: genericEnvironment(in: machO.context).")
-    public func genericEnvironment(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> GenericEnvironment? {
-        try genericEnvironment(in: machO.context)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: name(in: .inProcess).")
-    public func name() throws -> String {
-        try name(in: InProcessContext.shared)
-    }
-
-    @available(*, deprecated, message: "Pass a ReadingContext: functionType(in: .inProcess).")
-    public func functionType() throws -> MangledName {
-        try functionType(in: InProcessContext.shared)
     }
 }

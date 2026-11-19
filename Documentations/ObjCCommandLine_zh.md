@@ -27,6 +27,9 @@ swift-section objc dump <file>
 # 只导出一个类 / 协议 / 分类 / struct / union
 swift-section objc interface <name> <file>
 
+# 同一个类 / 协议 / 分类，打印成 Swift 导入它的样子
+swift-section objc interface <name> <file> --swift
+
 # 把二进制的 Objective-C API 冻结成基线快照（JSON）
 swift-section objc snapshot <file> --label 26.0 -o baseline.json
 
@@ -35,6 +38,9 @@ swift-section objc diff <old> <new>
 
 # 跨 N ≥ 2 个版本追踪每个声明的生命线
 swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0
+
+# 把这几个版本合并成一份头文件，每个声明标出自己的生命周期
+swift-section objc evolution <v1> <v2> <v3> --labels 17.0,18.0,26.0 --interface -o evolution.h
 ```
 
 `dump` 是默认子命令，所以 `swift-section objc <file>` 等于 `swift-section objc dump <file>`。
@@ -67,6 +73,35 @@ Objective-C 这边目前不读取别的镜像（见「必须知道的四件事�
 
 `interface` 还有一个 `--kind`，用来区分一个既是类名又是 struct 名的名字。不给的话按
 类 → 协议 → 分类 → struct → union 的顺序取第一个找到的。
+
+## Swift 视图（`interface --swift`）
+
+`interface --swift` 把一个类、分类或协议打印成 Swift 导入它之后的样子，也就是 Xcode 里
+Generated Interface 显示的声明，而不是 Objective-C 头文件：
+
+```text
+$ swift-section objc interface NSColor --uses-system-dyld-shared-cache -n AppKit --swift
+class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __C.NSCopying, … {
+    // Swift names follow the ClangImporter's rules for these selectors; the binary records no Swift names for them.
+    @objc(encodeWithCoder:) func encode(with: __C.NSCoder!)
+    init!(coder: __C.NSCoder!)
+    …
+```
+
+- **名字是推出来的**：把 ClangImporter 的命名规则用在二进制记录的信息上。macOS 27.2 的
+  AppKit 里，公开成员约有 81 % 与 SDK 给的名字一致；其余的要 SDK 才有的信息：API notes 与
+  `NS_SWIFT_NAME` 的改名、枚举与选项集的类型名、集合的元素类型、可空性。打印出的名字推不回
+  原 selector 时，用 `@objc(selector)` 钉住。
+- **类型是二进制记录的类型**：不知道可空性的对象打成 `T!`，与 Swift 导入没有可空性标注的
+  头文件一样；枚举与选项集参数打成它的整数类型；导入的类型保持 `__C` 下的 Objective-C 名。
+- **Swift 实现的部分照 Swift 的声明打印**：Swift 类打成那个 Swift 类，`@objc @implementation`
+  类与 Swift extension 的成员打成那个 Swift 成员。为此要先索引二进制里的 Swift 声明，所以
+  `--swift` 比头文件慢，AppKit 约 16 秒。
+- **类只显示自己的成员**：链接器会把二进制给自己的类写的分类并进类里，所以它们打成类的成员；
+  dyld shared cache 里，cache 预先附加到类上的分类不算。只有给别的二进制的类写的分类才是分类，
+  按它的唯一名字指定，例如 `CIColor(NSAppKitAdditions)`。
+- Swift 类按运行时名指定（`_TtC6AppKit11SliderModel`），与头文件一样。struct 与 union 没有
+  Swift 视图。
 
 ## 十个生成开关
 
@@ -124,16 +159,38 @@ swift-section objc evolution CoreLocation-*.json --summary-only
 | 选项（`diff` 和 `evolution` 都有） | 作用 |
 |---|---|
 | `--summary-only` | 只打印结论（`diff`：是否破坏兼容的那一行；`evolution`：各次版本变化的摘要） |
-| `--json` | 输出结构化 JSON，而不是文本报告（不能和 `--summary-only` 一起用） |
+| `--json` | 输出结构化 JSON，而不是文本报告（不能和 `--summary-only` 或 `--interface` 一起用） |
 | `--fail-on-breaking` | 有破坏 API 兼容的变化时以非零退出码结束，给 CI 把关用 |
 | `-o, --output-path <path>` | 写进文件，而不是 stdout（进度和日志一律走 stderr） |
 | `--labels a,b,c` | 只有 `evolution` 有：版本轴的标签，每个输入一个；不给时取快照里存的标签或文件名 |
+| `--interface` | 只有 `evolution` 有：把所有版本合并成一份头文件，每个声明标出自己的生命周期（见下文）；每个输入都必须是二进制或 cache |
+| `--emit-available` | 配合 `--interface`：一个可用性宏能表达的生命周期，再写成这个宏（`API_AVAILABLE` / `API_OBSOLETED`） |
+| `--platform <name>` | 配合 `--emit-available`：宏里的平台名，不用从 `LC_BUILD_VERSION` 推断的那个 |
 
 输入选项（`--dyld-shared-cache` / `-n` / `-p` / `-a`）和 `dump` 一样；在 `diff` 和 `evolution` 里的
 意思是「每个输入都是 cache，从每一份里取同一个镜像」。`snapshot` 不接受
 `--uses-system-dyld-shared-cache`：当前系统的 cache 没有一个稳定的路径可以记进基线。
 
-## 必须知道的四件事
+### 带标注的头文件（`evolution --interface`）
+
+`--interface` 不出逐条的报告，而是把所有版本合并成一份头文件。每个声明都按 `objc dump` 的方式渲染；有变化的声明在行尾写出生命周期：`// [○●●] added in 18.0`、`removed in …`，或者 `modified in …: 旧 → 新`。位图每一位对应一个版本，对应关系写在文件头的第二行。删掉的声明留在它最后出现的位置。加入或删掉的类、协议、分类只在 `@interface` / `@protocol` 那一行标注，成员不再逐个标；父类或协议遵循变了，写成它上方的一行注释。这些标注就是文本报告和 JSON 里的那些 lineage，取自同样的快照。
+
+`--emit-available` 再把一个可用性宏能表达的生命周期写成宏：在版本轴中途加入的写 `API_AVAILABLE(macos(13.0))`，加入后又删掉的写 `API_OBSOLETED("Removed", macos(12.0, 13.0, 13.0))`。宏里的版本是版本轴上的点，不一定是真正引入或删除这个声明的那个版本。从第一个版本就在、后来删掉的声明不写宏，因为 `API_OBSOLETED` 必须带引入版本；删了又加回的、只被修改过的、标签不是版本号的，也都不写。平台取自每个输入的 `LC_BUILD_VERSION`，模拟器算作它对应的设备平台。输入里没有平台、或者平台各不相同时，用 `--platform` 按宏自己的写法指定：`macos`、`ios`、`tvos`、`watchos`、`visionos`、`macCatalyst` 或 `driverkit`。
+
+```bash
+swift-section objc evolution \
+    15.5/dyld_shared_cache_arm64e \
+    26.5/dyld_shared_cache_arm64e \
+    27.0/dyld_shared_cache_arm64e \
+    --dyld-shared-cache -n AppKit \
+    --labels 15.5,26.5,27.0 \
+    --interface --emit-available \
+    -o AppKit-evolution.h
+```
+
+每个输入都必须是二进制或 cache：快照里没有渲染好的声明，传入快照会报用法错误。输入是 cache 时要传 `--labels`，否则每个标签都取文件名，而这些文件都叫 `dyld_shared_cache_arm64e`。各版本逐个索引，只留下渲染好的内容：release 构建下，AppKit 跨 52 个 macOS cache（11.0.1 到 27.2）约三分钟，内存峰值约 2 GB。
+
+## 必须知道的五件事
 
 下面每一条，都会让一份看起来正常的输出把你引向错误的结论，而且签名和 `--help` 里都看不出来。
 
@@ -189,3 +246,17 @@ dump 一个纯 Swift 二进制，都会为你根本没问过的四类刷屏。
 
 **退出码保持 0 是有意的**：这些是诊断信息，不是失败，不应该让任何现有的脚本或 CI 因此变红。
 需要把关时，用 `diff --fail-on-breaking`。
+
+### 五、没有 class object 的 Swift 类，从 Swift 元数据读出来
+
+编译器能把元数据整个静态生成的 Swift 类，在 `__objc_classlist` 里都有一个 class object。有三种类没有，它们改为从 Swift 元数据读出来列出，每个前面有一行注释说明是哪一种：
+
+| 注释 | 哪种类 | 列出时用的名字 |
+|---|---|---|
+| `// Generic Swift class, instantiated at runtime` | 泛型类。它的 `class_ro_t` 是 generic metadata pattern 里的模板，每次实例化都拷一份、各自取名 | Swift 名字加上泛型参数：`Module.Panel<A>` |
+| `// Swift class with resilient ancestry, registered through __objc_stublist` | 父类在另一个开了 library evolution 的模块里的类，比如 SwiftUI 的类 | 运行时名：`_TtC6Module5Label` |
+| `// Swift class with generic ancestry, registered through __objc_stublist` | 父类是本模块泛型类的类 | 运行时名 |
+
+后两种只在祖先里有 Objective-C 类时才列出，因为只有这时编译器才把它们登记进 `__objc_stublist`。父类是另一个二进制里的 Swift 类时，父类名保持 Swift 写法（`SwiftUI.NSHostingView<Module.Label>`），`--strip-overrides` 也越不过它。
+
+`swift-section` 0.24.0 及更早版本写的 `snapshot` 里没有这些类，拿它做 `diff` 会把它们一个个报成新增。比较之前先用当前版本重新生成基线。
