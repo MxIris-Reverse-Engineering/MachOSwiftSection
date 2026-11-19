@@ -41,7 +41,7 @@ swift-section symbolicate 0x19012345 0x1e1226590 --uses-system-dyld-shared-cache
   `addressMaterialization`, `literalLoad`, `indirect`. A reference that went through a stub is
   as real as a direct one; the route is what to check before trusting it.
 - **target** — `send sel:` (`to self`, `to NSWindow` when the receiver is known), a function
-  and its image, a class, `ivar Class._name`, a string, `type …`, `indirect through …`.
+  and its image, a class, `ivar Class._name`, a string, `type …`, `indirect` (`at offset …` when the callee was loaded from memory).
 
 A one-line summary goes to stderr: how many references, in how many images, and how many images
 were scanned.
@@ -68,8 +68,8 @@ were scanned.
   Its field names are a contract. `--limit` keeps the first references in image and address
   order and sets `isTruncated`.
 - **Not reported, by design or not yet**: a call through a vtable, a witness table or any
-  register says `indirect` with what is known (the table, the offset, the pointer-authentication
-  discriminator) but no callee; a Swift class's stored-property offset variables are not
+  register says `indirect` with what the call site shows (the offset of the load, the pointer-
+  authentication discriminator) but no callee — never which table it was; a Swift class's stored-property offset variables are not
   reported as ivar references; an app read together with the running system's cache is not
   supported — read the app's files alone, and a call into a system library stays the imported
   symbol it is.
