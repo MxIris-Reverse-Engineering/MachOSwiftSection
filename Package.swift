@@ -409,6 +409,14 @@ extension Target.Dependency {
         name: "SwiftSyntaxBuilder",
         package: "swift-syntax",
     )
+    static let SwiftSyntaxMacroExpansion = Target.Dependency.product(
+        name: "SwiftSyntaxMacroExpansion",
+        package: "swift-syntax",
+    )
+    static let SwiftSyntaxMacrosGenericTestSupport = Target.Dependency.product(
+        name: "SwiftSyntaxMacrosGenericTestSupport",
+        package: "swift-syntax",
+    )
     static let SwiftTUI = Target.Dependency.product(
         name: "SwiftTUI",
         package: "SwiftTUI",
@@ -1015,6 +1023,20 @@ extension Target {
         path: "Sources/Support/SwiftSectionMacros",
     )
 
+    /// The test support's macros: `@FixtureSuite`. Kept apart from
+    /// `SwiftSectionMacros`, so the plugin the production targets load
+    /// carries no test-only macro.
+    static let SwiftSectionTestingMacros = Target.macro(
+        name: "SwiftSectionTestingMacros",
+        dependencies: [
+            .product(.SwiftSyntax),
+            .product(.SwiftSyntaxMacros),
+            .product(.SwiftCompilerPlugin),
+            .product(.SwiftSyntaxBuilder),
+        ],
+        path: "Sources/TestSupport/SwiftSectionTestingMacros",
+    )
+
     // MARK: - Testing
 
     /// Fixture-loading helpers, baseline generators, coverage scanners, and
@@ -1064,6 +1086,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            .target(.SwiftSectionTestingMacros),
             .product(.Semantic),
         ],
         path: "Sources/TestSupport/SwiftSectionTestingSupport",
@@ -1389,6 +1412,18 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let SwiftSectionTestingMacrosTests = Target.testTarget(
+        name: "SwiftSectionTestingMacrosTests",
+        dependencies: [
+            .target(.SwiftSectionTestingMacros),
+            .product(.SwiftSyntax),
+            .product(.SwiftSyntaxMacros),
+            .product(.SwiftSyntaxMacroExpansion),
+            .product(.SwiftSyntaxMacrosGenericTestSupport),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftSectionTestingSupportTests = Target.testTarget(
         name: "SwiftSectionTestingSupportTests",
         dependencies: [
@@ -1500,6 +1535,7 @@ let package = Package(
         .TypeIndexing,
         .SwiftSectionKit,
         .SwiftSectionMacros,
+        .SwiftSectionTestingMacros,
         .SwiftSectionFixtureSupport,
         .SwiftSectionTestingSupport,
         .SwiftSectionTestingSupportC,
@@ -1533,6 +1569,7 @@ let package = Package(
         .SwiftPrivateDiscriminatorsTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
+        .SwiftSectionTestingMacrosTests,
         .SwiftSectionTestingSupportTests,
         .IntegrationTests,
     ],

@@ -79,4 +79,26 @@ struct SuiteBehaviorScannerTests {
         let key = MethodKey(typeName: "HelperReaderType", memberName: "helperUsingMethod")
         #expect(result[key] == .acrossAllReaders)
     }
+
+    @Test func scannerTakesTheClassNameStemWhenTheMacroHasNoArgument() throws {
+        let root = try makeScanRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let result = try SuiteBehaviorScanner(suiteRoot: root).scan()
+        #expect(result[MethodKey(typeName: "MacroDefaultType", memberName: "macroDefaultMethod")] == .acrossAllReaders)
+    }
+
+    @Test func scannerReadsTheTestedTypeNameFromTheMacroArgument() throws {
+        let root = try makeScanRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let result = try SuiteBehaviorScanner(suiteRoot: root).scan()
+        #expect(result[MethodKey(typeName: "MacroNamedType", memberName: "macroNamedMethod")] == .inProcessOnly)
+        #expect(result[MethodKey(typeName: "MacroNamed", memberName: "macroNamedMethod")] == nil)
+    }
+
+    @Test func scannerStillReadsAStaticTestedTypeName() throws {
+        let root = try makeScanRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let result = try SuiteBehaviorScanner(suiteRoot: root).scan()
+        #expect(result[MethodKey(typeName: "CrossReaderType", memberName: "liveMethod")] == .acrossAllReaders)
+    }
 }

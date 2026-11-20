@@ -79,7 +79,7 @@ private final class SuiteBehaviorVisitor: SyntaxVisitor {
     private var currentEnclosingClassBodyText: String?
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        currentTestedTypeName = extractTestedTypeName(from: node.memberBlock)
+        currentTestedTypeName = Self.testedTypeName(fromFixtureSuiteAttributeOf: node) ?? extractTestedTypeName(from: node.memberBlock)
         currentEnclosingClassBodyText = node.memberBlock.description
         return .visitChildren
     }
@@ -114,6 +114,28 @@ private final class SuiteBehaviorVisitor: SyntaxVisitor {
             behavior: behavior
         ))
         return .skipChildren
+    }
+
+    /// The tested type's name a `@FixtureSuite` attribute gives the class:
+    /// its `testedTypeName:` literal, else the class name without its
+    /// `Tests` suffix — the macro's own rule. `nil` without the attribute.
+    private static func testedTypeName(fromFixtureSuiteAttributeOf node: ClassDeclSyntax) -> String? {
+        for element in node.attributes {
+            guard let attribute = element.as(AttributeSyntax.self),
+                  attribute.attributeName.trimmedDescription.split(separator: ".").last == "FixtureSuite" else {
+                continue
+            }
+            for argument in attribute.arguments?.as(LabeledExprListSyntax.self) ?? [] where argument.label?.text == "testedTypeName" {
+                if let literal = argument.expression.as(StringLiteralExprSyntax.self) {
+                    let value = literal.segments.compactMap { $0.as(StringSegmentSyntax.self)?.content.text }.joined()
+                    if !value.isEmpty { return value }
+                }
+            }
+            let className = node.name.text
+            guard className.hasSuffix("Tests"), className.count > "Tests".count else { return nil }
+            return String(className.dropLast("Tests".count))
+        }
+        return nil
     }
 
     private func extractTestedTypeName(from memberBlock: MemberBlockSyntax) -> String? {
