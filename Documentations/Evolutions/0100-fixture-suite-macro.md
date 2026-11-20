@@ -1,13 +1,13 @@
-# Draft - `@FixtureSuite` 宏：夹具测试套件开头的固定写法由宏生成
+# 0100 - `@FixtureSuite` 宏：夹具测试套件开头的固定写法由宏生成
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-20
 - **最后更新**: 2026-11-20
 - **所属愿景**: 无
 - **关联提案**: [draft-shared-macho-testing-support](draft-shared-macho-testing-support.md)（同一次「减少测试样板」的讨论里拆出来；那份统一跨包的测试支持，这份只管本包的 Swift 夹具覆盖率体系，两份互不依赖）
-- **实现分支 / PR**: `feature/fixture-suite-macro`，从 `next` 切出；worktree 在 `.worktrees/MachOSwiftSection-FixtureSuiteMacro`
-- **配套文档**: 待定
+- **实现分支 / PR**: `feature/fixture-suite-macro`，从 `next` 切出，快进合入 `next`
+- **配套文档**: 无单独文档；用法写在 `AGENTS.md`「添加夹具测试」与 [FixtureTestingAndContinuousIntegration.md](../Internal/FixtureTestingAndContinuousIntegration.md)「套件头由 `@FixtureSuite` 生成」一节；演进账本第 145 节
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -185,3 +185,5 @@ package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = 
 | 2026-11-20 | 第 1、2 步完成 | 宏的 6 个展开测试与扫描器的 9 个测试在 MacBook 上通过（Ultra 负载过高，按规则分流）。 |
 | 2026-11-20 | 套件数更正：171 个，迁 170 个 | 提案里的 176 是 grep 把扫描器样例文本里的几个类也数进去了。`CoroFunctionPointerTests` 自己编夹具、没有 baseline，注册名单是字面量，套不上宏，保持手写。 |
 | 2026-11-20 | 实现完成，待用户看过后收尾 | 在 MacBook 上按 CI 的 ad-hoc 签名编出 `SymbolTestsCore`，跑 `swift test --skip IntegrationTests`：`MachOSwiftSectionCoverageInvariantTests`、宏与扫描器的测试全部通过。另有 150 组失败——夹具套件的 `offset()`、`layout()` 等与 baseline 写死的偏移不符，以及 `SymbolicDemanglerTests` 找不到 iOS 26.5 模拟器运行时——在同一台机器、同一份夹具上切到 `next` 跑同一批，失败逐条相同，是 MacBook 的环境（夹具与 baseline 的产物不一致、没装该运行时），不是本次引入的。Ultra 负载过高（1 分钟负载约 90–107），没在 Ultra 上跑。文档：`AGENTS.md` 与 `FixtureTestingAndContinuousIntegration.md` 已写明用法；不另写实现说明；没有新术语。 |
+| 2026-11-20 | 与 Swift 6 迁移一起落地 | 用户看过分支后决定与 `draft-swift6-mode-and-upcoming-features` 同批落地：本分支先快进合入 `next`，Swift 6 那一支合在它之上；合并后的构建与全量测试在两者合并的结果上统一跑，过了再一起推送。 |
+| 2026-11-20 | 状态 → Implemented，编号 0100 | 落地时取号：远端共享分支上最大编号是 0099。收尾判断：不另写实现说明或使用指南，`AGENTS.md` 的步骤、`FixtureTestingAndContinuousIntegration.md` 的一节与宏的文档注释已经够用；没有新术语，术语表不动。演进账本记第 145 节。没有后续项。 |

@@ -127,7 +127,7 @@ fixture.framework (SymbolTestsCore)
 （`OpaqueTypeFixtureTests`、`EnumFunctionsTests`、`TupleTypeMetadataElementTests`、`GenericContextTests`、
 `GenericRequirementContentTests` 五处）。`SuiteBehaviorScanner` 按源码读被测类型名，所以同时认宏的参数与
 类名词干。`CoroFunctionPointerTests` 自己编夹具、没有 baseline，注册名单是字面量，保持手写。
-提案：[draft-fixture-suite-macro](../Evolutions/draft-fixture-suite-macro.md)。
+提案：[0100-fixture-suite-macro](../Evolutions/0100-fixture-suite-macro.md)。
 
 ### 信任危机与 sentinel 收紧（2026-05-05）
 
