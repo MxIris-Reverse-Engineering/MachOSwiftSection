@@ -4,6 +4,7 @@ import MachOKit
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
+import Semantic
 
 /// `SwiftDeclarationPrintConfiguration.usesExistentialAny`, on by default,
 /// spells existential types with the `any` keyword by the rules the compiler

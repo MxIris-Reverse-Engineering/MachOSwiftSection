@@ -6,6 +6,7 @@ import Foundation
 import Testing
 import MachOKit
 import Dependencies
+import OrderedCollections
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Support) @testable import SwiftInterface
@@ -13,6 +14,7 @@ import Dependencies
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
 @testable import SwiftDump
+import Semantic
 
 // MARK: - Shared Setup
 
@@ -539,7 +541,7 @@ extension STCoreTests {
         )
 
         let printer = SwiftDeclarationPrinter(in: machOFile)
-        await #expect(throws: (any Error).self) {
+        await #expect(throws: (any Swift.Error).self) {
             _ = try await printer.printExtensionHeader(unreadableExtensionDefinition, level: 1)
         }
     }

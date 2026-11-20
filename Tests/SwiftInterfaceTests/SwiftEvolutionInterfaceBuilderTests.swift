@@ -80,7 +80,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
 
     // `Swift.Error` spelled out: the `Semantic` import brings its own `Error`
     // type into scope, which would otherwise win the lookup.
-    private static let fixtureCompilationResult: Result<[URL], Swift.Error> = {
+    private static let fixtureCompilationResult: Result<[URL], any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("EvolutionInterfaceFixture-\(UUID().uuidString)")

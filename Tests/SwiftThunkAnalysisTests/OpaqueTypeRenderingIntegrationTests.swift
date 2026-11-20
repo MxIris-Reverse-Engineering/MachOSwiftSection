@@ -10,6 +10,7 @@ import Demangling
 import SwiftDeclarationRendering
 import SwiftThunkAnalysis
 import SwiftDump
+import Semantic
 
 /// The point of the whole module: an associated-type witness that rendered as
 /// a bare address renders as a type once the thunk is read — and, since the

@@ -9,6 +9,7 @@ import SwiftPrinting
 import struct Semantic.SemanticString
 import struct Semantic.FrozenSemanticString
 import SwiftSectionTestingSupport
+import SwiftIndexing
 
 /// The interface side of wrapped-property recovery for the two cases the
 /// same-image suite (`PropertyWrapperSynthesizedMemberTests`) cannot show:
@@ -72,7 +73,7 @@ struct StrippedWrappedPropertyRenderingTests {
     }
     """
 
-    private static let compilationResult: Result<Products, Error> = {
+    private static let compilationResult: Result<Products, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("StrippedWrappedPropertyFixture-\(UUID().uuidString)")

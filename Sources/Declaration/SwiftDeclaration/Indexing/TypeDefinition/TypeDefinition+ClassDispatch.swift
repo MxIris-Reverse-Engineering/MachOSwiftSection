@@ -4,6 +4,7 @@ import OrderedCollections
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import BinaryParseSupport
 
 extension TypeDefinition {
     /// The dynamic-dispatch lookups this type's vtable and override tables

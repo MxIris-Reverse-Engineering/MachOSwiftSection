@@ -7,6 +7,7 @@ import Demangling
 @_spi(Internals) import SwiftSymbols
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
+import SwiftStdlibToolbox
 
 // MARK: - GenericSpecializer
 
@@ -1429,7 +1430,7 @@ extension GenericSpecializer where MachO == MachOImage {
             // non-generic candidate for `.boundGeneric`) used to surface
             // via preflight's `metadataResolutionFailed` aggregation.
             // Reproduce that wording so existing diagnostics stay stable.
-            let underlyingMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            let underlyingMessage = (error as? (any LocalizedError))?.errorDescription ?? "\(error)"
             throw SpecializerError.specializationFailed(
                 reason: "Could not resolve metadata for parameter '\(parameterName)': could not build inner request: \(underlyingMessage)"
             )
@@ -2046,7 +2047,7 @@ extension GenericSpecializer where MachO == MachOImage {
         case missingAssociatedTypeName(dependentAssociatedTypeRef: Node)
         case missingAssociatedTypeRefProtocolTypeNode(dependentAssociatedTypeRef: Node)
         case missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: Node)
-        case failedToCreateAssociatedTypeRefProtocol(underlyingError: Swift.Error)
+        case failedToCreateAssociatedTypeRefProtocol(underlyingError: any Swift.Error)
         case missingAssociatedTypeIndex(associatedTypeName: String, protocolName: ProtocolName, availableAssociatedTypes: [String])
         case missingAssociatedTypeBaseRequirement(protocolName: ProtocolName)
         case missingAssociatedTypeAccessFunctionRequirement(index: Int, protocolName: ProtocolName, requirementCount: Int)
@@ -2119,7 +2120,7 @@ extension GenericSpecializer {
         /// supplied for; `underlying` keeps the inner error's typed identity
         /// (often another `SpecializerError`) so callers can still match on
         /// the original cause rather than parsing a flattened string.
-        case boundGenericInnerFailed(parameterName: String, underlying: Swift.Error)
+        case boundGenericInnerFailed(parameterName: String, underlying: any Swift.Error)
 
         public var errorDescription: String? {
             switch self {
@@ -2138,7 +2139,7 @@ extension GenericSpecializer {
             case .unsupportedGenericParameter(let parameterKind):
                 return "Unsupported generic parameter kind: \(parameterKind). TypePack (variadic generics) and Value generics are not implemented yet."
             case .boundGenericInnerFailed(let parameterName, let underlying):
-                let inner = (underlying as? LocalizedError)?.errorDescription ?? "\(underlying)"
+                let inner = (underlying as? (any LocalizedError))?.errorDescription ?? "\(underlying)"
                 return "Inner specialization for parameter '\(parameterName)' failed: \(inner)"
             }
         }

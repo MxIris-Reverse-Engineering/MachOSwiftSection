@@ -166,7 +166,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
     }
 
-    public init(configuration: SwiftDeclarationPrintConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
+    public init(configuration: SwiftDeclarationPrintConfiguration = .init(), eventHandlers: [any SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
         // Before `configuration`: that property is `@Mutex`-wrapped with a
         // default, so assigning it counts as using `self`, which is only legal
@@ -778,7 +778,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
 
     @SemanticStringBuilder
     private func printDefinitionContents(_ definition: some Definition, level: Int, refinedForSwiftCommentsByVariableKey: [String: [StructuredComment]] = [:]) async throws -> SemanticString {
-        if let mutableDefinition = definition as? MutableDefinition {
+        if let mutableDefinition = definition as? (any MutableDefinition) {
             try mutableDefinition.index(in: machO)
         }
 

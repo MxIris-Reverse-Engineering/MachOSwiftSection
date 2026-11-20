@@ -4,6 +4,7 @@ import MachOKit
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
+import Semantic
 
 /// `SwiftDeclarationPrintConfiguration.usesModuleSelectors` qualifies the
 /// interface's names with SE-0491 module selectors, by the rules the Swift

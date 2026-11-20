@@ -1,6 +1,8 @@
 import Demangling
+import MachOSwiftSection
 import OrderedCollections
 import SwiftDeclaration
+import SwiftSymbols
 
 /// Diffs the Swift ABI of two indexed modules by keying every declaration on
 /// its remangled `Node` and computing a recursive three-way set difference.

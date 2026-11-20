@@ -222,7 +222,7 @@ package enum ImageGroupFixture {
     /// Compiled once per process, each version in a directory of its own,
     /// since every version reuses the two module names. Per version the
     /// libraries' URLs, the core image's first when there is one.
-    private static let compilationResult: Result<[[(name: String, libraryURL: URL)]], Swift.Error> = {
+    private static let compilationResult: Result<[[(name: String, libraryURL: URL)]], any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

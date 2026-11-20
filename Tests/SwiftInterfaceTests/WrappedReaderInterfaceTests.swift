@@ -7,6 +7,7 @@ import SwiftPrinting
 import SwiftInterface
 import SwiftDeclarationRendering
 @testable import SwiftSectionTestingSupport
+import Semantic
 
 /// The fixture's interface printed through a host's wrapper — a type that
 /// forwards every read to a `MachOFile` or an in-process `MachOImage`, as

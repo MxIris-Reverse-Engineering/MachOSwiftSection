@@ -8,7 +8,7 @@ package enum StringBuilder {
         components
     }
 
-    package static func buildBlock(_ components: CustomStringConvertible...) -> [String] {
+    package static func buildBlock(_ components: any CustomStringConvertible...) -> [String] {
         components.map { $0.description }
     }
 
@@ -16,7 +16,7 @@ package enum StringBuilder {
         components.flatMap { $0 }
     }
 
-    package static func buildBlock(_ components: [CustomStringConvertible]...) -> [String] {
+    package static func buildBlock(_ components: [any CustomStringConvertible]...) -> [String] {
         components.flatMap { $0.map { $0.description } }
     }
 
@@ -26,11 +26,11 @@ package enum StringBuilder {
 }
 
 extension StringBuilder {
-    package static func buildPartialBlock(first: CustomStringConvertible) -> [String] {
+    package static func buildPartialBlock(first: any CustomStringConvertible) -> [String] {
         [first.description]
     }
 
-    package static func buildPartialBlock(accumulated: [String], next: CustomStringConvertible) -> [String] {
+    package static func buildPartialBlock(accumulated: [String], next: any CustomStringConvertible) -> [String] {
         accumulated + [next.description]
     }
 

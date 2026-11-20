@@ -10,6 +10,8 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
+import OrderedCollections
 
 /// The diff renderer's header contract: a declaration whose HEADER cannot be
 /// rendered must be dropped whole, never rendered as a body under a blank
@@ -32,7 +34,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
     private func preparedBuilder(
-        eventHandlers: [SwiftIndexEvents.Handler] = []
+        eventHandlers: [any SwiftIndexEvents.Handler] = []
     ) async throws -> SwiftDiffableInterfaceBuilder<MachOFile> {
         let unsafeMachOFile = machOFile
         let builder = SwiftDiffableInterfaceBuilder(eventHandlers: eventHandlers, in: unsafeMachOFile)
@@ -221,7 +223,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         )
     }
 
-    private enum UnrenderableDefinitionError: Error {
+    private enum UnrenderableDefinitionError: Swift.Error {
         case donorIsNotAStruct
     }
 }

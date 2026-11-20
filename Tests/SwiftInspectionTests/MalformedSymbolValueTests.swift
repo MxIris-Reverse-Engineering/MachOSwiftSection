@@ -6,6 +6,8 @@ import Demangling
 @_spi(Internals) import SwiftSymbols
 @testable @_spi(Internals) import SwiftInspection
 @testable @_spi(Internals) import SwiftObjCInterop
+import MachOKitExtensions
+import MachOResolving
 
 /// A symbol's value is the binary's own claim about where something sits, and
 /// two indexes read the bytes there: `SymbolicManglingIndex` (the mangled name
@@ -50,7 +52,7 @@ struct MalformedSymbolValueTests {
         var description: String { "malformed symbol value fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("MalformedSymbolValueFixture-\(UUID().uuidString)")

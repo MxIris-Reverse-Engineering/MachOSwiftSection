@@ -12,6 +12,7 @@ import SwiftSectionFixtureSupport
 @testable import SwiftDump
 @testable import SwiftInterface
 @testable @_spi(Internals) import SwiftInspection
+import Semantic
 
 // MARK: - Unit Tests (Self-contained, no external dependencies)
 

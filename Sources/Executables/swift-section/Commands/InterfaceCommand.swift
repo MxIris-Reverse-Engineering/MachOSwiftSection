@@ -1,6 +1,7 @@
 import Foundation
 import ArgumentParser
 import SwiftSectionKit
+import SwiftPrinting
 
 struct InterfaceCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(

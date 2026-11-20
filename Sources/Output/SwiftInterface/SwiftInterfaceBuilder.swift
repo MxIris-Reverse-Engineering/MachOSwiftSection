@@ -36,7 +36,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
     public private(set) var importedModules: OrderedSet<String> = []
 
     @Mutex
-    public private(set) var extraDataProviders: [SwiftInterfaceBuilderExtraDataProvider] = []
+    public private(set) var extraDataProviders: [any SwiftInterfaceBuilderExtraDataProvider] = []
 
     private let eventDispatcher: SwiftIndexEvents.Dispatcher
 
@@ -55,7 +55,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
     ///   - eventDispatcher: An event dispatcher for handling logging and progress events. A new one is created by default.
     ///   - machO: The Mach-O binary to analyze and generate interfaces from.
     /// - Throws: An error if the binary cannot be read or if required Swift sections are missing.
-    public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) throws {
+    public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [any SwiftIndexEvents.Handler] = [], in machO: MachO) throws {
         self.eventDispatcher = .init()
         self.machO = machO
         self.indexer = .init(configuration: configuration.indexConfiguration, eventHandlers: eventHandlers, in: machO)
@@ -65,7 +65,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOFieldLayoutRenderable>: Sen
     }
 
     @_spi(Support)
-    public init(indexer: SwiftDeclarationIndexer<MachO>, printer: SwiftDeclarationPrinter<MachO>, eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
+    public init(indexer: SwiftDeclarationIndexer<MachO>, printer: SwiftDeclarationPrinter<MachO>, eventHandlers: [any SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.eventDispatcher = .init()
         self.machO = machO
         self.indexer = indexer

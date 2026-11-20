@@ -1116,7 +1116,7 @@ public struct RuntimeMetadataTypeBuilder: TypeBuilder {
             "Swift.PartialRangeFrom": PartialRangeFrom<Int>.self,
             "Swift.PartialRangeUpTo": PartialRangeUpTo<Int>.self,
             "Swift.PartialRangeThrough": PartialRangeThrough<Int>.self,
-            "Swift.Result": Result<Int, Error>.self,
+            "Swift.Result": Result<Int, any Error>.self,
             "Swift.Unmanaged": Unmanaged<AnyObject>.self,
             "Swift.UnsafePointer": UnsafePointer<Int>.self,
             "Swift.UnsafeMutablePointer": UnsafeMutablePointer<Int>.self,

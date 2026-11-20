@@ -1,4 +1,5 @@
 import Testing
+import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftSyntaxMacroExpansion
 import SwiftSyntaxMacrosGenericTestSupport

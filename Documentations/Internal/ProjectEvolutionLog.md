@@ -3460,14 +3460,31 @@
   - 宏与协议同名，照 Observation 的 `Observable` 先例。被测类型名与 baseline 默认从类名推出；5 个例外用参数写明，参数只收字面量，给变量就报错，不静默退回默认值。
   - `SuiteBehaviorScanner` 按源码读被测类型名，改为同时认宏的参数与类名词干；没有宏的类照旧读静态成员。
   - `CoroFunctionPointerTests` 自己编夹具、没有 baseline，保持手写。
-  - 与 `draft-swift6-mode-and-upcoming-features` 同批落地：本分支先快进合入 `next`，Swift 6 那一支合在它之上。
+  - 与 [0101-swift6-mode-and-upcoming-features](../Evolutions/0101-swift6-mode-and-upcoming-features.md) 同批落地：本分支先快进合入 `next`，Swift 6 那一支合在它之上。
 - **落地模块**：`Package.swift`（宏 target 与它的测试 target）、`Sources/TestSupport/SwiftSectionTestingMacros/`、`SwiftSectionTestingSupport` 的宏声明、`SwiftSectionFixtureSupport` 的 `SuiteBehaviorScanner`、`Tests/MachOSwiftSectionTests/Fixtures/**` 下的 170 个套件、`Tests/SwiftSectionTestingMacrosTests/`、扫描器的样例与测试。
 - **文档**：提案 [0100-fixture-suite-macro](../Evolutions/0100-fixture-suite-macro.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)「套件头由 `@FixtureSuite` 生成」一节；`AGENTS.md` 添加夹具测试的一条。没有新术语。
 - **验证**：JHs-MacBook-Pro。
   - 宏的 6 个展开测试与扫描器的 9 个测试通过。
   - `swift test --skip IntegrationTests` 里覆盖率不变式通过；另有 150 组失败，在同一台机器、同一份夹具上切到 `next` 跑同一批逐条相同，是那台机器的环境（夹具按 CI 的 ad-hoc 签名重编、与 baseline 的产物不一致，没装 iOS 26.5 模拟器运行时），不是本次引入的。
-  - 合并后的构建与全量测试在与 Swift 6 那一支合并后的结果上统一跑。
+  - 合并后的构建与全量测试在与 Swift 6 那一支合并后的结果上统一跑，结果见第 146 节。
 - **对应版本**：未发布（0.26.0 之后）；只影响测试，不进发版产物。
+
+## 146. MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature
+
+- **时间段**：2026-11-20，六个仓库同名的分支 `feature/swift6-mode-and-upcoming-features`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上构建、测试与收尾。
+- **动机**：MachOKit（fork）还停在 swift-tools-version 5.10、Swift 5 语言模式，其余五个包早已是 Swift 6 模式、严格并发按错误执行。用户要求把整个系列迁到 Swift 6，并量一量开启 Swift 7 默认特性的改动量。
+- **关键决策**：
+  - MachOKit 升到 tools 6.0 进 Swift 6 模式，切换后零错误。不用 6.2：fork 的 CI 用 Swift 6.0 读清单，编译器不认识的特性名会被忽略，CI 证实了这一点。
+  - 六个包的每个 Swift target 开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`，由清单末尾的一个循环统一追加（本库复用清单里已有的常量）。`NonisolatedNonsendingByDefault`、`InternalImportsByDefault`、`ImmutableWeakCaptures`、`StrictMemorySafety` 量过后不做。
+  - 源码与测试都交给 `swift package migrate --build-system native` 改。它写的 `internal import` 改回普通 import；Swift 6.4 写出的 `any P?` 改成 Swift 6.3 也认的 `(any P)?`；直接 import `Semantic` 的文件里，裸写的 `Error` 会被 `Semantic.Error` 遮住，改写成 `Swift.Error`。
+  - 与 `@FixtureSuite` 宏（第 145 节）同批落地：宏先进 `next`，本支合在其上，宏的测试补了 `SwiftSyntaxBuilder` 的 import。MachOKitExtensions 落地前 rebase 到含 C++ 类索引的 `main`，那批代码补了两个 import 与一处 `any`。
+- **落地模块**：六个包的 `Package.swift`；MachOKit 的 49 个文件与其余五个包里约 900 处补 import 与 `any`；本库预修了 `migrate` 跑不起来的 4 处硬错误。
+- **文档**：提案 [0101-swift6-mode-and-upcoming-features](../Evolutions/0101-swift6-mode-and-upcoming-features.md)；MachOKitExtensions 与 MachOObjCSection 的提案索引各一行 cross-repository。不配使用指南，没有新术语，`AGENTS.md` 不加条目：漏写 `any` 或漏 import，编译器当场报错。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上。
+  - 六个包用 Xcode 27.2 与 26.6 都编过，含全部测试目标。MachOKit 的 fork CI 在 Xcode 16.2 与 Linux Swift 6.0.3 上通过。
+  - 测试：swift-semantic-string、swift-demangling、MachOKitExtensions 全过；MachOKit（跳过 `AotCachePrintTests`）只剩基线上同样失败的 5 个环境用例；MachOObjCSection 跳过读用户本机文件的 `MachOObjCSectionTests` 类后全过，那个类在基线上同样崩溃。
+  - 本库：与第 145 节合并后，Xcode 26.6 下 `swift test --skip IntegrationTests` 555 个 suite、2,915 个测试全过。渲染 A/B（三条腿，基线 `next`）84 对逐字节一致，是在合并宏之前做的；宏只改测试，没有重跑。Tuist 工作区 `warm` 与 `build` 成功。
+- **对应版本**：未发布（0.26.0 之后）；各仓库随下一次正常发版带出。
 
 ## 维护约定
 

@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
 import SwiftSectionTestingSupport
+import Semantic
 
 /// A generic parameter's printed name encodes its depth (`A1` is depth 1,
 /// index 0), and a depth counts only the contexts that declare parameters.

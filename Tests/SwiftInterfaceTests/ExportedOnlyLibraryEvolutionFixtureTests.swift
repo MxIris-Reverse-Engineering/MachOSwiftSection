@@ -9,6 +9,7 @@ import SwiftDeclaration
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
 import SwiftSectionTestingSupport
+import OrderedCollections
 
 /// The exported-only filter (evolution proposal
 /// `exported-only-interface`) over `internal` declarations, on the

@@ -9,6 +9,7 @@ import SwiftDeclarationRendering
 import Demangling
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
 
 /// Verifies the reader-specialized `FieldLayoutRenderer`:
 ///

@@ -5,6 +5,8 @@ import SwiftSectionFixtureSupport
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
 @_spi(Support) import SwiftPrivateDiscriminators
+import OrderedCollections
+import SwiftDeclaration
 
 /// Private discriminators of the running system's own images, read out of its
 /// dyld shared cache (evolution proposal `private-declarations`).

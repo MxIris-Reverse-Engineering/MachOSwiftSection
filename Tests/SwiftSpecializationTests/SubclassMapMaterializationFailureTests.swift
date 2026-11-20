@@ -9,6 +9,7 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// `IndexerConformanceProvider`'s subclass map must not lose a class silently.
 ///
@@ -29,7 +30,7 @@ final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked S
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
     private func preparedIndexer(
-        eventHandlers: [SwiftIndexEvents.Handler] = []
+        eventHandlers: [any SwiftIndexEvents.Handler] = []
     ) async throws -> SwiftDeclarationIndexer<MachOFile> {
         let unsafeMachOFile = machOFile
         let indexer = SwiftDeclarationIndexer(eventHandlers: eventHandlers, in: unsafeMachOFile)

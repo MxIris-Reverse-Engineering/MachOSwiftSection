@@ -4,6 +4,7 @@ import Testing
 @testable import SwiftDump
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import BinaryParseSupport
 
 final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }

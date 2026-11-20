@@ -4,6 +4,9 @@ import MachOKit
 @testable import SwiftSectionTestingSupport
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
+import Semantic
+import SwiftIndexing
+import SwiftPrinting
 
 /// MachOImage-side counterpart of the opaque-attribution tests: the
 /// in-process reader resolves cross-image protocol descriptors (the third

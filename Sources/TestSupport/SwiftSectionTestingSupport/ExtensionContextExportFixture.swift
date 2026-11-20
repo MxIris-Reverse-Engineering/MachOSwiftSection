@@ -137,7 +137,7 @@ package enum ExtensionContextExportFixture {
     }
 
     /// Compiled once per process; every variant shares one working directory.
-    private static let compilationResult: Result<[Variant: URL], Swift.Error> = {
+    private static let compilationResult: Result<[Variant: URL], any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ExtensionContextExportFixture-\(UUID().uuidString)")

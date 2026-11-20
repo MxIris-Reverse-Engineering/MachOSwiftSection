@@ -3,6 +3,8 @@ import Testing
 import OutputTransformer
 import SwiftOutputTransformer
 import SwiftSectionKit
+import SwiftPrinting
+import Semantic
 
 /// `dump` and `interface` against the SymbolTestsCore fixture: which sections
 /// are read and how a failure surfaces, where the product goes, and the

@@ -7,6 +7,8 @@ import SwiftDeclarationRendering
 import Dependencies
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import Semantic
+import Demangling
 
 @MainActor
 package protocol DumpableTests {

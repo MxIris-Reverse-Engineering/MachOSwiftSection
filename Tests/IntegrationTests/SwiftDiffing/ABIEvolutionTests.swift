@@ -220,7 +220,7 @@ enum ABIEvolutionTestSuite {
     /// AppKit across three macOS caches (15.5 → 26.5.1 → 27.0 beta 1) — the
     /// flagship N == 3 lineage: introduced/modified/removed/re-added stories
     /// only visible with more than two versions.
-    final class DyldCacheTests: MultiVersionDyldCacheImageTests, ABIEvolutionDumpTests, @unchecked Sendable {
+    final class DyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ABIEvolutionDumpTests, @unchecked Sendable {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionFile() async throws {
             try await evolutionFile(versions: versions)
@@ -236,7 +236,7 @@ enum ABIEvolutionTestSuite {
     /// (15.5 → 26.5.2 → 27.0), each version one group of images (evolution
     /// proposal `image-group-evolution`): what moved between the two images
     /// after the split reads as moved, not as removed and added.
-    final class SwiftUIImageGroupDyldCacheTests: MultiVersionDyldCacheImageTests, ABIEvolutionDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ABIEvolutionDumpTests, @unchecked Sendable {
         override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -255,7 +255,7 @@ enum ABIEvolutionTestSuite {
     /// SwiftUI alone until 14.8, SwiftUICore joining it in 15.0 — where an
     /// evolution of SwiftUI alone reads every declaration moved into
     /// SwiftUICore as removed.
-    final class SwiftUIImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, ABIEvolutionDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ABIEvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests.cachePaths
         }
@@ -276,7 +276,7 @@ enum ABIEvolutionTestSuite {
     /// SwiftUICore across two simulator runtimes (iOS 18.5 → 26.5) — the
     /// N == 2 case, whose printed pairwise cross-check line must agree with
     /// the two-sided differ.
-    final class SwiftUICoreTests: SwiftDiffableInterfaceBuilderTestSuite.CrossVersionMachOFileTests, ABIEvolutionDumpTests, @unchecked Sendable {
+    final class SwiftUICoreTests: SwiftDiffableInterfaceBuilderTestSuite.CrossVersionMachOFileTests, nonisolated ABIEvolutionDumpTests, @unchecked Sendable {
         override class var oldFileName: MachOFileName { .iOS_18_5_Simulator_SwiftUICore }
         override class var newFileName: MachOFileName { .iOS_26_5_Simulator_SwiftUICore }
 

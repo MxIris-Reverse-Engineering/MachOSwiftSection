@@ -8,6 +8,7 @@ import MachOFoundation
 import Demangling
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
 
 /// Regression coverage for the nested expanded-field-offset walk on a **cyclic**
 /// field graph.

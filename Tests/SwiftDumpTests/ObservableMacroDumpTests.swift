@@ -5,6 +5,9 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 @testable import SwiftSectionTestingSupport
+import Semantic
+import SwiftDeclarationRendering
+import Demangling
 
 /// `dump` names the macro that generated an `@Observable` class's members on
 /// its header line and keeps every member as the records have them

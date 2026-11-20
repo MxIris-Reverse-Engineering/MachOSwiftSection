@@ -6,6 +6,7 @@ import Testing
 @_spi(Internals) import MachOCaches
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import MachOKit
 
 /// Fixture-based coverage for the export facts (evolution proposal 0008):
 /// `isExported(name:in:)` answering the export-trie membership FACT, and

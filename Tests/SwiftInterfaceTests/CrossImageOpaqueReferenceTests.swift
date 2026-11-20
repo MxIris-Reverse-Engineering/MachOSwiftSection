@@ -7,6 +7,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// An associated-type witness built from a `some` result that lives in
 /// ANOTHER image — the shape SwiftUI's `SidebarListBody.CollectionViewBody.Body`
@@ -38,7 +39,7 @@ struct CrossImageOpaqueReferenceTests {
         }()
     }
 
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
+    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
         let diagnostics: String
         var description: String { "cross-image opaque fixture compilation failed:\n\(diagnostics)" }
     }
@@ -48,7 +49,7 @@ struct CrossImageOpaqueReferenceTests {
         let clientLibraryURL: URL
     }
 
-    private static let fixtureCompilationResult: Result<CompiledFixture, Error> = {
+    private static let fixtureCompilationResult: Result<CompiledFixture, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("CrossImageOpaqueFixture-\(UUID().uuidString)")

@@ -8,6 +8,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
 
 /// Regression coverage for the identical-code-folding false positive in the
 /// `final` recovery (evolution proposal 0006), pinned against Xcode's real

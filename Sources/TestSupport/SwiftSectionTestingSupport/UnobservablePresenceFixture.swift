@@ -167,7 +167,7 @@ package enum UnobservablePresenceFixture {
     }
 
     /// Compiled once per process; the versions share one working directory.
-    private static let compilationResult: Result<[URL], Swift.Error> = {
+    private static let compilationResult: Result<[URL], any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

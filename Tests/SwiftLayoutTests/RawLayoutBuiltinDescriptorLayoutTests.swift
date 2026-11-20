@@ -62,7 +62,7 @@ enum RawLayoutBuiltinDescriptorFixture {
     }
     """
 
-    static let compilationResult: Result<URL, Error> = {
+    static let compilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("RawLayoutLayoutFixture-\(UUID().uuidString)")

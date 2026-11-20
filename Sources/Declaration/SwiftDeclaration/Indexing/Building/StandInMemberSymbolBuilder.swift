@@ -2,6 +2,7 @@
 import MachOSwiftSection
 import OrderedCollections
 @_spi(Internals) import SwiftSymbols
+import Foundation
 
 /// Member symbols that stand in for an implementation symbol the image does
 /// not have.

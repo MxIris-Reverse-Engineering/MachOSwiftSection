@@ -4,6 +4,7 @@ import MachOSwiftSection
 import Utilities
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
+import SwiftStdlibToolbox
 
 package func genericParameterName(depth: Int, index: Int) throws -> String {
     var charIndex = index

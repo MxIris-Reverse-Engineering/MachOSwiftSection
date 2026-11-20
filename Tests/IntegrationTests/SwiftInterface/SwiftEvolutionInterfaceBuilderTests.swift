@@ -8,6 +8,7 @@ import SwiftSectionTestingSupport
 @_spi(Support) @testable import SwiftInterface
 @_spi(Support) @testable import SwiftIndexing
 import SwiftDiffing
+import Semantic
 
 /// The annotated-union-interface analogue of ``ABIEvolutionDumpTests``.
 ///
@@ -136,7 +137,7 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
     /// AppKit across three macOS caches (15.5 → 26.5.1 → 27.0 beta 1) — the
     /// same axis as `ABIEvolutionTestSuite.DyldCacheTests`' lineage dumps, so
     /// the interface and the report can be inspected side by side.
-    final class DyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class DyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionInterfaceFile() async throws {
             try await evolutionInterfaceFile(versions: versions)
@@ -171,7 +172,7 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
     /// SwiftUICore across the same three macOS caches — the Swift-rich axis
     /// (AppKit's Swift section is comparatively thin), exercising the union
     /// interface over heavy generics, opaque returns, and extension blocks.
-    final class SwiftUICoreDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class SwiftUICoreDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName { .SwiftUICore }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -194,7 +195,7 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
     /// attribute can express as `@available(macOS, …)`. A version whose image
     /// carries no Swift metadata drops off the axis (see
     /// `MultiVersionDyldCacheImageTests`).
-    final class ArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class ArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
         
         class var cacheVersions: [String] { [
             "11.0.1",
@@ -282,7 +283,7 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
     /// proposal `image-group-evolution`) — the axis of
     /// `ABIEvolutionTestSuite.SwiftUIImageGroupDyldCacheTests`, so the
     /// interface and the report can be read side by side.
-    final class SwiftUIImageGroupDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -300,7 +301,7 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
     /// axis): SwiftUI alone until 14.8, SwiftUICore joining it in 15.0. Every
     /// label is a version number, so the interface also spells each
     /// lifecycle one attribute can express as `@available(macOS, …)`.
-    final class SwiftUIImageGroupArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupArchivedDyldCacheTests: ABIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated SwiftEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             ArchivedDyldCacheTests.cachePaths
         }

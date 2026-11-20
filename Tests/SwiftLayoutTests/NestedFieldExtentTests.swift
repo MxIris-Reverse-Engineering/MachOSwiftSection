@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import SwiftLayout
 import Testing
+import MachODependencies
 
 /// Real compiler-emitted records, independent of the shared SymbolTestsCore
 /// binary. The source layouts below are the expected values, not a snapshot of

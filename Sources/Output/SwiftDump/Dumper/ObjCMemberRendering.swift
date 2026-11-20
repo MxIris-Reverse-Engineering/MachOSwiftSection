@@ -2,6 +2,7 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
+import Demangling
 
 /// Comment text the dumpers share for the ObjC member facts (evolution
 /// proposals `objc-ancestor-override-recovery` and

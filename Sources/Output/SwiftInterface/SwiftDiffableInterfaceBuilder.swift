@@ -5,6 +5,7 @@ import SwiftDiffing
 import MachOSwiftSection
 @_spi(Internals) import SwiftSymbols
 import Dependencies
+import OrderedCollections
 
 /// The ABI-diff analogue of ``SwiftInterfaceBuilder``.
 ///
@@ -24,7 +25,7 @@ public final class SwiftDiffableInterfaceBuilder<MachO: MachOFieldLayoutRenderab
 
     public init(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
-        eventHandlers: [SwiftIndexEvents.Handler] = [],
+        eventHandlers: [any SwiftIndexEvents.Handler] = [],
         in machO: MachO
     ) {
         self.machO = machO

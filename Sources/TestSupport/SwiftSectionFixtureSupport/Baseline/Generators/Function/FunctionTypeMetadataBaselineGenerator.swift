@@ -2,6 +2,8 @@ import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
 @testable import MachOSwiftSection
+import BinaryParseSupport
+import SwiftBasicFormat
 
 /// Emits `__Baseline__/FunctionTypeMetadataBaseline.swift`.
 ///

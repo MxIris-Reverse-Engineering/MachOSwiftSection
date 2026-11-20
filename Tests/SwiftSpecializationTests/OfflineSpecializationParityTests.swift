@@ -9,6 +9,7 @@ import Demangling
 @testable import MachOSwiftSection
 import SwiftSectionTestingSupport
 import SwiftDeclarationRendering
+import Semantic
 
 /// One instantiation, specialized and printed both ways, must read the same
 /// byte for byte (evolution proposal `offline-generic-specialization`): the

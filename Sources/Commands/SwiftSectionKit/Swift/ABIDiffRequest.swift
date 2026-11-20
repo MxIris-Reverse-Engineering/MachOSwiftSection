@@ -5,6 +5,7 @@ import SwiftDiffing
 import SwiftIndexing
 import SwiftInterface
 import Utilities
+import Semantic
 
 /// `swift-section diff`: compare the Swift ABI of two binaries, or of a binary
 /// and a persisted baseline.

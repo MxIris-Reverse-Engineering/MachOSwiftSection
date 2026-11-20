@@ -161,7 +161,7 @@ extension GenericSpecializer where MachO == MachOFile {
         do {
             instantiation = try GenericInstantiation(of: request.typeDescriptor, keyArguments: keyArguments, in: machO)
         } catch {
-            throw SpecializerError.specializationFailed(reason: "could not bind the type's parameters: \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
+            throw SpecializerError.specializationFailed(reason: "could not bind the type's parameters: \((error as? (any LocalizedError))?.errorDescription ?? "\(error)")")
         }
         let typeName = TypeName(
             node: InternedNodeReferenceCache.shared.reference(interning: instantiation.typeNode, in: machO),
@@ -291,7 +291,7 @@ extension GenericSpecializer where MachO == MachOFile {
             } catch {
                 errors.append(.metadataResolutionFailed(
                     parameterName: Self.joinedPath(parameterPath, innerParameter.name),
-                    reason: (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                    reason: (error as? (any LocalizedError))?.errorDescription ?? "\(error)"
                 ))
             }
         }
@@ -314,7 +314,7 @@ extension GenericSpecializer where MachO == MachOFile {
         do {
             return (try inner.specializer.staticResult(for: innerRequest, with: innerSelection, resolution: innerResolution), [], warnings)
         } catch {
-            return (nil, [.metadataResolutionFailed(parameterName: parameterPath, reason: (error as? LocalizedError)?.errorDescription ?? "\(error)")], warnings)
+            return (nil, [.metadataResolutionFailed(parameterName: parameterPath, reason: (error as? (any LocalizedError))?.errorDescription ?? "\(error)")], warnings)
         }
     }
 

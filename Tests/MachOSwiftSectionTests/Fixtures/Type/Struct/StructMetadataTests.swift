@@ -4,6 +4,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import MachOKit
 
 /// Fixture-based Suite for `StructMetadata`.
 ///

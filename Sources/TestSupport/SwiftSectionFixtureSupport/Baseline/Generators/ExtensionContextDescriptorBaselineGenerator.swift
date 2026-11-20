@@ -3,6 +3,7 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import MachOFoundation
 @testable import MachOSwiftSection
+import SwiftBasicFormat
 
 /// Emits `__Baseline__/ExtensionContextDescriptorBaseline.swift` from the
 /// `SymbolTestsCore` fixture via the MachOFile reader.

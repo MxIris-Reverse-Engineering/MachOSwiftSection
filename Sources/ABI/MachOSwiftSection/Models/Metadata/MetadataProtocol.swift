@@ -1,6 +1,8 @@
 import Foundation
 import MachOKit
 import MachOReading
+import FrameworkToolbox
+import SwiftStdlibToolbox
 
 public protocol MetadataProtocol<HeaderType>: ResolvableLocatableLayoutWrapper where Layout: MetadataLayout {
     associatedtype HeaderType: ResolvableLocatableLayoutWrapper = TypeMetadataHeader

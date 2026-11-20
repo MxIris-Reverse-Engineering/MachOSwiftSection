@@ -5,6 +5,8 @@ import ObjCIndexing
 import ObjCInterface
 import ObjCMetadataSource
 import SwiftIndexing
+import MachOKitExtensions
+import Semantic
 
 /// `swift-section objc snapshot`: index a binary's ObjC API and persist it as a
 /// baseline document — or relabel an existing document.
@@ -290,7 +292,7 @@ public struct ObjCAPIEvolutionRequest: Sendable, Equatable {
 /// found no one platform to spell the availability macros for. Naming the
 /// platform with ``ObjCAPIEvolutionRequest/AvailabilityAttributes/platform(_:)``
 /// avoids both.
-public enum ObjCAvailabilityPlatformInferenceError: Error, LocalizedError, Sendable, Equatable {
+public enum ObjCAvailabilityPlatformInferenceError: Swift.Error, LocalizedError, Sendable, Equatable {
     /// The binary at `path` has no `LC_BUILD_VERSION`, or names a platform
     /// the availability macros have no name for, such as bridgeOS.
     case noPlatform(path: String)

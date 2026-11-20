@@ -6,6 +6,7 @@ import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
+import OrderedCollections
 
 /// Two modules compiled on the fly, each carrying a class (a struct-only
 /// fixture dylib has no `__DATA` segment and MachOKit before 0.52.103 mis-walked
@@ -88,7 +89,7 @@ enum WrappedPropertyFixture {
         let clientURL: URL
     }
 
-    static let compilationResult: Result<Products, Error> = {
+    static let compilationResult: Result<Products, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("WrappedPropertyFixture-\(UUID().uuidString)")

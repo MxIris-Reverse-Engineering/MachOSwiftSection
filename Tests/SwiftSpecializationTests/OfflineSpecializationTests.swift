@@ -8,6 +8,7 @@ import Demangling
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import SwiftSectionTestingSupport
+import OrderedCollections
 
 /// A host type with no conformance any indexed image records.
 private struct HostUnmarked {

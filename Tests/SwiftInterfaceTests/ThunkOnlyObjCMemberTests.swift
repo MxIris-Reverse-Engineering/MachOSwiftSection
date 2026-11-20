@@ -8,6 +8,8 @@ import SwiftDeclarationRendering
 import SwiftInterface
 @_spi(Internals) import SwiftSymbols
 @testable import SwiftSectionTestingSupport
+import Semantic
+import SwiftPrinting
 
 /// Members whose implementation symbol the optimizer deleted while another of
 /// their entry points survived (evolution proposal `thunk-only-objc-members`):

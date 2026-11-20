@@ -7,6 +7,7 @@ import MachOFoundation
 @testable import SwiftLayout
 @testable import SwiftSectionTestingSupport
 import Demangling
+import SwiftStdlibToolbox
 
 /// Validates concrete same-type pinning: a generic parameter pinned to a
 /// concrete type by a **constrained extension** (`extension Foo where Value ==

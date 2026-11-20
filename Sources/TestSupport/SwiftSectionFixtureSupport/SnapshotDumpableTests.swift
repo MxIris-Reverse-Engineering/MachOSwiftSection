@@ -7,6 +7,7 @@ import SwiftDeclarationRendering
 import Demangling
 // Needs SPI access to SymbolicDemangler.demangleType for associated-type owning-protocol lookup.
 @_spi(Internals) import SwiftInspection
+import Semantic
 
 @MainActor
 package protocol SnapshotDumpableTests {}

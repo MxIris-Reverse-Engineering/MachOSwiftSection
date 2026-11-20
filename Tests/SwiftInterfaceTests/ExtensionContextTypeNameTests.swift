@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// A type declared in an extension of another module's type is parented on an
 /// extension context descriptor, so every name for it — the offline one from
@@ -29,12 +30,12 @@ struct ExtensionContextTypeNameTests {
         }()
     }
 
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
+    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
         let diagnostics: String
         var description: String { "extension-context fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ExtensionContextFixture-\(UUID().uuidString)")

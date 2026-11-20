@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// `@Wrapper var x: Int` makes the compiler synthesize a stored `_x` of the
 /// wrapper type and, when the wrapper projects, a computed `$x`. The source
@@ -27,12 +28,12 @@ struct PropertyWrapperSynthesizedMemberTests {
         }()
     }
 
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
+    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
         let diagnostics: String
         var description: String { "property-wrapper fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("PropertyWrapperFixture-\(UUID().uuidString)")

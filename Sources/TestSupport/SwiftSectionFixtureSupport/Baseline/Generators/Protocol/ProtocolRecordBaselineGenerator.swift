@@ -4,6 +4,7 @@ import SwiftSyntaxBuilder
 import MachOFoundation
 import MachOKit
 @testable import MachOSwiftSection
+import SwiftBasicFormat
 
 /// Emits `__Baseline__/ProtocolRecordBaseline.swift`.
 ///

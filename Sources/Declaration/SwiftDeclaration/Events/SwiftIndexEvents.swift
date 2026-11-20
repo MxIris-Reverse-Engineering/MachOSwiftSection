@@ -90,15 +90,15 @@ public enum SwiftIndexEvents {
     @Loggable(.private, subsystem: "com.machoswiftsection.swift-declaration", category: "SwiftIndexEvents.unhandled")
     public final class Dispatcher: Sendable {
         @Mutex
-        private var handlers: [Handler] = []
+        private var handlers: [any Handler] = []
 
         public init() {}
 
-        public func addHandler(_ handler: Handler) {
+        public func addHandler(_ handler: any Handler) {
             handlers.append(handler)
         }
 
-        public func addHandlers(_ newHandlers: [Handler]) {
+        public func addHandlers(_ newHandlers: [any Handler]) {
             handlers.append(contentsOf: newHandlers)
         }
 

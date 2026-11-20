@@ -6,6 +6,7 @@ import MachOSwiftSection
 import SwiftLayout
 import Utilities
 @_spi(Internals) import SwiftInspection
+import SwiftStdlibToolbox
 
 /// `MachOFile` renders field comments **statically** through the `SwiftLayout`
 /// engine — no process, no metadata accessor.

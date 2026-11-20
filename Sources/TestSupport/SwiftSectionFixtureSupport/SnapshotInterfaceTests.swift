@@ -3,6 +3,9 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftInterface
+import SwiftIndexing
+import Semantic
+import SwiftPrinting
 
 @MainActor
 package protocol SnapshotInterfaceTests {}

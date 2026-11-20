@@ -208,7 +208,7 @@ struct CImportedTypeIdentityFixtureTests {
         ("sdkRenamedTag", "So8_NSRangeV", "__C._NSRange"),
     ]
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("CImportedTypeIdentityFixture-\(UUID().uuidString)")

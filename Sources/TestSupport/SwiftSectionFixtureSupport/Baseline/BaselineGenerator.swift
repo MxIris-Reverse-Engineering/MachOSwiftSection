@@ -4,6 +4,7 @@ import MachOKit
 import SwiftSyntax
 import SwiftSyntaxBuilder
 @testable import MachOSwiftSection
+import SwiftBasicFormat
 
 /// Top-level dispatcher for the per-suite baseline sub-generators.
 ///

@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import UniformTypeIdentifiers
+import MachOKitExtensions
 
 package func loadFromFile(named: MachOFileName) throws -> File {
     let url: URL

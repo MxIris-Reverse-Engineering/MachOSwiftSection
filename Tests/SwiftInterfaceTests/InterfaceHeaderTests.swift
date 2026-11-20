@@ -6,6 +6,7 @@ import Semantic
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import SwiftIndexing
 
 /// Coverage for the interface header block (evolution proposal 0008):
 /// pure-value rendering (line composition, per-field omission, the

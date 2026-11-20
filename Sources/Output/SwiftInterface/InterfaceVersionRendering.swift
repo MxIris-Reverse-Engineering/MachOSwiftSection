@@ -108,7 +108,7 @@ final class InterfaceVersionUnit<MachO: MachOFieldLayoutRenderable>: InterfaceVe
     /// path, where each version arrives as a bare reader.
     convenience init(
         configuration: SwiftDeclarationIndexConfiguration,
-        eventHandlers: [SwiftIndexEvents.Handler],
+        eventHandlers: [any SwiftIndexEvents.Handler],
         machO: MachO,
         imageName: String? = nil
     ) {
@@ -214,7 +214,7 @@ final class InterfaceVersionGroupUnit<MachO: MachOFieldLayoutRenderable>: Interf
     @Mutex
     private var routing: Routing = Routing()
 
-    init(configuration: SwiftDeclarationIndexConfiguration, eventHandlers: [SwiftIndexEvents.Handler], images: [(imageName: String, machO: MachO)]) {
+    init(configuration: SwiftDeclarationIndexConfiguration, eventHandlers: [any SwiftIndexEvents.Handler], images: [(imageName: String, machO: MachO)]) {
         self.imageUnits = images.map { image in
             InterfaceVersionUnit(configuration: configuration, eventHandlers: eventHandlers, machO: image.machO, imageName: image.imageName)
         }

@@ -11,6 +11,7 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 final class SwiftDeclarationIndexerTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }

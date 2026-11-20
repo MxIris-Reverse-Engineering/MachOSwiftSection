@@ -5,6 +5,7 @@ import MachOKit
 @_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import ARM64InstructionDecoding
 @testable import CrossReferenceAnalysis
+import MachOKitExtensions
 
 /// What an address is (evolution proposal
 /// `offline-cross-references-and-symbolication`, step 6).

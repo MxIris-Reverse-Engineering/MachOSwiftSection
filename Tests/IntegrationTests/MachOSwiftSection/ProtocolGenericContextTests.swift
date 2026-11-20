@@ -4,6 +4,9 @@ import Testing
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
 import SwiftInspection
+import Demangling
+import Semantic
+import SwiftDeclarationRendering
 
 final class ProtocolGenericContextTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }

@@ -10,6 +10,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// A marked print (`SwiftDeclarationPrintConfiguration.marksOptionalContent`),
 /// projected to a configuration, reads byte for byte as printing with that

@@ -10,6 +10,8 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Demangling
+import OrderedCollections
 
 /// A `DemangledSymbol` stored in the declaration model must not keep the
 /// shared per-image symbol table alive.

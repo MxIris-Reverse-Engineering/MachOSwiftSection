@@ -106,7 +106,7 @@ package enum ExistentialAnyFixture {
     }
 
     /// Compiled once per process.
-    private static let compilationResult: Result<URL, Swift.Error> = {
+    private static let compilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

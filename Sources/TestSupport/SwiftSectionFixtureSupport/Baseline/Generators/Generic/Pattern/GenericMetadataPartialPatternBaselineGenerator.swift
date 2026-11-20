@@ -3,6 +3,8 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import MachOFoundation
 @testable import MachOSwiftSection
+import SwiftBasicFormat
+import BinaryParseSupport
 
 /// Emits `__Baseline__/GenericMetadataPartialPatternBaseline.swift`.
 ///

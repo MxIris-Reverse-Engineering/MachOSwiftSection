@@ -7,6 +7,7 @@ import SwiftSectionKit
 import SwiftPrinting
 import SwiftInterface
 import SwiftDeclarationRendering
+import Semantic
 
 /// Measures how long one image's Swift interface takes to index and to print,
 /// read in-process (`MachOImage`) or offline (`MachOFile`), so the two readers

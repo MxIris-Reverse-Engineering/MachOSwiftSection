@@ -8,6 +8,7 @@ import MachOFoundation
 import Demangling
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
 
 /// Verifies the **MachOImage** (runtime) enum-layout path end-to-end on the
 /// fixture: single-payload empty cases render their *exact* extra-inhabitant

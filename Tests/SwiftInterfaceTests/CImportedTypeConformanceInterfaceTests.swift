@@ -4,6 +4,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// Evolution proposal `type-import-info-identity`: the conformance extensions
 /// the importer synthesizes for C-imported types render as ONE block per
@@ -70,7 +71,7 @@ struct CImportedTypeConformanceInterfaceTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("CImportedTypeConformanceFixture-\(UUID().uuidString)")

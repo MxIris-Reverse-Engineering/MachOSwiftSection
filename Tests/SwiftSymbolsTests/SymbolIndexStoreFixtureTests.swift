@@ -7,6 +7,7 @@ import Testing
 @_spi(Internals) import MachOSymbols
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// Fixture-based unit coverage for `SwiftSymbolIndexStore` against the
 /// `SymbolTestsCore` framework (self-built fixture, no external Xcode

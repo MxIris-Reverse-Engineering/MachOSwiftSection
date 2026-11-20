@@ -4,6 +4,9 @@ import ArgumentParser
 import MachOFoundation
 import SwiftSectionKit
 @testable import swift_section
+import SwiftOutputTransformer
+import Demangling
+import SwiftPrinting
 
 /// The wrapper's one job besides wording and streams: turning flags into the
 /// library request. A flag that stops reaching its field produces a

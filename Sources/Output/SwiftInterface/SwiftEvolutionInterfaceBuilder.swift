@@ -39,7 +39,7 @@ public final class SwiftEvolutionInterfaceBuilder<each MachO: MachOFieldLayoutRe
     ///   `.labelCountMismatch` on invalid input shapes.
     public init(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
-        eventHandlers: [SwiftIndexEvents.Handler] = [],
+        eventHandlers: [any SwiftIndexEvents.Handler] = [],
         versions: repeat each MachO,
         labels: [String],
         availabilityAnnotationPlatform: String? = nil

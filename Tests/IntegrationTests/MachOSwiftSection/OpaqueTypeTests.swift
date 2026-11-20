@@ -9,6 +9,7 @@ import MachOSwiftSection
 @testable import SwiftDump
 @_spi(Internals) import SwiftSymbols
 @testable @_spi(Internals) import SwiftInspection
+import Semantic
 
 protocol OpaqueTypeTests {}
 
@@ -42,7 +43,7 @@ extension OpaqueTypeTests {
     }
 }
 
-final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecked Sendable {
+final class OpaqueTypeDyldCacheTests: DyldCacheTests, nonisolated OpaqueTypeTests, @unchecked Sendable {
     override class var cacheImageName: MachOImageName { .SwiftUI }
 
     @MainActor
@@ -58,7 +59,7 @@ final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecke
     }
 }
 
-final class OpaqueTypeMachOFileTests: MachOFileTests, OpaqueTypeTests, @unchecked Sendable {
+final class OpaqueTypeMachOFileTests: MachOFileTests, nonisolated OpaqueTypeTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
     @MainActor
@@ -67,7 +68,7 @@ final class OpaqueTypeMachOFileTests: MachOFileTests, OpaqueTypeTests, @unchecke
     }
 }
 
-final class OpaqueTypeMachOImageTests: MachOImageTests, OpaqueTypeTests, @unchecked Sendable {
+final class OpaqueTypeMachOImageTests: MachOImageTests, nonisolated OpaqueTypeTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 
     @MainActor

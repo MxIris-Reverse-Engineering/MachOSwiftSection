@@ -11,6 +11,7 @@ import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 @_spi(Internals) import SwiftInspection
+import Semantic
 
 // MARK: - Pure helper unit tests (no fixture)
 
@@ -497,7 +498,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
             "expected LayoutConstrainedInner among outer's typeChildren"
         )
         let layoutRequest = try specializer.makeRequest(for: layoutConstrainedChild.typeContextDescriptorWrapper)
-        #expect(throws: (any Error).self,
+        #expect(throws: (any Swift.Error).self,
                 "LayoutConstrainedInner must reject A = Int so the outer catch actually fires") {
             _ = try specializer.specialize(layoutRequest, with: ["A": .metatype(Int.self)])
         }

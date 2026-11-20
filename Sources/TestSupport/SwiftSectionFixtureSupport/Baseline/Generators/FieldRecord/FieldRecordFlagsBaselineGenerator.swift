@@ -2,6 +2,7 @@ import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
 @testable import MachOSwiftSection
+import SwiftBasicFormat
 
 /// Emits `__Baseline__/FieldRecordFlagsBaseline.swift`.
 ///

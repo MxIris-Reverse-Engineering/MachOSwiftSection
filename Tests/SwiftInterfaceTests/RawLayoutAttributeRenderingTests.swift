@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftInterface
+import Semantic
 
 /// Where the archived-cache-gated suite below finds its cache (see the
 /// SwiftLayout suite of the same shape for why this is a separate type).

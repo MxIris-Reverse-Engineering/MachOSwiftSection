@@ -5,6 +5,7 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 import SwiftDeclaration
+import OrderedCollections
 
 /// The image's Objective-C classes, categories and protocols as Swift imports
 /// them (evolution proposal `objc-imported-declarations`). A definition is

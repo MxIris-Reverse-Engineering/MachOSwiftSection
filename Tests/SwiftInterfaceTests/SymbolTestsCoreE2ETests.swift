@@ -12,6 +12,7 @@ import Dependencies
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
 @testable import SwiftDump
+import Semantic
 
 @Suite(.serialized)
 final class STCoreE2ETests: MachOFileTests, @unchecked Sendable {

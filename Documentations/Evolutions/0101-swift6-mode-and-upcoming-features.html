@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>0101 - MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0101</span></p>
+  <h1><span class="proposal-number">0101</span> MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-20</dd></div>
+    <div><dt>项目类型</dt><dd>库（源码分发）</dd></div>
+    <div><dt>原文</dt><dd><code>0101-swift6-mode-and-upcoming-features.md</code></dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#decide">要你定</a></li>
+    <li><a href="#architecture">架构图</a></li>
+    <li><a href="#map">改动地图</a></li>
+    <li><a href="#proposal">提议方案与非目标</a></li>
+    <li><a href="#design">详细设计</a></li>
+    <li><a href="#research">调研</a></li>
+    <li><a href="#alternatives">替代方案</a></li>
+    <li><a href="#impact">影响</a></li>
+    <li><a href="#steps">落地步骤</a></li>
+    <li><a href="#log">决策日志</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p>六个 MachO 系列包里有五个已经在 Swift 6 语言模式下编译，complete strict concurrency checking 早已按错误执行；唯一的例外是 MachOKit（fork），它的清单还是 <code>swift-tools-version: 5.10</code>。本提案做两件事：把 MachOKit 升到 tools 6.0，让它也进入 Swift 6 语言模式（实测零错误，Sources 里零并发诊断；停在 6.0 而不是 6.2，是为了 fork 的 CI 所用的 Swift 6.0 工具链还读得了清单）；然后在六个包的每个 Swift target 上开启 <code>ExistentialAny</code>、<code>MemberImportVisibility</code>、<code>InferIsolatedConformances</code> 三项 upcoming feature（编译器把它们标为 Swift 7 默认开启），开关在每份清单末尾用一个循环统一加，不逐个 target 写。</p>
+  <p>源码改动 723 处（717 个 fix-it 加 6 处预修），绝大部分是补 <code>import</code> 与补 <code>any</code>，源码与测试都由 <code>swift package --build-system native migrate</code> 自动改出；另有 6 处工具处理不了、要先手工改好，它写成 <code>internal import</code> 的补丁按各仓库的惯例改回普通 <code>import</code>。同为 Swift 7 默认的 <code>NonisolatedNonsendingByDefault</code>、<code>InternalImportsByDefault</code>、<code>ImmutableWeakCaptures</code>，以及独立的 <code>StrictMemorySafety</code>，量过之后明确不做。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+  <div class="callout">
+    <p class="callout-title">已落地，没有要定的事</p>
+    <ol>
+      <li>六个仓库都已合进各自的集成分支（MachOKitExtensions 推 <code>main</code>），本提案取号 0101、状态 Implemented，账本第 146 节。与 <code>@FixtureSuite</code> 宏（0100）同批落地。</li>
+    </ol>
+  </div>
+  <div class="callout callout-note">
+    <p class="callout-title">没问用户就采用的假设</p>
+    <ul>
+      <li>三项特性也开在 MachOKit fork 上（49 个文件补 import），不提给上游。</li>
+      <li>MachOKit 用 tools 6.0（fork 的 CI 要 Swift 6.0 读得了清单）。</li>
+      <li>测试 target 与 <code>IntegrationTests</code> 一起开。</li>
+      <li>各仓库不为此单独发版，随下一次正常发版带出。</li>
+      <li>本库最后跑一遍渲染 A/B，用来兜住名字遮蔽一类不报错的变化。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+    <li><i class="swatch swatch-removed"></i>删除</li>
+    <li><i class="swatch swatch-kept"></i>不变</li>
+  </ul>
+  <div class="figure">
+  <svg viewBox="0 0 1000 370" role="img" aria-label="Compiler settings per package">
+    <rect class="group" x="8" y="8" width="984" height="354" rx="10"/>
+    <text class="group-label" x="22" y="30">Package.swift settings, per package</text>
+    <text class="caption" x="30" y="52">package</text><text class="caption" x="244" y="52">language mode</text><text class="caption" x="446" y="52">upcoming features (every Swift target)</text>
+
+    <rect class="box-kept" x="25" y="60" width="195" height="36" rx="6"/><text x="37" y="83">MachOKit (fork)</text>
+    <rect class="box-changed" x="232" y="60" width="190" height="36" rx="6"/><text x="244" y="83">Swift 5 → 6 (tools 6.0)</text>
+    <rect class="box-added" x="434" y="60" width="546" height="36" rx="6"/><text x="446" y="83">+ ExistentialAny · MemberImportVisibility · InferIsolatedConformances</text>
+    <rect class="box-removed" x="434" y="102" width="546" height="32" rx="6"/><text class="strike" x="446" y="123">9 Swift-6-era settings + ExistentialAny (MachOKit target only)</text>
+
+    <rect class="box-kept" x="25" y="142" width="195" height="36" rx="6"/><text x="37" y="165">swift-semantic-string</text>
+    <rect class="box-kept" x="232" y="142" width="190" height="36" rx="6"/><text x="244" y="165">Swift 6 (tools 6.2)</text>
+    <rect class="box-added" x="434" y="142" width="546" height="36" rx="6"/><text x="446" y="165">+ ExistentialAny · MemberImportVisibility · InferIsolatedConformances</text>
+
+    <rect class="box-kept" x="25" y="184" width="195" height="36" rx="6"/><text x="37" y="207">swift-demangling</text>
+    <rect class="box-kept" x="232" y="184" width="190" height="36" rx="6"/><text x="244" y="207">Swift 6 (tools 6.2)</text>
+    <rect class="box-added" x="434" y="184" width="546" height="36" rx="6"/><text x="446" y="207">+ the same three (Lifetimes experimental kept)</text>
+
+    <rect class="box-kept" x="25" y="226" width="195" height="36" rx="6"/><text x="37" y="249">MachOKitExtensions</text>
+    <rect class="box-kept" x="232" y="226" width="190" height="36" rx="6"/><text x="244" y="249">Swift 6 (tools 6.2)</text>
+    <rect class="box-added" x="434" y="226" width="546" height="36" rx="6"/><text x="446" y="249">+ the same three</text>
+
+    <rect class="box-kept" x="25" y="268" width="195" height="36" rx="6"/><text x="37" y="291">MachOObjCSection</text>
+    <rect class="box-kept" x="232" y="268" width="190" height="36" rx="6"/><text x="244" y="291">Swift 6 (tools 6.2)</text>
+    <rect class="box-added" x="434" y="268" width="546" height="36" rx="6"/><text x="446" y="291">+ the same three</text>
+
+    <rect class="box-kept" x="25" y="310" width="195" height="36" rx="6"/><text x="37" y="333">MachOSwiftSection</text>
+    <rect class="box-kept" x="232" y="310" width="190" height="36" rx="6"/><text x="244" y="333">Swift 6 (tools 6.3)</text>
+    <rect class="box-added" x="434" y="310" width="546" height="36" rx="6"/><text x="446" y="333">+ the same three (statics at Package.swift:1541, now used)</text>
+  </svg>
+  </div>
+  <p class="figure-caption">改了什么：每个包的编译设置。开关在每份清单末尾用同一个循环追加；swift-demangling、MachOKitExtensions、MachOObjCSection 与本库放在末尾的 Tuist 块之前。</p>
+
+  <div class="figure figure-narrow">
+  <svg viewBox="0 0 640 490" role="img" aria-label="Migration flow">
+    <rect class="box-changed" x="40" y="14" width="560" height="44" rx="6"/><text x="54" y="34">Pre-fix what migrate mode cannot express</text><text class="caption" x="54" y="50">MachOSwiftSection: 4 imports + 2 Swift.Error</text>
+    <rect class="box-added" x="40" y="74" width="560" height="44" rx="6"/><text x="54" y="94">swift package --build-system native migrate …</text><text class="caption" x="54" y="110">sources and tests together; MachOSwiftSection fails at the manifest step by design</text>
+    <rect class="box-added" x="40" y="134" width="560" height="44" rx="6"/><text x="54" y="154">git checkout Package.swift; internal import X → import X</text><text class="caption" x="54" y="170">unless the package already imports X internally</text>
+    <rect class="box-added" x="40" y="194" width="560" height="44" rx="6"/><text x="54" y="214">Commit the fix-its; add the loop to Package.swift</text><text class="caption" x="54" y="230">features on for every Swift target</text>
+    <rect class="box-changed" x="40" y="254" width="560" height="44" rx="6"/><text x="54" y="274">Fix what the builds report</text><text class="caption" x="54" y="290">(any P)? for Swift 6.3; Swift.Error where Semantic is imported</text>
+    <rect class="box-kept" x="40" y="314" width="560" height="44" rx="6"/><text x="54" y="334">swift build --build-tests  →  swift test</text><text class="caption" x="54" y="350">zero errors (Xcode 27.2 and 26.6)</text>
+    <rect class="box-kept" x="40" y="374" width="560" height="44" rx="6"/><text x="54" y="394">MachOKit: CI on Xcode 16.2 and Linux Swift 6.0.3</text><text class="caption" x="54" y="410">workflow_dispatch on the feature branch</text>
+    <rect class="box-kept" x="40" y="434" width="560" height="44" rx="6"/><text x="54" y="454">MachOSwiftSection: rendering A/B, Tuist workspace</text><text class="caption" x="54" y="470">byte-identical dump and interface against next</text>
+    <path class="arrow" d="M 320 58 L 320 74"/>
+    <path class="arrow" d="M 320 118 L 320 134"/>
+    <path class="arrow" d="M 320 178 L 320 194"/>
+    <path class="arrow" d="M 320 238 L 320 254"/>
+    <path class="arrow" d="M 320 298 L 320 314"/>
+    <path class="arrow" d="M 320 358 L 320 374"/>
+    <path class="arrow" d="M 320 418 L 320 434"/>
+  </svg>
+  </div>
+  <p class="figure-caption">迁移流程：每个包相同，本库多一步预修。</p>
+</section>
+
+<section id="map">
+  <h2>改动地图</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+    <tbody>
+      <tr><td>MachOSwiftSection <code>Documentations/Evolutions/0101-swift6-mode-and-upcoming-features.md</code>、同名 <code>.html</code></td><td><span class="tag tag-added">新增</span></td><td>本提案与网页版</td><td>唯一提案</td><td class="numeric">1</td></tr>
+      <tr><td>MachOSwiftSection <code>Documentations/Evolutions/README.md</code>、<code>Documentations/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>登记本提案</td><td>索引</td><td class="numeric">1</td></tr>
+      <tr><td>MachOKitExtensions、MachOObjCSection <code>Documentations/Evolutions/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>各加一行 cross-repository 指向本提案</td><td>跨仓库提案的约定</td><td class="numeric">1</td></tr>
+      <tr><td>MachOKit <code>Package.swift:1</code></td><td><span class="tag tag-changed">修改</span></td><td><code>swift-tools-version</code> 5.10 → 6.0</td><td>进入 Swift 6 语言模式；6.0 而不是 6.2，CI 的 Swift 6.0 工具链才读得了</td><td class="numeric">2</td></tr>
+      <tr><td>MachOKit <code>Package.swift:76</code>、<code>:145–171</code> · <code>extension SwiftSetting</code></td><td><span class="tag tag-changed">修改</span> <span class="tag tag-removed">删除</span></td><td>MachOKit target 不再拼 <code>SwiftSetting.allCases</code>；删掉九项 Swift 6 默认特性与 <code>CaseIterable</code> 扩展；末尾加统一开关循环</td><td>Swift 6 模式下那九项是空操作；与另外五个包同一写法</td><td class="numeric">2</td></tr>
+      <tr><td>MachOKit <code>Sources/MachOKit/**</code>（49 个文件）</td><td><span class="tag tag-changed">修改</span></td><td>补 56 处 import：55 处 <code>internal import FileIO</code> / <code>FileIOBinary</code>，1 处普通 import</td><td><code>MemberImportVisibility</code></td><td class="numeric">2</td></tr>
+      <tr><td>MachOKit <code>Tests/MachOKitTests/MachOPrintTests.swift</code> · <code>testFindSymbolByName</code></td><td><span class="tag tag-changed">修改</span></td><td>期望的 thunk 名字换成带 <code>Yb</code> 的 Swift 6 mangling</td><td>Swift 6 模式下未调用的枚举 case 引用推断为 <code>@Sendable</code>（SE-0418）</td><td class="numeric">2</td></tr>
+      <tr><td>swift-semantic-string <code>Package.swift</code>（末尾）</td><td><span class="tag tag-changed">修改</span></td><td>加统一开关循环</td><td>开启三项特性</td><td class="numeric">3</td></tr>
+      <tr><td>swift-semantic-string <code>AnyComponent.swift</code>、<code>FrozenSemanticString+Codable.swift</code>、<code>SemanticString+Conformances.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>补 6 处 <code>any</code></td><td><code>ExistentialAny</code></td><td class="numeric">3</td></tr>
+      <tr><td>swift-demangling <code>Package.swift</code>（Tuist 块之前）</td><td><span class="tag tag-changed">修改</span></td><td>加统一开关循环</td><td>开启三项特性</td><td class="numeric">3</td></tr>
+      <tr><td>swift-demangling <code>Sources/DemanglingTestingSupport/Required.swift:8</code></td><td><span class="tag tag-changed">修改</span></td><td><code>error: Error?</code> → <code>error: (any Error)?</code></td><td><code>ExistentialAny</code>；括号是 Swift 6.3 要求的</td><td class="numeric">3</td></tr>
+      <tr><td>swift-demangling <code>DefectRegressionTests.swift</code>、<code>NodeTests.swift</code>、<code>TransientRemangleParityTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>补 3 处 <code>import SwiftStdlibToolbox</code></td><td><code>MemberImportVisibility</code></td><td class="numeric">3</td></tr>
+      <tr><td>MachOKitExtensions <code>Package.swift</code>（Tuist 块之前）</td><td><span class="tag tag-changed">修改</span></td><td>加统一开关循环</td><td>开启三项特性</td><td class="numeric">4</td></tr>
+      <tr><td>MachOKitExtensions <code>RequiredNonOptional.swift:8</code>、<code>String+.swift</code>、<code>DependencyLoadName.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>(any Error)?</code>、2 处 import</td><td>两项特性</td><td class="numeric">4</td></tr>
+      <tr><td>MachOKitExtensions <code>Tests/</code>（5 个文件）</td><td><span class="tag tag-changed">修改</span></td><td>2 处 <code>any</code>、3 处 import</td><td>两项特性</td><td class="numeric">4</td></tr>
+      <tr><td>MachOObjCSection <code>Package.swift</code>（Tuist 块之前）</td><td><span class="tag tag-changed">修改</span></td><td>加统一开关循环</td><td>开启三项特性</td><td class="numeric">5</td></tr>
+      <tr><td>MachOObjCSection <code>Sources/</code>、<code>Tests/</code>（33 个文件）</td><td><span class="tag tag-changed">修改</span></td><td>38 个 fix-it：36 处 import（<code>FileIO</code>、<code>MachOKitExtensions</code> 沿用已有的 <code>internal import</code>），2 处 <code>any</code></td><td>两项特性</td><td class="numeric">5</td></tr>
+      <tr><td>MachOSwiftSection <code>TypeAttributeInferrer.swift</code>、<code>ABIDiffer.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>import SwiftObjCInterop</code>、<code>import MachOSwiftSection</code></td><td>迁移模式下 <code>switch</code> 报不完备、<code>.enum</code> 解析错</td><td class="numeric">6</td></tr>
+      <tr><td>MachOSwiftSection <code>ObjCAPIRequests.swift:293</code>、<code>ABIEvolutionRequest.swift:179</code></td><td><span class="tag tag-changed">修改</span></td><td><code>: Error</code> → <code>: Swift.Error</code></td><td><code>import Semantic</code> 让 <code>Error</code> 解析成 <code>Semantic.Error</code></td><td class="numeric">6</td></tr>
+      <tr><td>MachOSwiftSection <code>Sources/**</code>、<code>Tests/**</code>（420 个文件）</td><td><span class="tag tag-changed">修改</span></td><td><code>migrate</code> 的 605 个 fix-it：import、<code>any</code>、33 处 <code>nonisolated</code> conformance；266 处 <code>internal import</code> 改回普通 import</td><td>三项特性</td><td class="numeric">6</td></tr>
+      <tr><td>MachOSwiftSection <code>Package.swift:1541–1548</code> 之后、Tuist 块之前</td><td><span class="tag tag-changed">修改</span></td><td>加统一开关循环，用已有常量</td><td>开启三项特性</td><td class="numeric">6</td></tr>
+      <tr><td>MachOSwiftSection 两个测试文件</td><td><span class="tag tag-changed">修改</span></td><td>加 <code>import OrderedCollections</code></td><td>迁移模式下 <code>.values</code> 解析错</td><td class="numeric">6</td></tr>
+      <tr><td>MachOSwiftSection <code>NodePrintable.swift:68</code></td><td><span class="tag tag-changed">修改</span></td><td><code>(any NodePrintableDelegate)?</code></td><td>Swift 6.4 的 fix-it 写法 Swift 6.3 不接受</td><td class="numeric">6</td></tr>
+      <tr><td>MachOSwiftSection <code>Tests/</code>（14 个文件）</td><td><span class="tag tag-changed">修改</span></td><td>28 处类型位置的 <code>Error</code> → <code>Swift.Error</code></td><td><code>import Semantic</code> 让裸 <code>Error</code> 解析成 <code>Semantic.Error</code></td><td class="numeric">6</td></tr>
+      <tr><td>MachOSwiftSection <code>Documentations/Internal/ProjectEvolutionLog.md</code></td><td><span class="tag tag-changed">修改</span></td><td>加一节</td><td>账本</td><td class="numeric">9</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="proposal">
+  <h2>提议方案与非目标</h2>
+  <ol>
+    <li><strong>MachOKit 进 Swift 6 语言模式。</strong>第 1 行改成 <code>// swift-tools-version: 6.0</code>，tools 6.x 不声明 <code>swiftLanguageModes</code> 时默认 Swift 6。不用 6.2：fork 的 CI 在 Xcode 16.2 与 Linux Swift 6.0.3 上编，6.2 的清单它们读不了；编译器不认识的特性名会被忽略，6.0 照样能编。删掉九项 Swift 6 已默认开启的 upcoming setting 与 <code>CaseIterable</code> 扩展；<code>AccessLevelOnImport</code> 保留。</li>
+    <li><strong>六个包的每个 Swift target 统一开启三项特性。</strong>每份清单在 <code>let package = Package(...)</code> 之后加一个循环，给除 <code>system</code>、<code>binary</code>、<code>plugin</code> 以外的所有 target 追加同一组设置；本库沿用 <code>Package.swift:1541</code> 已有的常量。</li>
+    <li><strong>源码由 <code>migrate</code> 改，前后各补一手。</strong>先改好 6 处预修；在清单还没开特性时跑 <code>swift package --build-system native migrate</code>，源码与测试一起改；丢弃它对清单的改动；把 <code>internal import X</code> 改回普通 <code>import X</code>，除非仓库本来就 <code>internal import</code> 这个模块；最后加开关，正式开启后编一遍确认零错误。</li>
+    <li><strong>每加一条 <code>import Semantic</code>，就检查裸写的 <code>Error</code>、<code>Numeric</code>、<code>Argument</code>。</strong>类型位置写 <code>Swift.Error</code>；转型与 <code>catch</code> 模式逐个看；「cast always fails」警告按错误对待。</li>
+    <li><strong>从下往上落地，不为此单独发版。</strong>设置只影响包自身的编译，不改公开 API。</li>
+  </ol>
+  <div class="callout callout-warning">
+    <p class="callout-title">非目标</p>
+    <ul>
+      <li>不开 <code>NonisolatedNonsendingByDefault</code>、<code>InternalImportsByDefault</code>、<code>ImmutableWeakCaptures</code>、<code>StrictMemorySafety</code>。</li>
+      <li>不动 FrameworkToolbox（不属于 MachO 系列）。</li>
+      <li>不给 swift-semantic-string 的 <code>Error</code>、<code>Numeric</code>、<code>Argument</code> 改名（公开 API 破坏）。</li>
+      <li>不清理现有的 <code>@unchecked Sendable</code>（本库 84 处）与 <code>nonisolated(unsafe)</code>（37 处）。</li>
+      <li>不采用 typed throws、<code>~Copyable</code>、<code>Span</code> 等新语言特性。</li>
+      <li>不把这些改动提给上游 p-x9/MachOKit。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details>
+    <summary>统一开关</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">let</span> upcomingFeatureSettings: [<span class="token-type">SwiftSetting</span>] = [
+    .enableUpcomingFeature(<span class="token-string">"ExistentialAny"</span>),
+    .enableUpcomingFeature(<span class="token-string">"MemberImportVisibility"</span>),
+    .enableUpcomingFeature(<span class="token-string">"InferIsolatedConformances"</span>),
+]
+
+<span class="token-keyword">for</span> target <span class="token-keyword">in</span> package.targets <span class="token-keyword">where</span> target.type != .system &amp;&amp; target.type != .binary &amp;&amp; target.type != .plugin {
+    target.swiftSettings = (target.swiftSettings ?? []) + upcomingFeatureSettings
+}</code></pre>
+      <p>swift-semantic-string 与 MachOKit 写在清单末尾；swift-demangling、MachOKitExtensions、MachOObjCSection 写在末尾的 Tuist 块之前；本库写在 <code>extension SwiftSetting</code> 之后、Tuist 块之前，数组里用已有的 <code>.existentialAny</code>、<code>.memberImportVisibility</code>、<code>.inferIsolatedConformances</code>。</p>
+    </div>
+  </details>
+  <details>
+    <summary>迁移命令与 <code>internal import</code> 的处理</summary>
+    <div class="details-body">
+<pre><code>queued-build swift package --build-system native \
+    --scratch-path /Volumes/DerivedData/Agents.noindex/claude/SwiftPM/MachOSwiftSection-Swift6UpcomingFeatures-Migrate \
+    migrate --to-feature ExistentialAny,MemberImportVisibility,InferIsolatedConformances
+git checkout -- Package.swift</code></pre>
+      <p>不带 <code>--target</code> 就连测试一起改；<code>--build-system native</code> 不能省。本库退出码是 1 属正常（改清单失败），以 <code>Applied N fix-its</code> 为准。对每一行新加的 <code>internal import X</code>：仓库原来有 <code>internal import X</code> 的保留，没有的改成普通 <code>import X</code>。</p>
+    </div>
+  </details>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <p>2026-11-20 在 Ultra（Xcode 27.2，Swift 6.4.2）上把六个包的当前提交各自 clone，以每个包为根编 <code>swift build --build-tests</code>；新特性用 SE-0486 的迁移模式（<code>:migrate</code>）只出警告，按诊断组计数。</p>
+  <details open>
+    <summary>三项要开的特性：各包改动处数（源码 / 测试）</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>包</th><th><code>ExistentialAny</code></th><th><code>MemberImportVisibility</code></th><th><code>InferIsolatedConformances</code></th></tr></thead>
+        <tbody>
+          <tr><td>MachOKit</td><td>已开启（0）</td><td class="numeric">56 / 0</td><td class="numeric">0 / 0</td></tr>
+          <tr><td>MachOKitExtensions</td><td class="numeric">1 / 2</td><td class="numeric">2 / 3</td><td class="numeric">0 / 0</td></tr>
+          <tr><td>MachOObjCSection</td><td class="numeric">0 / 2</td><td class="numeric">15 / 21</td><td class="numeric">0 / 0</td></tr>
+          <tr><td>swift-demangling</td><td class="numeric">1 / 0</td><td class="numeric">0 / 3</td><td class="numeric">0 / 0</td></tr>
+          <tr><td>swift-semantic-string</td><td class="numeric">6 / 0</td><td class="numeric">0 / 0</td><td class="numeric">0 / 0</td></tr>
+          <tr><td>MachOSwiftSection</td><td class="numeric">57 / 41</td><td class="numeric">245 / 235</td><td class="numeric">0 / 33</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+  <details>
+    <summary>量过、决定不做的四项</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>特性</th><th>改动处（源码 / 测试）</th><th>不做的原因</th></tr></thead>
+        <tbody>
+          <tr><td><code>NonisolatedNonsendingByDefault</code></td><td>778 / 347</td><td>改运行语义：RuntimeViewer 从主线程调用时解析会跑到主线程</td></tr>
+          <tr><td><code>InternalImportsByDefault</code></td><td>4,124 行 import</td><td>没有迁移模式；约一半必须保持 <code>public import</code>；下游可能编不过</td></tr>
+          <tr><td><code>ImmutableWeakCaptures</code></td><td>约 0</td><td>收益近乎为零</td></tr>
+          <tr><td><code>StrictMemorySafety</code></td><td>2,440 / 658</td><td>不属于 Swift 6 或 7；几千处 <code>unsafe</code> 标注只会是噪音</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+  <details>
+    <summary><code>swift package migrate</code> 的实际表现与迁移的坑</summary>
+    <div class="details-body">
+      <ul>
+        <li>本库清单写成 <code>extension Target</code> 上的静态常量，<code>migrate</code> 改清单那一步失败，源码照样改好；清单一律手改。</li>
+        <li>默认构建系统下 <code>migrate</code> 不改测试（450 条测试警告、0 个 fix-it）；<code>--build-system native</code> 下一遍改完源码与测试。</li>
+        <li>native 构建系统下它常写 <code>internal import X</code>，与别的文件的普通 <code>import X</code> 冲突（本库 17 个文件报访问级别有歧义）。</li>
+        <li>迁移模式本身有 4 处硬错误（<code>switch</code> 不完备、<code>.enum</code> 解析成实例成员、两处 <code>.values</code> 落到 dynamic member lookup），构建一失败 <code>migrate</code> 就一处都不改，所以要预修。</li>
+        <li>swift-semantic-string 公开声明了 <code>Error</code>、<code>Numeric</code>、<code>Argument</code>；文件直接 <code>import Semantic</code> 后裸 <code>Error</code> 就是 <code>Semantic.Error</code>：源码 2 处、测试 14 个文件编不过，改成 <code>Swift.Error</code>。</li>
+        <li>Swift 6.4 的 fix-it 写出 <code>any P?</code>，Swift 6.3 要求 <code>(any P)?</code>：三处。</li>
+        <li>MachOKit 进 Swift 6 模式后，测试二进制里一个 curry thunk 的 mangling 多了 <code>Yb</code>（SE-0418），按名字找它的测试要跟着改。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>八条，都否了或改了形状</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>MachOKit 只加 <code>StrictConcurrency</code>：</strong>Swift 5 模式下只是警告，约束力不够。</li>
+        <li><strong>MachOKit 用 <code>swiftLanguageVersions: [.version("6")]</code>：</strong>写法与兄弟包不一致，上游冲突也省不掉。</li>
+        <li><strong>MachOKit 用 tools 6.2：</strong>草案原定；fork 的 CI 用 Swift 6.0，读不了。改为 6.0。</li>
+        <li><strong>测试照警告手改或写批量脚本：</strong>草案原定；<code>--build-system native</code> 的 <code>migrate</code> 就能改测试。</li>
+        <li><strong>逐个 target 写或让 <code>migrate</code> 改清单：</strong>容易漏；<code>migrate</code> 在本库清单上直接失败。选统一循环。</li>
+        <li><strong>四项全开：</strong>用户选了只开三项低风险的。</li>
+        <li><strong>不开 <code>MemberImportVisibility</code>：</strong>它是「依赖写在自己的 import 里」的来源，坑都已找全。保留。</li>
+        <li><strong>给 <code>Semantic.Error</code> 改名：</strong>公开 API 破坏，不在本次范围。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+  <ul>
+    <li><strong>源码兼容性：</strong>纯新增。六个包都不改任何公开声明的签名；upcoming feature 只作用于开启它的 target 本身，不传给下游。</li>
+    <li><strong>ABI：</strong>不适用，SPM 源码分发。</li>
+    <li><strong>下游：</strong>RuntimeViewer、MachOKitUI、SymbolViewer 不用改代码。上游 p-x9/MachOKit 不提交，合上游 tag 时清单两处会冲突，按 fork 写法解决。</li>
+    <li><strong>文档：</strong>账本加一节、索引登记；<code>CLAUDE.md</code> 预计不加条目，落地时再判断。</li>
+    <li><strong>API 演进：</strong>没有废弃的 API，不需要 major 跃迁，不单独发版。</li>
+  </ul>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+  <ol>
+    <li><strong>提案进集成分支，跨仓库登记。</strong>（已完成）</li>
+    <li><strong>MachOKit 进 Swift 6 并开三项特性。</strong>（已完成）Ultra 上 27.2 与 26.6 都编过；测试只剩基线上同样失败的 5 个环境用例；CI 在 Xcode 16.2 与 Linux Swift 6.0.3 上通过。</li>
+    <li><strong>swift-semantic-string 与 swift-demangling。</strong>（已完成）两个 Xcode 都编过，测试全过。</li>
+    <li><strong>MachOKitExtensions。</strong>（已完成）两个 Xcode 都编过，测试全过。</li>
+    <li><strong>MachOObjCSection。</strong>（已完成）两个 Xcode 都编过；测试里 <code>MachOObjCSectionTests</code> 这个 XCTest 类读用户本机的一个文件，在基线上同样崩溃，跳过它后其余全过。</li>
+    <li><strong>本库：预修、migrate、开关。</strong>（已完成）全部 target 在 27.2 与 26.6 下都编过。</li>
+    <li><strong>（并入第 6 步）</strong></li>
+    <li><strong>本库全量验证。</strong>（已完成）Xcode 26.6 下 554 个 suite、2,906 个测试全过；渲染 A/B 84 对逐字节一致；Tuist 工作区编过。</li>
+    <li><strong>落地。</strong>（已完成）六个仓库按各自流程合进集成分支，提案取号 0101、改 Implemented，账本第 146 节。MachOKitExtensions rebase 到含 C++ 类索引的 <code>main</code> 后补了两个 import 与一处 <code>any</code>；与 0100 合并后，宏的测试补了 <code>SwiftSyntaxBuilder</code> 的 import。合并结果 27.2 与 26.6 都编过，26.6 下 2,915 个测试全过。</li>
+  </ol>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>14 条，最近一条：Implemented</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-20</td><td>Created as Draft</td><td>用户要求把 MachO 系列库迁到 Swift 6、开启严格并发，并评估开启全部新特性的改动量。实测五个包已是 Swift 6 模式，只有 MachOKit 停在 Swift 5 且切换后零错误；六项 Swift 7 默认特性逐项量过之后，用户选定「MachOKit 切 Swift 6 + <code>ExistentialAny</code>、<code>MemberImportVisibility</code>、<code>InferIsolatedConformances</code>」，另外三项与 <code>StrictMemorySafety</code> 不做</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>Accepted</td><td>用户批准，开始实现</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>MachOKit 用 tools 6.0</td><td>草案定的 6.2 会让 fork 的 CI（Xcode 16.2、Linux Swift 6.0.3）读不了清单；6.0 同样默认 Swift 6 模式。手动触发的 CI 两项都通过</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>测试也交给 <code>migrate</code></td><td>默认构建系统下 <code>migrate</code> 不改测试；<code>--build-system native</code> 下一遍改完源码与测试，手改与批量脚本都不需要了</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td><code>internal import</code> 改回普通 import</td><td>native 构建系统下 <code>migrate</code> 写的 <code>internal import X</code> 与已有的普通 <code>import X</code> 冲突（本库 17 个文件）。仓库已有 <code>internal import</code> 先例的保留，其余改成普通 import</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td><code>any P?</code> 改成 <code>(any P)?</code></td><td>Swift 6.4 的 fix-it 写法在 Swift 6.3（CI 的 Xcode 26.6）下报错；三处</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>14 个测试文件写 <code>Swift.Error</code></td><td><code>migrate</code> 给 93 个文件加了 <code>import Semantic</code>，其中 14 个测试文件里有类型位置的裸 <code>Error</code>，全部改成 <code>Swift.Error</code>；源码里没有，也没有「转型永远失败」的警告</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>MachOKit 一个测试的期望符号名</td><td>Swift 6 模式下 curry thunk 的 mangling 多了 <code>Yb</code>（SE-0418），<code>testFindSymbolByName</code> 改为新名字；其余 5 个失败在基线上同样失败</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>验证结果</td><td>六个包用 Xcode 27.2 与 26.6 都编过；swift-semantic-string、swift-demangling、MachOKitExtensions 测试全过；MachOKit 只剩基线同样失败的 5 个环境用例；MachOObjCSection 跳过读用户本机文件的那个 XCTest 类后全过；本库 2,906 个测试全过；渲染 A/B 84 对逐字节一致；Tuist 工作区 <code>warm</code> 与 <code>build</code> 成功；fork 的 CI 通过</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>文档判断</td><td>不配使用指南或实现说明，没有新术语，<code>CLAUDE.md</code> 不加条目；账本一节留到正式收尾</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>实现完成，待用户看过后收尾</td><td>六个仓库的功能分支都已推送</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>落地：MachOKitExtensions 补改</td><td>rebase 到含 C++ 类索引（它的 0006）的 <code>origin/main</code>；那批代码补了 <code>MachOReading</code>、<code>MachOResolving</code> 两个 import 与一处 <code>any</code>，27.2 与 26.6 都编过、没有警告，测试全过</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>落地：与 0100 同批</td><td>宏先进 <code>next</code>，本分支把它合进来；宏的测试补 <code>SwiftSyntaxBuilder</code> 的 import 与依赖。合并结果 27.2 与 26.6 都编过，26.6 下 555 个 suite、2,915 个测试全过；渲染 A/B 不重跑（合进来的只有测试）；swift-demangling 在最终提交上 651 个测试全过</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>Implemented</td><td>六个仓库合进集成分支，取号 0101，账本第 146 节；文档判断不变。后续项：MachOKit 的 <code>DyldCacheConcurrentReadTests.swift</code> 还有 3 条并发警告，没改</td></tr>
+
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>

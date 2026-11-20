@@ -3,6 +3,7 @@ import MachOSwiftSection
 import OrderedCollections
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import BinaryParseSupport
 
 extension ExtensionDefinition: OnceIndexedDefinition {
     /// Resolves a conformance's resilient witnesses to members. Idempotent,

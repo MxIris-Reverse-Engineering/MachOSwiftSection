@@ -7,6 +7,10 @@ import MachOKit
 @_spi(Support) @testable import SwiftIndexing
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import MachOKitExtensions
+import OrderedCollections
+import MachOResolving
+import MachOSwiftSection
 
 /// `TypeDefinition.exportStatus` / `ProtocolDefinition.exportStatus` — the
 /// export fact carried on the declaration model (evolution proposal

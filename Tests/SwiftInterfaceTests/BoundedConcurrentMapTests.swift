@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOFoundation
+import Utilities
 
 /// Pins `concurrentMap(maximumConcurrency:_:)` (evolution proposal
 /// `large-stack-executor-and-cross-version-parallelism`), the windowed

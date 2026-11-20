@@ -5,6 +5,7 @@ import SwiftDiffing
 import SwiftIndexing
 import SwiftInterface
 import Utilities
+import Semantic
 
 /// `swift-section evolution`: track the Swift ABI of one module across an
 /// ordered series of versions.
@@ -176,7 +177,7 @@ public struct ABIEvolutionRequest: Sendable, Equatable {
 /// Why ``ABIEvolutionRequest/AvailabilityAttributes/inferredPlatform`` found
 /// no one platform to spell the attributes for. Naming the platform with
 /// ``ABIEvolutionRequest/AvailabilityAttributes/platform(_:)`` avoids both.
-public enum AvailabilityPlatformInferenceError: Error, LocalizedError, Sendable, Equatable {
+public enum AvailabilityPlatformInferenceError: Swift.Error, LocalizedError, Sendable, Equatable {
     /// The binary at `path` has no `LC_BUILD_VERSION`, or names a platform
     /// `@available` has no spelling for, such as DriverKit.
     case noPlatform(path: String)

@@ -6,6 +6,8 @@ import MachOSwiftSection
 import SwiftDeclarationRendering
 import SwiftInterface
 @testable import SwiftSectionTestingSupport
+import Semantic
+import SwiftPrinting
 
 /// An on-the-fly fixture for class members whose only symbol is their method
 /// descriptor, compiled twice over: `.full` keeps every symbol, and
@@ -81,7 +83,7 @@ enum DescriptorOnlyMemberFixture {
     }
 
     /// Compiled once per process.
-    private static let compilationResult: Result<[Variant: URL], Swift.Error> = {
+    private static let compilationResult: Result<[Variant: URL], any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

@@ -12,6 +12,7 @@ import SwiftInspection
 
 #if canImport(SwiftUI)
 import SwiftUI
+import Semantic
 #endif
 
 struct GenericStructNonRequirement<A> {

@@ -9,6 +9,8 @@ import SwiftObjCInterop
 import Semantic
 @_spi(Internals) import SwiftSymbols
 @testable import SwiftSectionTestingSupport
+import SwiftPrinting
+import SwiftSectionFixtureSupport
 
 /// `@objc @implementation` recognition on the interface path (evolution
 /// proposal `objc-implementation-class-recognition`), over the on-the-fly

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftSectionKit
+import Semantic
 
 /// A `SwiftSectionOutput` that also takes the declarations `dump` and
 /// `objc dump` name, keeping every product piece beside the declaration it

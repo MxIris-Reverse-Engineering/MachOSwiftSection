@@ -641,7 +641,7 @@ extension SymbolicDemangler {
             // It contributes a discriminator only when it wraps a private
             // type; otherwise it is skipped, and a type inside demangles as if
             // it were internal.
-            if let lookupContext = readingContext as? SymbolLookupContext,
+            if let lookupContext = readingContext as? (any SymbolLookupContext),
                let privateDeclNameIdentifier = lookupContext.privateDiscriminatorIdentifier(forAnonymousContextAt: context.contextDescriptor.offset) {
                 if let parentDemangling {
                     return Node.createTransient(kind: .anonymousContext, children: [privateDeclNameIdentifier, parentDemangling])
@@ -746,7 +746,7 @@ extension SymbolicDemangler {
             let symbolNode = try demangle(for: mangledName, kind: .symbol, in: readingContext)
             return symbolNode.kind == .global ? symbolNode.children.first : symbolNode
         }
-        guard let lookupContext = readingContext as? SymbolLookupContext else { return nil }
+        guard let lookupContext = readingContext as? (any SymbolLookupContext) else { return nil }
         return lookupContext.anonymousContextName(forAnonymousContextAt: anonymousContext.offset)
     }
 
@@ -764,7 +764,7 @@ extension SymbolicDemangler {
     private static func positionNameOfUnnamedLocalType(inside parent: SymbolOrElement<ContextDescriptorWrapper>?, in readingContext: some ReadingContext) throws -> String? {
         guard case .element(.anonymous(let anonymousContext))? = parent,
               isAnonymousContext(try anonymousContext.parent(in: readingContext)),
-              let lookupContext = readingContext as? SymbolLookupContext
+              let lookupContext = readingContext as? (any SymbolLookupContext)
         else { return nil }
         return lookupContext.positionName(forAnonymousContextAt: anonymousContext.offset)
     }

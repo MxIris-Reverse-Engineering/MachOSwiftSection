@@ -4,6 +4,7 @@ import MachOKit
 import SwiftDiffing
 import SwiftInterface
 @testable import SwiftSectionTestingSupport
+import Semantic
 
 /// Telling a declaration a version cannot show from one that is gone
 /// (evolution proposal `evolution-unobservable-presence`), over
