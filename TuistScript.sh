@@ -606,7 +606,7 @@ def dependency_name(dependency):
             return dependency[kind][0]
     return None
 
-source_targets, warning_targets, test_entries, rejected = [], [], [], []
+source_targets, warning_targets, test_entries, test_names, rejected = [], [], [], [], []
 own_target_names = set()
 for identity, role, directory in packages:
     if role == "third-party":
@@ -629,6 +629,7 @@ for identity, role, directory in packages:
     }
     regular_names = {target["name"] for target in targets if target["type"] == "regular"}
     tests = [target for target in targets if target["type"] == "test"]
+    test_names += [test["name"] for test in tests]
     for test in tests:
         for dependency in test["dependencies"]:
             name = dependency_name(dependency)
@@ -657,18 +658,21 @@ for identity, role, directory in packages:
 print("SOURCE_TARGETS=" + ",".join(source_targets))
 print("WARNING_TARGETS=" + ",".join(warning_targets))
 print("TEST_TARGETS=" + ";".join(test_entries))
+print("TEST_TARGET_NAMES=" + ",".join(test_names))
 for reason in rejected:
     print("REJECTED=" + reason)
 PYTHON
     TUIST_SOURCE_TARGET_NAMES=""
     TUIST_WARNING_TARGET_NAMES=""
     TUIST_PACKAGE_TEST_TARGETS=""
+    TUIST_TEST_TARGET_NAMES=""
     TUIST_MAPS_LOCAL_PACKAGE_TESTS=1
     while IFS='=' read -r key value; do
         case "$key" in
             SOURCE_TARGETS) TUIST_SOURCE_TARGET_NAMES="$value";;
             WARNING_TARGETS) TUIST_WARNING_TARGET_NAMES="$value";;
             TEST_TARGETS) TUIST_PACKAGE_TEST_TARGETS="$value";;
+            TEST_TARGET_NAMES) TUIST_TEST_TARGET_NAMES="$value";;
             REJECTED)
                 warn "Tuist would reject $value"
                 TUIST_MAPS_LOCAL_PACKAGE_TESTS=0;;
@@ -679,8 +683,10 @@ PYTHON
     if [[ "$TUIST_MAPS_LOCAL_PACKAGE_TESTS" != 1 ]]; then
         warn "the tests stay out of the workspace this time. Each manifest above needs the TUIST_MAPS_LOCAL_PACKAGE_TESTS block MachOSwiftSection's Package.swift ends with (Documentations/Internal/TuistDevelopment.md)."
         TUIST_PACKAGE_TEST_TARGETS=""
+        TUIST_TEST_TARGET_NAMES=""
     fi
-    export TUIST_SOURCE_TARGET_NAMES TUIST_WARNING_TARGET_NAMES TUIST_PACKAGE_TEST_TARGETS TUIST_MAPS_LOCAL_PACKAGE_TESTS
+    export TUIST_SOURCE_TARGET_NAMES TUIST_WARNING_TARGET_NAMES TUIST_PACKAGE_TEST_TARGETS TUIST_TEST_TARGET_NAMES \
+        TUIST_MAPS_LOCAL_PACKAGE_TESTS
 }
 
 # --- Commands -------------------------------------------------------------------------------------

@@ -55,8 +55,24 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         ]),
     ]
 
+    // SwiftPM builds a test target for at least the macOS version XCTest and Swift Testing require
+    // (14.0 with Xcode 26 and 27), whatever its package declares; Tuist takes the package's own minimum,
+    // and MachOSwiftSection's 10.15 leaves TypeIndexingTests without the macOS 13 APIs it tests.
+    // TUIST_TEST_TARGET_NAMES lists every mapped test target, IntegrationTests included, so that a build
+    // of the whole workspace compiles too.
+    let testTargetSettings: [String: Settings] = Dictionary(
+        targetNames(in: "TUIST_TEST_TARGET_NAMES").map { targetName in
+            (targetName, Settings.settings(base: ["MACOSX_DEPLOYMENT_TARGET": "14.0"]))
+        },
+        uniquingKeysWith: { first, _ in first }
+    )
+
     let packageSettings = PackageSettings(
-        targetSettings: warningSettings.merging(restatedTraitDefinitions) { $1 },
+        targetSettings: warningSettings
+            .merging(restatedTraitDefinitions) { $1 }
+            .merging(testTargetSettings) { first, second in
+                .settings(base: first.base.merging(second.base) { $1 })
+            },
         // TuistScript.sh sets the variable to 1 unless a package declared by path still has a test of
         // a shape Tuist rejects (the manifests' TUIST_MAPS_LOCAL_PACKAGE_TESTS block removes them).
         includeLocalPackageTestTargets: processEnvironment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1"
