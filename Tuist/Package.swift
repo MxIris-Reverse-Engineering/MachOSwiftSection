@@ -55,18 +55,6 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         ]),
     ]
 
-    // SwiftPM builds a test target for at least the macOS version XCTest and Swift Testing require
-    // (14.0 with Xcode 26 and 27), whatever its package declares; Tuist takes the package's own minimum,
-    // and MachOSwiftSection's 10.15 leaves TypeIndexingTests without the macOS 13 APIs it tests.
-    // TUIST_TEST_TARGET_NAMES lists every mapped test target, IntegrationTests included, so that a build
-    // of the whole workspace compiles too.
-    let testTargetSettings: [String: Settings] = Dictionary(
-        targetNames(in: "TUIST_TEST_TARGET_NAMES").map { targetName in
-            (targetName, Settings.settings(base: ["MACOSX_DEPLOYMENT_TARGET": "14.0"]))
-        },
-        uniquingKeysWith: { first, _ in first }
-    )
-
     // A library target that imports Testing, such as a package's testing support, uses Swift Testing's
     // macros (#expect, #require). Xcode points only test targets at the toolchain's TestingMacros
     // plugin; SwiftPM gives it to every target. TUIST_TESTING_SUPPORT_TARGET_NAMES lists the library
@@ -81,23 +69,42 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         uniquingKeysWith: { first, _ in first }
     )
 
-    // MachOSwiftSection's SwiftSymbolsRegistration does its whole job in a load-time constructor, a
-    // static function nothing refers to. SwiftPM links each target's object files whole; Tuist builds a
-    // static framework, and the linker loads no archive member nothing refers to, so Swift would never
-    // be registered as a symbol language. TUIST_FORCE_LOADS pairs each final link (a test target, the
-    // swift-section executable) with the constructor targets its in-package dependencies reach, as
-    // "<linking target>:<constructor target>,…"; those archives are loaded whole.
-    let forceLoads: [(linkingTarget: String, loadedTarget: String)] = targetNames(in: "TUIST_FORCE_LOADS").compactMap { pair in
-        let parts = pair.split(separator: ":").map(String.init)
-        return parts.count == 2 ? (parts[0], parts[1]) : nil
-    }
-    let forceLoadSettings: [String: Settings] = Dictionary(grouping: forceLoads, by: \.linkingTarget).mapValues { pairs in
-        Settings.settings(base: [
-            "OTHER_LDFLAGS": .array(["$(inherited)"] + pairs.map { pair in
-                "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(pair.loadedTarget).framework/\(pair.loadedTarget)"
-            }),
-        ])
-    }
+    // The test targets, which SwiftPM builds and links differently in three ways:
+    // - It builds a test target for at least the macOS version XCTest and Swift Testing require (14.0
+    //   with Xcode 26 and 27), whatever its package declares; Tuist takes the package's own minimum, and
+    //   MachOSwiftSection's 10.15 leaves TypeIndexingTests without the macOS 13 APIs it tests.
+    // - It links each package target's object files whole, where Tuist links static frameworks and the
+    //   linker loads only the archive members something refers to by symbol. A protocol conformance
+    //   nothing names goes missing, and `as?` fails without a word: the readers that wrap a MachOImage
+    //   or MachOFile (MachOReaderWrapper) read as neither. -ObjC also loads every member that defines an
+    //   Objective-C class or category or a Swift type or extension (Xcode 27's linker), as it does for
+    //   RuntimeViewer's Tuist workspace.
+    // - A load-time constructor nothing refers to never runs that way at all: MachOSwiftSection's
+    //   SwiftSymbolsRegistration registers Swift as a symbol language from one. TUIST_FORCE_LOADS pairs
+    //   each final link with the constructor targets its in-package dependencies reach, as
+    //   "<linking target>:<constructor target>,…"; those archives are loaded whole.
+    // TUIST_TEST_TARGET_NAMES lists every mapped test target, IntegrationTests included, so that a build
+    // of the whole workspace compiles and links too. Tuist/CommandLine/Project.swift gives the
+    // swift-section executable and SwiftSectionCommandTests the same link flags.
+    let forceLoadedTargetsByLinkingTarget: [String: [String]] = Dictionary(
+        targetNames(in: "TUIST_FORCE_LOADS").compactMap { pair -> (String, [String])? in
+            let parts = pair.split(separator: ":").map(String.init)
+            return parts.count == 2 ? (parts[0], [parts[1]]) : nil
+        },
+        uniquingKeysWith: +
+    )
+    let testTargetSettings: [String: Settings] = Dictionary(
+        targetNames(in: "TUIST_TEST_TARGET_NAMES").map { targetName in
+            let forceLoadFlags = (forceLoadedTargetsByLinkingTarget[targetName] ?? []).map { loadedTarget in
+                "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(loadedTarget).framework/\(loadedTarget)"
+            }
+            return (targetName, Settings.settings(base: [
+                "MACOSX_DEPLOYMENT_TARGET": "14.0",
+                "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"] + forceLoadFlags),
+            ]))
+        },
+        uniquingKeysWith: { first, _ in first }
+    )
 
     // One target may need several of the settings above; their keys never overlap.
     func mergingSettings(_ settingsByTarget: [String: Settings]...) -> [String: Settings] {
@@ -107,7 +114,7 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
     }
 
     let packageSettings = PackageSettings(
-        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings, forceLoadSettings),
+        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings),
         // TuistScript.sh sets the variable to 1 unless a package declared by path still has a test of
         // a shape Tuist rejects (the manifests' TUIST_MAPS_LOCAL_PACKAGE_TESTS block removes them).
         includeLocalPackageTestTargets: processEnvironment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1"

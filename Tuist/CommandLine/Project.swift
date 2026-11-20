@@ -31,23 +31,25 @@ let commandLineDeploymentTargets: DeploymentTargets = .macOS("12.0")
 
 let commandLineSources: SourceFilesList = ["../../Sources/Executables/swift-section/**"]
 
-// The constructor targets the swift-section executable reaches in Package.swift, which must be loaded
-// whole (Tuist/Package.swift explains why); TuistScript.sh lists them in TUIST_FORCE_LOADS.
+// The link flags Tuist/Package.swift gives the package's test targets, for the same reasons: -ObjC, so
+// that the archive members defining Swift types and extensions (protocol conformances among them) are
+// loaded, and -force_load of the constructor targets the swift-section executable reaches in
+// Package.swift, which TuistScript.sh lists in TUIST_FORCE_LOADS.
 let forceLoadedTargetNames: [String] = Environment.forceLoads.getString(default: "")
     .split(separator: ",")
     .compactMap { pair in
         let parts = pair.split(separator: ":").map(String.init)
         return parts.count == 2 && parts[0] == "swift-section" ? parts[1] : nil
     }
-let forceLoadFlags: SettingsDictionary = forceLoadedTargetNames.isEmpty ? [:] : [
-    "OTHER_LDFLAGS": .array(["$(inherited)"] + forceLoadedTargetNames.map { targetName in
+let linkFlags: SettingsDictionary = [
+    "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"] + forceLoadedTargetNames.map { targetName in
         "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(targetName).framework/\(targetName)"
     }),
 ]
 
 // MACHO_SWIFT_SECTION_SILENT_TEST=1, which Package.swift turns into SILENT_TEST for its test targets;
 // TuistScript.sh passes it on as TUIST_SILENT_TEST, the only form a Tuist manifest can read.
-let commandTestSettings: Settings = .settings(base: forceLoadFlags.merging(
+let commandTestSettings: Settings = .settings(base: linkFlags.merging(
     Environment.silentTest.getBoolean(default: false) ? ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "SILENT_TEST"]] : [:]
 ) { $1 })
 
@@ -66,7 +68,7 @@ let project = Project(
             deploymentTargets: commandLineDeploymentTargets,
             sources: commandLineSources,
             dependencies: commandLineDependencies,
-            settings: .settings(base: forceLoadFlags)
+            settings: .settings(base: linkFlags)
         ),
         .target(
             name: "swift_section",
