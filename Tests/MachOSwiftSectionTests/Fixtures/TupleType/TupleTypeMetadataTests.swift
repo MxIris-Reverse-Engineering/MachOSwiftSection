@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class TupleTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TupleTypeMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        TupleTypeMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TupleTypeMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func layout() async throws {
         let resolved = try usingInProcessOnly { context in
             try TupleTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibTupleIntString, in: context)

@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// resolves to (pinned as a baseline literal; the ReadingContext leg must
 /// report the same location as a context address).
 @Suite
-final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MethodDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        MethodDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load the first vtable entry of `Classes.ClassTest` from
     /// each reader.
     private func loadFirstMethods() throws -> (file: MethodDescriptor, image: MethodDescriptor) {

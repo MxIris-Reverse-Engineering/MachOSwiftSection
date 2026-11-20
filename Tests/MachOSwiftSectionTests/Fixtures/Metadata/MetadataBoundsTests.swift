@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 /// derived sizes (`totalSizeInBytes`, `addressPointInBytes`) are inherited
 /// from `MetadataBoundsProtocol` and covered by that Suite.
 @Suite
-final class MetadataBoundsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataBounds"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataBoundsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataBoundsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let bounds = MetadataBounds(
             layout: .init(

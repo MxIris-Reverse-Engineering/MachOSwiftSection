@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// resilient ObjC stub, so we exercise the flag derivation by
 /// constructing instances with known raw values.
 @Suite
-final class ExtraClassDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExtraClassDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ExtraClassDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExtraClassDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func rawValue() async throws {
         let zero = ExtraClassDescriptorFlags(rawValue: ExtraClassDescriptorFlagsBaseline.zeroRawValue)
         #expect(zero.rawValue == ExtraClassDescriptorFlagsBaseline.zeroRawValue)

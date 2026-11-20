@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// `hasKeyArgument`, `isValueRequirement`). The Suite exercises each
 /// branch against synthetic raw values from the baseline.
 @Suite
-final class GenericRequirementFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericRequirementFlags"
-    static var registeredTestMethodNames: Set<String> {
-        GenericRequirementFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericRequirementFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let flags = GenericRequirementFlags(rawValue: GenericRequirementFlagsBaseline.protocolWithKey.rawValue)
         #expect(flags.rawValue == GenericRequirementFlagsBaseline.protocolWithKey.rawValue)

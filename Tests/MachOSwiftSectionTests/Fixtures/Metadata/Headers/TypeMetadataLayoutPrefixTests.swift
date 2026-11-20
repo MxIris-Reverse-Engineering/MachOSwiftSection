@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class TypeMetadataLayoutPrefixTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeMetadataLayoutPrefix"
-    static var registeredTestMethodNames: Set<String> {
-        TypeMetadataLayoutPrefixBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeMetadataLayoutPrefixTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let prefix = TypeMetadataLayoutPrefix(
             layout: .init(layoutString: .init(address: 0)),

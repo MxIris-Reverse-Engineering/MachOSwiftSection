@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// `PublicMemberScanner` and is covered by
 /// `ExtensionContextDescriptorProtocolTests`.
 @Suite
-final class ExtensionContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExtensionContextDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        ExtensionContextDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExtensionContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let fileSubject = try BaselineFixturePicker.extension_first(in: machOFile)
         let imageSubject = try BaselineFixturePicker.extension_first(in: machOImage)

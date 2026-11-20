@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// `ContextWrapper.forContextDescriptorWrapper` to produce a
 /// `.type(.struct(...))` wrapper.
 @Suite
-final class ContextWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextWrapper"
-    static var registeredTestMethodNames: Set<String> {
-        ContextWrapperBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextWrapperTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: build a `ContextWrapper` of the `Structs.StructTest`
     /// descriptor against both readers via
     /// `forContextDescriptorWrapper(_:in:)`.

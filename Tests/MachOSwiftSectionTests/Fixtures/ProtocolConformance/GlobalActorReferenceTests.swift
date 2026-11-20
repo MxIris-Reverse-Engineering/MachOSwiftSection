@@ -19,12 +19,8 @@ import SwiftSectionFixtureSupport
 /// collapses to a single MethodKey under PublicMemberScanner's name-based
 /// deduplication; the Suite exercises both reader paths.
 @Suite
-final class GlobalActorReferenceTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GlobalActorReference"
-    static var registeredTestMethodNames: Set<String> {
-        GlobalActorReferenceBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GlobalActorReferenceTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstReferences() throws -> (file: GlobalActorReference, image: GlobalActorReference) {
         let fileConformance = try BaselineFixturePicker.protocolConformance_globalActorFirst(in: machOFile)
         let imageConformance = try BaselineFixturePicker.protocolConformance_globalActorFirst(in: machOImage)

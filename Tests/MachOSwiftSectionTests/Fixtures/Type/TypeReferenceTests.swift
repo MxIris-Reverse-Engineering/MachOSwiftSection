@@ -21,12 +21,8 @@ import SwiftSectionFixtureSupport
 /// `typeKind` byte to materialize a `TypeReference.directTypeDescriptor(...)`
 /// via `forKind(.directTypeDescriptor, at: …)`.
 @Suite
-final class TypeReferenceTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeReference"
-    static var registeredTestMethodNames: Set<String> {
-        TypeReferenceBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeReferenceTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Find the `TypeMetadataRecord` for `Structs.StructTest` and project
     /// its (record-field-offset, relative-offset, kind) tuple — the
     /// inputs to `TypeReference.forKind(_:at:)`. Two specializations

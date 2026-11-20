@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// exists to make, so both are asserted here. The two remaining cases have no
 /// fixture carrier and are constructed directly.
 @Suite
-final class KeyPathStoredFieldOffsetTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "KeyPathStoredFieldOffset"
-    static var registeredTestMethodNames: Set<String> {
-        KeyPathStoredFieldOffsetBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class KeyPathStoredFieldOffsetTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Shape {
         let label: String
         let file: KeyPathStoredFieldOffset

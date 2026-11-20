@@ -25,12 +25,8 @@ import SwiftSectionFixtureSupport
 ///   - The first resilient-witness conformance — surfaces
 ///     `resilientWitnessesHeader` and `resilientWitnesses`.
 @Suite
-final class ProtocolConformanceTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolConformance"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolConformanceBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolConformanceTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestProtocolTest() throws -> (file: ProtocolConformance, image: ProtocolConformance) {
         let file = try BaselineFixturePicker.protocolConformance_StructTestProtocolTest(in: machOFile)
         let image = try BaselineFixturePicker.protocolConformance_StructTestProtocolTest(in: machOImage)

@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// (Phase B7) and asserts cross-reader equality on `offset` and
 /// `layout.numValues`.
 @Suite
-final class GenericValueHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericValueHeader"
-    static var registeredTestMethodNames: Set<String> {
-        GenericValueHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericValueHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the `GenericValueHeader` from `FixedSizeArray`'s
     /// generic context against both readers.
     private func loadValueHeaders() throws -> (file: GenericValueHeader, image: GenericValueHeader) {

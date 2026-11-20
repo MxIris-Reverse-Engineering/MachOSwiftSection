@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// descriptor and assert the `rawValue` and the derived `hasMangledName`
 /// match the baseline; we also verify the `init(rawValue:)` round-trip.
 @Suite
-final class AnonymousContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AnonymousContextDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        AnonymousContextDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AnonymousContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the `AnonymousContextDescriptorFlags` from the
     /// fixture's first anonymous descriptor against both readers.
     private func loadFirstFlags() throws -> (file: AnonymousContextDescriptorFlags, image: AnonymousContextDescriptorFlags) {

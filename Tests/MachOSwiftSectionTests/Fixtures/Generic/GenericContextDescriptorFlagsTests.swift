@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// `init(rawValue:)` round-trip against synthetic raw values from the
 /// baseline.
 @Suite
-final class GenericContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericContextDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        GenericContextDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let allFlags = GenericContextDescriptorFlags(
             rawValue: GenericContextDescriptorFlagsBaseline.all.rawValue

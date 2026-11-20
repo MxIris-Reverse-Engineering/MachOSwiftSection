@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// `Protocols.ProtocolWitnessTableTest` (5 method requirements, no
 /// requirement-in-signature).
 @Suite
-final class ProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "Protocol"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadProtocolTestProtocols() throws -> (file: MachOSwiftSection.`Protocol`, image: MachOSwiftSection.`Protocol`) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOImage)

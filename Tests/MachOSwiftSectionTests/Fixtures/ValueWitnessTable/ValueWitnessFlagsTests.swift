@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// static-constant smoke checks verify the raw-value constants haven't
 /// drifted.
 @Suite
-final class ValueWitnessFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ValueWitnessFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ValueWitnessFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ValueWitnessFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializer() async throws {
         for entry in ValueWitnessFlagsBaseline.cases {
             let flags = ValueWitnessFlags(rawValue: entry.rawValue)

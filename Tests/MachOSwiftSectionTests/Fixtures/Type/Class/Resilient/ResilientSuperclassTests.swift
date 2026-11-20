@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// child's class context descriptor carries the trailing record) and
 /// asserts cross-reader agreement on the discovered scalar offset.
 @Suite
-final class ResilientSuperclassTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ResilientSuperclass"
-    static var registeredTestMethodNames: Set<String> {
-        ResilientSuperclassBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ResilientSuperclassTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load the `ResilientSuperclass` record from
     /// `ResilientClassFixtures.ResilientChild` (whose parent
     /// `SymbolTestsHelper.ResilientBase` is cross-module — only that

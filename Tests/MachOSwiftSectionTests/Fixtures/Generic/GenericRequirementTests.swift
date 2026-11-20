@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// baseClass / sameType) and asserts cross-reader equality of the
 /// resolved content discriminant against the baseline.
 @Suite
-final class GenericRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericRequirement"
-    static var registeredTestMethodNames: Set<String> {
-        GenericRequirementBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericRequirementTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadFirstRequirement(

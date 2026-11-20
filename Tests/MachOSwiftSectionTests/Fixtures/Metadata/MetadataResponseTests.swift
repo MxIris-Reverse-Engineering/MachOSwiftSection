@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 /// **Reader asymmetry:** the response originates from MachOImage's accessor
 /// invocation; `MachOFile` cannot invoke runtime functions.
 @Suite
-final class MetadataResponseTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataResponse"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataResponseBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataResponseTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestResponse() throws -> MetadataResponse {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))

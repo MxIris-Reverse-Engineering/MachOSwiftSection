@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 /// `GenericContext?`, etc.) aren't trivially Equatable, so we assert on
 /// presence flags recorded in the baseline.
 @Suite
-final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextDescriptorProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        ContextDescriptorProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func parent() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)

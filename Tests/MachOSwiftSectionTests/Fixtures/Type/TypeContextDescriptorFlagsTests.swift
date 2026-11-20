@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///   - `Classes.ClassTest` for the class-specific accessors (so
 ///     `classHasVTable` and friends have a real-world value to assert).
 @Suite
-final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeContextDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        TypeContextDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestFlags() throws -> (file: TypeContextDescriptorFlags, image: TypeContextDescriptorFlags) {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)

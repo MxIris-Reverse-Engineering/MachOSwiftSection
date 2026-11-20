@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// cannot be sourced. The Suite documents the missing runtime coverage
 /// and registers the public surface for the Coverage Invariant test.
 @Suite
-final class MethodDefaultOverrideDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MethodDefaultOverrideDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        MethodDefaultOverrideDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MethodDefaultOverrideDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Sentinel test ensuring the Suite is loaded by swift-testing. The
     /// real coverage will land when a fixture surfaces a default-override
     /// table.

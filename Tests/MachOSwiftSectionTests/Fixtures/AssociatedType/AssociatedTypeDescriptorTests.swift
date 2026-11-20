@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 /// to `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol` (5 concrete
 /// witnesses).
 @Suite
-final class AssociatedTypeDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AssociatedTypeDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        AssociatedTypeDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AssociatedTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadDescriptors() throws -> (file: AssociatedTypeDescriptor, image: AssociatedTypeDescriptor) {

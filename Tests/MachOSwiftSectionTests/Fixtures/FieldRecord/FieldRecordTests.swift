@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 /// the first two to exercise both a concrete-type field and a
 /// generic-parameter field.
 @Suite
-final class FieldRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "FieldRecord"
-    static var registeredTestMethodNames: Set<String> {
-        FieldRecordBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class FieldRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadRecords() throws -> (file: [FieldRecord], image: [FieldRecord]) {

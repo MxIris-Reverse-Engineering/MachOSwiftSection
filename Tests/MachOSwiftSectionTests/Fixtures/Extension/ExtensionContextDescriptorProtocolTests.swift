@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// consistent results at runtime against the presence flag in the
 /// baseline.
 @Suite
-final class ExtensionContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExtensionContextDescriptorProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        ExtensionContextDescriptorProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExtensionContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func extendedContext() async throws {
         let fileSubject = try BaselineFixturePicker.extension_first(in: machOFile)
         let imageSubject = try BaselineFixturePicker.extension_first(in: machOImage)

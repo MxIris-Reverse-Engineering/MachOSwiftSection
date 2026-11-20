@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// (rather than `.sentinel`). The `InProcessContext` is unused; the
 /// assertions exercise the flag-set bit-packing accessors directly.
 @Suite
-final class MetadataRequestTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataRequest"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataRequestBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataRequestTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Default `init()` produces a zero-valued request (`.complete` state,
     /// non-blocking).
     @Test("init") func defaultInitializer() async throws {

@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// `__swift5_builtin` section (matches `BuiltinTypeDescriptorBaseline`'s
 /// carrier).
 @Suite
-final class BuiltinTypeTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "BuiltinType"
-    static var registeredTestMethodNames: Set<String> {
-        BuiltinTypeBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class BuiltinTypeTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadBuiltins() throws -> (file: BuiltinType, image: BuiltinType) {
         let fileDescriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOImage)

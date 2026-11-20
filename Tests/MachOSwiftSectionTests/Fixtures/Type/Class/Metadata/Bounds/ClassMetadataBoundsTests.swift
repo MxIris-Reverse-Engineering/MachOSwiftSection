@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// the static factories on `ClassMetadataBoundsProtocol`. We construct
 /// instances with known scalars and verify the layout fields round-trip.
 @Suite
-final class ClassMetadataBoundsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ClassMetadataBounds"
-    static var registeredTestMethodNames: Set<String> {
-        ClassMetadataBoundsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ClassMetadataBoundsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         // Construct a deterministic instance and verify the `offset` ivar
         // is set as supplied. (Default-init through the public layout

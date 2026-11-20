@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// accessor `false`, `hasTypeContextDescriptor: true`, etc. Broader kind
 /// coverage lives in the dedicated concrete-kind Suites in Tasks 7-11.
 @Suite
-final class ContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextDescriptorWrapper"
-    static var registeredTestMethodNames: Set<String> {
-        ContextDescriptorWrapperBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: build a `ContextDescriptorWrapper` of the
     /// `Structs.StructTest` descriptor against both readers.
     private func loadStructTestWrappers() throws -> (file: ContextDescriptorWrapper, image: ContextDescriptorWrapper) {

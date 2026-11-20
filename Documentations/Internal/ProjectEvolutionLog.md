@@ -3451,6 +3451,24 @@
   - RuntimeViewer 的 Tuist workspace 改动前没有这两个 constructor，它先在清单里对 15 个链到本库的 target 加了 `-force_load`。改后 App、插件、两个注入载荷、`runtime-viewer-cli` 与 10 个测试 bundle 里都有，见它 0053 的决策日志；它跟上本库与 MachOObjCSection 的 `next` 之后，那些 `-force_load` 可以去掉。
 - **对应版本**：未发布（0.26.0 之后）。
 
+## 145. 夹具套件开头由 `@FixtureSuite` 宏生成
+
+- **时间段**：2026-11-20，`feature/fixture-suite-macro`。在 JHs-Mac-Studio 上写，在 JHs-MacBook-Pro 上构建与测试（Ultra 当时负载过高，按规则分流）。
+- **动机**：`MachOSwiftSectionTests` 里 170 个夹具套件开头都手抄同样的 5 行（遵循 `FixtureSuite`、`testedTypeName`、`registeredTestMethodNames`）。被测类型名抄错一个字母，覆盖率守护就静默地对不上源码里的类型。
+- **关键决策**：
+  - 宏实现放进只给测试用的新宏 target `SwiftSectionTestingMacros`，声明放在 `SwiftSectionTestingSupport`；生产代码用的 `SwiftSectionMacros` 插件不带测试用的宏。
+  - 宏与协议同名，照 Observation 的 `Observable` 先例。被测类型名与 baseline 默认从类名推出；5 个例外用参数写明，参数只收字面量，给变量就报错，不静默退回默认值。
+  - `SuiteBehaviorScanner` 按源码读被测类型名，改为同时认宏的参数与类名词干；没有宏的类照旧读静态成员。
+  - `CoroFunctionPointerTests` 自己编夹具、没有 baseline，保持手写。
+  - 与 `draft-swift6-mode-and-upcoming-features` 同批落地：本分支先快进合入 `next`，Swift 6 那一支合在它之上。
+- **落地模块**：`Package.swift`（宏 target 与它的测试 target）、`Sources/TestSupport/SwiftSectionTestingMacros/`、`SwiftSectionTestingSupport` 的宏声明、`SwiftSectionFixtureSupport` 的 `SuiteBehaviorScanner`、`Tests/MachOSwiftSectionTests/Fixtures/**` 下的 170 个套件、`Tests/SwiftSectionTestingMacrosTests/`、扫描器的样例与测试。
+- **文档**：提案 [0100-fixture-suite-macro](../Evolutions/0100-fixture-suite-macro.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)「套件头由 `@FixtureSuite` 生成」一节；`AGENTS.md` 添加夹具测试的一条。没有新术语。
+- **验证**：JHs-MacBook-Pro。
+  - 宏的 6 个展开测试与扫描器的 9 个测试通过。
+  - `swift test --skip IntegrationTests` 里覆盖率不变式通过；另有 150 组失败，在同一台机器、同一份夹具上切到 `next` 跑同一批逐条相同，是那台机器的环境（夹具按 CI 的 ad-hoc 签名重编、与 baseline 的产物不一致，没装 iOS 26.5 模拟器运行时），不是本次引入的。
+  - 合并后的构建与全量测试在与 Swift 6 那一支合并后的结果上统一跑。
+- **对应版本**：未发布（0.26.0 之后）；只影响测试，不进发版产物。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

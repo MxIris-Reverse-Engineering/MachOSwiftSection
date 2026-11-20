@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// non-generic closure's context, a closure in a one-parameter generic
 /// function, and one in a two-parameter generic function.
 @Suite
-final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "CaptureDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        CaptureDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Carrier {
         let label: String
         let file: CaptureDescriptor

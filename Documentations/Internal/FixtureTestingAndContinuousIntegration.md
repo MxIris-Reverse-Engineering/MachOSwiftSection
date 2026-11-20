@@ -117,6 +117,18 @@ fixture.framework (SymbolTestsCore)
   `MethodKey`，在单个 `@Test` 内一并验证；覆盖守护按 `(typeName, memberName)` 比对不区分重载。
 - baseline 头部记录 toolchain 版本 + 生成日期；`--suite <Name>` 支持局部重生成以缩小 review 面。
 
+### 套件头由 `@FixtureSuite` 生成（2026-11-20）
+
+夹具套件开头原本要手抄三样东西：遵循 `FixtureSuite`、`static let testedTypeName = "X"`、返回
+`XBaseline.registeredTestMethodNames` 的 `registeredTestMethodNames`。171 个套件里 170 个照这个形状写，
+被测类型名抄错一个字母，覆盖率守护就静默地对不上源码里的类型。现在由 attached 宏 `@FixtureSuite`
+（声明在 `SwiftSectionTestingSupport`，实现在只给测试用的宏 target `SwiftSectionTestingMacros`）生成：
+被测类型名默认取类名去掉 `Tests`，baseline 默认取同一个词干加 `Baseline`，不同时用字面量写明
+（`OpaqueTypeFixtureTests`、`EnumFunctionsTests`、`TupleTypeMetadataElementTests`、`GenericContextTests`、
+`GenericRequirementContentTests` 五处）。`SuiteBehaviorScanner` 按源码读被测类型名，所以同时认宏的参数与
+类名词干。`CoroFunctionPointerTests` 自己编夹具、没有 baseline，注册名单是字面量，保持手写。
+提案：[0100-fixture-suite-macro](../Evolutions/0100-fixture-suite-macro.md)。
+
 ### 信任危机与 sentinel 收紧（2026-05-05）
 
 原始落地被 review 发现**系统性失真**：157 个 suite 里 88 个（56%）从不调用

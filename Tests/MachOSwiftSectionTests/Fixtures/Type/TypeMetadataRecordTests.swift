@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// We materialize a representative record by walking the section and
 /// finding the entry that resolves to `Structs.StructTest`.
 @Suite
-final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeMetadataRecord"
-    static var registeredTestMethodNames: Set<String> {
-        TypeMetadataRecordBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Walks `__swift5_types`/`__swift5_types2` and returns the
     /// `TypeMetadataRecord` whose resolved descriptor lives at
     /// `targetOffset`. Two specializations follow because the `section(for:)`

@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// `StructDescriptor`. The MangledName payload is a deep ABI tree we don't
 /// embed as a literal; we assert its presence and the stable `name` string.
 @Suite
-final class NamedContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "NamedContextDescriptorProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        NamedContextDescriptorProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class NamedContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func name() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)

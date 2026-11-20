@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// records no member names because neither the `Flag` cases nor the
 /// statics `@FlagSet` generates are scanner-visible as method-keyed members.
 @Suite
-final class ClassFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ClassFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ClassFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ClassFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func rawValuesMatchBaseline() async throws {
         #expect(ClassFlags.isSwiftPreStableABI.rawValue == ClassFlagsBaseline.isSwiftPreStableABI)
         #expect(ClassFlags.usesSwiftRefcounting.rawValue == ClassFlagsBaseline.usesSwiftRefcounting)

@@ -10,12 +10,8 @@ import SwiftSectionFixtureSupport
 /// The Suite picks the override-table header from `Classes.SubclassTest`
 /// and asserts cross-reader equality on `offset` and `numEntries`.
 @Suite
-final class OverrideTableHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "OverrideTableHeader"
-    static var registeredTestMethodNames: Set<String> {
-        OverrideTableHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class OverrideTableHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadSubclassOverrideHeaders() throws -> (file: OverrideTableHeader, image: OverrideTableHeader) {
         let fileDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_SubclassTest(in: machOImage)

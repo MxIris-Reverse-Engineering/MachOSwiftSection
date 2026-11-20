@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 /// `init(descriptor:in:)` is exercised by dedicated tests over the file
 /// and image contexts and over the in-process context.
 @Suite
-final class EnumTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "Enum"
-    static var registeredTestMethodNames: Set<String> {
-        EnumBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class EnumTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: instantiate the `Enum` wrapper for `Enums.NoPayloadEnumTest`
     /// against both readers through their reading contexts.
     private func loadNoPayloadEnums() throws -> (file: Enum, image: Enum) {

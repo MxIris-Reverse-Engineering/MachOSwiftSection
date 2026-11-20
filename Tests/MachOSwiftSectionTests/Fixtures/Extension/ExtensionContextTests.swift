@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// `__swift5_types`/`__swift5_types2` records. The optional `genericContext`
 /// and `extendedContextMangledName` ivars use the presence-flag pattern.
 @Suite
-final class ExtensionContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExtensionContext"
-    static var registeredTestMethodNames: Set<String> {
-        ExtensionContextBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExtensionContextTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: instantiate the `ExtensionContext` wrapper for the
     /// fixture's first extension descriptor against both readers.
     private func loadFirstExtensionContexts() throws -> (file: ExtensionContext, image: ExtensionContext) {

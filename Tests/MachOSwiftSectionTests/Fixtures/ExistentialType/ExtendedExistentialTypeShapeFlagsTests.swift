@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// at the language-runtime level. Tests guard the in-process metadata
 /// access with `if #available` rather than annotating the suite class.
 @Suite
-final class ExtendedExistentialTypeShapeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExtendedExistentialTypeShapeFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ExtendedExistentialTypeShapeFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExtendedExistentialTypeShapeFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializer() async throws {
         guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else { return }
         let result = try usingInProcessOnly { context in

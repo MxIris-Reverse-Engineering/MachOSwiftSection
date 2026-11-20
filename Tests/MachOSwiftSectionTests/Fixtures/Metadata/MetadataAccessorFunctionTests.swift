@@ -20,12 +20,8 @@ import SwiftSectionFixtureSupport
 /// `init(ptr:)` is `package`-scoped and not visited by `PublicMemberScanner`;
 /// the six `callAsFunction` overloads collapse to a single `MethodKey`.
 @Suite
-final class MetadataAccessorFunctionTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataAccessorFunction"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataAccessorFunctionBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataAccessorFunctionTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// `callAsFunction(request:)` invokes the accessor with no metadata or
     /// witness-table arguments and returns a complete metadata response.
     @Test func callAsFunction() async throws {

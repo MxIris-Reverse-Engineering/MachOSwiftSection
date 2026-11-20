@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// on `offset` and the four scalar fields exposed via the
 /// `GenericContextDescriptorHeaderLayout` protocol.
 @Suite
-final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeGenericContextDescriptorHeader"
-    static var registeredTestMethodNames: Set<String> {
-        TypeGenericContextDescriptorHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the `TypeGenericContextDescriptorHeader` from
     /// `GenericStructLayoutRequirement` against both readers.
     private func loadGenericStructLayoutRequirementHeaders() throws -> (file: TypeGenericContextDescriptorHeader, image: TypeGenericContextDescriptorHeader) {

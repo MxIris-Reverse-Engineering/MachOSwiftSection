@@ -26,12 +26,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class DispatchClassMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "DispatchClassMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        DispatchClassMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class DispatchClassMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Mangled symbol of the metadata accessor for
     /// `SymbolTestsCore.Classes.ClassTest`. Used by `fixtureMetadata(symbol:)`
     /// to obtain the runtime-allocated class metadata pointer.

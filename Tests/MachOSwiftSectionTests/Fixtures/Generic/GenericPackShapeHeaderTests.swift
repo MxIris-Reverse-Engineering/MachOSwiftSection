@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// `ParameterPackRequirementTest<each Element>` generic struct's
 /// `typeGenericContext.typePackHeader`.
 @Suite
-final class GenericPackShapeHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericPackShapeHeader"
-    static var registeredTestMethodNames: Set<String> {
-        GenericPackShapeHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericPackShapeHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadHeaders() throws -> (file: GenericPackShapeHeader, image: GenericPackShapeHeader) {
         let fileDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_ParameterPackRequirementTest(in: machOImage)

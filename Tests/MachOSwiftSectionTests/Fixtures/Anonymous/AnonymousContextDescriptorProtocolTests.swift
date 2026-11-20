@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// The MangledName payload is a deep ABI tree we don't embed as a literal;
 /// instead we verify cross-reader-consistent results at runtime.
 @Suite
-final class AnonymousContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AnonymousContextDescriptorProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        AnonymousContextDescriptorProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AnonymousContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func hasMangledName() async throws {
         let fileDescriptor = try BaselineFixturePicker.anonymous_first(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.anonymous_first(in: machOImage)

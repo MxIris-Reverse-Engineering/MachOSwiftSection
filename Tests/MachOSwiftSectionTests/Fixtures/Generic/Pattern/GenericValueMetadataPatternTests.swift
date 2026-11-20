@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// context header — so the picker itself exercises
 /// `TypeGenericContextDescriptorHeader.defaultInstantiationPatternOffset`.
 @Suite
-final class GenericValueMetadataPatternTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericValueMetadataPattern"
-    static var registeredTestMethodNames: Set<String> {
-        GenericValueMetadataPatternBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericValueMetadataPatternTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadPatterns() throws -> (file: GenericValueMetadataPattern, image: GenericValueMetadataPattern) {
         (
             file: try BaselineFixturePicker.genericValueMetadataPattern_structNonRequirement(in: machOFile),

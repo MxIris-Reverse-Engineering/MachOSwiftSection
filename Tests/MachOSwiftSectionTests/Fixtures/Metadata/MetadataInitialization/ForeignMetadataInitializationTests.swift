@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class ForeignMetadataInitializationTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ForeignMetadataInitialization"
-    static var registeredTestMethodNames: Set<String> {
-        ForeignMetadataInitializationBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ForeignMetadataInitializationTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let initialization = ForeignMetadataInitialization(
             layout: .init(completionFunction: .init(relativeOffset: 0)),

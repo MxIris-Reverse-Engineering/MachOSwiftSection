@@ -20,12 +20,8 @@ import SwiftSectionFixtureSupport
 /// metadata accessor (`StructTest.metadataAccessorFunction`); `MachOFile`
 /// cannot invoke runtime functions.
 @Suite
-final class MetadataWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataWrapper"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataWrapperBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataWrapperTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialise an image-relative wrapper for the imageContext code
     /// paths.
     private func loadStructTestImageWrapper() throws -> MetadataWrapper {

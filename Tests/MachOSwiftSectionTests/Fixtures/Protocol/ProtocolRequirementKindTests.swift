@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// themselves are out of scope for `PublicMemberScanner`. We assert the
 /// description string for every case to exercise the switch coverage.
 @Suite
-final class ProtocolRequirementKindTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolRequirementKind"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolRequirementKindBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolRequirementKindTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func description() async throws {
         #expect(ProtocolRequirementKind.baseProtocol.description == ProtocolRequirementKindBaseline.baseProtocolDescription)
         #expect(ProtocolRequirementKind.method.description == ProtocolRequirementKindBaseline.methodDescription)

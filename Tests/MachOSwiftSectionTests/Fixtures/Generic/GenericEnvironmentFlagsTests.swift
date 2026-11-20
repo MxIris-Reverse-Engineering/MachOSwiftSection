@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// synthetic raw values from the baseline (no live carrier exists in
 /// SymbolTestsCore — see the Generator's note).
 @Suite
-final class GenericEnvironmentFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericEnvironmentFlags"
-    static var registeredTestMethodNames: Set<String> {
-        GenericEnvironmentFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericEnvironmentFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let max = GenericEnvironmentFlags(rawValue: GenericEnvironmentFlagsBaseline.maxAll.rawValue)
         #expect(max.rawValue == GenericEnvironmentFlagsBaseline.maxAll.rawValue)

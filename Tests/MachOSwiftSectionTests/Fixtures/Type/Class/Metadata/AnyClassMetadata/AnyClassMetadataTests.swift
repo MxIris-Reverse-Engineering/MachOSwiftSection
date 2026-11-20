@@ -24,12 +24,8 @@ import SwiftSectionFixtureSupport
 /// down via the protocol's `asFinalClassMetadata(in:)` helper, then
 /// performing structural checks on the slim header.
 @Suite
-final class AnyClassMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AnyClassMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        AnyClassMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AnyClassMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load the `ClassMetadataObjCInterop` for `ClassTest` and
     /// re-resolve at the same offset as an `AnyClassMetadata` slim view.
     /// The two layouts overlap in their leading fields (kind +

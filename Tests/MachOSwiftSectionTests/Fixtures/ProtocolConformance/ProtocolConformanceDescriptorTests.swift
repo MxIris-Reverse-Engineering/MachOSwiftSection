@@ -22,12 +22,8 @@ import SwiftSectionFixtureSupport
 /// — non-retroactive, no global-actor isolation, simplest path with a
 /// resolvable witness table and a `directTypeDescriptor` type reference.
 @Suite
-final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolConformanceDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolConformanceDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestProtocolTestDescriptors() throws -> (file: ProtocolConformanceDescriptor, image: ProtocolConformanceDescriptor) {
         let fileConformance = try BaselineFixturePicker.protocolConformance_StructTestProtocolTest(in: machOFile)
         let imageConformance = try BaselineFixturePicker.protocolConformance_StructTestProtocolTest(in: machOImage)

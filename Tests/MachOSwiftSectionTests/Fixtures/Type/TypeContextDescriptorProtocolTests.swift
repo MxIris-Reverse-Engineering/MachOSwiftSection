@@ -20,12 +20,8 @@ import SwiftSectionFixtureSupport
 ///
 /// Picker: `Structs.StructTest`'s descriptor.
 @Suite
-final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeContextDescriptorProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        TypeContextDescriptorProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestDescriptors() throws -> (file: StructDescriptor, image: StructDescriptor) {
         let file = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let image = try BaselineFixturePicker.struct_StructTest(in: machOImage)

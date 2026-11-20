@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// asserts cross-reader equality on `offset` and the four scalar layout
 /// fields (`numParams`, `numRequirements`, `numKeyArguments`, `flags`).
 @Suite
-final class GenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericContextDescriptorHeader"
-    static var registeredTestMethodNames: Set<String> {
-        GenericContextDescriptorHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the `GenericContextDescriptorHeader` from the first
     /// generic extension context against both readers, mirroring the
     /// generator's pick logic.

@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// relative-pointer arithmetic off the body's own location, so both readers
 /// must agree, and the values are pinned as literals.
 @Suite
-final class KeyPathComputedPropertyBodyTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "KeyPathComputedPropertyBody"
-    static var registeredTestMethodNames: Set<String> {
-        KeyPathComputedPropertyBodyBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class KeyPathComputedPropertyBodyTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private var expected: KeyPathComputedPropertyBodyBaseline.Entry {
         KeyPathComputedPropertyBodyBaseline.codableClassIdentifier
     }

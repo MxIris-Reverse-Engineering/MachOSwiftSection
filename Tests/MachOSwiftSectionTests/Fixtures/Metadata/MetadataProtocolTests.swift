@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 /// accessor; `MachOFile` cannot invoke metadata accessors. Members are
 /// exercised via the carrier's imageContext / in-process paths.
 @Suite
-final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialise a `StructMetadata`-conforming carrier for
     /// `Structs.StructTest` from a MachOImage metadata accessor.
     private func loadStructTestStructMetadata() throws -> StructMetadata {

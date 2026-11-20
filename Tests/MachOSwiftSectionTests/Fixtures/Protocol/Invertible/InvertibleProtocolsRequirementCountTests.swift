@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// exercises the round-trip via the synthetic raw values embedded in
 /// the baseline.
 @Suite
-final class InvertibleProtocolsRequirementCountTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "InvertibleProtocolsRequirementCount"
-    static var registeredTestMethodNames: Set<String> {
-        InvertibleProtocolsRequirementCountBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class InvertibleProtocolsRequirementCountTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let zero = InvertibleProtocolsRequirementCount(rawValue: InvertibleProtocolsRequirementCountBaseline.zero.rawValue)
         #expect(zero.rawValue == InvertibleProtocolsRequirementCountBaseline.zero.rawValue)

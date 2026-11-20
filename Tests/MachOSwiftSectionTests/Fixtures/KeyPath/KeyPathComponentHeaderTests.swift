@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// path pattern, and the header models the pattern encoding too (evolution
 /// proposal 0025).
 @Suite
-final class KeyPathComponentHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "KeyPathComponentHeader"
-    static var registeredTestMethodNames: Set<String> {
-        KeyPathComponentHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class KeyPathComponentHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Shape {
         let label: String
         let file: KeyPathComponentHeader

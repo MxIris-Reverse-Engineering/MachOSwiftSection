@@ -14,12 +14,8 @@ import BinaryParseSupport
 /// environment pointer is null, and the one generic target, whose is not, so
 /// the nullable pointer is exercised in both states.
 @Suite
-final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AccessibleFunctionRecord"
-    static var registeredTestMethodNames: Set<String> {
-        AccessibleFunctionRecordBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Carrier {
         let label: String
         let file: AccessibleFunctionRecord

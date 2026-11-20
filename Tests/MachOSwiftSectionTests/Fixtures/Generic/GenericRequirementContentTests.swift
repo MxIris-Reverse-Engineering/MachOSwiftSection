@@ -21,12 +21,8 @@ import SwiftSectionFixtureSupport
 /// `InvertibleProtocolRequirementTest<Element: ~Copyable>: ~Copyable`
 /// generic struct, which surfaces a `.invertedProtocols` requirement.
 @Suite
-final class GenericRequirementContentTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "InvertedProtocols"
-    static var registeredTestMethodNames: Set<String> {
-        GenericRequirementContentBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite(testedTypeName: "InvertedProtocols")
+final class GenericRequirementContentTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadInvertedProtocols() throws -> (file: GenericRequirementContent.InvertedProtocols, image: GenericRequirementContent.InvertedProtocols) {
         let fileDescriptor = try BaselineFixturePicker.struct_InvertibleProtocolRequirementTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_InvertibleProtocolRequirementTest(in: machOImage)

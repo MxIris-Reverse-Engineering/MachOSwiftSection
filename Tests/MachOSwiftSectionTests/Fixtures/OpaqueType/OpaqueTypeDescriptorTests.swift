@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class OpaqueTypeDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "OpaqueTypeDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        OpaqueTypeDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class OpaqueTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func syntheticDescriptor() -> OpaqueTypeDescriptor {
         OpaqueTypeDescriptor(
             layout: .init(

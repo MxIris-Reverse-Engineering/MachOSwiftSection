@@ -20,12 +20,8 @@ import SwiftSectionFixtureSupport
 ///   - `structTest` — zero records (StructTest declares only a computed
 ///     property, no stored fields)
 @Suite
-final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "FieldDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        FieldDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadGenericStructFieldDescriptors() throws -> (file: FieldDescriptor, image: FieldDescriptor) {

@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class OpaqueMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "OpaqueMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        OpaqueMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class OpaqueMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let metadata = OpaqueMetadata(
             layout: .init(kind: 0x300),

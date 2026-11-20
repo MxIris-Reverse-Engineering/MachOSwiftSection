@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// for the `kind = .method` branch and synthetic raw values for the
 /// remaining branches.
 @Suite
-final class ProtocolRequirementFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolRequirementFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolRequirementFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolRequirementFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstRequirementFlags() throws -> (file: ProtocolRequirementFlags, image: ProtocolRequirementFlags) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOImage)

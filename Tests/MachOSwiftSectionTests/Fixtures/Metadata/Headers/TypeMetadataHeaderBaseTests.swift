@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class TypeMetadataHeaderBaseTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeMetadataHeaderBase"
-    static var registeredTestMethodNames: Set<String> {
-        TypeMetadataHeaderBaseBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeMetadataHeaderBaseTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let base = TypeMetadataHeaderBase(
             layout: .init(valueWitnesses: .init(address: 0)),

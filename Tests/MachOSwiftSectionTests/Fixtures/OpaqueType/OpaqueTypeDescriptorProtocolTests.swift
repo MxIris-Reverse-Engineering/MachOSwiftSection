@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// `OpaqueTypeDescriptor` instances whose `ContextDescriptorFlags`
 /// kind-specific bits encode known counts.
 @Suite
-final class OpaqueTypeDescriptorProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "OpaqueTypeDescriptorProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        OpaqueTypeDescriptorProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class OpaqueTypeDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func descriptor(withUnderlyingTypeArguments count: UInt16) -> OpaqueTypeDescriptor {
         // ContextDescriptorFlags kind in low 5 bits + kindSpecificFlagsRawValue
         // in upper 16 bits. We pack `count` into the upper 16 bits to

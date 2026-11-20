@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// `ValueMetadata` instances are only obtainable via a loaded MachOImage's
 /// metadata accessor, so the cross-reader assertions here are asymmetric.
 @Suite
-final class ValueMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ValueMetadataProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        ValueMetadataProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ValueMetadataProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialize a concrete `ValueMetadataProtocol`-conforming instance
     /// (a `StructMetadata` for `Structs.StructTest`).
     private func loadStructTestStructMetadata() throws -> StructMetadata {

@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// on `NamedContextDescriptorProtocol` and are exercised in Task 6 under
 /// `NamedContextDescriptorProtocolTests`.
 @Suite
-final class ProtocolDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadProtocolTestDescriptors() throws -> (file: ProtocolDescriptor, image: ProtocolDescriptor) {
         let file = try BaselineFixturePicker.protocol_ProtocolTest(in: machOFile)
         let image = try BaselineFixturePicker.protocol_ProtocolTest(in: machOImage)

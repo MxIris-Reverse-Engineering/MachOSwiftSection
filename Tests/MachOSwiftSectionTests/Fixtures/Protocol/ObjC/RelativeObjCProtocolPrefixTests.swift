@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// (`offset`, `layout`, `mangledName`) for the Coverage Invariant test
 /// and documents the missing runtime coverage.
 @Suite
-final class RelativeObjCProtocolPrefixTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "RelativeObjCProtocolPrefix"
-    static var registeredTestMethodNames: Set<String> {
-        RelativeObjCProtocolPrefixBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class RelativeObjCProtocolPrefixTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func registrationOnly() async throws {
         // No live instance available in SymbolTestsCore; the Suite registers
         // the public surface (offset, layout, mangledName) for the Coverage

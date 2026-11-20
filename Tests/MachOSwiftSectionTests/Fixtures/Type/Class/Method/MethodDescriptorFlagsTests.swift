@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// `instanceVariable` getter — kind `.getter`, isInstance `true`,
 /// other bits clear.
 @Suite
-final class MethodDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MethodDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        MethodDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MethodDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load the first vtable entry's flags from each reader.
     private func loadFirstFlags() throws -> (file: MethodDescriptorFlags, image: MethodDescriptorFlags) {
         let fileDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOFile)

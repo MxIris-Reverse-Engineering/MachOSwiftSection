@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// quadruple projected from a `ValueWitnessTable`. Pure value-type —
 /// the Suite re-evaluates each accessor against a synthetic instance.
 @Suite
-final class TypeLayoutTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeLayout"
-    static var registeredTestMethodNames: Set<String> {
-        TypeLayoutBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Construct a synthetic `TypeLayout` representing a non-POD,
     /// inline, bitwise-takable, copyable type with alignment 8 (mask 7),
     /// size 16, stride 16, no extra inhabitants.

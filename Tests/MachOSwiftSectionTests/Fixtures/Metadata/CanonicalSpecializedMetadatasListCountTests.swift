@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// `SymbolTestsCore` fixture declares no prespecializations, so the type is
 /// exercised via constant round-trip through `init(rawValue:)` / `rawValue`.
 @Suite
-final class CanonicalSpecializedMetadatasListCountTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "CanonicalSpecializedMetadatasListCount"
-    static var registeredTestMethodNames: Set<String> {
-        CanonicalSpecializedMetadatasListCountBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class CanonicalSpecializedMetadatasListCountTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// `init(rawValue:)` constructs the wrapper from a raw `UInt32`.
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let count = CanonicalSpecializedMetadatasListCount(

@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 ///
 /// **Reader asymmetry:** the metadata source originates from MachOImage.
 @Suite
-final class AnyClassMetadataObjCInteropTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AnyClassMetadataObjCInterop"
-    static var registeredTestMethodNames: Set<String> {
-        AnyClassMetadataObjCInteropBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AnyClassMetadataObjCInteropTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load `ClassMetadataObjCInterop` for ClassTest, then take
     /// its superclass to get an `AnyClassMetadataObjCInterop` slim view.
     private func loadAnyInteropSuperclass() throws -> AnyClassMetadataObjCInterop {

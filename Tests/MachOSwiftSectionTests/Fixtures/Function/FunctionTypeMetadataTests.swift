@@ -20,12 +20,8 @@ import SwiftSectionFixtureSupport
 /// assertions strong: a mis-computed offset by even one word lands on
 /// something else entirely.
 @Suite
-final class FunctionTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "FunctionTypeMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        FunctionTypeMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class FunctionTypeMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Carrier {
         let label: String
         let pointer: UnsafeRawPointer

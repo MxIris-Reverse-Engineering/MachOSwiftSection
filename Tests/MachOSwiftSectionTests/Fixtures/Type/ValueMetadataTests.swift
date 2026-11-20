@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class ValueMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ValueMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        ValueMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ValueMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialize a `ValueMetadata` by reading the kind-erased layout at
     /// the offset of the metadata for `Structs.StructTest`. The struct's
     /// metadata is a `StructMetadata` whose layout shares the

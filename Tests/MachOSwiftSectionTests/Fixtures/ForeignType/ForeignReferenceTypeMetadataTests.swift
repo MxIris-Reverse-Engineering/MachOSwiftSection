@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class ForeignReferenceTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ForeignReferenceTypeMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        ForeignReferenceTypeMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ForeignReferenceTypeMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func syntheticForeignReference() -> ForeignReferenceTypeMetadata {
         ForeignReferenceTypeMetadata(
             layout: .init(

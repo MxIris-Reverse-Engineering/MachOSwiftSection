@@ -26,12 +26,8 @@ import BinaryParseSupport
 /// successfully and is the canonical path the Swift runtime takes.
 /// Phase B2 settled on InProcess-only coverage for this Suite.
 @Suite
-final class StoredClassMetadataBoundsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "StoredClassMetadataBounds"
-    static var registeredTestMethodNames: Set<String> {
-        StoredClassMetadataBoundsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class StoredClassMetadataBoundsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Mangled symbol of the nominal type descriptor for
     /// `SymbolTestsCore.ResilientClassFixtures.ResilientChild`. Used by
     /// `fixtureSymbol(_:)` to obtain the descriptor pointer directly.

@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// field, not through a generic context — that route is what this Suite
 /// exercises end to end.
 @Suite
-final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ResilientClassMetadataPattern"
-    static var registeredTestMethodNames: Set<String> {
-        ResilientClassMetadataPatternBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadPatterns() throws -> (file: ResilientClassMetadataPattern, image: ResilientClassMetadataPattern) {
         (
             file: try BaselineFixturePicker.resilientClassMetadataPattern_resilientChild(in: machOFile),

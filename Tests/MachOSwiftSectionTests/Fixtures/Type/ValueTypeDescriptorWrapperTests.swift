@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// Picker: `Structs.StructTest`'s descriptor wrapped in `.struct(...)`.
 @Suite
-final class ValueTypeDescriptorWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ValueTypeDescriptorWrapper"
-    static var registeredTestMethodNames: Set<String> {
-        ValueTypeDescriptorWrapperBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ValueTypeDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestWrappers() throws -> (file: ValueTypeDescriptorWrapper, image: ValueTypeDescriptorWrapper) {
         let file = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let image = try BaselineFixturePicker.struct_StructTest(in: machOImage)

@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// `TypeContextDescriptorProtocol` and are exercised in Task 9 under
 /// `TypeContextDescriptorProtocolTests`.
 @Suite
-final class StructDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "StructDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        StructDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class StructDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// `StructDescriptor.offset` is the file/image position of the descriptor
     /// record. Cross-reader equality holds: both `MachOFile` and `MachOImage`
     /// resolve the same offset (in-process pointer arithmetic relative to the

@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// element-array isn't deep-compared because it carries reader-
 /// specific offset values).
 @Suite
-final class MangledNameTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MangledName"
-    static var registeredTestMethodNames: Set<String> {
-        MangledNameBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MangledNameTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadMangledNames() throws -> (file: MangledName, image: MangledName) {
         let fileDescriptor = try BaselineFixturePicker.multiPayloadEnumDescriptor_MultiPayloadEnumTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.multiPayloadEnumDescriptor_MultiPayloadEnumTest(in: machOImage)

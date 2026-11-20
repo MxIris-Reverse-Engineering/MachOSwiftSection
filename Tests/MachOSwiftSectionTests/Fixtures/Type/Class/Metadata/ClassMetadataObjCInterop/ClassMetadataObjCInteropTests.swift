@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 ///
 /// **Reader asymmetry:** the metadata source originates from MachOImage.
 @Suite
-final class ClassMetadataObjCInteropTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ClassMetadataObjCInterop"
-    static var registeredTestMethodNames: Set<String> {
-        ClassMetadataObjCInteropBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ClassMetadataObjCInteropTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadInteropMetadata() throws -> ClassMetadataObjCInterop {
         let descriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)
         let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))

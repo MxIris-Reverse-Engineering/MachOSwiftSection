@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 /// `init(descriptor:in:)` is exercised by dedicated tests over the file
 /// and image contexts and over the in-process context.
 @Suite
-final class ClassTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "Class"
-    static var registeredTestMethodNames: Set<String> {
-        ClassBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ClassTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: instantiate the `Class` wrapper for `Classes.ClassTest`
     /// against both readers through their reading contexts.
     private func loadClassTestClasses() throws -> (file: Class, image: Class) {

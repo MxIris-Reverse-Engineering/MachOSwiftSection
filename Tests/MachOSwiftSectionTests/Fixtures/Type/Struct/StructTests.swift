@@ -21,12 +21,8 @@ import SwiftSectionFixtureSupport
 /// `Struct`; we surface explicit `@Test func init...` entries for coverage
 /// purposes.
 @Suite
-final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "Struct"
-    static var registeredTestMethodNames: Set<String> {
-        StructBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class StructTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: instantiate the `Struct` wrapper for `Structs.StructTest` against
     /// both the file and image readers through their reading contexts.
     /// Used by every ivar test — the file/image-context and in-process

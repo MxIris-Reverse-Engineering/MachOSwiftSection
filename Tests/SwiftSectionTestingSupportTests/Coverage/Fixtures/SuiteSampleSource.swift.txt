@@ -72,3 +72,26 @@ final class HelperReaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
         #expect(value == 42)
     }
 }
+
+@Suite
+@FixtureSuite
+final class MacroDefaultTypeTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
+    @Test func macroDefaultMethod() async throws {
+        let result = try acrossAllReaders(
+            file: { 1 },
+            image: { 1 }
+        )
+        #expect(result == 1)
+    }
+}
+
+@Suite
+@FixtureSuite(testedTypeName: "MacroNamedType")
+final class MacroNamedTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
+    @Test func macroNamedMethod() async throws {
+        let result = try usingInProcessOnly { context in
+            42
+        }
+        #expect(result == 42)
+    }
+}

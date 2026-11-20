@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - @FixtureSuite 宏：夹具测试套件开头的固定写法由宏生成</title>
+<title>0100 - @FixtureSuite 宏：夹具测试套件开头的固定写法由宏生成</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -159,13 +159,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 </svg>
 <div class="page">
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> <code>@FixtureSuite</code> 宏：夹具测试套件开头的固定写法由宏生成</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0100</span></p>
+  <h1><span class="proposal-number">0100</span> <code>@FixtureSuite</code> 宏：夹具测试套件开头的固定写法由宏生成</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-20</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
-    <div><dt>原文</dt><dd><code>draft-fixture-suite-macro.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0100-fixture-suite-macro.md</code></dd></div>
   </dl>
 </header>
 <nav class="toc" aria-label="目录"><ol>
@@ -174,12 +174,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <main class="content">
 <section id="summary">
   <h2>摘要</h2>
-<p>新增 attached 宏 <code>@FixtureSuite</code>，挂在夹具测试套件类上，生成 <code>static let testedTypeName</code>、<code>static var registeredTestMethodNames</code>，并补上对 <code>FixtureSuite</code> 协议的遵循。被测类型名默认取类名去掉 <code>Tests</code> 后缀，baseline 默认取「类名去掉 <code>Tests</code> 加 <code>Baseline</code>」；少数例外用参数写明。<code>SuiteBehaviorScanner</code> 改为也认宏的写法。<code>MachOSwiftSectionTests</code> 里的夹具套件全部改用宏，每处省 3 行。宏的实现放在新的宏 target <code>SwiftSectionTestingMacros</code>，声明放在 <code>SwiftSectionTestingSupport</code>，只有测试链接它。</p>
+<p>新增 attached 宏 <code>@FixtureSuite</code>，挂在夹具测试套件类上，生成 <code>static let testedTypeName</code>、<code>static var registeredTestMethodNames</code>，并补上对 <code>FixtureSuite</code> 协议的遵循。被测类型名默认取类名去掉 <code>Tests</code> 后缀，baseline 默认取「类名去掉 <code>Tests</code> 加 <code>Baseline</code>」；少数例外用参数写明。<code>SuiteBehaviorScanner</code> 改为也认宏的写法。<code>MachOSwiftSectionTests</code> 里按固定写法写的 170 个夹具套件改用宏，每处省 3 行（<code>CoroFunctionPointerTests</code> 没有 baseline，保持手写）。宏的实现放在新的宏 target <code>SwiftSectionTestingMacros</code>，声明放在 <code>SwiftSectionTestingSupport</code>，只有测试链接它。</p>
+
 </section>
 
 <section id="decide">
   <h2>要你定</h2>
-<div class="callout callout-note"><p class="callout-title">已批准，实现中。</p></div>
+<div class="callout callout-note"><p class="callout-title">已实现，与 Swift 6 迁移同批合入 <code>next</code>，没有要定的事。</p></div>
 </section>
 
 <section id="architecture">
@@ -192,12 +193,12 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <rect class="box-kept" x="25" y="45" width="300" height="44" rx="6"/><text x="35" y="63">SwiftSectionMacros (macro)</text><text class="caption" x="35" y="80">@Layout ... production, unchanged</text>
     <rect class="box-added" x="25" y="110" width="300" height="44" rx="6"/><text x="35" y="128">SwiftSectionTestingMacros (macro)</text><text class="caption" x="35" y="145">FixtureSuiteMacro: member + extension</text>
     <rect class="box-added" x="25" y="175" width="300" height="44" rx="6"/><text x="35" y="193">SwiftSectionTestingMacrosTests</text><text class="caption" x="35" y="210">expansion tests</text>
-    <rect class="box-changed" x="370" y="110" width="300" height="44" rx="6"/><text x="380" y="128">SwiftSectionTestingSupport</text><text class="caption" x="380" y="145">+ macro FixtureSuite(testedTypeName:baseline:)</text>
-    <rect class="box-changed" x="370" y="45" width="300" height="44" rx="6"/><text x="380" y="63">SwiftSectionFixtureSupport</text><text class="caption" x="380" y="80">~ SuiteBehaviorScanner reads @FixtureSuite</text>
-    <rect class="box-changed" x="715" y="110" width="260" height="44" rx="6"/><text x="725" y="128">MachOSwiftSectionTests</text><text class="caption" x="725" y="145">176 suites: @FixtureSuite</text>
+    <rect class="box-changed" x="370" y="110" width="320" height="44" rx="6"/><text x="380" y="128">SwiftSectionTestingSupport</text><text class="caption" x="380" y="145">+ macro FixtureSuite(testedTypeName:baseline:)</text>
+    <rect class="box-changed" x="370" y="45" width="320" height="44" rx="6"/><text x="380" y="63">SwiftSectionFixtureSupport</text><text class="caption" x="380" y="80">~ SuiteBehaviorScanner reads @FixtureSuite</text>
+    <rect class="box-changed" x="715" y="110" width="260" height="44" rx="6"/><text x="725" y="128">MachOSwiftSectionTests</text><text class="caption" x="725" y="145">170 suites: @FixtureSuite</text>
     <path class="arrow" d="M 370 132 L 327 132"/>
-    <path class="arrow" d="M 520 110 L 520 91"/>
-    <path class="arrow" d="M 715 132 L 672 132"/>
+    <path class="arrow" d="M 530 110 L 530 91"/>
+    <path class="arrow" d="M 715 132 L 692 132"/>
     <path class="arrow" d="M 175 175 L 175 156"/>
   </svg>
   </div>
@@ -215,14 +216,16 @@ extension StructDescriptorTests: SwiftSectionFixtureSupport.FixtureSuite {}</cod
 </section>
 <section id="map">
   <h2>改动地图</h2>
-<div class="table-wrap"><table><thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead><tbody><tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新增宏 target <code>SwiftSectionTestingMacros</code>（SwiftSyntax、SwiftSyntaxMacros、SwiftCompilerPlugin、SwiftSyntaxBuilder）与测试 target <code>SwiftSectionTestingMacrosTests</code>（加 <code>SwiftSyntaxMacrosGenericTestSupport</code>）；<code>SwiftSectionTestingSupport</code> 依赖新宏 target；Tuist 适配块留在文件末尾</td><td>宏的实现与测试</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionTestingMacros/FixtureSuiteMacro.swift</code>、<code>TestingMacroPlugin.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>FixtureSuiteMacro</code>（<code>MemberMacro</code>、<code>ExtensionMacro</code>）：推出类名词干、读两个字面量参数、生成成员与遵循、诊断与 Fix-It</td><td>宏实现</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionTestingSupport/FixtureSuiteMacro.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>package macro FixtureSuite(testedTypeName:baseline:)</code> 声明</td><td>宏声明</td><td class="numeric">1</td></tr><tr><td><code>Tests/SwiftSectionTestingMacrosTests/FixtureSuiteMacroTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>展开测试：默认、只给 <code>testedTypeName</code>、两个都给、类名不以 <code>Tests</code> 结尾、参数不是字面量</td><td>宏的行为</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionFixtureSupport/Coverage/SuiteBehaviorScanner.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>认 <code>@FixtureSuite</code>：取参数或类名词干</td><td>扫描器按源码读被测类型名</td><td class="numeric">2</td></tr><tr><td><code>Tests/SwiftSectionTestingSupportTests/Coverage/SuiteBehaviorScannerTests.swift</code>、<code>Fixtures/SuiteSampleSource.swift.txt</code></td><td><span class="tag tag-changed">修改</span></td><td>加宏写法的样例与测试</td><td>扫描器的行为</td><td class="numeric">2</td></tr><tr><td><code>Tests/MachOSwiftSectionTests/Fixtures/**/*Tests.swift</code>（176 个夹具套件）</td><td><span class="tag tag-changed">修改</span></td><td>改用 <code>@FixtureSuite</code></td><td>去掉样板</td><td class="numeric">3</td></tr><tr><td><code>AGENTS.md</code>、<code>Documentations/Internal/FixtureTestingAndContinuousIntegration.md</code></td><td><span class="tag tag-changed">修改</span></td><td>添加夹具测试的写法</td><td>文档同步</td><td class="numeric">4</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead><tbody><tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新增宏 target <code>SwiftSectionTestingMacros</code>（SwiftSyntax、SwiftSyntaxMacros、SwiftCompilerPlugin、SwiftSyntaxBuilder）与测试 target <code>SwiftSectionTestingMacrosTests</code>（加 <code>SwiftSyntaxMacrosGenericTestSupport</code>）；<code>SwiftSectionTestingSupport</code> 依赖新宏 target；Tuist 适配块留在文件末尾</td><td>宏的实现与测试</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionTestingMacros/FixtureSuiteMacro.swift</code>、<code>TestingMacroPlugin.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>FixtureSuiteMacro</code>（<code>MemberMacro</code>、<code>ExtensionMacro</code>）：推出类名词干、读两个字面量参数、生成成员与遵循、诊断与 Fix-It</td><td>宏实现</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionTestingSupport/FixtureSuiteMacro.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>package macro FixtureSuite(testedTypeName:baseline:)</code> 声明</td><td>宏声明</td><td class="numeric">1</td></tr><tr><td><code>Tests/SwiftSectionTestingMacrosTests/FixtureSuiteMacroTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>展开测试：默认、只给 <code>testedTypeName</code>、两个都给、类名不以 <code>Tests</code> 结尾、参数不是字面量</td><td>宏的行为</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionFixtureSupport/Coverage/SuiteBehaviorScanner.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>认 <code>@FixtureSuite</code>：取参数或类名词干</td><td>扫描器按源码读被测类型名</td><td class="numeric">2</td></tr><tr><td><code>Tests/SwiftSectionTestingSupportTests/Coverage/SuiteBehaviorScannerTests.swift</code>、<code>Fixtures/SuiteSampleSource.swift.txt</code></td><td><span class="tag tag-changed">修改</span></td><td>加宏写法的样例与测试</td><td>扫描器的行为</td><td class="numeric">2</td></tr><tr><td><code>Tests/MachOSwiftSectionTests/Fixtures/**/*Tests.swift</code>（170 个夹具套件）</td><td><span class="tag tag-changed">修改</span></td><td>改用 <code>@FixtureSuite</code></td><td>去掉样板</td><td class="numeric">3</td></tr><tr><td><code>AGENTS.md</code>、<code>Documentations/Internal/FixtureTestingAndContinuousIntegration.md</code></td><td><span class="tag tag-changed">修改</span></td><td>添加夹具测试的写法</td><td>文档同步</td><td class="numeric">4</td></tr></tbody></table></div>
+
 </section>
 
 <section id="proposal">
   <h2>提议方案</h2>
-<ol><li><strong>宏声明</strong>放在 <code>SwiftSectionTestingSupport</code>（夹具套件都 import 它），<code>package</code> 可见：member 角色生成两个静态成员，extension 角色添加 <code>FixtureSuite</code>。</li><li><strong>宏实现</strong>放在新的宏 target <code>SwiftSectionTestingMacros</code>（<code>Sources/TestSupport/SwiftSectionTestingMacros</code>），只给 <code>SwiftSectionTestingSupport</code> 依赖，生产的 <code>SwiftSectionMacros</code> 插件不带测试代码。</li><li><strong>默认值</strong>：<code>testedTypeName</code> 取类名去掉 <code>Tests</code> 后缀；baseline 取同一个词干加 <code>Baseline</code>。类名不以 <code>Tests</code> 结尾时报错并给 Fix-It（写明 <code>testedTypeName:</code>）。</li><li><strong>参数</strong>：<code>@FixtureSuite(testedTypeName: &quot;EnumTagCounts&quot;)</code>、<code>@FixtureSuite(testedTypeName: &quot;OpaqueType&quot;, baseline: OpaqueTypeBaseline.self)</code>。两个参数都只收字面量（字符串字面量、<code>类型.self</code>），给变量就报错，不静默退回默认值。</li><li><strong>扫描器</strong>：<code>SuiteBehaviorScanner</code> 先看类上有没有 <code>@FixtureSuite</code>：有就取 <code>testedTypeName:</code> 参数的字面量，没有参数就取类名去掉 <code>Tests</code>；没有宏的类照旧读静态成员。</li><li><strong>迁移</strong>：176 个夹具套件全部改用宏——类声明里去掉 <code>FixtureSuite</code> 遵循和两个静态成员，挂上 <code>@FixtureSuite</code>；5 个例外带参数。</li><li>本包 <code>AGENTS.md</code>「添加夹具测试」那几条（<code>:186</code> 一带）改成用宏的写法。</li></ol>
+<ol><li><strong>宏声明</strong>放在 <code>SwiftSectionTestingSupport</code>（夹具套件都 import 它），<code>package</code> 可见：member 角色生成两个静态成员，extension 角色添加 <code>FixtureSuite</code>。</li><li><strong>宏实现</strong>放在新的宏 target <code>SwiftSectionTestingMacros</code>（<code>Sources/TestSupport/SwiftSectionTestingMacros</code>），只给 <code>SwiftSectionTestingSupport</code> 依赖，生产的 <code>SwiftSectionMacros</code> 插件不带测试代码。</li><li><strong>默认值</strong>：<code>testedTypeName</code> 取类名去掉 <code>Tests</code> 后缀；baseline 取同一个词干加 <code>Baseline</code>。类名不以 <code>Tests</code> 结尾时报错并给 Fix-It（写明 <code>testedTypeName:</code>）。</li><li><strong>参数</strong>：<code>@FixtureSuite(testedTypeName: &quot;EnumTagCounts&quot;)</code>、<code>@FixtureSuite(testedTypeName: &quot;OpaqueType&quot;, baseline: OpaqueTypeBaseline.self)</code>。两个参数都只收字面量（字符串字面量、<code>类型.self</code>），给变量就报错，不静默退回默认值。</li><li><strong>扫描器</strong>：<code>SuiteBehaviorScanner</code> 先看类上有没有 <code>@FixtureSuite</code>：有就取 <code>testedTypeName:</code> 参数的字面量，没有参数就取类名去掉 <code>Tests</code>；没有宏的类照旧读静态成员。</li><li><strong>迁移</strong>：按完整写法写的 170 个夹具套件改用宏——类声明里去掉 <code>FixtureSuite</code> 遵循和两个静态成员，挂上 <code>@FixtureSuite</code>；5 个例外带参数。<code>CoroFunctionPointerTests</code> 没有 baseline、注册名单是字面量，保持手写。</li><li>本包 <code>AGENTS.md</code>「添加夹具测试」那几条（<code>:186</code> 一带）改成用宏的写法。</li></ol>
 <h3>非目标</h3>
 <ul><li>给 <code>MachOFileTests</code> 等其他基类的子类（<code>override class var fileName</code> 之类）做宏：属于基类配置，宏省不了几行。</li><li>把 <code>acrossAllReaders</code> 做成宏：归 <code>draft-shared-macho-testing-support</code>，用普通函数重载。</li><li>自动维护 <code>BaselineGenerator</code> 里手写的套件清单（<code>AllFixtureSuites</code> 的来源）。</li><li><code>@Suite</code> 与 <code>ExclusiveImageAccess</code> 等 trait 的组合：已经只有一行。</li></ul>
+
 </section>
 
 <section id="design">
@@ -242,13 +245,14 @@ package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = 
 
 <section id="motivation">
   <h2>动机</h2>
-<ul><li><strong>同样的 5 行写了 176 遍。</strong> <code>MachOSwiftSectionTests</code> 里每个夹具套件的开头都是：<pre><code>@Suite
+<ul><li><strong>同样的 5 行写了 170 遍。</strong> <code>MachOSwiftSectionTests</code> 里每个夹具套件的开头都是：<pre><code>@Suite
 final class StructDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = &quot;StructDescriptor&quot;
     static var registeredTestMethodNames: Set&lt;String&gt; {
         StructDescriptorBaseline.registeredTestMethodNames
     }</code></pre>
-<p>（<code>Tests/MachOSwiftSectionTests/Fixtures/Type/Struct/StructDescriptorTests.swift:16-21</code>）176 个类声明遵循 <code>FixtureSuite</code>；按完整写法匹配的 170 个里，165 个的被测类型名就是类名去掉 <code>Tests</code>，只有 5 个例外。</p></li><li><strong>手抄容易抄错。</strong> <code>testedTypeName</code> 决定覆盖率不变式按哪个类型检查成员（<code>FixtureSuite.swift</code> 的文档注释），抄错一个字母，这个套件就静默地对不上源码里的类型。</li><li><strong>起因</strong>：用户问能否给测试加便捷的宏减少样板。调研后，跨读取器写法 <code>acrossAllReaders</code> 不适合做宏（改用普通函数重载，归 <code>draft-shared-macho-testing-support</code>），套件开头这一处适合，另写本提案。</li></ul>
+<p>（<code>Tests/MachOSwiftSectionTests/Fixtures/Type/Struct/StructDescriptorTests.swift:16-21</code>）171 个夹具套件遵循 <code>FixtureSuite</code>；按完整写法匹配的 170 个里，165 个的被测类型名就是类名去掉 <code>Tests</code>，只有 5 个例外。</p></li><li><strong>手抄容易抄错。</strong> <code>testedTypeName</code> 决定覆盖率不变式按哪个类型检查成员（<code>FixtureSuite.swift</code> 的文档注释），抄错一个字母，这个套件就静默地对不上源码里的类型。</li><li><strong>起因</strong>：用户问能否给测试加便捷的宏减少样板。调研后，跨读取器写法 <code>acrossAllReaders</code> 不适合做宏（改用普通函数重载，归 <code>draft-shared-macho-testing-support</code>），套件开头这一处适合，另写本提案。</li></ul>
+
 </section>
 
 <section id="research">
@@ -267,7 +271,7 @@ final class StructDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
   <details>
     <summary>3 条被否的路</summary>
     <div class="details-body">
-<ul><li>**把宏实现放进现有的 <code>SwiftSectionMacros</code>**：少一个 target，但生产代码链接的插件会带上测试用的宏。否决。</li><li><strong>只用基类或协议扩展给默认值</strong>：协议扩展能给 <code>testedTypeName</code> 一个按类型名推的默认实现（运行时 <code>String(describing: Self.self)</code> 去掉 <code>Tests</code>），但 <code>registeredTestMethodNames</code> 要引用 baseline 类型，运行时拿不到，且扫描器按源码读不到运行时默认值。否决。</li><li>**做成宏后不改扫描器、保留手写的 <code>testedTypeName</code>**：省一行都不到。否决。</li></ul>
+<ul><li><strong>把宏实现放进现有的 <code>SwiftSectionMacros</code></strong>：少一个 target，但生产代码链接的插件会带上测试用的宏。否决。</li><li><strong>只用基类或协议扩展给默认值</strong>：协议扩展能给 <code>testedTypeName</code> 一个按类型名推的默认实现（运行时 <code>String(describing: Self.self)</code> 去掉 <code>Tests</code>），但 <code>registeredTestMethodNames</code> 要引用 baseline 类型，运行时拿不到，且扫描器按源码读不到运行时默认值。否决。</li><li><strong>做成宏后不改扫描器、保留手写的 <code>testedTypeName</code></strong>：省一行都不到。否决。</li></ul>
     </div>
   </details>
 </section>
@@ -288,17 +292,19 @@ final class StructDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
 
 <section id="steps">
   <h2>落地步骤</h2>
-<ol><li><strong>宏与展开测试</strong> —— <code>Package.swift</code>、<code>SwiftSectionTestingMacros</code>、宏声明、<code>FixtureSuiteMacroTests</code><ul><li>行为：<code>defaultsTakeTheTestedTypeAndBaselineFromTheClassName</code></li><li>行为：<code>anExplicitTestedTypeNameKeepsTheBaselineFromTheClassName</code></li><li>行为：<code>anExplicitBaselineIsUsedAsWritten</code></li><li>行为：<code>aClassNameWithoutTestsAsksForTheTestedTypeName</code>（诊断加 Fix-It）</li><li>行为：<code>aNonLiteralArgumentIsRejected</code></li><li>行为：<code>theMacroAddsTheFixtureSuiteConformance</code></li></ul></li><li><strong>扫描器认宏</strong> —— <code>SuiteBehaviorScanner</code>、样例源码与测试<ul><li>行为：<code>scannerReadsTheTestedTypeNameFromTheMacroArgument</code></li><li>行为：<code>scannerTakesTheClassNameStemWhenTheMacroHasNoArgument</code></li><li>行为：<code>scannerStillReadsAStaticTestedTypeName</code></li></ul></li><li><strong>迁移 176 个套件</strong> —— <code>Tests/MachOSwiftSectionTests/Fixtures/**</code><ul><li>行为：覆盖率不变式测试照常通过，迁移前后 <code>allFixtureSuites</code> 各套件的 <code>testedTypeName</code> 与 <code>registeredTestMethodNames</code> 逐个相等</li><li>行为：<code>SuiteBehaviorScanner</code> 认出的「被测类型 → 测试方法 → 行为」与迁移前逐条相同</li></ul></li><li><strong>文档</strong> —— <code>AGENTS.md</code>、<code>FixtureTestingAndContinuousIntegration.md</code><ul><li>收尾判断：实现说明不必单写，<code>AGENTS.md</code> 的步骤与宏的文档注释够用；没有新术语。</li></ul></li></ol>
+<ol><li><strong>宏与展开测试</strong>（完成）—— <code>Package.swift</code>、<code>SwiftSectionTestingMacros</code>、宏声明、<code>FixtureSuiteMacroTests</code><ul><li>行为：<code>defaultsTakeTheTestedTypeAndBaselineFromTheClassName</code></li><li>行为：<code>anExplicitTestedTypeNameKeepsTheBaselineFromTheClassName</code></li><li>行为：<code>anExplicitBaselineIsUsedAsWritten</code></li><li>行为：<code>aClassNameWithoutTestsAsksForTheTestedTypeName</code>（诊断加 Fix-It）</li><li>行为：<code>aNonLiteralArgumentIsRejected</code></li><li>行为：<code>theMacroAddsTheFixtureSuiteConformance</code></li></ul></li><li><strong>扫描器认宏</strong>（完成）—— <code>SuiteBehaviorScanner</code>、样例源码与测试<ul><li>行为：<code>scannerReadsTheTestedTypeNameFromTheMacroArgument</code></li><li>行为：<code>scannerTakesTheClassNameStemWhenTheMacroHasNoArgument</code></li><li>行为：<code>scannerStillReadsAStaticTestedTypeName</code></li></ul></li><li><strong>迁移 170 个套件</strong>（完成）—— <code>Tests/MachOSwiftSectionTests/Fixtures/**</code><ul><li>行为：覆盖率不变式测试照常通过，迁移前后 <code>allFixtureSuites</code> 各套件的 <code>testedTypeName</code> 与 <code>registeredTestMethodNames</code> 逐个相等</li><li>行为：<code>SuiteBehaviorScanner</code> 认出的「被测类型 → 测试方法 → 行为」与迁移前逐条相同</li></ul></li><li><strong>文档</strong>（完成）—— <code>AGENTS.md</code>、<code>FixtureTestingAndContinuousIntegration.md</code><ul><li>收尾判断：实现说明不必单写，<code>AGENTS.md</code> 的步骤与宏的文档注释够用；没有新术语。</li></ul></li></ol>
+
 </section>
 
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>3 条，最近一条：宏与协议同名 FixtureSuite</summary>
+    <summary>9 条，最近一条：状态 → Implemented，编号 0100</summary>
     <div class="details-body">
-<div class="table-wrap"><table><thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead><tbody><tr><td>2026-11-20</td><td>Created as Draft</td><td>用户问能否给测试代码加便捷的宏减少样板。只读调研统计了两个包测试里的重复写法：值得做成宏的是 176 个夹具套件开头的固定 5 行；<code>acrossAllReaders</code> 改用普通函数重载（归 <code>draft-shared-macho-testing-support</code>）。用户选择把这个宏另写一份本包提案。</td></tr><tr><td>2026-11-20</td><td>宏实现放新 target <code>SwiftSectionTestingMacros</code></td><td>生产代码链接的 <code>SwiftSectionMacros</code> 插件不带测试用的宏。</td></tr><tr><td>2026-11-20</td><td>宏与协议同名 <code>FixtureSuite</code></td><td>照 Observation 的 <code>Observable</code> 先例，<code>@FixtureSuite</code> 读起来就是「这是一个夹具套件」。</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead><tbody><tr><td>2026-11-20</td><td>Created as Draft</td><td>用户问能否给测试代码加便捷的宏减少样板。只读调研统计了两个包测试里的重复写法：值得做成宏的是 176 个夹具套件开头的固定 5 行；<code>acrossAllReaders</code> 改用普通函数重载（归 <code>draft-shared-macho-testing-support</code>）。用户选择把这个宏另写一份本包提案。</td></tr><tr><td>2026-11-20</td><td>宏实现放新 target <code>SwiftSectionTestingMacros</code></td><td>生产代码链接的 <code>SwiftSectionMacros</code> 插件不带测试用的宏。</td></tr><tr><td>2026-11-20</td><td>宏与协议同名 <code>FixtureSuite</code></td><td>照 Observation 的 <code>Observable</code> 先例，<code>@FixtureSuite</code> 读起来就是「这是一个夹具套件」。</td></tr><tr><td>2026-11-20</td><td>状态 → Accepted</td><td>用户批准，开始实现。</td></tr><tr><td>2026-11-20</td><td>第 1、2 步完成</td><td>宏的 6 个展开测试与扫描器的 9 个测试在 MacBook 上通过（Ultra 负载过高，按规则分流）。</td></tr><tr><td>2026-11-20</td><td>套件数更正：171 个，迁 170 个</td><td>提案里的 176 是 grep 把扫描器样例文本里的几个类也数进去了。<code>CoroFunctionPointerTests</code> 自己编夹具、没有 baseline，注册名单是字面量，套不上宏，保持手写。</td></tr><tr><td>2026-11-20</td><td>实现完成，待用户看过后收尾</td><td>在 MacBook 上按 CI 的 ad-hoc 签名编出 <code>SymbolTestsCore</code>，跑 <code>swift test --skip IntegrationTests</code>：<code>MachOSwiftSectionCoverageInvariantTests</code>、宏与扫描器的测试全部通过。另有 150 组失败——夹具套件的 <code>offset()</code>、<code>layout()</code> 等与 baseline 写死的偏移不符，以及 <code>SymbolicDemanglerTests</code> 找不到 iOS 26.5 模拟器运行时——在同一台机器、同一份夹具上切到 <code>next</code> 跑同一批，失败逐条相同，是 MacBook 的环境（夹具与 baseline 的产物不一致、没装该运行时），不是本次引入的。Ultra 负载过高（1 分钟负载约 90–107），没在 Ultra 上跑。文档：<code>AGENTS.md</code> 与 <code>FixtureTestingAndContinuousIntegration.md</code> 已写明用法；不另写实现说明；没有新术语。</td></tr><tr><td>2026-11-20</td><td>与 Swift 6 迁移一起落地</td><td>用户看过分支后决定与 <code>draft-swift6-mode-and-upcoming-features</code> 同批落地：本分支先快进合入 <code>next</code>，Swift 6 那一支合在它之上；合并后的构建与全量测试在两者合并的结果上统一跑，过了再一起推送。</td></tr><tr><td>2026-11-20</td><td>状态 → Implemented，编号 0100</td><td>落地时取号：远端共享分支上最大编号是 0099。收尾判断：不另写实现说明或使用指南，<code>AGENTS.md</code> 的步骤、<code>FixtureTestingAndContinuousIntegration.md</code> 的一节与宏的文档注释已经够用；没有新术语，术语表不动。演进账本记第 145 节。没有后续项。</td></tr></tbody></table></div>
     </div>
   </details>
+
 </section>
 
 </main>

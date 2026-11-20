@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 ///   - baseClass (`Element: GenericBaseClassForRequirementTest`)
 ///   - sameType (`First == Second`)
 @Suite
-final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericRequirementDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        GenericRequirementDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadFirstRequirement(

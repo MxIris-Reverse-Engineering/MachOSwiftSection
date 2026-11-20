@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// two static factories (`forAddressPointAndSize`, `forSwiftRootClass`).
 /// We exercise them on `ClassMetadataBounds` with known inputs.
 @Suite
-final class ClassMetadataBoundsProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ClassMetadataBoundsProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        ClassMetadataBoundsProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ClassMetadataBoundsProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// `forAddressPointAndSize(addressPoint:totalSize:offset:)` derives
     /// negative/positive sizes from a (pointer-aligned) address point and
     /// total size. Use known multiples of pointer size to verify the

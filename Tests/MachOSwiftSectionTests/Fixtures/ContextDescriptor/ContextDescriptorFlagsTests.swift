@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// name-only key; we register one entry per name and exercise the
 /// instance-derivation path here.
 @Suite
-final class ContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ContextDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the `ContextDescriptorFlags` from
     /// `Structs.StructTest`'s descriptor against both readers.
     private func loadStructTestFlags() throws -> (file: ContextDescriptorFlags, image: ContextDescriptorFlags) {

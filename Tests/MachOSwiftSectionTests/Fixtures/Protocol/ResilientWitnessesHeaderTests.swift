@@ -10,12 +10,8 @@ import SwiftSectionFixtureSupport
 /// Picker: the first `ProtocolConformance` from the fixture with a
 /// non-empty `resilientWitnesses` array (so the header materializes).
 @Suite
-final class ResilientWitnessesHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ResilientWitnessesHeader"
-    static var registeredTestMethodNames: Set<String> {
-        ResilientWitnessesHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ResilientWitnessesHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstHeaders() throws -> (file: ResilientWitnessesHeader, image: ResilientWitnessesHeader) {
         let fileConformance = try BaselineFixturePicker.protocolConformance_resilientWitnessFirst(in: machOFile)
         let imageConformance = try BaselineFixturePicker.protocolConformance_resilientWitnessFirst(in: machOImage)

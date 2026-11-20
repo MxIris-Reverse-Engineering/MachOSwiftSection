@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// `ModuleContext` only carries `descriptor` and `name`; `name` is a
 /// stable string literal we embed in the baseline.
 @Suite
-final class ModuleContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ModuleContext"
-    static var registeredTestMethodNames: Set<String> {
-        ModuleContextBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ModuleContextTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: instantiate the `ModuleContext` wrapper for the
     /// `SymbolTestsCore` module against both readers.
     private func loadSymbolTestsCoreContexts() throws -> (file: ModuleContext, image: ModuleContext) {

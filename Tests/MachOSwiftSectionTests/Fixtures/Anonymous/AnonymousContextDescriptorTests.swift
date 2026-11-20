@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// `hasMangledName`) live on `AnonymousContextDescriptorProtocol` and are
 /// covered by `AnonymousContextDescriptorProtocolTests`.
 @Suite
-final class AnonymousContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AnonymousContextDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        AnonymousContextDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AnonymousContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let fileSubject = try BaselineFixturePicker.anonymous_first(in: machOFile)
         let imageSubject = try BaselineFixturePicker.anonymous_first(in: machOImage)

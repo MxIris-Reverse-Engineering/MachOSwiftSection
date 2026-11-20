@@ -22,12 +22,8 @@ import SwiftSectionFixtureSupport
 ///   - `Enums.MultiPayloadEnumTests` — the canonical `isMultiPayload` path
 ///     (3 payload cases + 1 empty)
 @Suite
-final class EnumDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "EnumDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        EnumDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class EnumDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadNoPayloadDescriptors() throws -> (file: EnumDescriptor, image: EnumDescriptor) {
         let file = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOFile)
         let image = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)

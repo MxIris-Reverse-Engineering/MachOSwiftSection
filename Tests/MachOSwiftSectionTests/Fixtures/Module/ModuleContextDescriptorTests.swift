@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// surface is exercised through the wrapper Suite (`ModuleContextTests`)
 /// to avoid duplicating coverage here.
 @Suite
-final class ModuleContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ModuleContextDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        ModuleContextDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ModuleContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let fileSubject = try BaselineFixturePicker.module_SymbolTestsCore(in: machOFile)
         let imageSubject = try BaselineFixturePicker.module_SymbolTestsCore(in: machOImage)

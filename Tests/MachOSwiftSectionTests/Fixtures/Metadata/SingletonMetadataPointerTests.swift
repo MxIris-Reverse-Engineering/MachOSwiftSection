@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class SingletonMetadataPointerTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "SingletonMetadataPointer"
-    static var registeredTestMethodNames: Set<String> {
-        SingletonMetadataPointerBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class SingletonMetadataPointerTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let pointer = SingletonMetadataPointer(
             layout: .init(metadata: .init(relativeOffset: 0)),

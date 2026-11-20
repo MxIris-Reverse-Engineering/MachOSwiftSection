@@ -22,12 +22,8 @@ import SwiftSectionFixtureSupport
 /// header at its offset gives us `structDescriptor()` non-nil and the
 /// other two kind-projections nil.
 @Suite
-final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeContextDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        TypeContextDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: read the bare `TypeContextDescriptor` header at the
     /// `Structs.StructTest` offset against both readers.
     private func loadStructTestDescriptors() throws -> (file: TypeContextDescriptor, image: TypeContextDescriptor) {
