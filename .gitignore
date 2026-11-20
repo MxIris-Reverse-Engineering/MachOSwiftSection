@@ -23,3 +23,18 @@ Tests/Projects/SymbolTests/DerivedData
 .omc
 .swiftpm/xcode/xcshareddata/xcschemes
 __pycache__/
+
+# The Tuist development workspace (Documentations/Internal/TuistDevelopment.md): everything
+# ./TuistScript.sh and Tuist generate inside the checkout.
+/MachOSwiftSection-Tuist.xcworkspace/
+/MachOSwiftSection.xcodeproj/
+/Derived/
+/PrecompiledLibraries/swift-syntax/swift-syntax.xcodeproj/
+/PrecompiledLibraries/swift-syntax/Derived/
+/PrecompiledLibraries/swift-syntax/.build/
+/Tuist/.build/
+/Tuist/.build-LocalDependencies/
+/Tuist/CommandLine/*.xcodeproj/
+/Tuist/CommandLine/Derived/
+/Tuist/.local-dependencies
+/Tuist/.claimed-checkouts

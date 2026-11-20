@@ -1546,3 +1546,32 @@ extension SwiftSetting {
     static let nonisolatedNonsendingByDefault: Self = .enableUpcomingFeature("NonisolatedNonsendingByDefault") // SE-0461, Swift 6.2,  SwiftPM 6.2+
     static let immutableWeakCaptures: Self = .enableUpcomingFeature("ImmutableWeakCaptures") // SE-0481, Swift 6.2,  SwiftPM 6.2+
 }
+
+// MARK: - Tuist development workspace
+
+// MachOSwiftSection's Tuist development workspace (its Documentations/Internal/TuistDevelopment.md)
+// maps this package's tests with Tuist, which rejects two shapes SwiftPM accepts: a test that depends
+// on an executable target, and a test that depends on a target no product contains. Only while Tuist
+// resolves the packages, with TUIST_MAPS_LOCAL_PACKAGE_TESTS=1, the first kind is left out and the
+// second kind gets a library product of its own. Nothing changes without the variable.
+if Context.environment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1" {
+    let executableTargetNames = Set(package.targets.filter { $0.type == .executable }.map(\.name))
+    func dependencyName(_ dependency: Target.Dependency) -> String? {
+        switch dependency {
+        case .targetItem(let name, _), .byNameItem(let name, _):
+            return name
+        default:
+            return nil
+        }
+    }
+    package.targets.removeAll { target in
+        target.type == .test && target.dependencies.contains { dependency in
+            dependencyName(dependency).map(executableTargetNames.contains) ?? false
+        }
+    }
+    let productTargetNames = Set(package.products.flatMap { product in (product as? Product.Library)?.targets ?? [] })
+    let testDependencyNames = Set(package.targets.filter { $0.type == .test }.flatMap { $0.dependencies.compactMap(dependencyName) })
+    package.products += package.targets
+        .filter { target in target.type == .regular && testDependencyNames.contains(target.name) && !productTargetNames.contains(target.name) }
+        .map { target in Product.library(name: target.name, targets: [target.name]) }
+}

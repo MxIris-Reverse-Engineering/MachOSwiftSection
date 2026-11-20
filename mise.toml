@@ -1,0 +1,5 @@
+# The Tuist that generates MachOSwiftSection-Tuist.xcworkspace, the development-only Tuist workspace
+# (Documentations/Internal/TuistDevelopment.md). Releases, CI and `swift build` / `swift test` do not
+# use it. RuntimeViewer pins the same version.
+[tools]
+tuist = "4.210.0"

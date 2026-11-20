@@ -4,11 +4,20 @@
    <FileRef
       location = "container:../MachOKit">
    </FileRef>
-      <FileRef
+   <FileRef
+      location = "container:../MachOKitExtensions">
+   </FileRef>
+   <FileRef
       location = "container:../MachOObjCSection">
    </FileRef>
    <FileRef
       location = "group:">
+   </FileRef>
+   <FileRef
+      location = "container:../swift-demangling">
+   </FileRef>
+   <FileRef
+      location = "container:../swift-semantic-string">
    </FileRef>
    <FileRef
       location = "group:PrecompiledLibraries/swift-syntax">
