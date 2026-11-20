@@ -1,4 +1,5 @@
 import MachOSymbols
+import SwiftSymbolsRegistration
 
 extension SymbolLanguage {
     /// A Swift-mangled name (`$s`, `_$s`, `$S`, `_$S`, `$e`, `_$e`, `_T0`,
@@ -52,4 +53,9 @@ enum SwiftSymbolNameRecognition {
 @c(swift_symbols_register_symbol_language)
 func registerSwiftSymbolLanguage() {
     SymbolLanguageRegistry.shared.register(.swift, where: SwiftSymbolNameRecognition.recognizes)
+    // Does nothing at run time. The reference is what counts: a static link
+    // that loads this file (any use of the Swift symbol index, any link with
+    // -ObjC) loads SwiftSymbolsRegistration.c and its constructor with it,
+    // which nothing else refers to. See that file.
+    swift_symbols_registration_anchor()
 }
