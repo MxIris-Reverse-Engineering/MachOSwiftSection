@@ -621,6 +621,39 @@ def dependency_name(dependency):
 source_targets, warning_targets, test_entries, test_names, testing_support_names, rejected = [], [], [], [], [], []
 testing_import = re.compile(r"^\s*(@\w+\s+)*((public|package|internal)\s+)?import\s+Testing\b", re.MULTILINE)
 
+constructor_attribute = re.compile(r"__attribute__\s*\(\(\s*constructor\b")
+
+def target_files(package_directory, target, extensions):
+    target_directory = os.path.join(package_directory, target.get("path") or os.path.join("Sources", target["name"]))
+    for root, _, file_names in os.walk(target_directory):
+        for file_name in file_names:
+            if file_name.endswith(extensions):
+                yield os.path.join(root, file_name)
+
+def has_load_time_constructor(package_directory, target):
+    for path in target_files(package_directory, target, (".c", ".m", ".mm", ".cpp", ".cc")):
+        with open(path, errors="replace") as handle:
+            if constructor_attribute.search(handle.read()):
+                return True
+    return False
+
+# The final links (test bundles, the swift-section executable) that reach, through the package's own
+# target dependencies, a target whose only job happens in a load-time constructor. SwiftPM links each
+# target's object files whole; Tuist builds a static library, and the linker loads no member nothing
+# refers to, so the constructor would never run.
+force_loads = []
+
+def force_loaded_targets(targets, root_name, constructor_names):
+    dependencies_by_name = {target["name"]: [dependency_name(dependency) for dependency in target["dependencies"]] for target in targets}
+    reached, pending = set(), [root_name]
+    while pending:
+        name = pending.pop()
+        for dependency in dependencies_by_name.get(name, []):
+            if dependency in dependencies_by_name and dependency not in reached:
+                reached.add(dependency)
+                pending.append(dependency)
+    return sorted(reached & constructor_names)
+
 def imports_testing(package_directory, target):
     target_directory = os.path.join(package_directory, target.get("path") or os.path.join("Sources", target["name"]))
     for root, _, file_names in os.walk(target_directory):
@@ -647,6 +680,12 @@ for identity, role, directory in packages:
     testing_support_names += [
         target["name"] for target in targets if target["type"] == "regular" and imports_testing(directory, target)
     ]
+    constructor_names = {target["name"] for target in targets if target["type"] == "regular" and has_load_time_constructor(directory, target)}
+    if constructor_names:
+        for target in targets:
+            if target["type"] in ("test", "executable"):
+                for name in force_loaded_targets(targets, target["name"], constructor_names):
+                    force_loads.append(f"{target['name']}:{name}")
     executable_names = {target["name"] for target in targets if target["type"] == "executable"}
     product_target_names = {
         name
@@ -686,6 +725,7 @@ print("WARNING_TARGETS=" + ",".join(warning_targets))
 print("TEST_TARGETS=" + ";".join(test_entries))
 print("TEST_TARGET_NAMES=" + ",".join(test_names))
 print("TESTING_SUPPORT_TARGET_NAMES=" + ",".join(testing_support_names))
+print("FORCE_LOADS=" + ",".join(force_loads))
 for reason in rejected:
     print("REJECTED=" + reason)
 PYTHON
@@ -694,6 +734,7 @@ PYTHON
     TUIST_PACKAGE_TEST_TARGETS=""
     TUIST_TEST_TARGET_NAMES=""
     TUIST_TESTING_SUPPORT_TARGET_NAMES=""
+    TUIST_FORCE_LOADS=""
     TUIST_MAPS_LOCAL_PACKAGE_TESTS=1
     while IFS='=' read -r key value; do
         case "$key" in
@@ -702,6 +743,7 @@ PYTHON
             TEST_TARGETS) TUIST_PACKAGE_TEST_TARGETS="$value";;
             TEST_TARGET_NAMES) TUIST_TEST_TARGET_NAMES="$value";;
             TESTING_SUPPORT_TARGET_NAMES) TUIST_TESTING_SUPPORT_TARGET_NAMES="$value";;
+            FORCE_LOADS) TUIST_FORCE_LOADS="$value";;
             REJECTED)
                 warn "Tuist would reject $value"
                 TUIST_MAPS_LOCAL_PACKAGE_TESTS=0;;
@@ -715,7 +757,7 @@ PYTHON
         TUIST_TEST_TARGET_NAMES=""
     fi
     export TUIST_SOURCE_TARGET_NAMES TUIST_WARNING_TARGET_NAMES TUIST_PACKAGE_TEST_TARGETS TUIST_TEST_TARGET_NAMES \
-        TUIST_TESTING_SUPPORT_TARGET_NAMES TUIST_MAPS_LOCAL_PACKAGE_TESTS
+        TUIST_TESTING_SUPPORT_TARGET_NAMES TUIST_FORCE_LOADS TUIST_MAPS_LOCAL_PACKAGE_TESTS
 }
 
 # --- Commands -------------------------------------------------------------------------------------

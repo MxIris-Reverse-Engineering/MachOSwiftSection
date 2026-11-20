@@ -31,11 +31,25 @@ let commandLineDeploymentTargets: DeploymentTargets = .macOS("12.0")
 
 let commandLineSources: SourceFilesList = ["../../Sources/Executables/swift-section/**"]
 
+// The constructor targets the swift-section executable reaches in Package.swift, which must be loaded
+// whole (Tuist/Package.swift explains why); TuistScript.sh lists them in TUIST_FORCE_LOADS.
+let forceLoadedTargetNames: [String] = Environment.forceLoads.getString(default: "")
+    .split(separator: ",")
+    .compactMap { pair in
+        let parts = pair.split(separator: ":").map(String.init)
+        return parts.count == 2 && parts[0] == "swift-section" ? parts[1] : nil
+    }
+let forceLoadFlags: SettingsDictionary = forceLoadedTargetNames.isEmpty ? [:] : [
+    "OTHER_LDFLAGS": .array(["$(inherited)"] + forceLoadedTargetNames.map { targetName in
+        "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(targetName).framework/\(targetName)"
+    }),
+]
+
 // MACHO_SWIFT_SECTION_SILENT_TEST=1, which Package.swift turns into SILENT_TEST for its test targets;
 // TuistScript.sh passes it on as TUIST_SILENT_TEST, the only form a Tuist manifest can read.
-let commandTestSettings: Settings = Environment.silentTest.getBoolean(default: false)
-    ? .settings(base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "SILENT_TEST"]])
-    : .settings()
+let commandTestSettings: Settings = .settings(base: forceLoadFlags.merging(
+    Environment.silentTest.getBoolean(default: false) ? ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "SILENT_TEST"]] : [:]
+) { $1 })
 
 let project = Project(
     name: "MachOSwiftSectionCommandLine",
@@ -51,7 +65,8 @@ let project = Project(
             bundleId: "com.machoswiftsection.swift-section",
             deploymentTargets: commandLineDeploymentTargets,
             sources: commandLineSources,
-            dependencies: commandLineDependencies
+            dependencies: commandLineDependencies,
+            settings: .settings(base: forceLoadFlags)
         ),
         .target(
             name: "swift_section",

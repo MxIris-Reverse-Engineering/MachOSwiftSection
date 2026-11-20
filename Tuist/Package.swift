@@ -81,6 +81,24 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         uniquingKeysWith: { first, _ in first }
     )
 
+    // MachOSwiftSection's SwiftSymbolsRegistration does its whole job in a load-time constructor, a
+    // static function nothing refers to. SwiftPM links each target's object files whole; Tuist builds a
+    // static framework, and the linker loads no archive member nothing refers to, so Swift would never
+    // be registered as a symbol language. TUIST_FORCE_LOADS pairs each final link (a test target, the
+    // swift-section executable) with the constructor targets its in-package dependencies reach, as
+    // "<linking target>:<constructor target>,…"; those archives are loaded whole.
+    let forceLoads: [(linkingTarget: String, loadedTarget: String)] = targetNames(in: "TUIST_FORCE_LOADS").compactMap { pair in
+        let parts = pair.split(separator: ":").map(String.init)
+        return parts.count == 2 ? (parts[0], parts[1]) : nil
+    }
+    let forceLoadSettings: [String: Settings] = Dictionary(grouping: forceLoads, by: \.linkingTarget).mapValues { pairs in
+        Settings.settings(base: [
+            "OTHER_LDFLAGS": .array(["$(inherited)"] + pairs.map { pair in
+                "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(pair.loadedTarget).framework/\(pair.loadedTarget)"
+            }),
+        ])
+    }
+
     // One target may need several of the settings above; their keys never overlap.
     func mergingSettings(_ settingsByTarget: [String: Settings]...) -> [String: Settings] {
         settingsByTarget.reduce(into: [:]) { merged, settings in
@@ -89,7 +107,7 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
     }
 
     let packageSettings = PackageSettings(
-        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings),
+        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings, forceLoadSettings),
         // TuistScript.sh sets the variable to 1 unless a package declared by path still has a test of
         // a shape Tuist rejects (the manifests' TUIST_MAPS_LOCAL_PACKAGE_TESTS block removes them).
         includeLocalPackageTestTargets: processEnvironment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1"
