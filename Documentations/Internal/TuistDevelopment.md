@@ -20,6 +20,7 @@ open MachOSwiftSection-Tuist.xcworkspace
 
 - **锁文件**：脚本每次解析都从本检出根目录的 `Package.resolved`（`swift build` 与原生 workspace 解析出的那份，不提交）开始，所以 Tuist 用的是同样的版本。没有这个文件时 Tuist 解析各清单允许的最新版本，并提示一句；新 worktree 里可以先从集成检出拷一份过来。解析完与它不一致时会列出差异，多半是换了 Xcode：有些包按 Swift 版本选用不同的清单。
 - **Xcode**：脚本和 Tuist 都用 `DEVELOPER_DIR` 或 `xcode-select` 选中的那个，打开 workspace 也用同一个。二进制缓存按 Xcode 版本分开，换了 Xcode 要重新 `warm`。
+- **缓存省多少**：2026-11-20 在 Ultra（M3 Ultra 28 核，Xcode 27.2）上，清空 DerivedData 后编 `swift-section`（Debug），不走缓存 63 秒，走缓存 46 秒；`warm` 把 70 个第三方 target 编成 xcframework 用了 60 秒。省下的是第三方依赖那部分，本库与上游库照旧从源码编；核心少的机器上没有测过。
 
 ## 日常用法
 
@@ -49,7 +50,7 @@ open MachOSwiftSection-Tuist.xcworkspace
 
 - **哪几个库、从哪取**：原生 workspace 的 `container:../<名字>` 成员，现在是上面五个；原生 workspace 加了库，这里自动跟上。默认从检出的上一级目录取，worktree 里就是 `.worktrees/` 下那组链接，所以编的是那组链接指向的检出（比如 `.worktrees/MachOKitExtensions` 指向 MachOKitExtensions 的主检出时，编的就是它当前所在的分支）。打开本地模式时设了 `TUIST_LOCAL_PACKAGE_CHECKOUTS`，就改从它指的目录取：每个库一个子目录，名字与库相同（SwiftPM 按目录名认包，经符号链接也一样按真实目录名认）。
 - **效果**：`Tuist/Package.swift` 按路径声明这几个库，顶替依赖图里所有按 URL 声明的同名包。它们从本地源码编，没提交的改动也算；改已有文件后在 Xcode 里直接编就生效。它们的编译警告照常显示。
-- **测试**：六个包的测试都进 workspace，每个包一个 scheme（`<包名> Tests`）。做到这一点要每个库的 `Package.swift` 末尾都有那段 `TUIST_MAPS_LOCAL_PACKAGE_TESTS` 适配块（见下一节）；MachOKitExtensions、MachOObjCSection、swift-demangling 已经加了，MachOKit 与 swift-semantic-string 现在用不着。某个库的检出停在加块之前的提交、又有 Tuist 不接受的测试时，脚本会警告并点名那个库，这一次整个 workspace 都不带测试（Tuist 对按路径声明的包只能全映射或全不映射），生成照常进行。
+- **测试**：六个包的测试都进 workspace，每个包一个 scheme（`<包名> Tests`）。做到这一点要每个库的 `Package.swift` 末尾都有那段 `TUIST_MAPS_LOCAL_PACKAGE_TESTS` 适配块（见下一节）；MachOKitExtensions、MachOObjCSection、swift-demangling 已经加了，MachOKit 与 swift-semantic-string 现在用不着。某个库的检出停在加块之前的提交、又有 Tuist 不接受的测试时，脚本会警告并点名那个库，这一次整个 workspace 都不带测试（Tuist 对按路径声明的包只能全映射或全不映射），生成照常进行。上游库自己的测试里有读写死路径的（MachOKit 的 `AotCachePrintTests`、`ArchiveFileTests`，MachOObjCSection 的 `MachOObjCSectionTests` 读 `/Users/JH/Downloads/iOS18.5-SwiftUI`），在没有这些文件的机器上照样失败，与 Tuist 无关。
 - **模式会记住**：记在 `Tuist/.local-dependencies`（已忽略），之后不带参数的命令都沿用；每条命令开头都打印当前用的是哪种依赖。两种模式各有一份依赖 checkout，切换后会先重新解析。
 - **写进库目录的文件**：Tuist 会在每个按路径声明的包目录里生成 `<包名>.xcodeproj/` 和 `Derived/`。脚本把这两项写进那个仓库的 `info/exclude`（只在本机，不提交），`git status` 里看不到；切回远程模式时删掉 `<包名>.xcodeproj/`，`Derived/` 留着。git 跟踪着 `<包名>.xcodeproj` 的库，脚本直接报错，不让 Tuist 覆盖。
 

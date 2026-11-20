@@ -47,7 +47,7 @@
 9. **`Tuist.swift` 能读环境变量**：把 `TUIST_SOURCE_TARGET_NAMES=Utilities,SwiftSymbols,MachOSwiftSection` 经 `Environment.sourceTargetNames` 读进缓存 profile，`tuist dump config` 显示 `exceptTargetQueries` 正是这三个名字。缓存例外名单因此可以由脚本从各包清单算出来，不用像 RuntimeViewer 那样手抄、再用 `check` 守着。
 10. **`tuist install` 解析出的远程依赖**（远程模式，种子锁文件取自集成 worktree 的 `Package.resolved`）：AssociatedObject、capstone、combine-schedulers、FrameworkToolbox、MetaCodable、Rainbow、SourceKitD、swift-apinotes、swift-argument-parser、swift-asn1、swift-async-algorithms、swift-binary-parse-support、swift-capstone、swift-clocks、swift-collections、swift-concurrency-extras、swift-crypto、swift-dependencies、swift-fileio、swift-fileio-extra、swift-issue-reporting、swift-literal-type-inference、swift-memberwise-init-macro、swift-object-association、swift-objc-dump、swift-snapshot-testing、Yams，加上五个上游库。
 
-### 推测（未验证，落地步骤里验证）
+### 推测（写提案时未验证；实现中全部证实，见决策日志）
 
 - 测试 target 的部署版本：SwiftPM 给测试 target 的部署版本不低于 XCTest 与 Swift Testing 的要求（macOS 14.0），Tuist 照搬包声明的 10.15，RuntimeViewer 因此在 `Duration`、`timeLimit` 上编不过。本库测试大概率踩同一个坑。
 - `-ObjC`：Tuist 把包编成静态库，链接器只拉被符号引用到的成员。本库测试是否依赖按名字在运行时查找的类，没查过。
@@ -182,7 +182,7 @@ legacy: <git dir>/runtimeviewer-tuist-local-dependencies is live
 本库与三个上游库的 `Package.swift` 末尾原样加这一段（探针里五个上游库副本都用它通过了 `swift package dump-package` 与 `tuist generate`）。它读的是 `Context.environment`，平时这个变量不存在，块里什么都不做；作为别人的远程依赖时也一样。
 
 ```swift
-// The Tuist development workspace (MachOSwiftSection's Documentations/Internal/TuistDevelopment.md)
+// MachOSwiftSection's Tuist development workspace (its Documentations/Internal/TuistDevelopment.md)
 // maps this package's tests with Tuist, which rejects two shapes SwiftPM accepts: a test that depends
 // on an executable target, and a test that depends on a target no product contains. Only while Tuist
 // resolves the packages, with TUIST_MAPS_LOCAL_PACKAGE_TESTS=1, the first kind is left out and the
@@ -221,14 +221,24 @@ if Context.environment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1" {
 import Foundation
 import PackageDescription
 
-// The dependencies of MachOSwiftSection-Tuist.xcworkspace (Documentations/Internal/TuistDevelopment.md).
-// This package is declared by path, so its Package.swift stays the only definition of its targets.
-// In the local dependency mode TuistScript.sh names the upstream packages in TUIST_LOCAL_PACKAGE_NAMES
-// and their directory in TUIST_LOCAL_PACKAGE_CHECKOUTS; a root's path dependency stands in for every
-// declaration of the same package in the graph.
+// The dependencies of MachOSwiftSection-Tuist.xcworkspace, the development-only Tuist workspace
+// (Documentations/Internal/TuistDevelopment.md). Generate it with ./TuistScript.sh, never with a bare
+// `tuist generate`: the script sets the variables everything below reads.
+//
+// MachOSwiftSection itself is declared by path, so its Package.swift stays the only definition of its
+// targets and dependencies. In the local dependency mode (`./TuistScript.sh <command>
+// --local-dependencies`) the script names the upstream packages the native workspace lists beside
+// the checkout in TUIST_LOCAL_PACKAGE_NAMES and the directory holding them in
+// TUIST_LOCAL_PACKAGE_CHECKOUTS. A root's path dependency stands in for every other declaration of the
+// same package in the graph — MachOSwiftSection's URLs and the upstream packages' own — so they build
+// from those checkouts, uncommitted edits included. A path package's identity is its directory's name.
 let processEnvironment = ProcessInfo.processInfo.environment
 let localPackageCheckoutsDirectory = processEnvironment["TUIST_LOCAL_PACKAGE_CHECKOUTS"] ?? ""
-let localPackageNames = (processEnvironment["TUIST_LOCAL_PACKAGE_NAMES"] ?? "").split(separator: ",").map(String.init)
+let localPackageNames = (processEnvironment["TUIST_LOCAL_PACKAGE_NAMES"] ?? "")
+    .split(separator: ",")
+    .map(String.init)
+// Qualified: Tuist evaluates this file with ProjectDescription imported too, which has a Package of
+// its own.
 let localPackageDependencies: [PackageDescription.Package.Dependency] = localPackageCheckoutsDirectory.isEmpty
     ? []
     : localPackageNames.map { packageName in .package(path: "\(localPackageCheckoutsDirectory)/\(packageName)") }
@@ -236,20 +246,24 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
 #if TUIST
     import ProjectDescription
 
-    func names(_ variable: String) -> [String] {
+    func targetNames(in variable: String) -> [String] {
         (processEnvironment[variable] ?? "").split(separator: ",").map(String.init)
     }
 
-    // Tuist suppresses warnings in every package; Xcode does so for remote packages only.
+    // Tuist suppresses warnings in every package; Xcode does so for remote packages only. The targets
+    // of the packages declared by path get theirs back: MachOSwiftSection always, the upstream
+    // packages in the local dependency mode.
     let warningSettings: [String: Settings] = Dictionary(
-        names("TUIST_WARNING_TARGET_NAMES").map { targetName in
+        targetNames(in: "TUIST_WARNING_TARGET_NAMES").map { targetName in
             (targetName, Settings.settings(base: ["SWIFT_SUPPRESS_WARNINGS": "NO", "GCC_WARN_INHIBIT_ALL_WARNINGS": "NO"]))
         },
         uniquingKeysWith: { first, _ in first }
     )
 
-    // Tuist drops a setting whose only condition is a trait; this package enables swift-capstone's
-    // AARCH64 trait, which defines CAPSTONE_HAS_AARCH64 that way.
+    // Tuist drops a package setting whose only condition is a trait. MachOSwiftSection enables
+    // swift-capstone's AARCH64 trait, which defines CAPSTONE_HAS_AARCH64 for both the Swift wrapper and
+    // the C library that way. Without it the wrapper does not compile, and the C library would compile
+    // but support no architecture at all.
     let restatedTraitDefinitions: [String: Settings] = [
         "Capstone": .settings(base: [
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "CAPSTONE_HAS_AARCH64"],
@@ -260,14 +274,71 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         ]),
     ]
 
-    // Filled in by step 2 once the tests have been built: the deployment target SwiftPM gives a test
-    // target (macOS 14.0) and -ObjC, each only if the build shows it is needed.
-    let testTargetSettings: [String: Settings] = [:]
+    // A library target that imports Testing, such as a package's testing support, uses Swift Testing's
+    // macros (#expect, #require). Xcode points only test targets at the toolchain's TestingMacros
+    // plugin; SwiftPM gives it to every target. TUIST_TESTING_SUPPORT_TARGET_NAMES lists the library
+    // targets whose sources import Testing.
+    let testingSupportSettings: [String: Settings] = Dictionary(
+        targetNames(in: "TUIST_TESTING_SUPPORT_TARGET_NAMES").map { targetName in
+            (targetName, Settings.settings(base: [
+                "ENABLE_TESTING_SEARCH_PATHS": "YES",
+                "OTHER_SWIFT_FLAGS": ["$(inherited)", "-plugin-path", "$(TOOLCHAIN_DIR)/usr/lib/swift/host/plugins/testing"],
+            ]))
+        },
+        uniquingKeysWith: { first, _ in first }
+    )
+
+    // The test targets, which SwiftPM builds and links differently in three ways:
+    // - It builds a test target for at least the macOS version XCTest and Swift Testing require (14.0
+    //   with Xcode 26 and 27), whatever its package declares; Tuist takes the package's own minimum, and
+    //   MachOSwiftSection's 10.15 leaves TypeIndexingTests without the macOS 13 APIs it tests.
+    //   TUIST_RAISED_TEST_TARGET_NAMES lists the test targets of the packages that declare less.
+    // - It links each package target's object files whole, where Tuist links static frameworks and the
+    //   linker loads only the archive members something refers to by symbol. A protocol conformance
+    //   nothing names goes missing, and `as?` fails without a word: the readers that wrap a MachOImage
+    //   or MachOFile (MachOReaderWrapper) read as neither. -ObjC also loads every member that defines an
+    //   Objective-C class or category or a Swift type or extension (Xcode 27's linker), as it does for
+    //   RuntimeViewer's Tuist workspace.
+    // - A load-time constructor nothing refers to never runs that way at all: MachOSwiftSection's
+    //   SwiftSymbolsRegistration registers Swift as a symbol language from one. TUIST_FORCE_LOADS pairs
+    //   each final link with the constructor targets its in-package dependencies reach, as
+    //   "<linking target>:<constructor target>,…"; those archives are loaded whole.
+    // TUIST_TEST_TARGET_NAMES lists every mapped test target, IntegrationTests included, so that a build
+    // of the whole workspace compiles and links too. Tuist/CommandLine/Project.swift gives the
+    // swift-section executable and SwiftSectionCommandTests the same link flags.
+    let forceLoadedTargetsByLinkingTarget: [String: [String]] = Dictionary(
+        targetNames(in: "TUIST_FORCE_LOADS").compactMap { pair -> (String, [String])? in
+            let parts = pair.split(separator: ":").map(String.init)
+            return parts.count == 2 ? (parts[0], [parts[1]]) : nil
+        },
+        uniquingKeysWith: +
+    )
+    let raisedTestTargetNames = Set(targetNames(in: "TUIST_RAISED_TEST_TARGET_NAMES"))
+    let testTargetSettings: [String: Settings] = Dictionary(
+        targetNames(in: "TUIST_TEST_TARGET_NAMES").map { targetName in
+            let forceLoadFlags = (forceLoadedTargetsByLinkingTarget[targetName] ?? []).map { loadedTarget in
+                "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(loadedTarget).framework/\(loadedTarget)"
+            }
+            var settings: SettingsDictionary = ["OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"] + forceLoadFlags)]
+            if raisedTestTargetNames.contains(targetName) {
+                settings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
+            }
+            return (targetName, Settings.settings(base: settings))
+        },
+        uniquingKeysWith: { first, _ in first }
+    )
+
+    // One target may need several of the settings above; their keys never overlap.
+    func mergingSettings(_ settingsByTarget: [String: Settings]...) -> [String: Settings] {
+        settingsByTarget.reduce(into: [:]) { merged, settings in
+            merged.merge(settings) { first, second in .settings(base: first.base.merging(second.base) { $1 }) }
+        }
+    }
 
     let packageSettings = PackageSettings(
-        targetSettings: warningSettings
-            .merging(restatedTraitDefinitions) { $1 }
-            .merging(testTargetSettings) { $1 },
+        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings),
+        // TuistScript.sh sets the variable to 1 unless a package declared by path still has a test of
+        // a shape Tuist rejects (the manifests' TUIST_MAPS_LOCAL_PACKAGE_TESTS block removes them).
         includeLocalPackageTestTargets: processEnvironment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1"
     )
 #endif
@@ -276,9 +347,11 @@ let package = Package(
     name: "MachOSwiftSectionTuistDependencies",
     dependencies: [
         .package(path: ".."),
-        // Stands in for swift-syntax everywhere, as it does as a member of the native workspace.
+        // Stands in for swift-syntax in every macro package, as it does as a member of the native
+        // workspace: SwiftPM matches it by package identity.
         .package(path: "../PrecompiledLibraries/swift-syntax"),
-        // Used only by tests, which Tuist needs declared here (MachOSwiftSection's requirement).
+        // Used only by MachOSwiftSection's tests. Tuist maps a test target only when every package
+        // its dependencies come from is declared here, with the requirement Package.swift gives it.
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.9"),
     ] + localPackageDependencies
 )
@@ -292,11 +365,15 @@ let package = Package(
 ```swift
 import ProjectDescription
 
-// What Tuist cannot convert from ../../Package.swift: the swift-section executable, and
-// SwiftSectionCommandTests, which imports the executable's module. swift_section compiles the same
-// sources as a static framework for that test; the tool compiles them again, so its link needs no
-// trick around the @main entry point. The dependency list mirrors Package.swift's swift-section
-// target and is the one hand-written copy in the Tuist description.
+// What Tuist cannot convert from ../../Package.swift (Documentations/Internal/TuistDevelopment.md):
+// the swift-section executable, and SwiftSectionCommandTests, which imports the executable's module
+// (`@testable import swift_section`). Tuist converts no executable target and rejects a test that
+// depends on one, so Package.swift leaves that test out while Tuist resolves it and it is described
+// here instead. swift_section compiles the command's sources as a static framework for the test; the
+// tool compiles them again, so its link needs no trick around the @main entry point.
+//
+// The dependency list mirrors the swift-section target in Package.swift and is the one hand-written
+// copy in the Tuist description: a dependency added there that is missing here fails to compile.
 let commandLineDependencies: [TargetDependency] = [
     .external(name: "SwiftSectionKit"),
     .external(name: "MachOFoundation"),
@@ -313,32 +390,60 @@ let commandLineDependencies: [TargetDependency] = [
     .external(name: "ArgumentParser"),
 ]
 
+// Tuist builds swift-argument-parser for macOS 12, the minimum that package declares; the package's
+// own 10.15 does not reach the executable here the way SwiftPM's build of it does.
+let commandLineDeploymentTargets: DeploymentTargets = .macOS("12.0")
+
 let commandLineSources: SourceFilesList = ["../../Sources/Executables/swift-section/**"]
+
+// The link flags Tuist/Package.swift gives the package's test targets, for the same reasons: -ObjC, so
+// that the archive members defining Swift types and extensions (protocol conformances among them) are
+// loaded, and -force_load of the constructor targets the swift-section executable reaches in
+// Package.swift, which TuistScript.sh lists in TUIST_FORCE_LOADS.
+let forceLoadedTargetNames: [String] = Environment.forceLoads.getString(default: "")
+    .split(separator: ",")
+    .compactMap { pair in
+        let parts = pair.split(separator: ":").map(String.init)
+        return parts.count == 2 && parts[0] == "swift-section" ? parts[1] : nil
+    }
+let linkFlags: SettingsDictionary = [
+    "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"] + forceLoadedTargetNames.map { targetName in
+        "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(targetName).framework/\(targetName)"
+    }),
+]
 
 // MACHO_SWIFT_SECTION_SILENT_TEST=1, which Package.swift turns into SILENT_TEST for its test targets;
 // TuistScript.sh passes it on as TUIST_SILENT_TEST, the only form a Tuist manifest can read.
-let commandTestSettings: Settings = Environment.silentTest.getBoolean(default: false)
-    ? .settings(base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "SILENT_TEST"]])
-    : .settings()
+let commandTestSettings: Settings = .settings(base: linkFlags.merging(
+    Environment.silentTest.getBoolean(default: false) ? ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["$(inherited)", "SILENT_TEST"]] : [:]
+) { $1 })
 
 let project = Project(
     name: "MachOSwiftSectionCommandLine",
+    // In SwiftPM these targets belong to the MachOSwiftSection package, whose `package` declarations
+    // they use (SwiftSectionCommandTests calls SwiftSectionKit's applyTransformersEnablingCommentKinds).
+    // Tuist gives the targets it converts SWIFT_PACKAGE_NAME = MachOSwiftSection; these need the same.
+    settings: .settings(base: ["SWIFT_PACKAGE_NAME": "MachOSwiftSection"]),
     targets: [
         .target(
             name: "swift-section",
             destinations: .macOS,
             product: .commandLineTool,
+            // Tuist would name the executable swift_section, as it turns every dash of a target's name
+            // into an underscore.
+            productName: "swift-section",
             bundleId: "com.machoswiftsection.swift-section",
-            deploymentTargets: .macOS("10.15"),
+            deploymentTargets: commandLineDeploymentTargets,
             sources: commandLineSources,
-            dependencies: commandLineDependencies
+            dependencies: commandLineDependencies,
+            settings: .settings(base: linkFlags)
         ),
         .target(
             name: "swift_section",
             destinations: .macOS,
             product: .staticFramework,
             bundleId: "com.machoswiftsection.swift-section.module",
-            deploymentTargets: .macOS("10.15"),
+            deploymentTargets: commandLineDeploymentTargets,
             sources: commandLineSources,
             dependencies: commandLineDependencies
         ),
@@ -368,9 +473,14 @@ let project = Project(
 ```swift
 import ProjectDescription
 
-// "<package directory>=<test target>,<test target>;…" from TuistScript.sh, one entry per package whose
-// tests are mapped: this package always (directory "."), the upstream packages in the local mode.
-// IntegrationTests is never listed.
+// MachOSwiftSection-Tuist.xcworkspace, the development-only workspace Tuist generates beside the
+// native MachOSwiftSection.xcworkspace (Documentations/Internal/TuistDevelopment.md).
+//
+// The packages' test targets live in the projects Tuist converts from their Package.swift files, which
+// only a workspace scheme can reference. TuistScript.sh lists them in TUIST_PACKAGE_TEST_TARGETS as
+// "<package directory>=<test target>,<test target>;…", one entry per package whose tests are mapped:
+// MachOSwiftSection always (directory "."), the upstream packages in the local dependency mode
+// (absolute directories). IntegrationTests, the maintainer's manual-inspection target, is never listed.
 let packageTestTargets: [(directory: String, targets: [String])] = Environment.packageTestTargets
     .getString(default: "")
     .split(separator: ";")
@@ -380,18 +490,43 @@ let packageTestTargets: [(directory: String, targets: [String])] = Environment.p
         return (parts[0], parts[1].split(separator: ",").map(String.init))
     }
 
+func packageName(ofDirectory directory: String) -> String {
+    directory == "." ? "MachOSwiftSection" : String(directory.split(separator: "/").last ?? Substring(directory))
+}
+
+func projectPath(ofDirectory directory: String) -> Path {
+    directory.hasPrefix("/") ? .path(directory) : .relativeToRoot(directory)
+}
+
 let workspace = Workspace(
     name: "MachOSwiftSection-Tuist",
     projects: ["Tuist/CommandLine"],
     schemes: packageTestTargets.map { entry in
-        let packageName = entry.directory == "." ? "MachOSwiftSection" : (entry.directory as NSString).lastPathComponent
         var testableTargets = entry.targets.map { targetName in
-            TestableTarget.testableTarget(target: .project(path: Path(entry.directory), target: targetName))
+            TestableTarget.testableTarget(
+                target: .project(path: projectPath(ofDirectory: entry.directory), target: targetName),
+                parallelization: .swiftTestingOnly
+            )
         }
         if entry.directory == "." {
-            testableTargets.append(.testableTarget(target: .project(path: "Tuist/CommandLine", target: "SwiftSectionCommandTests")))
+            testableTargets.append(.testableTarget(
+                target: .project(path: "Tuist/CommandLine", target: "SwiftSectionCommandTests"),
+                parallelization: .swiftTestingOnly
+            ))
         }
-        return .scheme(name: "\(packageName) Tests", testAction: .targets(testableTargets))
+        return .scheme(
+            name: "\(packageName(ofDirectory: entry.directory)) Tests",
+            testAction: .targets(
+                testableTargets,
+                // The test process as `swift test` runs it. The Thread Performance Checker inserts
+                // libRPAC.dylib, which rebinds calls in the loaded images: the cross-reference tests that
+                // compare a cache image read in process with the same image read from its file then
+                // see calls into libRPAC. The Main Thread Checker swizzles Objective-C methods the same
+                // way. Tuist 4.210 writes only the Main Thread Checker's attribute; TuistScript.sh adds
+                // disablePerformanceAntipatternChecker to the generated schemes.
+                diagnosticsOptions: .options(mainThreadCheckerEnabled: false, performanceAntipatternCheckerEnabled: false)
+            )
+        )
     }
 )
 ```
@@ -404,9 +539,12 @@ let workspace = Workspace(
 ```swift
 import ProjectDescription
 
-// Every target of MachOSwiftSection and of the five upstream packages stays source, in both dependency
-// modes; every other dependency comes out of the binary cache once warmed. TuistScript.sh reads the
-// names from the packages' manifests. No fullHandle: the cache stays on this machine.
+// Every target of MachOSwiftSection and of the five upstream packages its native workspace lists
+// (MachOKit, MachOKitExtensions, MachOObjCSection, swift-demangling, swift-semantic-string) stays
+// source, in both dependency modes; every other dependency comes out of the binary cache once
+// `./TuistScript.sh warm` has filled it. The script reads the names from the packages' manifests and
+// passes them in TUIST_SOURCE_TARGET_NAMES. No fullHandle: the cache stays on this machine and
+// nothing is uploaded. Documentations/Internal/TuistDevelopment.md.
 let sourceTargetNames = Environment.sourceTargetNames
     .getString(default: "")
     .split(separator: ",")
@@ -438,8 +576,8 @@ let tuist = Tuist(
 | `install` | 从种子锁文件开始解析当前模式的依赖（`tuist install`），结束时与种子比对 pin |
 | `generate [--configuration <c>]` | 需要时先 `install`，占用检出，生成 workspace（默认 Debug） |
 | `warm [--configuration <c>]` | 带 `--cache-profile development` 把第三方依赖编进缓存，再生成 |
-| `build [--configuration <c>]` | 生成后用 `xcodebuild` 编 `swift-section` scheme |
-| `test [-- <xcodebuild 参数>]` | 生成后用 `xcodebuild test` 跑 `MachOSwiftSection Tests` scheme，退出码就是 `xcodebuild` 的 |
+| `build [--configuration <c>] [--scheme <s>] [-- <xcodebuild 参数>]` | 生成后用 `xcodebuild` 编 `swift-section` scheme，或另一个 |
+| `test [--configuration <c>] [--scheme <s>] [-- <xcodebuild 参数>]` | 生成后用 `xcodebuild test` 跑 `MachOSwiftSection Tests` scheme（本地模式下上游库各有 `<包名> Tests`），结果存进 `Work/<checkout>/TestResults/*.xcresult` 并打印通过 / 失败 / 跳过的个数，退出码就是 `xcodebuild` 的 |
 | `release` | 放弃所有占用：删掉生成进各检出的工程（git 跟踪的不删）、占用记录与 `MachOSwiftSection-Tuist.xcworkspace`；`Derived/` 留着 |
 
 `--local-dependencies` / `--remote-dependencies` 可以跟在任何命令后面，从这条命令起切换模式；`--dry-run` 打印要做的事；`--help` 打印脚本头部的说明。
@@ -453,25 +591,29 @@ let tuist = Tuist(
 | `TUIST_SOURCE_TARGET_NAMES` | `Tuist.swift` | 本库与五个上游库的全部 target |
 | `TUIST_WARNING_TARGET_NAMES` | `Tuist/Package.swift` | 恢复警告的 target：本库全部，本地模式再加上游库全部 |
 | `TUIST_PACKAGE_TEST_TARGETS` | `Workspace.swift` | 每个映射了测试的包的测试 target，不含 `IntegrationTests` |
+| `TUIST_TEST_TARGET_NAMES` | `Tuist/Package.swift` | 所有转换进来的测试 target（含 `IntegrationTests`），给它们 `-ObjC` 与 `-force_load` |
+| `TUIST_RAISED_TEST_TARGET_NAMES` | `Tuist/Package.swift` | 声明的 macOS 最低版本低于 14 的包的测试 target，部署版本抬到 14.0 |
+| `TUIST_TESTING_SUPPORT_TARGET_NAMES` | `Tuist/Package.swift` | 源码里 `import Testing` 的库 target，加 TestingMacros 插件路径 |
+| `TUIST_FORCE_LOADS` | `Tuist/Package.swift`、`Tuist/CommandLine/Project.swift` | `<链接的 target>:<有加载期 constructor 的 target>,…`，后者整个 `-force_load` |
 | `TUIST_SILENT_TEST` | `Tuist/CommandLine/Project.swift` | 用户设了 `MACHO_SWIFT_SECTION_SILENT_TEST=1` 时为 `1` |
 | `SWIFTPM_BUILD_DIR` | Tuist | 当前模式的依赖 checkout 目录 |
 | `TUIST_XDG_CACHE_HOME`、`TUIST_CACHE_WARM_SCRATCH_DIRECTORY` | Tuist | 二进制缓存与预热的临时目录 |
 
 `USING_LOCAL_DEPENDENCIES` 被设了就提示一句并 `unset`：它会让本库清单自己换上本地兄弟，连 swift-capstone 一起，与 `Tuist/Package.swift` 的名单对不上。
 
-**名单从哪来**：本地依赖的名字读 `MachOSwiftSection.xcworkspace/contents.xcworkspacedata` 里的 `container:../<名字>`（不含 `/` 的那些），workspace 加了库这里自动跟上。target 名单用 `swift package dump-package`（带 `TUIST_MAPS_LOCAL_PACKAGE_TESTS=1`，`--scratch-path` 放在 `Work/<checkout>/Manifests/`）读六个包的清单：本库与本地模式下的上游库读检出里的，远程模式下的上游库读 `install` 之后 `SWIFTPM_BUILD_DIR/checkouts/<名字>` 里的。远程模式下第一次 `install` 之前还没有 checkout，先用空名单装一次再算。
+**名单从哪来**：本地依赖的名字读 `MachOSwiftSection.xcworkspace/contents.xcworkspacedata` 里的 `container:../<名字>`（不含 `/` 的那些），workspace 加了库这里自动跟上。每次 `install` 之后，脚本用 `swift package dump-package`（带 `TUIST_MAPS_LOCAL_PACKAGE_TESTS=1`，8 个并行，`--scratch-path` 放在 `Work/<checkout>/Manifests/Scratch/`）读一遍所有包的清单，存进 `Work/<checkout>/Manifests/`：本库与本地模式下的上游库读检出里的，远程模式下的上游库和全部第三方包读 `SWIFTPM_BUILD_DIR/checkouts/` 里的。`generate`、`warm` 前由 Python 从这些清单算出上表的各个名单，并扫描路径包里 target 的源码找 `import Testing` 与 `__attribute__((constructor))`；Python 出错脚本就失败，不带着空名单生成。
 
 **测试映射的预检**：对每个按路径声明的包，在它的清单 JSON 里找 Tuist 会拒绝的两种形态——测试依赖本包的可执行 target、测试依赖不属于任何 product 的普通 target（实测第 1、3、6 条）。适配块生效时这两种都不该剩下；还剩，说明那个包没有适配块（比如本地检出停在加块之前的提交），这次就整体设 `TUIST_MAPS_LOCAL_PACKAGE_TESTS=0`，警告点名那个包，生成照常进行。只被测试用到的外部依赖（实测第 2 条）预检查不出来，生成时 Tuist 自己会报，指南里写怎么补。
 
 **锁文件**：`Tuist/Package.resolved` 不提交（`*.resolved` 已忽略）。每次 `install` 前用本检出根目录的 `Package.resolved` 当种子（没有就不种，由 Tuist 解析最新版本），结束时逐条比对，不同就警告；swift-syntax（这边是预编译包，没有 pin）与本地模式下的五个库不参与比对。
 
-**依赖模式**：模式记在 `Tuist/.local-dependencies`（内容是上游库所在目录；远程模式下这个文件不存在）。默认目录是检出的上一级，worktree 里就是 `.worktrees/`；打开本地模式时设了 `TUIST_LOCAL_PACKAGE_CHECKOUTS` 就用它。两种模式各用一份依赖 checkout（`Dependencies/<checkout>` 与 `Dependencies/<checkout>-LocalDependencies`），共用 `Tuist/Package.resolved`，所以切换后、或上次解析用的是另一种模式时先重新 `install`（`Work/<checkout>/InstalledDependencies` 记着上次）。切到远程时释放五个上游库的占用。
+**依赖模式**：模式记在 `Tuist/.local-dependencies`（内容是上游库所在目录；远程模式下这个文件不存在）。默认目录是检出的上一级，worktree 里就是 `.worktrees/`；打开本地模式时设了 `TUIST_LOCAL_PACKAGE_CHECKOUTS` 就用它。两种模式各用一份依赖 checkout（`Dependencies/<checkout>` 与 `Dependencies/<checkout>-LocalDependencies`），共用 `Tuist/Package.resolved`，所以切换后、或上次解析用的是另一种模式时先重新 `install`（`Work/<checkout>/InstalledDependencies` 记着上次）。这个记号还带着 `Tuist/Package.swift`、`Package.swift`、种子锁文件与本地模式下各上游库清单的 hash：改了其中任何一个，下一次 `generate` 自己重新解析。切到远程时释放五个上游库的占用。
 
 **存放位置**：`/Volumes/DerivedData` 挂着时全放在 `/Volumes/DerivedData/MachOSwiftSection/Tuist/` 下（`Cache/`、`Dependencies/<checkout>[-LocalDependencies]/`、`WarmScratch/<checkout>/`、`Work/<checkout>/`），`<checkout>` 是目录名加路径的短 hash；没挂载时放在仓库里的 `Tuist/.build/`、`Tuist/.build-LocalDependencies/` 与 `DerivedData/Tuist/`（都已忽略）。`TUIST_SCRIPT_ROOT` 指定别处。`build` / `test` 的 DerivedData 在 `Work/<checkout>/DerivedData`。日志在 `Products/Logs/Tuist/`；Tuist 的输出原样显示并记进日志，`xcodebuild` 的输出只进日志，失败时显示错误摘要。
 
 **占用记录**（与 RuntimeViewer 共用）：
 
-- 被占的检出：它的 git 目录（`git rev-parse --absolute-git-dir`，worktree 各有一份）里的 `tuist-generated-project-owner`，第一行是占用者检出的路径，第二行是在占用者检出里释放它的命令。
+- 被占的检出：它的 git 目录（`git rev-parse --absolute-git-dir`，worktree 各有一份）里的 `tuist-generated-project-owner`，第一行是占用者检出的路径，第二行是在占用者检出里释放它的命令，第三行是生成进这个检出的工程名（释放时删它）。
 - 占用者：自己的 `Tuist/.claimed-checkouts`，每行一个被占检出的真实路径（`pwd -P`）。
 - 有效：占用者的 `.claimed-checkouts` 列着这个路径。占用者不在了、或已经不列了，记录就是陈旧的，可以直接覆盖。
 - 旧记录 `runtimeviewer-tuist-local-dependencies`：占用者的 `Tuist/.local-dependencies` 加上包名指向这个检出时算有效（RuntimeViewer 今天的规则）。
@@ -480,7 +622,9 @@ let tuist = Tuist(
 
 **Tuist 版本**：读 `mise.toml` 的版本；有 mise 就 `mise exec -- tuist`，否则用 PATH 里的 `tuist`；版本不对就失败并提示 `mise install`。
 
-**agent 运行**：`TUIST_SCRIPT_ROOT=/Volumes/DerivedData/Agents.noindex/<agent>/Tuist-MachOSwiftSection`，并写成 `queued-build ./TuistScript.sh <命令>`。
+**生成之后**：给每个 `* Tests.xcscheme` 的 TestAction 补 `disablePerformanceAntipatternChecker = "YES"`（Tuist 4.210 只写主线程检查那一项，见决策日志）。
+
+**agent 运行**：`TUIST_SCRIPT_ROOT=/Volumes/DerivedData/Agents.noindex/<agent>/Tuist-MachOSwiftSection`；`warm`、`build`、`test` 要编译，写成 `queued-build ./TuistScript.sh <命令>`，`install`、`generate`、`release` 不编译。
 
 ### RuntimeViewer 那一侧
 
@@ -488,13 +632,13 @@ let tuist = Tuist(
 - `release_local_checkouts`：删掉自己的共用记录（以及残留的旧记录），从 `.claimed-checkouts` 里去掉。
 - 今天它占着本库的集成 worktree 与五个上游检出（旧记录）。改完后它下一次 `generate` 就把记录换成新的；在那之前，本库的脚本按旧规则认出它的占用。
 
-### 已知要在实现中确认的点
+### 实现中确认的点（Ultra，Xcode 27.2）
 
-1. `swift_section` 与 `SwiftSectionCommandTests` 能编、能链、`@testable import` 成立（第 2 步）。
-2. 本库测试在 Tuist workspace 里要不要抬部署版本到 14.0、要不要 `-ObjC`（第 2 步，只加确实需要的）。
-3. `Capstone` 的 trait 宏补上后 `SwiftThunkAnalysis` 能编（第 1 步）。
-4. `Workspace.swift` 里按绝对路径引用上游库工程（第 3 步）。
-5. 远程与本地两种模式下，Tuist workspace 跑出的测试数与 `swift test --skip IntegrationTests` 一致，失败的与原生路径相同（第 2、3 步，在 Ultra 上）。
+1. `swift_section` 与 `SwiftSectionCommandTests` 能编、能链、`@testable import` 成立：124 个测试全部通过。另需 `SWIFT_PACKAGE_NAME = MachOSwiftSection`（它调用 SwiftSectionKit 的 `package` 方法），工具 target 写明 `productName`。
+2. 部署版本与链接参数：测试 target 要抬到 macOS 14.0（`TypeIndexingTests`），CLI 要 macOS 12.0（swift-argument-parser）；测试与 CLI 都要 `-ObjC`（包装读取器的 conformance）和对 `SwiftSymbolsRegistration` 的 `-force_load`（Swift 符号语言的注册）；导入 Testing 的库 target 要 TestingMacros 插件路径；测试 scheme 要关掉两个运行时检查。逐条见决策日志。
+3. `Capstone` 的 trait 宏补上后 `SwiftThunkAnalysis` 编过，它的测试通过（86 个通过、2 个跳过）。
+4. 远程模式：Tuist workspace 的测试 scheme 与原生 `swift test --skip IntegrationTests` 在同一台机器、同一个 Xcode 下逐 bundle 对照，全部通过；Tuist 编的 `swift-section` 与原生编的对 SymbolTestsCore 输出的 `dump`、`interface` 逐字节相同。
+5. 本地模式与按绝对路径引用上游库工程：见决策日志「本地模式实测」。
 
 ## 替代方案考量
 
@@ -539,34 +683,34 @@ let tuist = Tuist(
 
 在 Ultra 上构建与跑测试（本机是 10 核那台），用默认的 Xcode 27.2；第 2、3 步的测试结果另用 Xcode 26.6 的 `swift test` 结果对照。
 
-1. **骨架：远程模式能生成、能编 CLI** —— 改动地图里 `mise.toml`、`Tuist/Package.swift`（不含测试相关）、`Tuist/CommandLine/Project.swift`（只有 `swift-section`）、`Workspace.swift`（无测试 scheme）、`TuistScript.sh`（`install`、`generate`、`build`、`release`，存放位置，锁文件，自己检出的占用）、`.gitignore`、workspace 成员
+1. **骨架：远程模式能生成、能编 CLI**（已完成） —— 改动地图里 `mise.toml`、`Tuist/Package.swift`（不含测试相关）、`Tuist/CommandLine/Project.swift`（只有 `swift-section`）、`Workspace.swift`（无测试 scheme）、`TuistScript.sh`（`install`、`generate`、`build`、`release`，存放位置，锁文件，自己检出的占用）、`.gitignore`、workspace 成员
    - 行为：`generateCreatesTheTuistWorkspaceAndLeavesTheNativeWorkspaceUntouched`
    - 行为：`buildCompilesSwiftSectionFromTheTuistWorkspace`
    - 行为：`generateFailsNamingTheOwnerWhenAnotherCheckoutHoldsThisOne`
    - 行为：`releaseRemovesTheGeneratedProjectsAndTheClaim`
    - 行为：`installWarnsWhenTheResolvedPinsDifferFromTheSeedLockFile`
    - 行为：`usingLocalDependenciesIsIgnoredWithAWarning`
-2. **本库的测试** —— `Package.swift` 适配块，`Tuist/Package.swift` 的 swift-snapshot-testing 与测试设置，`Project.swift` 的 `swift_section` 与 `SwiftSectionCommandTests`，`Workspace.swift` 的测试 scheme，脚本的 `test` 命令与清单读取
+2. **本库的测试**（已完成） —— `Package.swift` 适配块，`Tuist/Package.swift` 的 swift-snapshot-testing 与测试设置，`Project.swift` 的 `swift_section` 与 `SwiftSectionCommandTests`，`Workspace.swift` 的测试 scheme，脚本的 `test` 命令与清单读取
    - 行为：`theTestSchemeHoldsEveryTestTargetExceptIntegrationTests`
    - 行为：`swiftSectionCommandTestsImportTheCommandModuleAndPass`
    - 行为：`theTuistTestRunMatchesSwiftTestTargetByTarget`
    - 行为：`packageManifestIsUnchangedWithoutTheTuistVariable`（`swift package dump-package` 不带变量时与改动前逐字节相同）
-3. **本地模式** —— 三个上游库的适配块（各自的功能分支），`Tuist/Package.swift` 的本地依赖，脚本的模式切换、上游库占用、预检
+3. **本地模式**（已完成） —— 三个上游库的适配块（各自的功能分支），`Tuist/Package.swift` 的本地依赖，脚本的模式切换、上游库占用、预检
    - 行为：`localDependenciesBuildTheUpstreamPackagesFromTheirCheckoutsWithUncommittedEdits`
    - 行为：`theModeIsRememberedAndSwitchingResolvesAgain`
    - 行为：`localModeMapsTheTestsOfAllSixPackages`
    - 行为：`anUpstreamCheckoutWithoutTheBlockTurnsTestMappingOffWithAWarning`
    - 行为：`switchingToRemoteReleasesTheUpstreamCheckouts`
-4. **二进制缓存** —— `Tuist.swift`，脚本的 `warm` 与 `TUIST_SOURCE_TARGET_NAMES`
+4. **二进制缓存**（已完成） —— `Tuist.swift`，脚本的 `warm` 与 `TUIST_SOURCE_TARGET_NAMES`
    - 行为：`warmCachesEveryThirdPartyPackageAndNoneOfTheSixOwnPackages`
    - 行为：`generateAfterWarmLinksTheCachedBinaries`
    - 行为：`aThirdPartyTargetNamedLikeAnOwnTargetIsReported`
    - 记录：空 DerivedData 下不用缓存与走缓存各编一次 `swift-section` 与测试 scheme 的时间，写进决策日志与指南。
-5. **与 RuntimeViewer 互斥** —— RuntimeViewer 的 `TuistScript.sh` 与指南
+5. **与 RuntimeViewer 互斥**（已完成） —— RuntimeViewer 的 `TuistScript.sh` 与指南
    - 行为：`runtimeViewerLocalModeFailsWhileMachOSwiftSectionHoldsTheCheckout`
    - 行为：`machOSwiftSectionFailsWhileRuntimeViewerHoldsAnUpstreamCheckout`（新旧两种记录各一次）
    - 行为：`aStaleClaimIsTakenOverSilently`
-6. **文档** —— 使用指南、`AGENTS.md`、`Documentations/README.md`
+6. **文档**（已完成） —— 使用指南、`AGENTS.md`、`Documentations/README.md`
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 
@@ -595,3 +739,6 @@ let tuist = Tuist(
 | 2026-11-20 | 只给声明低于 macOS 14 的包的测试抬部署版本 | 六个包今天都声明 10.15，但以后有包声明 15 时，统一设 14.0 会把它的测试调低。脚本另传 `TUIST_RAISED_TEST_TARGET_NAMES`；`-ObjC` 与 `-force_load` 照旧给全部测试。 |
 | 2026-11-20 | 测试 scheme 关掉 Xcode 的两个运行时检查 | 全量重跑后只剩 `FileModeTests.fileModeMatchesInProcessReferencesOnTheRunningSystemCache` 一条：进程内的调用目标落在 `/usr/lib/libRPAC.dylib`。那是 Thread Performance Checker 插入的库，它改写了已加载镜像里的调用；`swift test` 的进程里没有它。`Workspace.swift` 的测试 scheme 关掉它与 Main Thread Checker；Tuist 4.210 只写后者的属性，脚本生成后给 `* Tests.xcscheme` 的 TestAction 补 `disablePerformanceAntipatternChecker = "YES"`。 |
 | 2026-11-20 | 工具 target 写明 `productName` | Tuist 把 target 名里的 `-` 换成 `_`，可执行文件成了 `swift_section`。 |
+| 2026-11-20 | 本地模式实测 | Ultra 上用五个上游库的沙盒副本（`TUIST_LOCAL_PACKAGE_CHECKOUTS` 指过去，各在本提案的功能分支上）打开本地模式：解析、读清单、生成都成功，六个包各有一个 `<包名> Tests` scheme，副本的 `git status` 保持干净。`MachOSwiftSection Tests` 全量 2,943 个通过、0 失败、7 个跳过（修完前面几处之后的第一次全量）；MachOKitExtensions 171 个、swift-demangling 641 个、swift-semantic-string 464 个全部通过。MachOKit 10 个失败、MachOObjCSection 26 个失败，全是测试自己读写死的路径或系统文件：`AotCachePrintTests` 读不存在的 `aot_shared_cache.0`，`ArchiveFileTests` 读 clang 17 目录（Xcode 27.2 是 21），`MachOObjCSectionTests` 的 `setUp` 读 `/Users/JH/Downloads/iOS18.5-SwiftUI`，两条 `testDylibsPreBuildLoaderSet` 在 macOS 27 的系统 cache 上读不出 loader set 版本。这些按源码判断与 Tuist 无关，没有再用原生 `swift test` 对照。切回远程模式后副本的占用全部释放。 |
+| 2026-11-20 | 缓存计时 | Ultra（28 核，Xcode 27.2），清空 DerivedData 后编 `swift-section`（Debug）：不走缓存 63 秒，走缓存 46 秒；`warm` 把 70 个第三方 target 编成 xcframework 用了 60 秒，再生成时这 70 个都换成了缓存。测试 scheme 走缓存的全量重跑用户嫌慢叫停了，没有结果；远程模式下修完的那几处都按 bundle 重跑过，本地模式的全量也已通过。写进使用指南。 |
+| 2026-11-20 | 实现完成，待用户看过后收尾 | 配套文档：使用指南已写；实现说明不另写，清单里每处特殊写法的原因都在指南「已知的坑」与本决策日志里。术语表（「Tuist 开发 workspace」「本地依赖模式」「占用记录」）留到正式收尾时判断。 |
