@@ -1417,6 +1417,7 @@ extension Target {
         dependencies: [
             .target(.SwiftSectionTestingMacros),
             .product(.SwiftSyntax),
+            .product(.SwiftSyntaxBuilder),
             .product(.SwiftSyntaxMacros),
             .product(.SwiftSyntaxMacroExpansion),
             .product(.SwiftSyntaxMacrosGenericTestSupport),
