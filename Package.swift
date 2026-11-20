@@ -1547,6 +1547,23 @@ extension SwiftSetting {
     static let immutableWeakCaptures: Self = .enableUpcomingFeature("ImmutableWeakCaptures") // SE-0481, Swift 6.2,  SwiftPM 6.2+
 }
 
+// MARK: - Upcoming features
+
+// Every Swift target adopts three upcoming features that Swift 7 turns on
+// (proposal swift6-mode-and-upcoming-features, shared with the other MachO
+// packages). The loop runs before the Tuist block so a target Tuist reshapes
+// already carries them. The other three settings above stay unused: they
+// change run-time behavior or every import, and were measured and declined.
+let upcomingFeatureSettings: [SwiftSetting] = [
+    .existentialAny,
+    .memberImportVisibility,
+    .inferIsolatedConformances,
+]
+
+for target in package.targets where target.type != .system && target.type != .binary && target.type != .plugin {
+    target.swiftSettings = (target.swiftSettings ?? []) + upcomingFeatureSettings
+}
+
 // MARK: - Tuist development workspace
 
 // MachOSwiftSection's Tuist development workspace (its Documentations/Internal/TuistDevelopment.md)
