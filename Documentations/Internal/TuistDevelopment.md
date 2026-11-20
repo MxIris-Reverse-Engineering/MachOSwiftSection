@@ -92,6 +92,8 @@ Tuist 把按路径声明的包的测试 target 一起转换（`PackageSettings` 
 
 都是为了绕开 Tuist 4.210 的行为，改之前先看这里。
 
+- **测试 scheme 关掉了 Main Thread Checker 与 Thread Performance Checker**（`Workspace.swift`，以及脚本生成后补的 `disablePerformanceAntipatternChecker`）：后者往测试进程里插入 `libRPAC.dylib`，改写已加载镜像里的调用，`CrossReferenceAnalysisTests` 里拿进程内读到的 cache 镜像和同一镜像的文件比对的测试就看到一批指向 `libRPAC` 的调用而失败。关掉之后测试进程与 `swift test` 的一样。Tuist 4.210 只往 TestAction 写主线程检查那一项，另一项由脚本在生成后补上，所以别直接跑 `tuist generate`。
+- **工具 target 写明 `productName: "swift-section"`**：Tuist 会把 target 名里的 `-` 换成 `_`，不写的话编出来的可执行文件叫 `swift_section`。
 - **CLI 的部署版本是 macOS 12.0**（`Tuist/CommandLine/Project.swift`）：Tuist 把 swift-argument-parser 编成它声明的最低版本 macOS 12，10.15 的 `swift-section` import 不了它。
 - **测试 target 的部署版本抬到 macOS 14.0**（`Tuist/Package.swift` 的 `testTargetSettings`）：SwiftPM 给测试 target 的部署版本不低于 XCTest 与 Swift Testing 的要求（Xcode 26、27 都是 14.0），包声明的更低也一样；Tuist 照搬包声明的 10.15，`TypeIndexingTests` 于是找不到它测的 macOS 13 API。脚本把所有转换进来的测试 target（含 `IntegrationTests`，免得编整个 workspace 时它编不过）传进 `TUIST_TEST_TARGET_NAMES`。
 - **测试 target 与 `swift-section` 链接时带 `-ObjC`**（`Tuist/Package.swift` 的 `testTargetSettings`，`Tuist/CommandLine/Project.swift` 的 `linkFlags`）：SwiftPM 把每个包 target 的目标文件整块链进去；Tuist 编的是静态 framework，链接器只拉被符号引用到的归档成员。没人点名的 protocol conformance 于是丢了，`as?` 静默失败：包装 `MachOImage` / `MachOFile` 的读取器（`MachOReaderWrapper`）两样都不像，`WrappedReaderSymbolTests` 与 `WrappedReaderDemanglingTests` 红了 4 条。Xcode 27 的链接器下 `-ObjC` 会拉进所有定义了 ObjC 类或分类、Swift 类型或 extension 的成员，与 RuntimeViewer 的 Tuist workspace 同一个做法。
