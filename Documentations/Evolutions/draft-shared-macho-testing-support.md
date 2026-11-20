@@ -7,7 +7,7 @@
 - **所属愿景**: 无
 - **关联提案**: [0003（MachOKitExtensions）move-macho-infrastructure-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md)（`MachO` 前缀的模块归 MachOKitExtensions，本包的测试支持因此改名 `SwiftSection…`）；[0098 move-cross-reference-layers](0098-move-cross-reference-layers.md)（跨仓库迁移、由本包维护唯一提案的先例）；MachOKitExtensions 的 [0006-cplusplus-class-hierarchy](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0006-cplusplus-class-hierarchy.md)（它新加的测试辅助是本提案要合并的重复代码之一，已随 3.1.0 发布）；[0100-fixture-suite-macro](0100-fixture-suite-macro.md)（同一次讨论拆出的本包宏）；[0101-swift6-mode-and-upcoming-features](0101-swift6-mode-and-upcoming-features.md)（两个包开启的三项 upcoming feature，新代码照它们写）
 - **实现分支 / PR**: 两个仓库同名 `feature/shared-macho-testing-support`。MachOKitExtensions 从 `main` 切出（3.1.0 与 Swift 6 迁移之后），worktree 在 `.worktrees/MachOKitExtensions-SharedMachOTestingSupport`；本包从 `next` 切出（0100、0101 之后），worktree 在 `.worktrees/MachOSwiftSection-SharedMachOTestingSupport`，第 5、6 步等 MachOKitExtensions 3.2.0 发布后在这里做
-- **配套文档**: 待定 —— 落地时登记 MachOKitExtensions 的实现说明
+- **配套文档**: MachOKitExtensions 的实现说明 [Internal/TestingSupport.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/TestingSupport.md)（落地前在它的功能分支上）
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -290,10 +290,10 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
    - 行为：`compilerBuildsSwiftAndCPlusPlus`
    - 行为：`pairedSubjectsRunOneClosureOnEachReader`
    - 行为：`pairedSubjectsOpenTheContextForAnAPITakingSomeReadingContext`（编译验证单闭包写法）
-3. **MKE 的测试改用共享版本** —— 动机一节的表，以及 `Tests/CPlusPlusSymbolsTests/`
+3. **MKE 的测试改用共享版本**（完成）—— 动机一节的表，以及 `Tests/CPlusPlusSymbolsTests/`
    - 行为：MKE 全部测试照常通过，跨读取器的约 25 个测试改写为 `acrossAllReaders` 后断言不变
    - 行为：仓库里不再有 `Process` 调用 `xcrun` 的测试辅助、写死 Cryptexes 路径的常量、手写的选 slice
-4. **MKE 文档与发版** —— `Internal/TestingSupport.md`、README、索引；发 3.2.0
+4. **MKE 文档与发版**（文档完成，发版待确认）—— `Internal/TestingSupport.md`、README、索引；发 3.2.0
 
 本包（MKE 3.2.0 发布后，从 `next` 切出）：
 
@@ -331,3 +331,6 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 | 2026-11-20 | `.print()` 的静默开关改为运行时环境变量 `MACHO_TESTING_SILENT=1` | 原来是编译条件 `SILENT_TEST`，由本包清单加在自己的 target 上，搬到 MKE 后到不了 MKE 的模块。第 5 步要让本包 CI（以及 Tuist 的测试 scheme）设这个变量。 |
 | 2026-11-20 | `MachOFixtureTests` 的初始化保持 `async throws`；新增第三个重载 `acrossAllReaders { machO in … }` | 前者照本包现有签名，有子类写了 `override init() async throws`。后者把两个读取器本身交给同一个闭包：MKE 的 C++ 测试要比的就是读取器，而 `MachOFile` 与 `MachOImage` 不能当成同一个泛型参数传给成对的重载。 |
 | 2026-11-20 | 实现细节自定 | `FixtureCompiler` 每份产物单独一个目录，库之间用 `-L`、`-l` 链接，`strip -x` 改用链接参数 `-Wl,-x`；失败的结果也缓存。`HostSlice` 先找同 CPU 类型且子类型相同的 slice，再退到同类型，再找不到就报错，不再像本包那样退到第一个 slice；单架构文件不论 CPU 都直接用。`MachOFixture(imageContaining:)` 用 `dladdr` 拿到镜像的文件路径，所以不支持 shared cache 里的镜像（那种用 `ProcessImages.cacheFileAndLoadedImage(path:)`）。读不到夹具时抛 MKE 的 `MachOFixtureError`；本包第 5 步可以在子类里把它换成带重编说明的 `FixtureLoadError`。`DyldCacheTests` 读本机 cache 时用 `FullDyldCache.cachedHost` 和它的 `mainCache`。`ExclusiveImageAccess` 在 MKE 只有按字符串的初始化，同提案。 |
+| 2026-11-20 | MKE 第 3 步完成 | `ClassIndexTestImages` 与测试里那份 `ForwardingReader` 删掉；5 处现编库改用 `FixtureCompiler`；写死 Cryptexes 的 3 处与归档 cache 的 3 处改用 `DyldSharedCachePath`；手写选 slice 的 6 处改用 `HostSlice`。`ChainedFixupsFixture` 故意读每一个 slice（要覆盖 x86_64 与 arm64e 两种指针格式），不算选 slice，保留。`CPlusPlusClassIndexStoreTests` 改成 `MachOFixtureTests` 的子类，17 个参数化测试改写为 `acrossAllReaders`，实际数比提案估的约 25 个少。 |
+| 2026-11-20 | 跨读取器比较的是去掉偏移的形状 | 同一份数据在文件里与加载后的偏移不同，C++ 测试先把类与 vtable 投影成 `ClassShape`、`VirtualTableShape` 再比较；偏移之间的关系在闭包里各自算成布尔值或距离返回。改写时查出一处读取器之间的真实差别：另一个镜像里的基类，文件读出绑定所写的 `libc++.1.dylib`，进程里读出 dyld 找到符号的 `libc++abi.dylib`（被 libc++ 重新导出）。原测试只查名字含 `libc++`，两边都满足，属于既有行为，不是这次引入的；形状里只记「在另一个镜像」，各读取器分别判断是不是 libc++。 |
+| 2026-11-20 | MKE 第 4 步的文档完成，实现完成（MKE 部分），待用户看过后收尾 | 新增实现说明 `Internal/TestingSupport.md`，README 的 product 表加两行，文档索引与提案索引登记（提案索引是跨仓库行）。验证在 Ultra 上（Xcode 27.2）：MKE 全量 `swift test` 271 个测试通过，原始退出码 0；带 `CPLUSPLUS_CLASS_CENSUS_FRAMEWORKS` 的 TSTables 与 Espresso 普查也通过（断言精确计数）。发 3.2.0 不在开工的授权内，等用户确认；第 5、6 步等 3.2.0 发布后在本包做。 |
