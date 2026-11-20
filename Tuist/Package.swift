@@ -73,6 +73,7 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
     // - It builds a test target for at least the macOS version XCTest and Swift Testing require (14.0
     //   with Xcode 26 and 27), whatever its package declares; Tuist takes the package's own minimum, and
     //   MachOSwiftSection's 10.15 leaves TypeIndexingTests without the macOS 13 APIs it tests.
+    //   TUIST_RAISED_TEST_TARGET_NAMES lists the test targets of the packages that declare less.
     // - It links each package target's object files whole, where Tuist links static frameworks and the
     //   linker loads only the archive members something refers to by symbol. A protocol conformance
     //   nothing names goes missing, and `as?` fails without a word: the readers that wrap a MachOImage
@@ -93,15 +94,17 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         },
         uniquingKeysWith: +
     )
+    let raisedTestTargetNames = Set(targetNames(in: "TUIST_RAISED_TEST_TARGET_NAMES"))
     let testTargetSettings: [String: Settings] = Dictionary(
         targetNames(in: "TUIST_TEST_TARGET_NAMES").map { targetName in
             let forceLoadFlags = (forceLoadedTargetsByLinkingTarget[targetName] ?? []).map { loadedTarget in
                 "-Wl,-force_load,$(BUILT_PRODUCTS_DIR)/\(loadedTarget).framework/\(loadedTarget)"
             }
-            return (targetName, Settings.settings(base: [
-                "MACOSX_DEPLOYMENT_TARGET": "14.0",
-                "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"] + forceLoadFlags),
-            ]))
+            var settings: SettingsDictionary = ["OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"] + forceLoadFlags)]
+            if raisedTestTargetNames.contains(targetName) {
+                settings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
+            }
+            return (targetName, Settings.settings(base: settings))
         },
         uniquingKeysWith: { first, _ in first }
     )

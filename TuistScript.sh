@@ -619,6 +619,15 @@ def dependency_name(dependency):
     return None
 
 source_targets, warning_targets, test_entries, test_names, testing_support_names, rejected = [], [], [], [], [], []
+# The test targets of a package that declares a macOS minimum below the one XCTest and Swift Testing need.
+raised_test_names = []
+minimum_test_macos = (14, 0)
+
+def declared_macos(manifest):
+    for platform in manifest.get("platforms", []):
+        if platform["platformName"] == "macos":
+            return tuple(int(part) for part in platform["version"].split("."))
+    return (10, 13)
 testing_import = re.compile(r"^\s*(@\w+\s+)*((public|package|internal)\s+)?import\s+Testing\b", re.MULTILINE)
 
 constructor_attribute = re.compile(r"__attribute__\s*\(\(\s*constructor\b")
@@ -695,6 +704,8 @@ for identity, role, directory in packages:
     regular_names = {target["name"] for target in targets if target["type"] == "regular"}
     tests = [target for target in targets if target["type"] == "test"]
     test_names += [test["name"] for test in tests]
+    if declared_macos(manifest) < minimum_test_macos:
+        raised_test_names += [test["name"] for test in tests]
     for test in tests:
         for dependency in test["dependencies"]:
             name = dependency_name(dependency)
@@ -724,6 +735,7 @@ print("SOURCE_TARGETS=" + ",".join(source_targets))
 print("WARNING_TARGETS=" + ",".join(warning_targets))
 print("TEST_TARGETS=" + ";".join(test_entries))
 print("TEST_TARGET_NAMES=" + ",".join(test_names))
+print("RAISED_TEST_TARGET_NAMES=" + ",".join(raised_test_names))
 print("TESTING_SUPPORT_TARGET_NAMES=" + ",".join(testing_support_names))
 print("FORCE_LOADS=" + ",".join(force_loads))
 for reason in rejected:
@@ -733,6 +745,7 @@ PYTHON
     TUIST_WARNING_TARGET_NAMES=""
     TUIST_PACKAGE_TEST_TARGETS=""
     TUIST_TEST_TARGET_NAMES=""
+    TUIST_RAISED_TEST_TARGET_NAMES=""
     TUIST_TESTING_SUPPORT_TARGET_NAMES=""
     TUIST_FORCE_LOADS=""
     TUIST_MAPS_LOCAL_PACKAGE_TESTS=1
@@ -742,6 +755,7 @@ PYTHON
             WARNING_TARGETS) TUIST_WARNING_TARGET_NAMES="$value";;
             TEST_TARGETS) TUIST_PACKAGE_TEST_TARGETS="$value";;
             TEST_TARGET_NAMES) TUIST_TEST_TARGET_NAMES="$value";;
+            RAISED_TEST_TARGET_NAMES) TUIST_RAISED_TEST_TARGET_NAMES="$value";;
             TESTING_SUPPORT_TARGET_NAMES) TUIST_TESTING_SUPPORT_TARGET_NAMES="$value";;
             FORCE_LOADS) TUIST_FORCE_LOADS="$value";;
             REJECTED)
@@ -755,8 +769,10 @@ PYTHON
         warn "the tests stay out of the workspace this time. Each manifest above needs the TUIST_MAPS_LOCAL_PACKAGE_TESTS block MachOSwiftSection's Package.swift ends with (Documentations/Internal/TuistDevelopment.md)."
         TUIST_PACKAGE_TEST_TARGETS=""
         TUIST_TEST_TARGET_NAMES=""
+        TUIST_RAISED_TEST_TARGET_NAMES=""
     fi
     export TUIST_SOURCE_TARGET_NAMES TUIST_WARNING_TARGET_NAMES TUIST_PACKAGE_TEST_TARGETS TUIST_TEST_TARGET_NAMES \
+        TUIST_RAISED_TEST_TARGET_NAMES \
         TUIST_TESTING_SUPPORT_TARGET_NAMES TUIST_FORCE_LOADS TUIST_MAPS_LOCAL_PACKAGE_TESTS
 }
 
