@@ -1,12 +1,12 @@
 # Draft - `@FixtureSuite` 宏：夹具测试套件开头的固定写法由宏生成
 
-- **状态**: Draft
+- **状态**: Accepted
 - **作者**: JH
 - **创建日期**: 2026-11-20
 - **最后更新**: 2026-11-20
 - **所属愿景**: 无
 - **关联提案**: [draft-shared-macho-testing-support](draft-shared-macho-testing-support.md)（同一次「减少测试样板」的讨论里拆出来；那份统一跨包的测试支持，这份只管本包的 Swift 夹具覆盖率体系，两份互不依赖）
-- **实现分支 / PR**: 待定（预定 `feature/fixture-suite-macro`，从 `next` 切出）
+- **实现分支 / PR**: `feature/fixture-suite-macro`，从 `next` 切出；worktree 在 `.worktrees/MachOSwiftSection-FixtureSuiteMacro`
 - **配套文档**: 待定
 - **网页版**: 同目录同名的 `.html`
 
@@ -181,3 +181,4 @@ package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = 
 | 2026-11-20 | Created as Draft | 用户问能否给测试代码加便捷的宏减少样板。只读调研统计了两个包测试里的重复写法：值得做成宏的是 176 个夹具套件开头的固定 5 行；`acrossAllReaders` 改用普通函数重载（归 `draft-shared-macho-testing-support`）。用户选择把这个宏另写一份本包提案。 |
 | 2026-11-20 | 宏实现放新 target `SwiftSectionTestingMacros` | 生产代码链接的 `SwiftSectionMacros` 插件不带测试用的宏。 |
 | 2026-11-20 | 宏与协议同名 `FixtureSuite` | 照 Observation 的 `Observable` 先例，`@FixtureSuite` 读起来就是「这是一个夹具套件」。 |
+| 2026-11-20 | 状态 → Accepted | 用户批准，开始实现。 |
