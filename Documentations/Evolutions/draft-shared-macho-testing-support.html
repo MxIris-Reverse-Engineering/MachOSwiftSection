@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - 测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> 测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-20</dd></div>
+    <div><dt>项目类型</dt><dd>库</dd></div>
+    <div><dt>原文</dt><dd><code>draft-shared-macho-testing-support.md</code></dd></div>
+  </dl>
+</header>
+<nav class="toc" aria-label="目录"><ol>
+  <li><a href="#summary">摘要</a></li><li><a href="#decide">要你定</a></li><li><a href="#architecture">架构图</a></li><li><a href="#map">改动地图</a></li><li><a href="#proposal">提议方案</a></li><li><a href="#design">详细设计</a></li><li><a href="#motivation">动机</a></li><li><a href="#research">调研</a></li><li><a href="#alternatives">替代方案</a></li><li><a href="#impact">影响</a></li><li><a href="#steps">落地步骤</a></li><li><a href="#log">决策日志</a></li>
+</ol></nav>
+<main class="content">
+<section id="summary">
+  <h2>摘要</h2>
+<p>把本包测试支持里与 Swift 无关的部分搬到 MachOKitExtensions（下称 MKE），作为两个对外 product 发布，两个包从此共用一套。<code>MachOFixtureSupport</code> 不依赖 Testing：dyld cache 路径、打开 cache 与镜像、按本机架构选 slice、取进程内镜像、测试运行时用 <code>xcrun</code> 现编 dylib（clang 与 swiftc 都支持）、只转发不加逻辑的包装读取器。<code>MachOTestingSupport</code> 依赖 Testing：按镜像互斥的 trait <code>ExclusiveImageAccess</code>、测试基类 <code>MachOFileTests</code> / <code>MachOImageTests</code> / <code>DyldCacheTests</code>，以及从本包 <code>MachOSwiftSectionFixtureTests</code> 泛化出来、不绑定夹具的基类与闭包式跨读取器写法 <code>acrossAllReaders</code>。本包的 <code>MachOSwiftSectionFixtureTests</code> 变成它的子类，218 个子类与 429 处 <code>acrossAllReaders</code> 调用不动；MKE 自己十几处重复的辅助与约 25 个参数化的跨读取器测试改用共享版本。取本机 cache 统一为整个进程共用一份。MKE 先发 3.1.0（C++ 类恢复），本提案在 MKE 3.2.0 发布，本包随后改依赖。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+<div class="callout"><p class="callout-title">已批准（Accepted）。实现等 MachOKitExtensions 的 C++ 类恢复收尾（3.1.0）之后开始。</p></div>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend"><li><i class="swatch swatch-added"></i>新增</li><li><i class="swatch swatch-changed"></i>修改</li><li><i class="swatch swatch-kept"></i>不变</li></ul>
+  <div class="figure">
+  <svg viewBox="0 0 1000 430" role="img" aria-label="Module structure">
+    <rect class="group" x="10" y="10" width="470" height="410" rx="10"/>
+    <text class="group-label" x="22" y="30">MachOKitExtensions (package)</text>
+    <rect class="box-kept" x="25" y="42" width="440" height="40" rx="6"/><text x="35" y="60">MachOKit, MachOFoundation, MachOReading, ...</text><text class="caption" x="35" y="75">unchanged</text>
+    <rect class="box-added" x="25" y="96" width="440" height="120" rx="6"/><text x="35" y="114">MachOFixtureSupport (product, no Testing)</text>
+    <text class="caption" x="35" y="134">DyldSharedCachePath, MachOImageName / MachOFileName (structs)</text>
+    <text class="caption" x="35" y="152">HostSlice, ProcessImages, DyldCache+Fixture</text>
+    <text class="caption" x="35" y="170">FixtureCompiler (clang, swiftc)</text>
+    <text class="caption" x="35" y="188">ForwardingReader, TestActor, ProcessMemory, print()</text>
+    <rect class="box-added" x="25" y="230" width="440" height="102" rx="6"/><text x="35" y="248">MachOTestingSupport (product, Testing)</text>
+    <text class="caption" x="35" y="268">ExclusiveImageAccess</text>
+    <text class="caption" x="35" y="286">MachOFileTests, MachOImageTests, DyldCacheTests</text>
+    <text class="caption" x="35" y="304">MachOFixture, MachOFixtureTests (acrossAllReaders ...)</text>
+    <rect class="box-changed" x="25" y="346" width="440" height="40" rx="6"/><text x="35" y="364">Tests/*</text><text class="caption" x="35" y="379">duplicated helpers replaced; ~25 tests to acrossAllReaders</text>
+    <path class="arrow" d="M 245 230 L 245 218"/>
+    <rect class="group" x="520" y="10" width="470" height="410" rx="10"/>
+    <text class="group-label" x="532" y="30">MachOSwiftSection (package)</text>
+    <rect class="box-changed" x="535" y="42" width="440" height="100" rx="6"/><text x="545" y="60">SwiftSectionFixtureSupport</text>
+    <text class="caption" x="545" y="80">- DyldSharedCachePath, generic Extensions, name enums</text>
+    <text class="caption" x="545" y="98">~ MachOFileName / MachOImageName: SymbolTests extensions</text>
+    <text class="caption" x="545" y="116">  Baseline, Coverage, Snapshot (unchanged)</text>
+    <rect class="box-changed" x="535" y="156" width="440" height="120" rx="6"/><text x="545" y="174">SwiftSectionTestingSupport</text>
+    <text class="caption" x="545" y="194">- ExclusiveImageAccess, base classes, TestActor, ProcessMemory</text>
+    <text class="caption" x="545" y="212">~ MachOSwiftSectionFixtureTests : MachOFixtureTests</text>
+    <text class="caption" x="545" y="230">~ 17 *Fixture.swift compile through FixtureCompiler</text>
+    <text class="caption" x="545" y="248">  ForwardingMachOReader (unchanged)</text>
+    <rect class="box-kept" x="535" y="290" width="440" height="40" rx="6"/><text x="545" y="308">Tests (17 targets)</text><text class="caption" x="545" y="323">429 acrossAllReaders, 218 subclasses unchanged</text>
+    <path class="arrow" d="M 535 92 L 467 150"/>
+    <path class="arrow" d="M 535 210 L 467 278"/>
+    <path class="arrow arrow-weak" d="M 755 290 L 755 278"/>
+  </svg>
+  </div>
+  <p class="figure-caption">本包两个 support target 改为依赖 MachOKitExtensions 的两个新 product，搬走的文件删除；Swift 专用部分不动。</p>
+
+  <h3>一个夹具测试的调用链</h3>
+<pre><code>SomeSuite : MachOSwiftSectionFixtureTests (MSS) : MachOFixtureTests (MKE)
+ ├─ class var fixture -&gt; MachOFixture(SymbolTestsCore path, anchored at MSS&#x27;s #filePath; dlopen)
+ ├─ MachOFixtureTests.init
+ │   ├─ hostSlice(of: url) -&gt; machOFile;  dlopen + MachOImage -&gt; machOImage
+ │   └─ MachOContext(machOFile), MachOContext(machOImage), InProcessContext
+ └─ acrossAllReaders(file: { ... machOFile ... }, image: { ... machOImage ... })
+     └─ #expect(fromFile == fromImage)</code></pre>
+</section>
+<section id="map">
+  <h2>改动地图</h2>
+<div class="table-wrap"><table><thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead><tbody><tr><td>MKE <code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新增 target 与 product <code>MachOFixtureSupport</code>、<code>MachOTestingSupport</code>，测试 target <code>MachOTestingSupportTests</code>；各测试 target 加依赖；Tuist 适配块留在文件末尾</td><td>对外发布</td><td class="numeric">1</td></tr><tr><td>MKE <code>Sources/MachOFixtureSupport/</code>（<code>DyldSharedCachePath</code>、<code>MachOImageName</code>、<code>MachOFileName</code>、<code>XcodeMachOFileName</code>、<code>DyldCache+Fixture</code>、<code>HostSlice</code>、<code>ProcessImages</code>、<code>FixtureCompiler</code>、<code>ForwardingReader</code>、<code>TestActor</code>、<code>ProcessMemory</code>、<code>Printing</code>）</td><td><span class="tag tag-added">新增</span></td><td>从本包搬来并改为 <code>public</code>；名字类型改成 struct；<code>.current</code> 不写死；锚点由调用方传；编译器统一 clang 与 swiftc</td><td>共用的夹具支持</td><td class="numeric">1、2</td></tr><tr><td>MKE <code>Sources/MachOTestingSupport/</code>（<code>ExclusiveImageAccess</code>、<code>MachOFileTests</code>、<code>MachOImageTests</code>、<code>DyldCacheTests</code>、<code>XcodeMachOFileTests</code>、<code>MachOFixture</code>、<code>MachOFixtureTests</code>）</td><td><span class="tag tag-added">新增</span></td><td>搬来并改为 <code>open</code> / <code>public</code>；新的夹具基类与跨读取器写法，含成对传入、单个闭包的重载</td><td>共用的测试基类与 trait</td><td class="numeric">1、2</td></tr><tr><td>MKE <code>Tests/MachOTestingSupportTests/</code></td><td><span class="tag tag-added">新增</span></td><td>搬来 <code>DyldSharedCachePathTests</code>、<code>ExclusiveImageAccessTests</code>；新增 <code>FixtureCompilerTests</code>、<code>HostSliceTests</code>、<code>MachOFixtureTestsTests</code></td><td>共享库自己的测试</td><td class="numeric">1、2</td></tr><tr><td>MKE <code>Tests/MachOKitExtensionsTests/</code>（<code>FixupResolutionMemoTests</code>、<code>SelfBindResolutionTests</code>、<code>DyldCacheImageSearchTests</code>、<code>DyldCacheImageIdentifierTests</code>、<code>DyldCacheSubCacheLookupTests</code>、<code>MachOReaderWrapperTests</code>、<code>Support/ForwardingReader.swift</code>、<code>Support/ChainedFixupsFixture.swift</code>）</td><td><span class="tag tag-changed">修改 / 删除</span></td><td>现编 dylib、本机 cache、归档 cache 路径、选 slice、包装读取器改用共享版本</td><td>去重</td><td class="numeric">3</td></tr><tr><td>MKE <code>Tests/MachOSymbolsTests/</code>、<code>MachODependenciesTests/</code>、<code>MachOAddressResolutionTests/</code>、<code>MachOReadingTests/</code></td><td><span class="tag tag-changed">修改</span></td><td>同上</td><td>去重</td><td class="numeric">3</td></tr><tr><td>MKE <code>Tests/CPlusPlusSymbolsTests/</code>（<code>ClassIndexTestImages.swift</code> 删除，<code>CPlusPlusClassIndexStoreTests</code>、<code>CPlusPlusSymbolIndexStoreTests</code>、<code>ImagePointerSlotsTests</code>、普查、<code>ClassIndexDemoTests</code>、<code>CPlusPlusVirtualFunctionNamingTests</code>）</td><td><span class="tag tag-changed">修改 / 删除</span></td><td>夹具镜像改用 <code>MachOFixtureTests</code> 子类；约 25 个参数化测试改写成 <code>acrossAllReaders</code>；现编 dylib 改用 <code>FixtureCompiler</code></td><td>统一写法</td><td class="numeric">3</td></tr><tr><td>MKE <code>Documentations/Internal/TestingSupport.md</code>、<code>README.md</code>、索引</td><td><span class="tag tag-added">新增 / 修改</span></td><td>两个 product 的用法与契约（只能链接到测试 target、锚点由调用方传、共用本机 cache）</td><td>对外说明</td><td class="numeric">4</td></tr><tr><td>本包 <code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>两个 support target 依赖 MKE 的新 product；去掉不再需要的依赖</td><td>改依赖</td><td class="numeric">5</td></tr><tr><td>本包 <code>Sources/TestSupport/SwiftSectionFixtureSupport/</code>（<code>DyldSharedCachePath</code>、<code>Extensions</code> 的通用部分、<code>MachOFileName</code>、<code>MachOImageName</code>、<code>XcodeMachOFileName</code>）</td><td><span class="tag tag-removed">删除 / 修改</span></td><td>删掉搬走的；<code>MachOFileName</code> / <code>MachOImageName</code> 只剩 SymbolTests 条目的 extension；本包的 <code>#filePath</code> 锚点在这里传给 MKE</td><td>改用共享版本</td><td class="numeric">5</td></tr><tr><td>本包 <code>Sources/TestSupport/SwiftSectionTestingSupport/</code>（<code>ExclusiveImageAccess</code>、<code>MachOFileTests</code>、<code>MachOImageTests</code>、<code>DyldCacheTests</code>、<code>XcodeMachOFileTests</code>、<code>TestActor</code>、<code>ProcessMemory</code>、<code>MachOSwiftSectionFixtureTests</code>、17 个 <code>*Fixture.swift</code>）</td><td><span class="tag tag-removed">删除 / 修改</span></td><td>删掉搬走的；<code>ExclusiveImageAccess</code> 只剩按本包镜像名的便捷初始化；夹具基类改成 <code>MachOFixtureTests</code> 子类；夹具的编译改用 <code>FixtureCompiler</code></td><td>改用共享版本</td><td class="numeric">5</td></tr><tr><td>本包 <code>Tests/MachOSwiftSectionTests/</code> 里只差变量名的约 480 处 <code>acrossAllReaders</code> / <code>acrossAllContexts</code></td><td><span class="tag tag-changed">修改</span></td><td>改成成对传入、单个闭包的重载</td><td>去掉重复的 <code>image:</code> 闭包</td><td class="numeric">5</td></tr><tr><td>本包测试里 57 个手写 <code>xcrun</code> 的文件、70 处手写选 slice</td><td><span class="tag tag-changed">修改</span></td><td>改用 <code>FixtureCompiler</code>、<code>HostSlice</code></td><td>去重</td><td class="numeric">5</td></tr><tr><td>本包 <code>TuistScript.sh</code></td><td><span class="tag tag-changed">修改</span></td><td><code>testing_support_names</code> 挪到 <code>if role != &quot;own-path&quot;</code> 之前</td><td>远程模式下给 MKE 的 <code>MachOTestingSupport</code> 补 TestingMacros 插件路径</td><td class="numeric">5</td></tr><tr><td>本包 <code>Tests/SwiftSectionTestingSupportTests/</code></td><td><span class="tag tag-changed">修改</span></td><td>删掉随代码搬走的两个测试</td><td>去重</td><td class="numeric">5</td></tr><tr><td>本包用 <code>DyldCache(path: .current)</code> 的 25 处</td><td><span class="tag ">复查</span></td><td>依赖新实例的显式开一份，其余改用共用实例</td><td>行为统一后的复查</td><td class="numeric">5</td></tr><tr><td>本包 <code>AGENTS.md</code>、<code>Documentations/Internal/FixtureTestingAndContinuousIntegration.md</code>、<code>Documentations/Internal/Modules/README.md</code>、<code>ProjectEvolutionLog.md</code></td><td><span class="tag tag-changed">修改</span></td><td>测试支持的来源、<code>ExclusiveImageAccess</code> 与 <code>acrossAllReaders</code> 的出处、锚点规则</td><td>文档同步</td><td class="numeric">6</td></tr></tbody></table></div>
+
+</section>
+
+<section id="proposal">
+  <h2>提议方案</h2>
+<ol><li><strong>MKE 新增两个 product</strong>（3.2.0）：<ul><li><code>MachOFixtureSupport</code>（<code>Sources/MachOFixtureSupport</code>，不 import Testing）：<code>DyldSharedCachePath</code>、<code>MachOImageName</code> / <code>MachOFileName</code> / <code>XcodeMachOFileName</code>（可扩展的 struct）、打开 cache 与镜像的扩展、<code>hostSlice(of:)</code>、取进程内镜像（按锚点地址 <code>dladdr</code>、按名字）、「cache 里的文件与进程内同一镜像」成对返回、<code>FixtureCompiler</code>（clang 与 swiftc，同一份源码与参数只编一次，进程结束时清理临时目录）、<code>ForwardingReader</code>、<code>TestActor</code>、<code>ProcessMemory</code>、<code>.print()</code>。</li><li><code>MachOTestingSupport</code>（<code>Sources/MachOTestingSupport</code>，import Testing，依赖前者与 MachOReading）：<code>ExclusiveImageAccess</code>、<code>MachOFileTests</code>、<code>MachOImageTests</code>、<code>DyldCacheTests</code>、<code>XcodeMachOFileTests</code>，以及新的 <code>MachOFixtureTests</code>。</li></ul></li><li><strong>测试基类原样搬</strong>：保留「继承基类拿到镜像」的写法，只改访问级别（<code>open</code> / <code>public</code>）与上面列出的必要改动。改成 Swift Testing trait 的写法以后另写提案。</li><li>**<code>MachOFixtureTests</code>：不绑定夹具的基类**。子类用一个 <code>MachOFixture</code> 值说明夹具从哪来（磁盘路径，或进程里某个锚点地址所在的镜像，以及是否要 <code>dlopen</code>）；基类据此建出 <code>machOFile</code>、<code>machOImage</code> 与 <code>fileContext</code>、<code>imageContext</code>、<code>inProcessContext</code>，提供 <code>acrossAllReaders</code>、<code>acrossAllContexts</code>、<code>usingInProcessOnly</code>，签名与本包现在的一致。</li><li><strong>本机 cache 统一为进程共用</strong>：<code>DyldSharedCachePath.current</code> 与 <code>DyldCacheTests</code> 都经 <code>FullDyldCache.cachedHost</code> / <code>DyldCache.host</code> 的 URL，不写死路径；确实需要新实例的测试显式开一份（<code>DyldCache(path:)</code> 照旧可用）。</li><li><strong>跨读取器统一用闭包式</strong>：MKE 约 25 个 <code>@Test(arguments: Reader.allCases)</code> 的测试改写成 <code>MachOFixtureTests</code> 子类里的 <code>acrossAllReaders</code>，比对两种读取器的结果相等后再断言。</li><li><strong>成对传入、单个闭包的重载</strong>：本包 486 处 <code>acrossAllReaders</code> / <code>acrossAllContexts</code> 调用里，480 处的 <code>image:</code> 闭包只是把 <code>file:</code> 闭包里的读取器与被测对象换成 image 版（按读取器命名的被测对象也算在内）。新增两个同名重载，被测对象成对传入、只写一个闭包：<code>acrossAllReaders(fileSubject, imageSubject) { $0.offset }</code>；<code>acrossAllContexts(fileSubject, imageSubject) { subject, context in try subject.mangledTypeName(in: context) }</code>，<code>context</code> 是 <code>any ReadingContext</code>，被测 API 收 <code>some ReadingContext</code> 时经 SE-0352 隐式打开。先编译验证这两种写法对两种读取器与三种上下文都写得通，再把只差变量名的调用改成单闭包形式；三闭包形式保留给有实质差异的 6 处（<code>inProcess:</code> 多一层 <code>asPointerWrapper</code>）。名字不变，本包按标识符识别跨读取器测试的 <code>SuiteBehaviorScanner</code>（<code>:150</code>）不受影响。</li><li><strong>MKE 自己的重复辅助全部换成共享版本</strong>（动机一节的表）。</li><li><strong>本包随后改依赖</strong>：两个 support target 依赖 MKE 的新 product，删掉搬走的文件；<code>MachOFileName</code> / <code>MachOImageName</code> 的 SymbolTests 条目改为对 MKE struct 的 extension；<code>ExclusiveImageAccess</code> 保留一个按本包镜像名的便捷初始化；<code>MachOSwiftSectionFixtureTests</code> 改成 <code>MachOFixtureTests</code> 的子类；17 个 Swift 夹具与 57 个测试文件里手写的 <code>xcrun</code> 调用改用 <code>FixtureCompiler</code>，70 处手写的选 slice 改用 <code>HostSlice</code>；<code>DyldCache(path: .current)</code> 的 25 处改为共用实例后，逐个复查依赖新实例的测试。</li><li><strong>Tuist 开发 workspace</strong>（提案 0099）：<code>TuistScript.sh</code> 只给角色是 own-path 的包扫描「import Testing 的普通 target」并补 TestingMacros 插件路径（<code>:686-689</code> 的 <code>if role != &quot;own-path&quot;</code> 之后）。远程模式下 MKE 是 own-remote，它的 <code>MachOTestingSupport</code> 用了 <code>#expect</code> 等宏，编到它时会报 <code>plugin for module &#x27;TestingMacros&#x27; not found</code>。改法：把 <code>testing_support_names</code> 那几行挪到 <code>if role != &quot;own-path&quot;</code> 之前（own-remote 包的检出目录已记在 <code>packages.tsv</code>）。在 Ultra 上用 <code>./TuistScript.sh test</code> 跑一次远程模式验证。这一条由维护 0099 的会话提醒。</li><li><strong>发版顺序</strong>：MKE 先收尾 C++ 类恢复发 3.1.0；本提案的 MKE 部分从收尾后的 <code>main</code> 切分支，发 3.2.0；本包在 3.2.0 发布后改依赖（之前用 <code>USING_LOCAL_DEPENDENCIES=1</code> 本地验证）。</li></ol>
+<h3>非目标</h3>
+<ul><li>把测试基类改成 Swift Testing trait 的写法。</li><li>搬 Swift 专用的支持代码（夹具内容、baseline、coverage、快照对比、SymbolTestsCore 相关）。</li><li>搬测试本身（<code>CrossReferenceAnalysisTests</code> 等依赖本包与 MachOObjCSection 的模块）。</li><li>统一两个包的 <code>ForwardingMachOReader</code> / <code>ForwardingReader</code>：协议层级不同，本包那份保留。</li><li><code>@FixtureSuite</code> 宏（本包 170 个夹具套件开头的固定 5 行）：只涉及本包的 Swift 夹具覆盖率体系，另写一份本包的提案。</li><li>把 <code>acrossAllReaders</code> 做成宏：每处只重复约一行，宏得按 <code>fileX</code>→<code>imageX</code> 的命名约定改写标识符，脆弱，也会让按标识符识别测试的扫描器失效；用上面的普通函数重载代替。</li><li>MachOObjCSection、MachOKitUI 等其他仓库的测试改用新 product：各自另议。</li><li>给 MKE 加 CI（MKE 0003 记下的后续项，另写提案）。</li></ul>
+
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details>
+    <summary>公开 API 草图</summary>
+    <div class="details-body">
+<pre><code>// MachOFixtureSupport
+public struct DyldSharedCachePath: Hashable, Sendable, CustomStringConvertible {
+    public let path: String
+    public init(path: String)
+    /// This Mac&#x27;s cache, as the system locates it.
+    public static var current: DyldSharedCachePath { get }
+    public static func macOS(_ version: String) -&gt; DyldSharedCachePath
+    public static func iOS(_ version: String) -&gt; DyldSharedCachePath
+}
+
+public struct MachOImageName: Hashable, Sendable, ExpressibleByStringLiteral {
+    public let name: String
+    public init(_ name: String)
+    public static let foundation: MachOImageName   // the system images both packages use
+}
+
+public struct MachOFileName: Hashable, Sendable {
+    /// A path, absolute or relative to `anchor` — the caller&#x27;s `#filePath`
+    /// climbed to its package root.
+    public init(path: String, relativeTo anchor: URL? = nil)
+    public var url: URL { get }
+}
+
+public enum HostSlice {
+    /// The slice of a file for this process&#x27;s CPU, matching type and subtype.
+    public static func machOFile(at url: URL) throws -&gt; MachOFile
+}
+
+public enum ProcessImages {
+    public static func image(containing address: UnsafeRawPointer) -&gt; MachOImage?
+    /// The image of this Mac&#x27;s cache at `path`, and the same image loaded here.
+    public static func cacheFileAndLoadedImage(path: String) throws -&gt; (file: MachOFile, image: MachOImage)
+}
+
+public struct FixtureCompiler: Sendable {
+    public enum Language: Sendable { case c, cPlusPlus, swift }
+    public static let shared: FixtureCompiler
+    /// Compiles `source` into a dynamic library once per process for the same
+    /// source and arguments; the directory goes away when the process exits.
+    public func dynamicLibrary(named name: String, language: Language, source: String, arguments: [String] = []) throws -&gt; URL
+}
+
+// MachOTestingSupport
+public struct ExclusiveImageAccess: SuiteTrait, TestTrait, TestScoping {
+    public init(_ imageName: String)
+}
+
+public struct MachOFixture: Sendable {
+    public init(fileURL: URL, imageName: String, loadsIntoProcess: Bool)
+    public init(imageContaining anchor: UnsafeRawPointer)
+}
+
+@MainActor
+open class MachOFixtureTests {
+    open class var fixture: MachOFixture { get }
+    public let machOFile: MachOFile
+    public let machOImage: MachOImage
+    public let fileContext: MachOContext&lt;MachOFile&gt;
+    public let imageContext: MachOContext&lt;MachOImage&gt;
+    public let inProcessContext: InProcessContext
+    public init() throws
+    public func acrossAllReaders&lt;Value: Equatable&gt;(file: () throws -&gt; Value, image: () throws -&gt; Value, inProcess: (() throws -&gt; Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -&gt; Value
+    public func acrossAllContexts&lt;Value: Equatable&gt;(file: () throws -&gt; Value, image: () throws -&gt; Value, inProcess: (() throws -&gt; Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -&gt; Value
+    public func usingInProcessOnly&lt;Value: Equatable&gt;(_ work: (InProcessContext) throws -&gt; Value, sourceLocation: SourceLocation = #_sourceLocation) throws -&gt; Value
+
+    /// The same work on the subject each reader gives: `work` runs on
+    /// `fileSubject`, then on `imageSubject`, and the results must agree.
+    public func acrossAllReaders&lt;Subject, Value: Equatable&gt;(_ fileSubject: Subject, _ imageSubject: Subject, sourceLocation: SourceLocation = #_sourceLocation, _ work: (Subject) throws -&gt; Value) throws -&gt; Value
+    /// The same, reading through each subject&#x27;s context: `fileContext` for
+    /// `fileSubject`, `imageContext` for `imageSubject`.
+    public func acrossAllContexts&lt;Subject, Value: Equatable&gt;(_ fileSubject: Subject, _ imageSubject: Subject, sourceLocation: SourceLocation = #_sourceLocation, _ work: (Subject, any ReadingContext) throws -&gt; Value) throws -&gt; Value
+}</code></pre>
+<ul><li>签名以本包现有的为准，只把泛型参数改成完整的单词（本包的 <code>T</code> 换成 <code>Value</code>），调用点不变。</li><li><code>FixtureCompiler</code> 按「语言 + 源码 + 参数」的摘要缓存产物 URL，锁保护；失败把编译器输出原样放进错误。</li><li><code>MachOFixtureTests.fixture</code> 的默认实现 <code>fatalError</code>，提醒子类必须给出夹具。</li></ul>
+    </div>
+  </details>
+
+</section>
+
+<section id="motivation">
+  <h2>动机</h2>
+<ul><li><strong>两个包各写一套，而且在分叉。</strong> 自 MKE 2.0.0 接过 Mach-O 层以后，MKE 的测试没有可用的测试支持，只能各写各的（下表，路径相对 MKE 的 <code>Tests/</code>）。同一件事在两边实现不同：</li></ul>
+<div class="table-wrap"><table><thead><tr><th>辅助</th><th>本包</th><th>MKE</th></tr></thead><tbody><tr><td>取本机 cache</td><td><code>DyldCache(path: .current)</code>，路径写死在 Cryptexes（<code>DyldSharedCachePath.swift:45</code>），每次重新打开（<code>DyldCacheTests.swift:30-32</code>）</td><td><code>FullDyldCache.cachedHost</code>，由系统定位、整个进程只打开一次（<code>Sources/MachOKitExtensions/Cached/FullDyldCache+Cached.swift:13-27</code>）；另有 3 处写死 Cryptexes 路径（<code>DyldCacheImageSearchTests.swift:161</code>、<code>MachOAddressResolutionTests.swift:18</code>、<code>SharedDyldCacheOpeningTests.swift:30</code>）</td></tr><tr><td>选 slice</td><td>固定选 <code>.arm64</code>，否则取第一个（<code>MachOFileTests.swift:19</code>）</td><td>按进程的 CPU 类型与去掉标志位的子类型匹配（<code>CPlusPlusSymbolsTests/ClassIndexTestImages.swift:50-63</code>）；另有 3 处手写 <code>loadFromFile</code> 的 switch</td></tr><tr><td>现编 dylib</td><td>17 个 <code>*Fixture.swift</code> 各自复制一份 <code>Process</code> 加 <code>Pipe</code> 的 swiftc 调用，结束时清理临时目录（如 <code>ExistentialAnyFixture.swift:100-140</code>）</td><td>5 份 clang 调用（<code>FixupResolutionMemoTests.swift:122-176</code>、<code>SelfBindResolutionTests.swift:80-115</code>、<code>ClassIndexTestImages.swift:70-159</code>、<code>ClassIndexDemoTests.swift:34-60</code> 等），不清理</td></tr><tr><td>归档 cache 路径</td><td><code>DyldSharedCachePath.macOS(_:)</code> / <code>iOS(_:)</code></td><td>3 份各写一遍（<code>DyldCacheImageIdentifierTests.swift:7-11</code>、<code>CacheRootDependencyClosureTests.swift:10-11</code>、<code>MachOAddressResolutionTests.swift:81</code>）</td></tr><tr><td>跨读取器</td><td><code>acrossAllReaders</code>，429 处，但写死 SymbolTestsCore</td><td><code>@Test(arguments: Reader.allCases)</code> 参数化，约 25 处</td></tr><tr><td>包装读取器</td><td><code>ForwardingMachOReader</code>，约束在本包的协议上</td><td><code>Support/ForwardingReader.swift</code>，约束在 <code>MachORepresentableWithCache</code>，internal</td></tr></tbody></table></div>
+<ul><li><strong>MKE 的新功能还在继续加重复。</strong> C++ 类恢复（MKE <code>draft-cplusplus-class-hierarchy</code>）一次就新增了两份现编 dylib、一份选 slice、两份「cache 文件加进程内同一镜像」。</li><li><strong>这些代码本该在 MKE。</strong> 0003 定下 <code>MachO</code> 前缀的模块归 MKE，本包的测试支持为此从 <code>MachOFixtureSupport</code> / <code>MachOTestingSupport</code> 改名为 <code>SwiftSection…</code>（MKE 0003 的 <code>:102</code>），两个名字现在空着。</li></ul>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <details>
+    <summary>可搬与不可搬的文件、用量与约束</summary>
+    <div class="details-body">
+<p><strong>本包的测试支持</strong>（<code>Sources/TestSupport/</code>，三个 target，都不是 product，<code>Package.swift:1020-1080</code>）</p>
+<ul><li><code>SwiftSectionFixtureSupport</code>：不 import Testing，<code>baseline-generator</code> 也用它。依赖 MachOKit、Demangling、SwiftSyntax 三件套、MKE 的 MachOFoundation / MachOReading / MachOResolving，以及本包的 SwiftSymbols、SwiftDump、SwiftDeclaration、SwiftIndexing、SwiftPrinting、SwiftInterface、MachOSwiftSectionC 和 TestingSupportC。</li><li><code>SwiftSectionTestingSupport</code>：放 Testing 基类，另依赖 MachOSwiftSection、SwiftSpecialization、Semantic。</li><li><code>SwiftSectionTestingSupportC</code>：<code>CDemangleTree.cpp</code>。</li><li>17 个测试 target 依赖 <code>SwiftSectionTestingSupport</code>（<code>Package.swift:1069-1411</code>），CrossReferenceAnalysisTests 只依赖 FixtureSupport。</li></ul>
+<p><strong>哪些可以搬</strong>（只依赖 MachOKit、Foundation、Testing 或 MKE 已有的模块）</p>
+<div class="table-wrap"><table><thead><tr><th>文件</th><th>去处</th><th>要改的</th></tr></thead><tbody><tr><td><code>FixtureSupport/DyldSharedCachePath.swift</code>（无 import）</td><td><code>MachOFixtureSupport</code></td><td><code>.current</code> 改由本机 cache 的 URL 得出，不写死 Cryptexes</td></tr><tr><td><code>FixtureSupport/Extensions.swift</code>（只 import MachOKit；<code>UniformTypeIdentifiers</code> 在 <code>:3</code> 导入了没用）</td><td><code>MachOFixtureSupport</code></td><td><code>loadFromFile(named:)</code> 的 <code>#filePath</code> 锚点（<code>:9</code>）改由调用方传入；<code>DyldCache</code>/<code>FullDyldCache</code> 的 <code>init(path:)</code>、<code>machOFile(named:)</code>、受 <code>SILENT_TEST</code> 控制的 <code>.print()</code> 原样</td></tr><tr><td><code>FixtureSupport/MachOFileName.swift</code>、<code>MachOImageName.swift</code></td><td><code>MachOFixtureSupport</code></td><td>封闭的 <code>package enum</code> 改成「struct 加静态成员」，SymbolTests 的条目（<code>MachOFileName.swift:20-26</code>、<code>MachOImageName.swift:26-27</code>）留在本包用 extension 补</td></tr><tr><td><code>FixtureSupport/XcodeMachOFileName.swift</code>（Foundation、Darwin）</td><td><code>MachOFixtureSupport</code></td><td>同上改成 struct</td></tr><tr><td><code>TestingSupport/ExclusiveImageAccess.swift</code>（只 import Testing）</td><td><code>MachOTestingSupport</code></td><td>只留按 <code>String</code> 的初始化；按本包镜像名的便捷初始化（<code>:89-95</code>）留在本包</td></tr><tr><td><code>TestingSupport/TestActor.swift</code>、<code>ProcessMemory.swift</code>（Foundation）</td><td><code>MachOFixtureSupport</code></td><td>无</td></tr><tr><td><code>TestingSupport/MachOFileTests.swift</code>、<code>MachOImageTests.swift</code>、<code>DyldCacheTests.swift</code>、<code>XcodeMachOFileTests.swift</code>（MachOKit、MachOFoundation、FixtureSupport）</td><td><code>MachOTestingSupport</code></td><td>选 slice 改用统一的按进程 CPU 匹配；<code>DyldCacheTests</code> 的 <code>.current</code> 改为共用的本机 cache</td></tr><tr><td><code>TestingSupport/MachOSwiftSectionFixtureTests.swift</code> 的跨读取器部分（<code>acrossAllReaders</code> <code>:104-118</code>、<code>acrossAllContexts</code> <code>:121-135</code>、<code>usingInProcessOnly</code> <code>:147-152</code>，上下文来自 MKE 的 MachOReading）</td><td><code>MachOTestingSupport</code> 的新基类 <code>MachOFixtureTests</code></td><td>夹具改由子类描述；SymbolTestsCore 的加载（<code>:18-19</code>、<code>:70</code>）留在本包的子类里</td></tr><tr><td><code>SwiftSectionTestingSupportTests</code> 里的 <code>DyldSharedCachePathTests</code>、<code>ExclusiveImageAccessTests</code></td><td>MKE 新测试 target <code>MachOTestingSupportTests</code></td><td>跟着代码走</td></tr></tbody></table></div>
+<p><strong>不搬</strong>：<code>ForwardingMachOReader</code>（约束在 <code>MachOSwiftSectionRepresentableWithCache</code>，<code>:5</code>、<code>:27</code>）、<code>DemangleOptions</code>、<code>DumpableTests</code> / <code>Snapshot*Tests</code>、<code>CommentStructureContract</code>、<code>SwiftIndexEventCollector</code>、<code>DefinitionName+DeclaredNameForTesting</code>、<code>URL+</code>（依赖 swift-dependencies）、<code>FixtureLoadError</code>、<code>InProcessMetadataPicker</code>、177 个 Baseline 文件、5 个 Coverage 文件、17 个 Swift 夹具的内容（只把编译那段换成共享的编译器）、TestingSupportC、<code>ContinuousIntegrationTestFilterTests</code>。</p>
+<p><strong>用量</strong>（本包 <code>Tests/</code> 计数）：<code>acrossAllReaders</code> 429、继承 <code>MachOSwiftSectionFixtureTests</code> 218、<code>usingInProcessOnly</code> 73、<code>acrossAllContexts</code> 68、<code>.print()</code> 44、<code>ExclusiveImageAccess(</code> 42、继承 <code>MachOFileTests</code> 37、<code>machOFile(named:)</code> 32、<code>DyldCache(path: .current</code> 25、继承 <code>MachOImageTests</code> 13、继承 <code>DyldCacheTests</code> 5。</p>
+<p><strong>测试本身不搬</strong>：本包的 <code>CrossReferenceAnalysisTests</code> 测的是 MKE 的 <code>MachOCodeReferences</code> 等模块，但几乎每个文件都 import 本包的 <code>CrossReferenceAnalysis</code> 与 MachOObjCSection 的 <code>ObjCCodeReferences</code>，MKE 不能依赖它们。</p>
+<p><strong>约束</strong></p>
+<ul><li>跨包使用只能是 <code>public</code>。全局 write-tests skill 的默认做法是包内 <code>TestingSupport</code> target、<code>package</code> 访问级别、不进 products；要给别的包用时另拆对外 product，对外 API 尽量小，能不 import Testing 就不 import（<code>references/testing-support.md</code> 第 11 节）。拆成不依赖 Testing 的 <code>MachOFixtureSupport</code> 与依赖 Testing 的 <code>MachOTestingSupport</code> 正是这条规则，也是本包当年的拆法（<code>Package.swift:1020-1050</code> 的注释）。</li><li>MKE 的 <code>Package.swift</code> 末尾有 Tuist 适配块，只在 <code>TUIST_MAPS_LOCAL_PACKAGE_TESTS=1</code> 时给「被测试依赖、但不在 product 里」的 target 补 product。两个新 target 是正式 product，无条件声明，不靠它。</li><li>本包 <code>AGENTS.md</code> 规定 <code>#filePath</code> 定位源码的深度（0055），<code>MachOFileName</code> 从 <code>Sources/&lt;Group&gt;/&lt;Target&gt;</code> 往上爬三层到包根。搬到 MKE 后锚点必须由调用方传入。</li><li>本包 <code>AGENTS.md</code> 规定共享整进程状态的套件都要声明 <code>ExclusiveImageAccess(.TheFixture)</code>。trait 搬走后，规则与用法不变，只是类型来自 MKE。</li></ul>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>7 条被否的路</summary>
+    <div class="details-body">
+<ul><li><strong>只在 MKE 内部统一，本包不动</strong>：改动小，但两套继续分叉；用户选择两个包一起统一。</li><li><strong>一个 product</strong>：简单，但只想要路径与打开镜像的使用方也要链接 Testing；用户选择拆两个。</li><li><strong>测试基类顺便改成 Swift Testing trait</strong>：更现代，但本包 55 个、218 个子类都要改写，风险高；用户选择原样搬，改写另议。</li><li><strong>保留「每次重开」与「共用」两种取 cache 的入口</strong>：不动行为，但两套写法并存；用户选择统一为共用。</li><li><strong>跨读取器统一用参数化</strong>：每种读取器在报告里单独成用例，但本包 429 处都要改写；用户选择闭包式。</li><li><strong>夹具用值类型组合</strong>：更现代，但与「基类原样搬」不一致、两种形状并存；用户选择泛化基类。</li><li><strong>与 C++ 类恢复一起发 3.1.0</strong>：少发一个版本，但推迟已做完的功能；用户选择 C++ 先发。</li></ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+<h3>源码兼容性（source compatibility）</h3>
+<ul><li>MKE：纯新增两个 product；改的只有 MKE 自己的测试。</li><li>本包：只改测试支持与测试，对外 product 不变。测试代码的 import 从本包的 support target 换成 MKE 的 product（经本包 support target 的 <code>@_exported import</code> 转出，多数测试文件不用改）。</li></ul>
+<h3>ABI 兼容性（条件项）</h3>
+<p>不适用 —— 两个包都以 SPM 源码分发，使用方每次重新编译。</p>
+<h3>下游影响</h3>
+<ul><li>MKE 3.2.0 新增 product，不影响现有使用方（RuntimeViewer、MachOObjCSection、MachOKitUI）。</li><li>MachOObjCSection、MachOKitUI 的测试以后可以改用这两个 product，各自另议。</li><li>本包依赖 MKE 的版本下限升到 3.2.0。</li></ul>
+<h3>文档与示例</h3>
+<p>MKE 新增实现说明 <code>Internal/TestingSupport.md</code>、README 的 product 表；本包 <code>AGENTS.md</code> 里 <code>ExclusiveImageAccess</code> 与 <code>acrossAllReaders</code> 两条规则注明类型来自 MKE，<code>FixtureTestingAndContinuousIntegration.md</code> 更新锚点规则。</p>
+<h3>API 演进与废弃策略</h3>
+<ul><li>本包搬走的类型直接删除，不留废弃期：它们是 <code>package</code> 级别，只有本包自己的测试在用，同一批次改完。</li><li>MKE 新 product 的公开 API 尽量小；名字类型用 struct 加静态成员，以后加镜像不破坏调用方。</li><li>semver：MKE 3.2.0（minor）；本包对外 product 不变，随下一个常规版本。</li></ul>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+<p>MKE（3.2.0，从 C++ 类恢复收尾后的 <code>main</code> 切出）：</p>
+<ol><li><strong>两个 product 的骨架与搬来的代码</strong> —— MKE <code>Package.swift</code>、<code>Sources/MachOFixtureSupport/</code>、<code>Sources/MachOTestingSupport/</code>、<code>Tests/MachOTestingSupportTests/</code><ul><li>行为：<code>currentCachePathIsTheOneTheSystemLocates</code></li><li>行为：<code>archivedCachePathsKeepTheirLayout</code></li><li>行为：<code>hostSliceMatchesTheProcessSubtype</code></li><li>行为：<code>exclusiveImageAccessSerializesSuitesOfOneImage</code>（搬来）</li><li>行为：<code>imageNamesAndFileNamesTakeExtensions</code></li></ul></li><li><strong>夹具基类与编译器</strong> —— <code>MachOFixture</code>、<code>MachOFixtureTests</code>、<code>FixtureCompiler</code><ul><li>行为：<code>fixtureTestsBuildBothReadersAndAllContextsFromAFile</code></li><li>行为：<code>fixtureTestsReachAnImageOfThisProcessByAnAnchor</code></li><li>行为：<code>acrossAllReadersReportsWhichReaderDiverged</code></li><li>行为：<code>compilerBuildsEachSourceOncePerProcess</code></li><li>行为：<code>compilerFailureCarriesTheDiagnostics</code></li><li>行为：<code>compilerBuildsSwiftAndCPlusPlus</code></li><li>行为：<code>pairedSubjectsRunOneClosureOnEachReader</code></li><li>行为：<code>pairedSubjectsOpenTheContextForAnAPITakingSomeReadingContext</code>（编译验证单闭包写法）</li></ul></li><li><strong>MKE 的测试改用共享版本</strong> —— 动机一节的表，以及 <code>Tests/CPlusPlusSymbolsTests/</code><ul><li>行为：MKE 全部测试照常通过，跨读取器的约 25 个测试改写为 <code>acrossAllReaders</code> 后断言不变</li><li>行为：仓库里不再有 <code>Process</code> 调用 <code>xcrun</code> 的测试辅助、写死 Cryptexes 路径的常量、手写的选 slice</li></ul></li><li><strong>MKE 文档与发版</strong> —— <code>Internal/TestingSupport.md</code>、README、索引；发 3.2.0</li></ol>
+<p>本包（MKE 3.2.0 发布后，从 <code>next</code> 切出）：</p>
+<ol><li><strong>改依赖、删重复</strong> —— 本包 <code>Package.swift</code>、<code>Sources/TestSupport/</code>、<code>Tests/SwiftSectionTestingSupportTests/</code>、<code>DyldCache(path: .current)</code> 的 25 处<ul><li>行为：本包全部测试（<code>IntegrationTests</code> 除外，照 <code>AGENTS.md</code>）照常通过</li><li>行为：<code>SymbolTestsCoreFixtureLoadsThroughTheSharedBaseClass</code></li><li>行为：17 个 Swift 夹具经 <code>FixtureCompiler</code> 编出、结果与改前一致</li><li>行为：约 480 处跨读取器调用改成单闭包形式后，<code>SuiteBehaviorScanner</code> 认出的跨读取器测试数不变</li><li>行为：<code>./TuistScript.sh test</code> 的远程模式在 Ultra 上编过 MKE 的 <code>MachOTestingSupport</code></li></ul></li><li><strong>本包文档</strong> —— <code>AGENTS.md</code>、<code>FixtureTestingAndContinuousIntegration.md</code>、<code>Modules/README.md</code>、<code>ProjectEvolutionLog.md</code></li></ol>
+<p>收尾判断：MKE 写实现说明（两个 product 的契约：只能链接到测试 target、锚点由调用方传、共用本机 cache）；不写使用指南；本包与 MKE 都没有新术语要登记（<code>ExclusiveImageAccess</code>、<code>acrossAllReaders</code> 已在本包术语里）。</p>
+
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>13 条，最近一条：用量更正</summary>
+    <div class="details-body">
+<div class="table-wrap"><table><thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead><tbody><tr><td>2026-11-20</td><td>Created as Draft</td><td>用户希望把本包 TestingSupport 的通用部分搬到 MachOKitExtensions，统一两个包的测试用例。先由只读调研查清可搬与不可搬的部分、两边的重复与分叉，再经两轮澄清提问定下方案。</td></tr><tr><td>2026-11-20</td><td>两个包一起统一，走完整档</td><td>用户选择。否决：只统一 MKE 内部；先不做。</td></tr><tr><td>2026-11-20</td><td>拆成 <code>MachOFixtureSupport</code>（无 Testing）与 <code>MachOTestingSupport</code>（Testing）</td><td>用户选择。否决：一个 product。依据 write-tests skill 对外 product 的规则与本包当年的拆法。</td></tr><tr><td>2026-11-20</td><td>测试基类原样搬</td><td>用户选择。否决：顺便改成 Swift Testing trait（另议）。</td></tr><tr><td>2026-11-20</td><td>本机 cache 统一为进程共用</td><td>用户选择。否决：两种入口并存。本包依赖新实例的测试逐个复查。</td></tr><tr><td>2026-11-20</td><td>跨读取器统一用闭包式 <code>acrossAllReaders</code></td><td>用户选择。否决：统一用参数化（本包 429 处要改写）。</td></tr><tr><td>2026-11-20</td><td>夹具基类泛化为 <code>MachOFixtureTests</code></td><td>用户选择。否决：值类型组合（两种形状会并存）。</td></tr><tr><td>2026-11-20</td><td>MKE 先发 C++ 类恢复（3.1.0），本提案随 3.2.0</td><td>用户选择。否决：一起发 3.1.0。</td></tr><tr><td>2026-11-20</td><td>按事实或先例自定的四条</td><td>名字类型改成 struct、<code>#filePath</code> 锚点由调用方传（跨包后锚点位置变了）；<code>FixtureCompiler</code> 同时支持 clang 与 swiftc，本包 17 个与 MKE 5 个复制的编译代码都改用它；测试本身不搬（依赖本包与 MachOObjCSection 的模块）；提案由本包维护（0098 先例），用户确认。</td></tr><tr><td>2026-11-20</td><td>状态 → Accepted</td><td>用户批准。实现等 MachOKitExtensions 的 C++ 类恢复收尾、发 3.1.0 之后开始。</td></tr><tr><td>2026-11-20</td><td>加入成对传入、单个闭包的 <code>acrossAllReaders</code> / <code>acrossAllContexts</code> 重载</td><td>用户问能否加宏减少测试样板。调研：486 处跨读取器调用里 480 处的 <code>image:</code> 闭包只是换了变量名，但每处只重复约一行；做成宏要按命名约定改写标识符，也会让按标识符识别测试的扫描器失效。用户选择改用普通函数重载，并把能改的调用改过去。另一处值得用宏的样板——170 个夹具套件开头的固定 5 行——用户选择另写一份本包提案（<code>@FixtureSuite</code>）。</td></tr><tr><td>2026-11-20</td><td>加入 <code>TuistScript.sh</code> 的改动</td><td>维护提案 0099 的会话提醒：远程模式下 MKE 是 own-remote，不在扫描 TestingMacros 插件路径的范围内，新的 <code>MachOTestingSupport</code> 会编不过。</td></tr><tr><td>2026-11-20</td><td>用量更正</td><td>本包手写 <code>xcrun</code> 的测试文件是 57 个（原写 17 个 Swift 夹具），手写选 slice 70 处；都改用共享版本。</td></tr></tbody></table></div>
+    </div>
+  </details>
+
+</section>
+
+</main>
+</div>
+</body>
+</html>
