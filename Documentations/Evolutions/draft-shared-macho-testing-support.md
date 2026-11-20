@@ -275,13 +275,13 @@ MKE 新增实现说明 `Internal/TestingSupport.md`、README 的 product 表；�
 
 MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 
-1. **两个 product 的骨架与搬来的代码** —— MKE `Package.swift`、`Sources/MachOFixtureSupport/`、`Sources/MachOTestingSupport/`、`Tests/MachOTestingSupportTests/`
+1. **两个 product 的骨架与搬来的代码**（完成）—— MKE `Package.swift`、`Sources/MachOFixtureSupport/`、`Sources/MachOTestingSupport/`、`Tests/MachOTestingSupportTests/`
    - 行为：`currentCachePathIsTheOneTheSystemLocates`
    - 行为：`archivedCachePathsKeepTheirLayout`
    - 行为：`hostSliceMatchesTheProcessSubtype`
    - 行为：`exclusiveImageAccessSerializesSuitesOfOneImage`（搬来）
    - 行为：`imageNamesAndFileNamesTakeExtensions`
-2. **夹具基类与编译器** —— `MachOFixture`、`MachOFixtureTests`、`FixtureCompiler`
+2. **夹具基类与编译器**（完成）—— `MachOFixture`、`MachOFixtureTests`、`FixtureCompiler`
    - 行为：`fixtureTestsBuildBothReadersAndAllContextsFromAFile`
    - 行为：`fixtureTestsReachAnImageOfThisProcessByAnAnchor`
    - 行为：`acrossAllReadersReportsWhichReaderDiverged`
@@ -325,3 +325,9 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 | 2026-11-20 | 加入 `TuistScript.sh` 的改动 | 维护提案 0099 的会话提醒：远程模式下 MKE 是 own-remote，不在扫描 TestingMacros 插件路径的范围内，新的 `MachOTestingSupport` 会编不过。 |
 | 2026-11-20 | 用量更正 | 本包手写 `xcrun` 的测试文件是 57 个（原写 17 个 Swift 夹具），手写选 slice 70 处；都改用共享版本。 |
 | 2026-11-20 | 状态 → In Progress | 用户批准开工。前置都已就位：MachOKitExtensions 3.1.0 已发布；`@FixtureSuite`（0100）与 Swift 6 迁移（0101）已落地，两个包的每个 Swift target 都开启了 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`，新代码照这三项写。先做 MachOKitExtensions 的第 1–4 步；第 4 步的发版（3.2.0）不在开工的授权内，做到文档为止，发版另行确认。 |
+| 2026-11-20 | MKE 第 1、2 步完成，合成一个提交 | 两步共用测试 target，第 1 步的选 slice 测试要用第 2 步的编译器造一个三架构的 fat 库，分开提交得各编一遍。新 target `MachOTestingSupportTests` 的 20 个测试在 Ultra 上通过（Xcode 27.2）。 |
+| 2026-11-20 | `DyldSharedCachePath` 保留 `versionLabel`，`rawValue` 改名 `path` | 本包 `ABIEvolutionTests` 按它给版本轴命名。本包自己命名的几个 cache（`iOS_18_5` 等，路径在本机的 Generic 卷上）不搬，第 5 步用 extension 补回。 |
+| 2026-11-20 | 名字类型的静态成员照镜像本名拼写（`.SwiftUI`、`.Foundation`），不按详细设计的草稿写成 `.foundation` | 成员的值就是镜像名；本包几百处调用照旧编译，第 5 步只补 SymbolTests 那几条。`XcodeMachOFileName` 也改成 struct（位置加名字），用静态函数保留 `.sharedFrameworks(.SourceKitSupport)` 的写法；找不到文件时不再 `fatalError`，读取时报错。 |
+| 2026-11-20 | `.print()` 的静默开关改为运行时环境变量 `MACHO_TESTING_SILENT=1` | 原来是编译条件 `SILENT_TEST`，由本包清单加在自己的 target 上，搬到 MKE 后到不了 MKE 的模块。第 5 步要让本包 CI（以及 Tuist 的测试 scheme）设这个变量。 |
+| 2026-11-20 | `MachOFixtureTests` 的初始化保持 `async throws`；新增第三个重载 `acrossAllReaders { machO in … }` | 前者照本包现有签名，有子类写了 `override init() async throws`。后者把两个读取器本身交给同一个闭包：MKE 的 C++ 测试要比的就是读取器，而 `MachOFile` 与 `MachOImage` 不能当成同一个泛型参数传给成对的重载。 |
+| 2026-11-20 | 实现细节自定 | `FixtureCompiler` 每份产物单独一个目录，库之间用 `-L`、`-l` 链接，`strip -x` 改用链接参数 `-Wl,-x`；失败的结果也缓存。`HostSlice` 先找同 CPU 类型且子类型相同的 slice，再退到同类型，再找不到就报错，不再像本包那样退到第一个 slice；单架构文件不论 CPU 都直接用。`MachOFixture(imageContaining:)` 用 `dladdr` 拿到镜像的文件路径，所以不支持 shared cache 里的镜像（那种用 `ProcessImages.cacheFileAndLoadedImage(path:)`）。读不到夹具时抛 MKE 的 `MachOFixtureError`；本包第 5 步可以在子类里把它换成带重编说明的 `FixtureLoadError`。`DyldCacheTests` 读本机 cache 时用 `FullDyldCache.cachedHost` 和它的 `mainCache`。`ExclusiveImageAccess` 在 MKE 只有按字符串的初始化，同提案。 |
