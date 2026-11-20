@@ -39,7 +39,7 @@ struct CrossImageOpaqueReferenceTests {
         }()
     }
 
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
+    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
         let diagnostics: String
         var description: String { "cross-image opaque fixture compilation failed:\n\(diagnostics)" }
     }
@@ -49,7 +49,7 @@ struct CrossImageOpaqueReferenceTests {
         let clientLibraryURL: URL
     }
 
-    private static let fixtureCompilationResult: Result<CompiledFixture, any Error> = {
+    private static let fixtureCompilationResult: Result<CompiledFixture, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("CrossImageOpaqueFixture-\(UUID().uuidString)")

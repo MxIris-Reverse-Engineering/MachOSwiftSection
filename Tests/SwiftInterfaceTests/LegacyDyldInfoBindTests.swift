@@ -38,7 +38,7 @@ struct LegacyDyldInfoBindTests {
         }()
     }
 
-    private static let fixtureCompilationResult: Result<URL, any Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("LegacyDyldInfoBindFixture-\(UUID().uuidString)")
@@ -76,7 +76,7 @@ struct LegacyDyldInfoBindTests {
         }
     }()
 
-    private struct LegacyFixtureCompilationError: Error, CustomStringConvertible {
+    private struct LegacyFixtureCompilationError: Swift.Error, CustomStringConvertible {
         let diagnostics: String
         var description: String { "Legacy fixture compilation failed:\n\(diagnostics)" }
     }

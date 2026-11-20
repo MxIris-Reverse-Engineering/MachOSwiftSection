@@ -541,7 +541,7 @@ extension STCoreTests {
         )
 
         let printer = SwiftDeclarationPrinter(in: machOFile)
-        await #expect(throws: (any Error).self) {
+        await #expect(throws: (any Swift.Error).self) {
             _ = try await printer.printExtensionHeader(unreadableExtensionDefinition, level: 1)
         }
     }

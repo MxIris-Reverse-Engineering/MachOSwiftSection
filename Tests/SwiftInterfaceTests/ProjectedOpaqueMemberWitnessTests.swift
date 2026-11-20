@@ -39,7 +39,7 @@ struct ProjectedOpaqueMemberWitnessTests {
         }()
     }
 
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
+    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
         let diagnostics: String
         var description: String { "projected opaque member fixture compilation failed:\n\(diagnostics)" }
     }
@@ -50,7 +50,7 @@ struct ProjectedOpaqueMemberWitnessTests {
         let clientInterfaceText: String
     }
 
-    private static let fixtureCompilationResult: Result<CompiledFixture, any Error> = {
+    private static let fixtureCompilationResult: Result<CompiledFixture, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ProjectedOpaqueMemberFixture-\(UUID().uuidString)")

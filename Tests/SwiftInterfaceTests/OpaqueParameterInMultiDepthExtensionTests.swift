@@ -31,12 +31,12 @@ struct OpaqueParameterInMultiDepthExtensionTests {
         }()
     }
 
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
+    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
         let diagnostics: String
         var description: String { "opaque-parameter extension-depth fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private struct MissingConstraint: Error, CustomStringConvertible {
+    private struct MissingConstraint: Swift.Error, CustomStringConvertible {
         let interface: String
         var description: String { "the opaque result did not print its constraint:\n\(interface)" }
     }
@@ -61,7 +61,7 @@ struct OpaqueParameterInMultiDepthExtensionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, any Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("OpaqueParameterExtensionDepthFixture-\(UUID().uuidString)")

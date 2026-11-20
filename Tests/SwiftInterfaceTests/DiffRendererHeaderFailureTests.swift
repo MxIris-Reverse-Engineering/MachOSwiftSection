@@ -223,7 +223,7 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         )
     }
 
-    private enum UnrenderableDefinitionError: Error {
+    private enum UnrenderableDefinitionError: Swift.Error {
         case donorIsNotAStruct
     }
 }

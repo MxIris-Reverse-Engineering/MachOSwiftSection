@@ -90,7 +90,7 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         )
     }
 
-    private enum PrintFailureEventTestError: Error {
+    private enum PrintFailureEventTestError: Swift.Error {
         case fixtureTypeIsNotAStruct
     }
 
@@ -329,7 +329,7 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
     /// write; on the diff path, where no sink existed at all, `case foo(Payload)`
     /// became `case foo` in silence.
     @Test func catchWithoutDefinitionIdentityReportsDegradation() async throws {
-        struct UnrenderableNodeError: Error {}
+        struct UnrenderableNodeError: Swift.Error {}
 
         let collector = SwiftIndexEventCollector()
         let eventDispatcher = SwiftIndexEvents.Dispatcher()
@@ -357,7 +357,7 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
     /// Assert the partition directly; the os_log write itself is not observable
     /// in-process.
     @Test func everyFailureEventIsRecognizedByTheFloor() async throws {
-        struct SomeError: Error {}
+        struct SomeError: Swift.Error {}
         let context = SwiftIndexEvents.PrintingContext(name: "Foo", kind: .type)
 
         #expect(SwiftIndexEvents.Payload.definitionPrintFailed(context: context, error: SomeError()).unhandledFailureDescription != nil)
