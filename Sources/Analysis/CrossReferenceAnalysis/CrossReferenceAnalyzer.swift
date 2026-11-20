@@ -255,7 +255,12 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
         reportingProgress reportProgress: ((_ scannedFunctionCount: Int, _ functionCount: Int) -> Bool)?
     ) -> CodeReferenceIndex? {
         let table = functionTable(ofImageAt: imageIndex)
-        var builder = CodeReferenceIndex.Builder(imageIndex: imageIndex, codeStart: table.textStart)
+        // A start of `__text` may lie below the section — a main executable's
+        // symbol table files `__mh_execute_header`, the Mach header itself,
+        // there — and the scan reads that function too. The starts are
+        // sorted, so the first is the lowest address a reference can name.
+        let codeStart = min(table.textStart, table.starts.first ?? table.textStart)
+        var builder = CodeReferenceIndex.Builder(imageIndex: imageIndex, codeStart: codeStart)
         let functionCount = table.starts.count
         var isStopped = false
         _ = scan(table) { scanner, collector in
