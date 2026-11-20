@@ -9,6 +9,8 @@ import OrderedCollections
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Demangling
+import Semantic
 
 /// Coverage for the extension-container unification (evolution proposal 0007):
 /// same-identity bucket merging, protocol attachment (a protocol's extension

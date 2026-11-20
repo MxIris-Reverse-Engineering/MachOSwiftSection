@@ -6,6 +6,8 @@ import OrderedCollections
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import BinaryParseSupport
+import SwiftDeclarationRendering
 
 // MARK: - ConformanceProvider Protocol
 

@@ -6,6 +6,8 @@ import MachOFoundation
 @testable import SwiftDump
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import SwiftDeclarationRendering
+import Semantic
 
 /// Issue #115: two top-level `private struct PrivateDoppelganger` declarations
 /// (one per fixture file) share their interface-printed name — the private

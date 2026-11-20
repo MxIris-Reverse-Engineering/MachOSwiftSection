@@ -1,6 +1,7 @@
 import Foundation
 import MachOSwiftSection
 import SwiftDump
+import Demangling
 
 extension DemangleOptions {
     /// Snapshot/baseline fixtures are recorded with interface-style printing:

@@ -9,6 +9,9 @@ import SwiftInterface
 import SwiftThunkAnalysis
 @_spi(Internals) import SwiftInspection
 @testable import SwiftSectionTestingSupport
+import Semantic
+import SwiftIndexing
+import SwiftObjCInterop
 
 /// Swift classes without a class object on the interface path (evolution
 /// proposal `objc-classes-without-class-objects`): a generic class, or one

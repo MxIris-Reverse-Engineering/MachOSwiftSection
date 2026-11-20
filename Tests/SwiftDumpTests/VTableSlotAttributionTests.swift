@@ -7,6 +7,8 @@ import MachOFoundation
 import SwiftDeclarationRendering
 @_spi(Internals) @testable import SwiftSymbols
 @testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
+import Semantic
 
 /// Vtable slot attribution under identical code folding.
 ///
@@ -58,7 +60,7 @@ struct VTableSlotAttributionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("VTableAttributionFixture-\(UUID().uuidString)")

@@ -5,6 +5,7 @@ import SwiftDiffing
 import SwiftIndexing
 import SwiftInterface
 import Utilities
+import Semantic
 
 /// `swift-section evolution`: track the Swift ABI of one module across an
 /// ordered series of versions.

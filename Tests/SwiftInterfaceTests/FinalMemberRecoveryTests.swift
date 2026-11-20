@@ -8,6 +8,9 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
+import Semantic
+import Demangling
 
 /// End-to-end coverage for the `final` keyword recovery and the lazy-var
 /// accessor-type correction (evolution proposal 0006), pinned against the

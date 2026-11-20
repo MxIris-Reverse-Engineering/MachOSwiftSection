@@ -5,6 +5,7 @@ import MachOKit
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
+import Demangling
 
 // MARK: - Test Enum Definitions
 

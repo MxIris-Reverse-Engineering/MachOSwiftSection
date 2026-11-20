@@ -2,6 +2,7 @@ import Foundation
 import Demangling
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
+import SwiftSymbols
 
 extension OpaqueType {
     package func requirements(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericRequirementDescriptor] {

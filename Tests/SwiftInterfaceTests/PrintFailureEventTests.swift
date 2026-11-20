@@ -9,6 +9,8 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
+import Semantic
 
 /// A definition that cannot be printed must be **reported**, not printed away.
 ///

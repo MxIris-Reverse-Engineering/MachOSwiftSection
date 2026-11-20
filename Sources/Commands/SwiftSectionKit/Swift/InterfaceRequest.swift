@@ -11,6 +11,7 @@ import OutputTransformer
 import SwiftOutputTransformer
 #if os(macOS)
 import TypeIndexing
+import Semantic
 #endif
 
 /// `swift-section interface`: generate a `.swiftinterface` from a binary.

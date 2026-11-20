@@ -5,6 +5,8 @@ import ObjCIndexing
 import ObjCInterface
 import ObjCMetadataSource
 import SwiftIndexing
+import MachOKitExtensions
+import Semantic
 
 /// `swift-section objc snapshot`: index a binary's ObjC API and persist it as a
 /// baseline document — or relabel an existing document.

@@ -1,5 +1,6 @@
 import ArgumentParser
 import SwiftDump
+import Demangling
 
 struct DemangleOptionGroup: ParsableArguments, Sendable {
     enum PresetOptions: String, ExpressibleByArgument, CaseIterable {

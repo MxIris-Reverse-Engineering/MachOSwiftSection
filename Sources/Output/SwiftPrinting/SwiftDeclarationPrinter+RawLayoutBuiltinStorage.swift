@@ -3,6 +3,7 @@ import MachOSwiftSection
 import SwiftDeclaration
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import BinaryParseSupport
 
 /// The layout a `@_rawLayout` struct records outside its field descriptor.
 ///

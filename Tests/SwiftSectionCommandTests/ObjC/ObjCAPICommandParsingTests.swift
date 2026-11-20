@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import Testing
 @testable import swift_section
+import SwiftSectionKit
 
 /// Option parsing for the API commands introduced by proposal 0006
 /// (`snapshot` / `diff` / `evolution`). Same rationale as the dump/interface

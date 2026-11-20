@@ -11,6 +11,8 @@ import SwiftInterface
 @_spi(Internals) @testable import SwiftSymbols
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import SwiftPrinting
+import Semantic
 
 /// An on-the-fly fixture compiled twice from one class: as a main executable,
 /// whose `__TEXT` sits at 0x100000000, and as a dylib, whose `__TEXT` sits at
@@ -71,7 +73,7 @@ enum ExecutableImageFixture {
     }
 
     /// Compiled once per process.
-    private static let compilationResult: Result<[Variant: URL], Swift.Error> = {
+    private static let compilationResult: Result<[Variant: URL], any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

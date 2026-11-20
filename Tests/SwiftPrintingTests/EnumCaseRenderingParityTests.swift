@@ -8,6 +8,8 @@ import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftDump
+import Semantic
+import SwiftDeclarationRendering
 
 // MARK: - In-process fixture
 

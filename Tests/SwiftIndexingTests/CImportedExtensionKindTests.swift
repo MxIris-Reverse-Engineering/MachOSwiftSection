@@ -4,6 +4,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
+import OrderedCollections
 
 /// A type declared inside `extension <C-imported type> { … }` is filed under a
 /// synthetic extension of that C type, keyed by an `ExtensionName` whose
@@ -67,7 +68,7 @@ struct CImportedExtensionKindTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("CImportedExtensionKindFixture-\(UUID().uuidString)")

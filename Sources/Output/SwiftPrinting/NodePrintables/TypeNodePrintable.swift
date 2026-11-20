@@ -3,6 +3,7 @@ import SwiftDeclarationRendering
 import SwiftInspection
 import Demangling
 import Semantic
+import SwiftStdlibToolbox
 
 /// The slice of printer state the type layer reads.
 protocol TypeNodePrintableContext: NodePrintableContext {

@@ -1,4 +1,5 @@
 import MachOSwiftSection
+import SwiftSymbols
 
 public enum OrderedMember: Sendable {
     case allocator(FunctionDefinition)

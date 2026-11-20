@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// `SwiftInterfaceBuilderOpaqueTypeProvider` finds an opaque result's
 /// constraint at the depth of the opaque parameters, which it counts from the
@@ -60,7 +61,7 @@ struct OpaqueParameterInMultiDepthExtensionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("OpaqueParameterExtensionDepthFixture-\(UUID().uuidString)")

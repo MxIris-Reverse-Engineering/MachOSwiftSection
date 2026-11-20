@@ -2,6 +2,7 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
 import Demangling
+import BinaryParseSupport
 
 /// Resolves a Swift type (given by its mangled name or demangled `Node`) to its
 /// `StaticTypeLayout`, recursing into struct/tuple fields and stopping class

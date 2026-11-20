@@ -11,6 +11,7 @@ import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 @_spi(Internals) import SwiftInspection
+import Semantic
 
 // MARK: - Pure helper unit tests (no fixture)
 

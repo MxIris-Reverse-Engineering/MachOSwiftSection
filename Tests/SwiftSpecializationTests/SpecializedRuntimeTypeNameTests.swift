@@ -7,6 +7,7 @@ import Testing
 import MachOKit
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
+import Semantic
 
 // MARK: - Fixtures
 //

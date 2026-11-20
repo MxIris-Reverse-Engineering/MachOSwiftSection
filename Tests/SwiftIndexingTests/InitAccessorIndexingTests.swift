@@ -7,6 +7,8 @@ import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @testable import SwiftSectionTestingSupport
+import OrderedCollections
+import SwiftSymbols
 
 /// A SE-0400 init accessor is one of its property's accessors (evolution
 /// proposal `init-accessor-recovery`): the index files its symbol with the

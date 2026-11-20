@@ -1,6 +1,7 @@
 @_spi(Support) @testable import SwiftPrinting
 import Demangling
 import Testing
+import Semantic
 
 /// An initializer is failable when ITS OWN result is `Optional<Self>` — not
 /// when an Optional appears somewhere else in its signature.

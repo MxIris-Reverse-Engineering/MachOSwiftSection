@@ -272,8 +272,8 @@ package enum InitAccessorFixture {
 
     private final class OneTimeCompilation: @unchecked Sendable {
         private let lock = NSLock()
-        private var result: Result<[Variant: URL], Swift.Error>?
-        private var waiters: [CheckedContinuation<[Variant: URL], Swift.Error>] = []
+        private var result: Result<[Variant: URL], any Swift.Error>?
+        private var waiters: [CheckedContinuation<[Variant: URL], any Swift.Error>] = []
         private var hasStarted = false
 
         func libraries() async throws -> [Variant: URL] {

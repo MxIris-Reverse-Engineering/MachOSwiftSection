@@ -8,6 +8,8 @@ import MachOSwiftSection
 @_spi(Support) @testable import SwiftIndexing
 import SwiftInspection
 @testable import SwiftSectionTestingSupport
+import SwiftSymbols
+import OrderedCollections
 
 /// `TypeDefinition.observableMacroExpansion` sorts an `@Observable` class's
 /// stored `var`s into the storage of the properties the macro tracks and the

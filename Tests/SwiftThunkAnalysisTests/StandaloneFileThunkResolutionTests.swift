@@ -45,7 +45,7 @@ struct StandaloneFileThunkResolutionTests {
 
     /// The compiled dylib, placed under a fake system root at its own install
     /// name so the file's location also exercises search-path inference.
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ThunkProbeFixture-\(UUID().uuidString)")
@@ -107,7 +107,7 @@ struct StandaloneFileThunkResolutionTests {
     /// `__swift_instantiateConcreteTypeFromMangledNameV2`, found by its local
     /// symbol — whose value is an address, which a dylib's `__TEXT` at 0 had
     /// let pass for a file offset.
-    private static let executableCompilationResult: Result<URL, Error> = {
+    private static let executableCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ThunkProbeExecutableFixture-\(UUID().uuidString)")

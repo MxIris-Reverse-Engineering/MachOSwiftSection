@@ -1,6 +1,7 @@
 import Foundation
 import MachOBase
 import SwiftStdlibToolbox
+import BinaryParseSupport
 
 @CaseCheckable(.public)
 @AssociatedValue(.public)

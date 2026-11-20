@@ -14,6 +14,7 @@ import OrderedCollections
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
 @testable import SwiftDump
+import Semantic
 
 // MARK: - Shared Setup
 

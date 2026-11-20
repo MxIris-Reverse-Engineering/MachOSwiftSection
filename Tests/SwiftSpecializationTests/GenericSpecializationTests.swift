@@ -16,6 +16,8 @@ import SwiftSectionFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 @testable import Demangling
 import OrderedCollections
+import Semantic
+import SwiftDeclarationRendering
 
 @Suite(.serialized)
 struct GenericSpecializationTests {

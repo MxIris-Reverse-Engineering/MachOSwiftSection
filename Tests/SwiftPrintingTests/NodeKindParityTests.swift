@@ -6,6 +6,8 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
+import SwiftSectionFixtureSupport
+import Semantic
 
 // MARK: - Shared survey
 

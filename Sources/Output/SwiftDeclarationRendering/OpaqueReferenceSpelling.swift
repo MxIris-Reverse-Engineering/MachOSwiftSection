@@ -5,6 +5,7 @@ import SwiftSymbols
 import MachOSwiftSection
 @_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
+import OrderedCollections
 
 /// How an opaque reference the rewriter could not expand is spelled in the
 /// tree it leaves behind (evolution proposal

@@ -1,6 +1,7 @@
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import Demangling
+import BinaryParseSupport
 
 /// The layout facts a generic type descriptor's requirement signature yields
 /// **without any instantiation argument** — what the signature alone pins about

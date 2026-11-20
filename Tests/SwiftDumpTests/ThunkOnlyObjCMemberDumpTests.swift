@@ -6,6 +6,8 @@ import MachOFoundation
 @testable import SwiftDump
 import SwiftDeclarationRendering
 @testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
+import Semantic
 
 /// The dump path's listing of the members an image keeps only as their
 /// `@objc` thunk (evolution proposal `thunk-only-objc-members`): the

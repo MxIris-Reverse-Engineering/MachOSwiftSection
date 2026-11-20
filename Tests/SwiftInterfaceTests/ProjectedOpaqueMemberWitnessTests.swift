@@ -7,6 +7,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// An associated-type witness that is a *member* of another module's opaque
 /// archetype — `(↻τ.Element)` in the generics book's notation, spelled
@@ -49,7 +50,7 @@ struct ProjectedOpaqueMemberWitnessTests {
         let clientInterfaceText: String
     }
 
-    private static let fixtureCompilationResult: Result<CompiledFixture, Error> = {
+    private static let fixtureCompilationResult: Result<CompiledFixture, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ProjectedOpaqueMemberFixture-\(UUID().uuidString)")

@@ -48,7 +48,7 @@ struct MergedAccessorFixtureTests {
         let strippedLibraryURL: URL
     }
 
-    private static let fixtureCompilationResult: Result<CompiledFixture, Error> = {
+    private static let fixtureCompilationResult: Result<CompiledFixture, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("MergedAccessorProbeFixture-\(UUID().uuidString)")

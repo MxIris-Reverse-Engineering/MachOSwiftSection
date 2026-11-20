@@ -2,6 +2,8 @@ import Foundation
 import MachOKit
 import SwiftSectionFixtureSupport
 @testable import MachOSwiftSection
+import FoundationToolbox
+import SwiftStdlibToolbox
 
 /// Shared scaffolding for the `SwiftInterface`-level integration dumps.
 ///

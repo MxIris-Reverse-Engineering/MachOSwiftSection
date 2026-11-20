@@ -5,6 +5,9 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 @testable import SwiftSectionTestingSupport
+import Demangling
+import Semantic
+import SwiftDeclarationRendering
 
 /// `dump` with `DemangleOptions.useModuleSelectors` (evolution proposal
 /// `module-selectors`): the names swift-demangling prints follow the option,

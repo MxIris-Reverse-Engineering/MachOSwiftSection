@@ -5,6 +5,7 @@ import MachOKitExtensions
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Core) import MachOObjCSection
+import ObjCDump
 
 @_spi(Internals)
 public struct ClassHierarchyDumper {

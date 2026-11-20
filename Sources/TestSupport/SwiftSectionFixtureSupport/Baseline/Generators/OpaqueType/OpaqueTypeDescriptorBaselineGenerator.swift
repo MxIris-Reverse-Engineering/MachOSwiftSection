@@ -1,6 +1,7 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+import SwiftBasicFormat
 
 /// Emits `__Baseline__/OpaqueTypeDescriptorBaseline.swift`.
 ///

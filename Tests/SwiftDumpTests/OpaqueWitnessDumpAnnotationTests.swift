@@ -7,6 +7,8 @@ import SwiftDeclarationRendering
 import SwiftDump
 @_spi(Internals) import SwiftInspection
 import SwiftThunkAnalysis
+import Demangling
+import Semantic
 
 /// What the dump adds on top of the interface's spelling for an
 /// associated-type witness built from another module's opaque archetype
@@ -38,7 +40,7 @@ struct OpaqueWitnessDumpAnnotationTests {
         let clientLibraryURL: URL
     }
 
-    private static let fixtureCompilationResult: Result<CompiledFixture, Error> = {
+    private static let fixtureCompilationResult: Result<CompiledFixture, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("OpaqueWitnessDumpFixture-\(UUID().uuidString)")

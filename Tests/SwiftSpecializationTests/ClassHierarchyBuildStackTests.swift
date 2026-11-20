@@ -9,6 +9,7 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// `IndexerConformanceProvider` builds its class hierarchy on a large stack.
 ///

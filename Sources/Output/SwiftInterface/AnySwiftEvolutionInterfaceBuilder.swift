@@ -72,8 +72,8 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     ///   `.labelCountMismatch` on invalid input shapes.
     public init<MachO: MachOFieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
-        eventHandlers: [SwiftIndexEvents.Handler] = [],
-        eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [SwiftIndexEvents.Handler])? = nil,
+        eventHandlers: [any SwiftIndexEvents.Handler] = [],
+        eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [any SwiftIndexEvents.Handler])? = nil,
         versions: [MachO],
         labels: [String],
         availabilityAnnotationPlatform: String? = nil
@@ -108,8 +108,8 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     ///   `.labelCountMismatch` on invalid input shapes.
     public init<MachO: MachOFieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
-        eventHandlers: [SwiftIndexEvents.Handler] = [],
-        eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [SwiftIndexEvents.Handler])? = nil,
+        eventHandlers: [any SwiftIndexEvents.Handler] = [],
+        eventHandlersPerVersion: ((_ versionIndex: Int, _ label: String) -> [any SwiftIndexEvents.Handler])? = nil,
         imageGroups: [[SwiftEvolutionInterfaceImage<MachO>]],
         labels: [String],
         availabilityAnnotationPlatform: String? = nil
@@ -133,7 +133,7 @@ public final class AnySwiftEvolutionInterfaceBuilder: Sendable {
     /// available everywhere the package deploys.
     public init<each Reader: MachOFieldLayoutRenderable>(
         configuration: SwiftDeclarationIndexConfiguration = .init(),
-        eventHandlers: [SwiftIndexEvents.Handler] = [],
+        eventHandlers: [any SwiftIndexEvents.Handler] = [],
         versions: repeat each Reader,
         labels: [String],
         availabilityAnnotationPlatform: String? = nil

@@ -2,6 +2,7 @@
 import Foundation
 import Demangling
 import Testing
+import Semantic
 
 /// Pins the `each` / `repeat` spelling of parameter packs.
 ///

@@ -9,6 +9,7 @@ import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftPrinting
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// Printing the SymbolTestsCore fixture's definitions from several tasks at
 /// once reads byte for byte as printing them one after another (evolution

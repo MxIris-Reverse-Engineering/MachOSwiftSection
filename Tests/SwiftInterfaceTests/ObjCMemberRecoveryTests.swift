@@ -13,6 +13,11 @@ import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis
 @testable import SwiftSectionTestingSupport
+import MachOObjCSection
+import SwiftPrinting
+import Semantic
+import OrderedCollections
+import SwiftSectionFixtureSupport
 
 /// The ObjC member recovery over the shared `@objc @implementation` fixture
 /// (evolution proposals `objc-ancestor-override-recovery` and

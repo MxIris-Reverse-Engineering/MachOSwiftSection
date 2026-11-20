@@ -3,6 +3,8 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import MachOFoundation
 @testable import MachOSwiftSection
+import BinaryParseSupport
+import SwiftBasicFormat
 
 /// Emits `__Baseline__/AsyncFunctionPointerBaseline.swift`.
 ///

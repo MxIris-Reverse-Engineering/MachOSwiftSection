@@ -8,6 +8,7 @@ import SwiftSectionTestingSupport
 @testable import SwiftInterface
 @_spi(Support) @testable import SwiftIndexing
 import SwiftDiffing
+import Semantic
 
 /// The ABI-diff analogue of ``SwiftInterfaceBuilderTests``.
 ///
@@ -172,7 +173,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
     }
 
     /// SwiftUICore across two simulator runtimes (iOS 18.5 → 26.2).
-    final class SwiftUICoreTests: CrossVersionMachOFileTests, SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
+    final class SwiftUICoreTests: CrossVersionMachOFileTests, nonisolated SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
         override class var oldFileName: MachOFileName { .iOS_18_5_Simulator_SwiftUICore }
         override class var newFileName: MachOFileName { .iOS_26_5_Simulator_SwiftUICore }
 
@@ -188,7 +189,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
     }
 
     /// SwiftUI across two simulator runtimes (iOS 18.5 → 26.2).
-    final class SwiftUITests: CrossVersionMachOFileTests, SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
+    final class SwiftUITests: CrossVersionMachOFileTests, nonisolated SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
         override class var oldFileName: MachOFileName { .iOS_18_5_Simulator_SwiftUI }
         override class var newFileName: MachOFileName { .iOS_26_5_Simulator_SwiftUI }
 
@@ -205,7 +206,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
 
     /// The same macOS image (SwiftUI) extracted from two dyld shared caches
     /// (macOS 15.5 → current). Cross-image references resolve through each cache.
-    final class DyldCacheTests: CrossVersionDyldCacheImageTests, SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
+    final class DyldCacheTests: CrossVersionDyldCacheImageTests, nonisolated SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
         override class var oldCachePath: DyldSharedCachePath { .macOS_26_5_1 }
         override class var newCachePath: DyldSharedCachePath { .macOS_27_0 }
         override class var cacheImageName: MachOImageName { .AppKit }
@@ -224,7 +225,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
     /// The same image from two archived macOS caches, picked by version: point
     /// the two versions at any directories under `/Volumes/DyldSharedCaches/macOS`
     /// that hold a cache.
-    final class ArchivedDyldCacheTests: CrossVersionDyldCacheImageTests, SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
+    final class ArchivedDyldCacheTests: CrossVersionDyldCacheImageTests, nonisolated SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
         class var oldCacheVersion: String { "26.6" }
         class var newCacheVersion: String { "27.0" }
         override class var oldCachePath: DyldSharedCachePath { .macOS(oldCacheVersion) }
@@ -245,7 +246,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
     /// The DVTProductsUI shared framework across two installed Xcode versions
     /// (26.3 → 26.4) — mirrors the framework the interface builder tests use,
     /// loaded by path so the diff can compare two Xcodes.
-    final class XcodeFrameworkTests: CrossVersionXcodeFrameworkTests, SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
+    final class XcodeFrameworkTests: CrossVersionXcodeFrameworkTests, nonisolated SwiftDiffableInterfaceBuilderTests, @unchecked Sendable {
         override class var oldXcodeApplicationPath: String { "/Applications/Xcode-26.3.0.app" }
         override class var newXcodeApplicationPath: String { "/Applications/Xcode-26.4.0.app" }
         override class var sharedFrameworkName: String { "DVTProductsUI" }

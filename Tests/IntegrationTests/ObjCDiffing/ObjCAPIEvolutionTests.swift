@@ -9,6 +9,7 @@ import ObjCMetadataSource
 import ObjCIndexing
 import ObjCInterface
 import ObjCDiffing
+import Semantic
 
 /// One image indexed the way the `objc` subcommands index it: the Swift
 /// classes that keep no class object supplied from Swift metadata.
@@ -159,7 +160,7 @@ enum ObjCAPIEvolutionTestSuite {
     /// AppKit across the three macOS caches the Swift evolution suites
     /// default to (15.5 → 26.5.2 → 27.0), so the Objective-C report can be
     /// read beside theirs.
-    final class DyldCacheTests: MultiVersionDyldCacheImageTests, ObjCAPIEvolutionDumpTests, @unchecked Sendable {
+    final class DyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ObjCAPIEvolutionDumpTests, @unchecked Sendable {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionFile() async throws {
             try await evolutionFile(versions: versions)
@@ -181,7 +182,7 @@ enum ObjCAPIEvolutionTestSuite {
     /// selector base, and an earlier reader made every class and category
     /// method of 11.x garbage — 11.7 → 12.0.1 then reported about 47,000
     /// removals and 53,000 additions instead of about 1,200 and 1,400.
-    final class ArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, ObjCAPIEvolutionDumpTests, @unchecked Sendable {
+    final class ArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ObjCAPIEvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             SwiftEvolutionInterfaceBuilderTestSuite.ArchivedDyldCacheTests.cachePaths
         }
@@ -201,7 +202,7 @@ enum ObjCAPIEvolutionTestSuite {
     /// UIFoundation, CollectionViewCore, CoreAutoLayout — across the default
     /// three caches (15.5 → 26.5.2 → 27.0), each version one group of images
     /// (evolution proposal `image-group-evolution`).
-    final class AppKitImageGroupDyldCacheTests: MultiVersionDyldCacheImageTests, ObjCAPIEvolutionDumpTests, @unchecked Sendable {
+    final class AppKitImageGroupDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ObjCAPIEvolutionDumpTests, @unchecked Sendable {
         override class var cacheImageNames: [MachOImageName] { [.AppKit, .UIFoundation, .CollectionViewCore, .CoreAutoLayout] }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -220,7 +221,7 @@ enum ObjCAPIEvolutionTestSuite {
     /// UIFoundation and CollectionViewCore in 13.0 and 15.0 — where an
     /// evolution of AppKit alone reads them as removed or added — read as
     /// moved. CollectionViewCore joins the group in 13.0.
-    final class AppKitImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, ObjCAPIEvolutionDumpTests, @unchecked Sendable {
+    final class AppKitImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ObjCAPIEvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             ArchivedDyldCacheTests.cachePaths
         }
@@ -240,7 +241,7 @@ enum ObjCAPIEvolutionTestSuite {
 
     /// SwiftUI together with SwiftUICore across the default three caches —
     /// the Objective-C side of `ABIEvolutionTestSuite.SwiftUIImageGroupDyldCacheTests`.
-    final class SwiftUIImageGroupDyldCacheTests: MultiVersionDyldCacheImageTests, ObjCAPIEvolutionDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ObjCAPIEvolutionDumpTests, @unchecked Sendable {
         override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
@@ -256,7 +257,7 @@ enum ObjCAPIEvolutionTestSuite {
 
     /// The same group across every archived macOS cache: SwiftUI alone until
     /// 14.8, SwiftUICore joining it in 15.0.
-    final class SwiftUIImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, ObjCAPIEvolutionDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated ObjCAPIEvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             ArchivedDyldCacheTests.cachePaths
         }
@@ -380,7 +381,7 @@ enum ObjCEvolutionInterfaceTestSuite {
     /// (15.5 → 26.5.2 → 27.0) — the axis of
     /// `ObjCAPIEvolutionTestSuite.DyldCacheTests`, so the header and the
     /// report can be read side by side.
-    final class DyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class DyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func evolutionInterfaceFile() async throws {
             try await evolutionInterfaceFile(versions: versions)
@@ -396,7 +397,7 @@ enum ObjCEvolutionInterfaceTestSuite {
     /// `ObjCAPIEvolutionTestSuite.ArchivedDyldCacheTests`. Every label is a
     /// version number, so the header also spells each lifecycle one macro can
     /// express as `API_AVAILABLE` / `API_OBSOLETED`.
-    final class ArchivedDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class ArchivedDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             ObjCAPIEvolutionTestSuite.ArchivedDyldCacheTests.cachePaths
         }
@@ -415,7 +416,7 @@ enum ObjCEvolutionInterfaceTestSuite {
     /// AppKit with UIFoundation, CollectionViewCore and CoreAutoLayout across
     /// the default three caches — the axis of
     /// `ObjCAPIEvolutionTestSuite.AppKitImageGroupDyldCacheTests`.
-    final class AppKitImageGroupDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class AppKitImageGroupDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cacheImageNames: [MachOImageName] {
             ObjCAPIEvolutionTestSuite.AppKitImageGroupDyldCacheTests.cacheImageNames
         }
@@ -434,7 +435,7 @@ enum ObjCEvolutionInterfaceTestSuite {
     /// The same group across every archived macOS cache, on the axis of
     /// `ObjCAPIEvolutionTestSuite.AppKitImageGroupArchivedDyldCacheTests`,
     /// with the availability macros.
-    final class AppKitImageGroupArchivedDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class AppKitImageGroupArchivedDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             ObjCAPIEvolutionTestSuite.ArchivedDyldCacheTests.cachePaths
         }
@@ -456,7 +457,7 @@ enum ObjCEvolutionInterfaceTestSuite {
 
     /// SwiftUI with SwiftUICore across the default three caches — the axis
     /// of `ObjCAPIEvolutionTestSuite.SwiftUIImageGroupDyldCacheTests`.
-    final class SwiftUIImageGroupDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cacheImageNames: [MachOImageName] {
             ObjCAPIEvolutionTestSuite.SwiftUIImageGroupDyldCacheTests.cacheImageNames
         }
@@ -474,7 +475,7 @@ enum ObjCEvolutionInterfaceTestSuite {
 
     /// The same group across every archived macOS cache, with the
     /// availability macros.
-    final class SwiftUIImageGroupArchivedDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
+    final class SwiftUIImageGroupArchivedDyldCacheTests: ObjCAPIEvolutionTestSuite.MultiVersionDyldCacheImageTests, nonisolated ObjCEvolutionInterfaceDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] {
             ObjCAPIEvolutionTestSuite.ArchivedDyldCacheTests.cachePaths
         }

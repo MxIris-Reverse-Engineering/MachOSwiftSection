@@ -4,6 +4,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOSwiftSection
+import OrderedCollections
 
 /// The `GenericSpecializationFixture`'s prepared indexers, one per reading
 /// path, each built once per process and shared by every suite: the runtime

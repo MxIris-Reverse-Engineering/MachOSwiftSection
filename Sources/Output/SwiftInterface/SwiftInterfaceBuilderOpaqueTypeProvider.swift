@@ -10,6 +10,7 @@ import Dependencies
 import SwiftStdlibToolbox
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
+import Semantic
 
 /// Carries the logging floor onto the provider.
 ///

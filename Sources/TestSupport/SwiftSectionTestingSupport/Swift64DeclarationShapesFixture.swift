@@ -199,7 +199,7 @@ package enum Swift64DeclarationShapesFixture {
     }
 
     /// Compiled once per process.
-    private static let compilationResult: Result<URL, Swift.Error> = {
+    private static let compilationResult: Result<URL, any Swift.Error> = {
         Result {
             guard let toolchain else {
                 throw CompilationError(diagnostics: "no Swift 6.4 or newer toolchain is installed")

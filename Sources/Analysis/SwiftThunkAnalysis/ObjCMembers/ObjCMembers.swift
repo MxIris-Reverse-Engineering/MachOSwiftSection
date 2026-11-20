@@ -6,6 +6,7 @@ import MachOKitExtensions
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
+import MachOResolving
 
 /// The public face of the ObjC member recovery (evolution proposals
 /// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`):

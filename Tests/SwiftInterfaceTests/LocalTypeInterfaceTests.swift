@@ -9,6 +9,7 @@ import SwiftPrinting
 @_spi(Support) import SwiftInterface
 import Semantic
 @testable import SwiftSectionTestingSupport
+import OrderedCollections
 
 /// Local types on the indexing and interface paths (evolution proposal
 /// `local-type-context-names`). Named after their method, two methods'

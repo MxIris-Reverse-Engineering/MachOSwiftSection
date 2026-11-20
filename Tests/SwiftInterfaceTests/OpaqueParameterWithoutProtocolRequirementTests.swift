@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// An opaque parameter that carries no runtime-visible protocol requirement.
 ///
@@ -43,7 +44,7 @@ struct OpaqueParameterWithoutProtocolRequirementTests {
         var description: String { "opaque-parameter fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("OpaqueParameterFixture-\(UUID().uuidString)")

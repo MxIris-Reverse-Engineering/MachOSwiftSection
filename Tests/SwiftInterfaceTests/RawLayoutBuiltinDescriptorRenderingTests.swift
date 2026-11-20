@@ -8,6 +8,7 @@ import SwiftInterface
 import struct Semantic.SemanticString
 import struct Semantic.FrozenSemanticString
 import SwiftSectionTestingSupport
+import SwiftPrinting
 
 /// `@_rawLayout` is an experimental feature any module can enable, not a
 /// standard-library privilege, and only its `like:` spelling leaves a field
@@ -42,7 +43,7 @@ struct RawLayoutBuiltinDescriptorRenderingTests {
         var description: String { "raw-layout fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("RawLayoutRenderingFixture-\(UUID().uuidString)")

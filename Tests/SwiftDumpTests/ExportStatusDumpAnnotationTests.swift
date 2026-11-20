@@ -8,6 +8,7 @@ import SwiftDeclarationRendering
 @_spi(Internals) @testable import SwiftSymbols
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
 
 /// Dump-path coverage for the `// not exported` annotation (evolution
 /// proposal 0008), pinning the two false-positive classes the member-symbol

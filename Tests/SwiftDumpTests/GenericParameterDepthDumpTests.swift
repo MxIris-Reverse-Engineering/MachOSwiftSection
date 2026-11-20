@@ -5,6 +5,9 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
+import SwiftDeclarationRendering
+import Semantic
 
 /// The dump path's half of `GenericParameterDepthNamingTests`: the dumpers
 /// render a generic declaration's parameter clause through the same

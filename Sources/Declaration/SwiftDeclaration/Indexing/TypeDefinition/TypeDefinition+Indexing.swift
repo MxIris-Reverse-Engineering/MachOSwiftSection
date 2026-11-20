@@ -7,6 +7,7 @@ import SwiftThunkAnalysis
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
+import BinaryParseSupport
 
 extension TypeDefinition: OnceIndexedDefinition {
     /// Fills the definition from the image: fields, members, the facts that

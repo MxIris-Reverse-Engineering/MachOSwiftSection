@@ -7,6 +7,7 @@ import MachOResolving
 @_spi(Internals) @testable import SwiftSymbols
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// Pins when a symbol index demangles its names (evolution proposal
 /// `machofile-performance`): the storage's first stage — the symbol table,

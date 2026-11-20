@@ -9,6 +9,7 @@ import Semantic
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// The protocol a conformance extension names is a type reference like any
 /// other, so its name must carry the semantic type the rest of the interface

@@ -50,7 +50,7 @@ extension SwiftInterfaceBuilderDependencies<MachOFile> {
     ///   open. Defaulted, so existing call sites are unaffected — and passing
     ///   none is safe rather than silent: `SwiftIndexEvents.Dispatcher` reports
     ///   an unhandled failure to os_log rather than dropping it.
-    public init(machO: MachO, searchPaths: [DependencySearchPath], eventHandlers: [SwiftIndexEvents.Handler] = []) {
+    public init(machO: MachO, searchPaths: [DependencySearchPath], eventHandlers: [any SwiftIndexEvents.Handler] = []) {
         let closure = DependencyClosure(root: machO, searchPaths: searchPaths, traversal: .direct)
         if !closure.searchPathLoadFailures.isEmpty {
             let eventDispatcher = SwiftIndexEvents.Dispatcher()
@@ -68,7 +68,7 @@ extension SwiftInterfaceBuilderDependencies<MachOFile> {
     }
 
     @available(*, deprecated, renamed: "init(machO:searchPaths:eventHandlers:)")
-    public init(machO: MachO, paths: [DependencyPath], eventHandlers: [SwiftIndexEvents.Handler] = []) {
+    public init(machO: MachO, paths: [DependencyPath], eventHandlers: [any SwiftIndexEvents.Handler] = []) {
         self.init(machO: machO, searchPaths: paths.map(\.searchPath), eventHandlers: eventHandlers)
     }
 

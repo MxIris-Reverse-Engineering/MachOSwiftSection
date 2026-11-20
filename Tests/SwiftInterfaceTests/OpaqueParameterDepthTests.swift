@@ -6,6 +6,7 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// The depth of an opaque result's parameters: the innermost depth of the
 /// descriptor's own layout, counted over every context above it that adds
@@ -150,7 +151,7 @@ struct OpaqueParameterDepthTests {
     /// core image exports.
     private static let inProcessReaderExpectedInterfaceLine = "var foreignValues: some Swift.Sequence<A1> {"
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("OpaqueParameterDepthFixture-\(UUID().uuidString)")

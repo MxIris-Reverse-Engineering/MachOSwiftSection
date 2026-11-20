@@ -9,6 +9,7 @@ import SwiftDeclaration
 import SwiftDeclarationRendering
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
+import OrderedCollections
 
 /// The source files of an image's private discriminators, recovered on
 /// demand and remembered (evolution proposal `private-declarations`).

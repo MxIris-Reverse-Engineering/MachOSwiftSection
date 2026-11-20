@@ -1,4 +1,5 @@
 import Demangling
+import SwiftSymbols
 
 extension DemanglingNode where Self: Sequence<Self> {
     var isStoredVariable: Bool {

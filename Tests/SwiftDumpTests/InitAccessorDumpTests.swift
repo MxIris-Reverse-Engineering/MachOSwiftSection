@@ -5,6 +5,9 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 @testable import SwiftSectionTestingSupport
+import SwiftDeclarationRendering
+import Semantic
+import Demangling
 
 /// `dump` lists a property's SE-0400 init accessor among its type's variable
 /// symbols, with the address and export status every member symbol gets

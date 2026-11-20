@@ -160,7 +160,7 @@ package enum RenamedObjCClassFixture {
     }
 
     /// Compiled once per process; every variant shares one working directory.
-    private static let compilationResult: Result<CompiledLibraries, Swift.Error> = {
+    private static let compilationResult: Result<CompiledLibraries, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

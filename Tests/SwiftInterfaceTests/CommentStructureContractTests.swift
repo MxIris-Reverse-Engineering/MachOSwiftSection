@@ -13,6 +13,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// With `SwiftDeclarationPrintConfiguration.marksCommentStructure`, every
 /// definition of the SymbolTestsCore fixture separates to exactly its print

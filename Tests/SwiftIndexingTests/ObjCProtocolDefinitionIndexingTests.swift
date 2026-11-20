@@ -7,6 +7,7 @@ import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 @testable import SwiftSectionTestingSupport
+import OrderedCollections
 
 /// The declaration model of the `@objc` protocols a Swift module declares
 /// (evolution proposal `swift-declared-objc-protocols`): one

@@ -129,7 +129,7 @@ package enum ThunkOnlyMemberFixture {
     }
 
     /// Compiled once per process; both variants share one working directory.
-    private static let compilationResult: Result<[Variant: URL], Swift.Error> = {
+    private static let compilationResult: Result<[Variant: URL], any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

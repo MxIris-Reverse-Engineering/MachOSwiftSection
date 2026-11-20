@@ -3,6 +3,7 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import MachOFoundation
 @testable import MachOSwiftSection
+import SwiftBasicFormat
 
 // Pattern note: this generator and its corresponding Suite use **presence flags**
 // (`hasGenericContext: Bool`, etc.) for heavy optional ivars rather than full

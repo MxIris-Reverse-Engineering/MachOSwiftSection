@@ -6,6 +6,7 @@ import Demangling
 @_spi(Internals) @testable import SwiftSymbols
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// Stage 0 of the NodeStore migration plan: capture per-image baseline
 /// metrics for `SwiftSymbolIndexStore.buildStorage` so Stage 1/4 can compare

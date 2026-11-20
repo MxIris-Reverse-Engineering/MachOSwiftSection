@@ -9,6 +9,7 @@ import Demangling
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
+import OrderedCollections
 
 /// A protocol declared inside an extension (SE-0404) — `extension Host {
 /// protocol Delegate {…} }` — has no parent type definition, only an
@@ -39,7 +40,7 @@ struct ProtocolInExtensionTests {
         var description: String { "protocol-in-extension fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ProtocolInExtensionFixture-\(UUID().uuidString)")

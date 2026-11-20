@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import SwiftSectionKit
+import MachOKit
 
 /// `MachOSource.load()` is the one loader every request shares; these pin the
 /// fat-binary affordance and the cache-image lookup it centralizes.

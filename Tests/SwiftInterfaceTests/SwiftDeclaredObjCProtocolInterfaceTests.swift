@@ -8,6 +8,8 @@ import SwiftDeclarationRendering
 import SwiftInterface
 import Semantic
 @testable import SwiftSectionTestingSupport
+import SwiftIndexing
+import SwiftPrinting
 
 /// The `@objc` protocols a Swift module declares, on the interface path
 /// (evolution proposal `swift-declared-objc-protocols`): they have no

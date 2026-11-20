@@ -1,4 +1,5 @@
 import MachOSwiftSection
+import BinaryParseSupport
 
 extension GenericRequirement {
     /// A protocol-signature requirement that represents an *inherited protocol*

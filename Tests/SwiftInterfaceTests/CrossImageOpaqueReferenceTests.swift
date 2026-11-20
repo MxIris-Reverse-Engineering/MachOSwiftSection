@@ -7,6 +7,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// An associated-type witness built from a `some` result that lives in
 /// ANOTHER image — the shape SwiftUI's `SidebarListBody.CollectionViewBody.Body`
@@ -48,7 +49,7 @@ struct CrossImageOpaqueReferenceTests {
         let clientLibraryURL: URL
     }
 
-    private static let fixtureCompilationResult: Result<CompiledFixture, Error> = {
+    private static let fixtureCompilationResult: Result<CompiledFixture, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("CrossImageOpaqueFixture-\(UUID().uuidString)")

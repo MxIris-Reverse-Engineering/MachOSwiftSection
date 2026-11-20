@@ -7,6 +7,7 @@ import SwiftDeclarationRendering
 import SwiftPrinting
 import SwiftSectionKit
 @testable import swift_section
+import Demangling
 
 /// Unit tests for the `swift-section` comment-template command-line surface:
 /// how a template value resolves (built-in name vs literal template), how the

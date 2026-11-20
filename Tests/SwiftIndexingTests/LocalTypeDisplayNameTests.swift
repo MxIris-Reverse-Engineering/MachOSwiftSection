@@ -6,6 +6,7 @@ import MachOSwiftSection
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
+import OrderedCollections
 
 /// The name a reader is shown of a type declared in a function or closure
 /// body, or of a type nested in one (evolution proposal

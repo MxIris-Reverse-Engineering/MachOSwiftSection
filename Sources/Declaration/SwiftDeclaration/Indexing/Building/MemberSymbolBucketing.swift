@@ -1,5 +1,6 @@
 @_spi(Internals) import SwiftSymbols
 import OrderedCollections
+import Demangling
 
 extension Definition {
     func addSymbol(_ symbol: MemberSymbol, memberSymbolsByKind: inout OrderedDictionary<SwiftSymbolIndexStore.MemberKind, [MemberSymbol]>, inExtension: Bool) {

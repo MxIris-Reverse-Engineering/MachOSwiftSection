@@ -2,6 +2,7 @@ import Demangling
 import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis
+import SwiftSymbols
 
 /// Joins an `ObjCMemberTable` — the class's ObjC method table tied to its
 /// Swift members — onto already-built member definitions (evolution

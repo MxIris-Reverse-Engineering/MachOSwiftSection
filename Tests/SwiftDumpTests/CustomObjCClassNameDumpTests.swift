@@ -8,6 +8,8 @@ import SwiftDeclarationRendering
 import SwiftInspection
 import SwiftObjCInterop
 @testable import SwiftSectionTestingSupport
+import Semantic
+import SwiftSectionFixtureSupport
 
 /// The dump path's rendering of a class the source renamed for the
 /// Objective-C runtime (evolution proposal `objc-custom-class-name`): the

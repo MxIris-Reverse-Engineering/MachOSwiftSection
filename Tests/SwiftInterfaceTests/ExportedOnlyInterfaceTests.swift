@@ -7,6 +7,8 @@ import MachOKit
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
+import SwiftIndexing
 
 /// End-to-end coverage for the exported-only filter (evolution proposal
 /// `exported-only-interface`) on the `SymbolTestsCore` fixture — a

@@ -4,6 +4,7 @@ import Foundation
 import ObjCDeclarationRendering
 import ObjCOutputTransformer
 @testable import swift_section
+import SwiftSectionKit
 
 /// Option parsing is the CLI's contract with its users: a flag that silently
 /// stops reaching the library, or one that lands on the wrong switch, produces

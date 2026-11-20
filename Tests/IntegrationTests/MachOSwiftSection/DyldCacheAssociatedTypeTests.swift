@@ -6,6 +6,9 @@ import Demangling
 import SwiftSectionFixtureSupport
 @_spi(Internals) @testable import SwiftSymbols
 @testable @_spi(Internals) import SwiftInspection
+import MachOReading
+import SwiftDeclaration
+import MachOSwiftSection
 
 final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
     @MainActor

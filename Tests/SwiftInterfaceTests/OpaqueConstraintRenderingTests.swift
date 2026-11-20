@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// The spelling of an opaque result type's constraints beyond the plain
 /// `some Protocol<Argument>` shape the fixture covers.
@@ -42,7 +43,7 @@ struct OpaqueConstraintRenderingTests {
         var description: String { "opaque-constraint fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("OpaqueConstraintFixture-\(UUID().uuidString)")

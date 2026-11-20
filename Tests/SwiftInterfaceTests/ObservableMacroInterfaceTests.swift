@@ -10,6 +10,7 @@ import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
+import OrderedCollections
 
 /// The interface folds what `@Observable` generated (evolution proposal
 /// `observable-macro-folding`): by default a class the macro expanded reads

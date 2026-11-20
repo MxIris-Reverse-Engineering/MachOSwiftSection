@@ -1,4 +1,5 @@
 import Demangling
+import Foundation
 
 /// A stable, version-independent identity for a Swift declaration, derived by
 /// *remangling* its demangled `Node` back into a canonical symbol string.

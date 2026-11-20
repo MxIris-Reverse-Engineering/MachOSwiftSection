@@ -71,7 +71,7 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
         var description: String { "coro-function-pointer fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("CoroFunctionPointerFixture-\(UUID().uuidString)")

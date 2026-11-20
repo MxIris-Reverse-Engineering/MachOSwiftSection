@@ -3,6 +3,8 @@ import MachOKit
 @_spi(Internals) import MachOAddressResolution
 import MachOKitExtensions
 @_spi(Internals) import SwiftSymbols
+import MachOReading
+import MachOResolving
 
 /// What an ObjC method's IMP references (evolution proposal
 /// `objc-ancestor-override-recovery`): the addresses its code calls,

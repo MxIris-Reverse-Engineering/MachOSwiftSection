@@ -10,6 +10,7 @@ import Demangling
 import SwiftDeclarationRendering
 import SwiftThunkAnalysis
 import SwiftDump
+import Semantic
 
 /// Where the simulator-runtime-gated suites below find their binaries.
 ///

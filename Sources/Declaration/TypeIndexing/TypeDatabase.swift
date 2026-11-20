@@ -6,6 +6,7 @@ import MachOKit
 import ObjCIndexing
 import ObjCMetadataSource
 import SwiftPrinting
+import MachOKitExtensions
 
 /// The `__C` module-attribution database: answers "which module declares the
 /// type named X" for the ObjC/C-imported types Swift manglings spell as

@@ -7,6 +7,7 @@ import Demangling
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
+import OrderedCollections
 
 /// `privateDeclarations` reads a name's whole tree but for two parts: the
 /// signature of a function, closure, variable, subscript, initializer or

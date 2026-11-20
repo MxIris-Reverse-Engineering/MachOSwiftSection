@@ -7,6 +7,8 @@ import SwiftSectionFixtureSupport
 import SwiftInspection
 import SwiftDeclarationRendering
 @testable @_spi(Support) import SwiftPrivateDiscriminators
+import OrderedCollections
+import SwiftDeclaration
 
 /// An image's private discriminators, recovered from candidates the image's
 /// own names make (evolution proposal `private-declarations`).

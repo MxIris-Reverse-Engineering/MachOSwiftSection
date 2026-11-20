@@ -183,7 +183,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     @Mutex
     private var isPrepared: Bool = false
 
-    public init(configuration: SwiftDeclarationIndexConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
+    public init(configuration: SwiftDeclarationIndexConfiguration = .init(), eventHandlers: [any SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
         self.configuration = configuration
         eventDispatcher.addHandlers(eventHandlers)

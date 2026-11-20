@@ -6,6 +6,8 @@ import Testing
 import MachOKit
 @testable import MachOSwiftSection
 import SwiftSectionTestingSupport
+import OrderedCollections
+import Demangling
 
 /// A base-class requirement on an Objective-C class, checked offline
 /// (evolution proposal `offline-generic-specialization`).
@@ -51,7 +53,7 @@ struct OfflineObjectiveCBaseClassTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

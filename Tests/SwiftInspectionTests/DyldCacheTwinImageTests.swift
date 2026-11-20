@@ -4,6 +4,7 @@ import MachOKit
 import MachOObjCSection
 @testable import SwiftInspection
 @testable import SwiftObjCInterop
+import MachOKitExtensions
 
 private enum TwinSwiftUICaches {
     static let swiftUIPath = "/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI"

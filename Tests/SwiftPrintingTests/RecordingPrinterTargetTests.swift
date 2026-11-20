@@ -1,6 +1,7 @@
 @_spi(Support) @testable import SwiftPrinting
 import Demangling
 import Testing
+import Semantic
 
 /// A `NodePrinterTarget` that records every call the printers make.
 ///

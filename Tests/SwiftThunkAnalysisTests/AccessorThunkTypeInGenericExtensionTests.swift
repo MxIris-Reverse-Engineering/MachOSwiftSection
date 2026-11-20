@@ -69,7 +69,7 @@ struct AccessorThunkTypeInGenericExtensionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("AccessorThunkGenericExtensionFixture-\(UUID().uuidString)")

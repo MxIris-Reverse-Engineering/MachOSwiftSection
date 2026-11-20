@@ -1,6 +1,7 @@
 import Foundation
 import SwiftDeclaration
 import SwiftSectionKit
+import Semantic
 
 /// A `SwiftSectionOutput` that keeps everything it is handed, in order.
 ///

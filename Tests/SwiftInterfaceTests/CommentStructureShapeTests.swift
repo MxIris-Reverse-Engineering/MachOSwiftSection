@@ -10,6 +10,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import OrderedCollections
 
 /// The shapes RuntimeViewer draws its comment tags and folds from (evolution
 /// proposal `comment-structure`), read from the table a marked print of the

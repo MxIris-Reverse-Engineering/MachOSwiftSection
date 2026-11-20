@@ -1,3 +1,4 @@
+import BinaryParseSupport
 public protocol TopLevelDescriptor: ResolvableLocatableLayoutWrapper {
     var actualSize: Int { get }
 }

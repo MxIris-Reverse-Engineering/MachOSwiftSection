@@ -9,6 +9,8 @@ import SwiftInspection
 import SwiftObjCInterop
 import SwiftThunkAnalysis
 @testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
+import Semantic
 
 /// The dump path's rendering of the ObjC member facts (evolution proposals
 /// `objc-ancestor-override-recovery` and `objc-member-selector-recovery`):

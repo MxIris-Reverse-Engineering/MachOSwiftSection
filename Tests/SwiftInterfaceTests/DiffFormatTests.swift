@@ -1,6 +1,7 @@
 import Testing
 import Semantic
 @testable import SwiftInterface
+import Foundation
 
 /// Builds a one-line ``DiffLine`` for the synthetic block fixtures below.
 private func line(_ marker: DiffMarker, _ content: SemanticString, indent: Int = 0) -> DiffLine {

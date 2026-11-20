@@ -7,6 +7,7 @@ import SwiftDiffing
 import SwiftInterface
 @_spi(Internals) import SwiftSymbols
 @testable import SwiftSectionTestingSupport
+import Semantic
 
 /// A member an image declares on a type another image defines, with no
 /// extension context in its mangling (evolution proposal

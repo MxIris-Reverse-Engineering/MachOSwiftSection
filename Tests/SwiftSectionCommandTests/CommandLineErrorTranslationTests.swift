@@ -13,7 +13,7 @@ struct CommandLineErrorTranslationTests {
     @Test("A fat binary without -a names the option, and the slices")
     func fatBinary() {
         let translated = CommandLineErrorTranslation.translated(MachOSourceError.fatBinaryRequiresArchitecture(availableArchitectures: ["arm64", "x86_64"]))
-        #expect((translated as? LocalizedError)?.errorDescription == "The file is a fat (universal) binary. You must specify an architecture using --architecture (-a). Available architectures: arm64, x86_64")
+        #expect((translated as? (any LocalizedError))?.errorDescription == "The file is a fat (universal) binary. You must specify an architecture using --architecture (-a). Available architectures: arm64, x86_64")
     }
 
     @Test("The other loading errors keep their historical wording", arguments: [
@@ -21,7 +21,7 @@ struct CommandLineErrorTranslationTests {
         (.dyldSharedCacheImageNotFound(.name("Foundation")), "The specified image was not found in the dyld shared cache."),
     ])
     func loadingErrors(error: MachOSourceError, expectedDescription: String) {
-        #expect((CommandLineErrorTranslation.translated(error) as? LocalizedError)?.errorDescription == expectedDescription)
+        #expect((CommandLineErrorTranslation.translated(error) as? (any LocalizedError))?.errorDescription == expectedDescription)
     }
 
     @Test("A snapshot document given to diff --interface is a usage error in diff's words")

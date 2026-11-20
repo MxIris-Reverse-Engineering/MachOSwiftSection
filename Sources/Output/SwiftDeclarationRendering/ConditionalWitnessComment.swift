@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import Demangling
+import Semantic
 
 extension PlatformAvailabilityCondition {
     /// The platform's name as `#available` spells it.

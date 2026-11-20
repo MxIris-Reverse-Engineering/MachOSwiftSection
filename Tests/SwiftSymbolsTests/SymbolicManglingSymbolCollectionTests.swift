@@ -6,6 +6,7 @@ import MachOKit
 @_spi(Internals) import MachOSymbols
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import MachOResolving
 
 /// The collection layer of evolution proposal `symbolic-mangling-symbol-index`:
 /// the build sweep gathers every `_symbolic ` / `_default assoc type ` symbol

@@ -4,6 +4,7 @@ import MachOKit
 import MachOKitExtensions
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// Regression tests for binaries carrying the legacy `LC_DYLD_INFO(_ONLY)`
 /// opcode-based fixups (deployment target < macOS 12 / iOS 16, e.g. every
@@ -37,7 +38,7 @@ struct LegacyDyldInfoBindTests {
         }()
     }
 
-    private static let fixtureCompilationResult: Result<URL, Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("LegacyDyldInfoBindFixture-\(UUID().uuidString)")

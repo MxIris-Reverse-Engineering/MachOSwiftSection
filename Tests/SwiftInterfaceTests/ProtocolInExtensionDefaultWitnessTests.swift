@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import Semantic
 
 /// A protocol declared in an extension of another module's type prints its
 /// default-implementation extensions in the interface's top-level block for
@@ -56,7 +57,7 @@ struct ProtocolInExtensionDefaultWitnessTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("ProtocolInExtensionDefaultWitnessFixture-\(UUID().uuidString)")

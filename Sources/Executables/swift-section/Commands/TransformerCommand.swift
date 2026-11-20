@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import SwiftSectionKit
+import SwiftOutputTransformer
 
 // MARK: - Command
 

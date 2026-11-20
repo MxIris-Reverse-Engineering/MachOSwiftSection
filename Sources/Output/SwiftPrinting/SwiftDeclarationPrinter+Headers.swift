@@ -8,6 +8,7 @@ import Dependencies
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftStdlibToolbox
 
 /// Model-driven declaration-header rendering for the interface path.
 ///

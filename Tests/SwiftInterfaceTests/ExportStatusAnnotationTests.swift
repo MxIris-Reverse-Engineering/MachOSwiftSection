@@ -7,6 +7,8 @@ import MachOKit
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
+import SwiftIndexing
 
 /// End-to-end coverage for the `// not exported` annotation (evolution
 /// proposal 0008) on the `SymbolTestsCore` fixture — a library-evolution

@@ -7,6 +7,10 @@ import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
 @testable import SwiftSectionTestingSupport
+import OrderedCollections
+import Demangling
+import SwiftDeclaration
+import Semantic
 
 /// How the interface prints a protocol's requirement signature (evolution
 /// proposal `protocol-requirement-placement`): every requirement in the

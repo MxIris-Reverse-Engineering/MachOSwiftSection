@@ -2,6 +2,7 @@ import MachOSwiftSection
 import Demangling
 import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
+import BinaryParseSupport
 
 /// A protocol's requirement signature split by where each requirement prints
 /// (evolution proposal `protocol-requirement-placement`).

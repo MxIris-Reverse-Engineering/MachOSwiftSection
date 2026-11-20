@@ -5,6 +5,9 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 @testable import SwiftSectionTestingSupport
+import SwiftSectionFixtureSupport
+import SwiftDeclarationRendering
+import Semantic
 
 /// The dump of the declaration shapes Swift 6.4 introduced (evolution
 /// proposal `borrow-accessors-and-suppressed-associated-types`): a member

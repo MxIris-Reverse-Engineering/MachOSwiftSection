@@ -8,6 +8,9 @@ import MachOKit
 @testable import MachOSwiftSection
 import SwiftSectionTestingSupport
 import SwiftDeclarationRendering
+import MachODependencies
+import Semantic
+import OrderedCollections
 
 /// An archived iOS simulator cache: the dependency closure an iOS simulator
 /// binary is printed against here. Machine-specific, hence the suite's
@@ -55,7 +58,7 @@ struct OfflineProjectionDependencyResolutionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, Swift.Error> = {
+    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")

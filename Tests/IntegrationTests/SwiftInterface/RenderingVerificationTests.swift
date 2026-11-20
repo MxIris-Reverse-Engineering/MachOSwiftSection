@@ -8,6 +8,8 @@ import SwiftDeclarationRendering
 import SwiftInterface
 import SwiftSectionFixtureSupport
 import Demangling
+import Semantic
+import SwiftPrinting
 
 /// Maintainer-only rendering-verification harness (no assertions — like the rest
 /// of `IntegrationTests`).

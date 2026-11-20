@@ -7,6 +7,7 @@ import MachOSwiftSection
 @_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import SwiftInspection
 @testable import CrossReferenceAnalysis
+import MachOKit
 
 /// A type of this test bundle that nothing else names: its key comes from
 /// its `…Mn` symbol. Internal, so that no private discriminator joins it.

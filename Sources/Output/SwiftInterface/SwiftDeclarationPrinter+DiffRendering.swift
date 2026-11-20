@@ -4,6 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Demangling
 @_spi(Support) import SwiftPrinting
+import SwiftDeclarationRendering
 
 /// Diff-only rendering entry points on `SwiftDeclarationPrinter`.
 ///

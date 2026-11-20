@@ -8,6 +8,7 @@ import MachOFoundation
 import Demangling
 @testable import SwiftSectionTestingSupport
 import SwiftSectionFixtureSupport
+import Semantic
 
 /// The in-process nested field-offset expansion reads byte for byte the same
 /// with its per-metatype memo as without it (evolution proposal
