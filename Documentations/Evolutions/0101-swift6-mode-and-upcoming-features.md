@@ -1,6 +1,6 @@
-# Draft - MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature
+# 0101 - MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-20
 - **最后更新**: 2026-11-20
@@ -101,7 +101,7 @@
 
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
 |---|---|---|---|---|
-| MachOSwiftSection `Documentations/Evolutions/draft-swift6-mode-and-upcoming-features.md`、同名 `.html` | 新增 | 本提案与网页版 | 唯一提案 | 1 |
+| MachOSwiftSection `Documentations/Evolutions/0101-swift6-mode-and-upcoming-features.md`、同名 `.html` | 新增 | 本提案与网页版 | 唯一提案 | 1 |
 | MachOSwiftSection `Documentations/Evolutions/README.md`、`Documentations/README.md` | 修改 | 登记本提案 | 索引 | 1 |
 | MachOKitExtensions、MachOObjCSection `Documentations/Evolutions/README.md` | 修改 | 各加一行 cross-repository 指向本提案 | 跨仓库提案的约定 | 1 |
 | MachOKit `Package.swift:1` | 修改 | `swift-tools-version` 5.10 → 6.0 | 进入 Swift 6 语言模式；6.0 而不是 6.2，CI 的 Swift 6.0 工具链才读得了 | 2 |
@@ -318,7 +318,7 @@ upcoming feature 只作用于开启它的 target 本身的编译，不传给依�
 - **要不要配套专题文章** —— 不需要：没有新的调用方契约；迁移时踩到的坑已在本提案里写全（决策日志「文档判断」）。
 - **有没有引入新术语** —— 没有。
 
-第 1–8 步已完成，验证结果见决策日志「验证结果」；第 9 步留给正式收尾。
+九步都已完成：验证结果见决策日志「验证结果」，落地时的补改与合并后的验证见「落地」两行。
 
 ## 决策日志
 
@@ -335,3 +335,6 @@ upcoming feature 只作用于开启它的 target 本身的编译，不传给依�
 | 2026-11-20 | 验证结果 | 全部在 Ultra 上跑。六个包用 Xcode 27.2 与 26.6 都编过（含全部测试目标）。测试：swift-semantic-string、swift-demangling、MachOKitExtensions 全过；MachOKit 只剩基线上同样失败的 5 个环境用例；MachOObjCSection 的 `MachOObjCSectionTests` 这个 XCTest 类在 `setUp` 读用户本机的 `/Users/JH/Downloads/iOS18.5-SwiftUI`，在基线上同样崩溃，跳过它后其余全过；本库在 Xcode 26.6 下 554 个 suite、2,906 个测试全过。渲染 A/B（基线 `next`，三条腿含归档 cache 26.6 与 15.5、模拟器 runtime、进程内 MachOImage）84 对逐字节一致。Tuist 工作区 `warm` 与 `build` 都成功。fork 的 CI 在 Xcode 16.2 与 Linux Swift 6.0.3 上通过 |
 | 2026-11-20 | 文档判断 | 不配使用指南或实现说明：没有新的调用方契约，迁移时踩到的坑都写在本提案里；没有新术语；`CLAUDE.md` 不加条目，漏写 `any` 或漏 import 编译器当场报错，`Semantic.Error` 遮蔽也会让类型位置编不过。账本一节留到正式收尾时随取号一起写 |
 | 2026-11-20 | 实现完成，待用户看过后收尾 | 六个仓库的功能分支都已推送 |
+| 2026-11-20 | 落地：MachOKitExtensions 补改 | 落地前把功能分支 rebase 到 `origin/main`，那里多了 C++ 类索引（它的提案 0006）。那批代码没在三项特性下编过：`CPlusPlusClassIndexStore.swift` 缺 `MachOReading`、`MachOResolving` 两个 import，`ClassIndexTestImages.swift` 有一处裸写的 `Error`。补上后 Xcode 27.2 与 26.6 都编过、没有警告，测试全过 |
+| 2026-11-20 | 落地：与 0100 同批 | 用户看过后决定与 `@FixtureSuite` 宏（[0100](0100-fixture-suite-macro.md)）一起落地：宏先进 `next`，本分支再把 `next` 合进来。宏的测试 `FixtureSuiteMacroTests` 在 `MemberImportVisibility` 下缺 `SwiftSyntaxBuilder`，补了 import，并让测试 target 显式依赖它。合并结果用 Xcode 27.2 与 26.6 都编过，26.6 下的警告与合并前相同；Xcode 26.6 下 `swift test --skip IntegrationTests` 555 个 suite、2,915 个测试全过。渲染 A/B 不重跑：合进来的只有测试与只给测试用的宏。swift-demangling 在最终提交上补跑测试，651 个全过 |
+| 2026-11-20 | Implemented | 六个仓库合进各自的集成分支（MachOKitExtensions 推 `main`），取号 0101，账本第 146 节。「文档判断」一行的结论不变。后续项：MachOKit 的 `DyldCacheConcurrentReadTests.swift` 在 Swift 6 下还有 3 条并发警告（2 条 `SendableClosureCaptures`、1 条 `AddPreconcurrencyImport`），不挡编译，没改 |

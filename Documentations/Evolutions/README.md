@@ -116,4 +116,4 @@
 | [cross-repository MachOKitExtensions 0004](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0004-split-symbol-language.md) | 符号语言的判断归各自的包：由那边维护唯一提案；本库在 `SwiftSymbols` 定义 `SymbolLanguage.swift` 与 Swift 名字的判断，新 C target `SwiftSymbolsRegistration` 在镜像加载时注册；MachOKitExtensions 下限抬到 3.0.0 | Implemented |
 | [0099](0099-tuist-workspace.md) | Tuist 开发 workspace：第三方依赖走二进制缓存，上游库可切换为本地检出 | Implemented |
 | [0100](0100-fixture-suite-macro.md) | `@FixtureSuite` 宏：夹具测试套件开头的固定写法由宏生成 | Implemented |
-| draft | [MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature](draft-swift6-mode-and-upcoming-features.md)：MachOKit 切 Swift 6，六个包开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`（跨仓库唯一提案） | Accepted |
+| [0101](0101-swift6-mode-and-upcoming-features.md) | MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature：MachOKit 切 Swift 6，六个包开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`（跨仓库唯一提案） | Implemented |

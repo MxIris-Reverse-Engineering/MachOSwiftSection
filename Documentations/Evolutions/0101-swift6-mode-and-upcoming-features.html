@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature</title>
+<title>0101 - MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -160,13 +160,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0101</span></p>
+  <h1><span class="proposal-number">0101</span> MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-20</dd></div>
     <div><dt>项目类型</dt><dd>库（源码分发）</dd></div>
-    <div><dt>原文</dt><dd><code>draft-swift6-mode-and-upcoming-features.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0101-swift6-mode-and-upcoming-features.md</code></dd></div>
   </dl>
 </header>
 
@@ -197,9 +197,9 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">实现已完成，等你看过后收尾</p>
+    <p class="callout-title">已落地，没有要定的事</p>
     <ol>
-      <li>看过没问题就用 <code>finish-feature</code> 落地：六个仓库按各自流程合进集成分支，本提案取号、改 Implemented。</li>
+      <li>六个仓库都已合进各自的集成分支（MachOKitExtensions 推 <code>main</code>），本提案取号 0101、状态 Implemented，账本第 146 节。与 <code>@FixtureSuite</code> 宏（0100）同批落地。</li>
     </ol>
   </div>
   <div class="callout callout-note">
@@ -284,7 +284,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <table>
     <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
     <tbody>
-      <tr><td>MachOSwiftSection <code>Documentations/Evolutions/draft-swift6-mode-and-upcoming-features.md</code>、同名 <code>.html</code></td><td><span class="tag tag-added">新增</span></td><td>本提案与网页版</td><td>唯一提案</td><td class="numeric">1</td></tr>
+      <tr><td>MachOSwiftSection <code>Documentations/Evolutions/0101-swift6-mode-and-upcoming-features.md</code>、同名 <code>.html</code></td><td><span class="tag tag-added">新增</span></td><td>本提案与网页版</td><td>唯一提案</td><td class="numeric">1</td></tr>
       <tr><td>MachOSwiftSection <code>Documentations/Evolutions/README.md</code>、<code>Documentations/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>登记本提案</td><td>索引</td><td class="numeric">1</td></tr>
       <tr><td>MachOKitExtensions、MachOObjCSection <code>Documentations/Evolutions/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>各加一行 cross-repository 指向本提案</td><td>跨仓库提案的约定</td><td class="numeric">1</td></tr>
       <tr><td>MachOKit <code>Package.swift:1</code></td><td><span class="tag tag-changed">修改</span></td><td><code>swift-tools-version</code> 5.10 → 6.0</td><td>进入 Swift 6 语言模式；6.0 而不是 6.2，CI 的 Swift 6.0 工具链才读得了</td><td class="numeric">2</td></tr>
@@ -459,14 +459,14 @@ git checkout -- Package.swift</code></pre>
     <li><strong>本库：预修、migrate、开关。</strong>（已完成）全部 target 在 27.2 与 26.6 下都编过。</li>
     <li><strong>（并入第 6 步）</strong></li>
     <li><strong>本库全量验证。</strong>（已完成）Xcode 26.6 下 554 个 suite、2,906 个测试全过；渲染 A/B 84 对逐字节一致；Tuist 工作区编过。</li>
-    <li><strong>落地。</strong>六个仓库按各自流程合进集成分支，提案取号、改 Implemented，账本加一节。</li>
+    <li><strong>落地。</strong>（已完成）六个仓库按各自流程合进集成分支，提案取号 0101、改 Implemented，账本第 146 节。MachOKitExtensions rebase 到含 C++ 类索引的 <code>main</code> 后补了两个 import 与一处 <code>any</code>；与 0100 合并后，宏的测试补了 <code>SwiftSyntaxBuilder</code> 的 import。合并结果 27.2 与 26.6 都编过，26.6 下 2,915 个测试全过。</li>
   </ol>
 </section>
 
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>11 条，最近一条：实现完成，待用户看过后收尾</summary>
+    <summary>14 条，最近一条：Implemented</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -483,6 +483,9 @@ git checkout -- Package.swift</code></pre>
           <tr><td class="numeric">2026-11-20</td><td>验证结果</td><td>六个包用 Xcode 27.2 与 26.6 都编过；swift-semantic-string、swift-demangling、MachOKitExtensions 测试全过；MachOKit 只剩基线同样失败的 5 个环境用例；MachOObjCSection 跳过读用户本机文件的那个 XCTest 类后全过；本库 2,906 个测试全过；渲染 A/B 84 对逐字节一致；Tuist 工作区 <code>warm</code> 与 <code>build</code> 成功；fork 的 CI 通过</td></tr>
           <tr><td class="numeric">2026-11-20</td><td>文档判断</td><td>不配使用指南或实现说明，没有新术语，<code>CLAUDE.md</code> 不加条目；账本一节留到正式收尾</td></tr>
           <tr><td class="numeric">2026-11-20</td><td>实现完成，待用户看过后收尾</td><td>六个仓库的功能分支都已推送</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>落地：MachOKitExtensions 补改</td><td>rebase 到含 C++ 类索引（它的 0006）的 <code>origin/main</code>；那批代码补了 <code>MachOReading</code>、<code>MachOResolving</code> 两个 import 与一处 <code>any</code>，27.2 与 26.6 都编过、没有警告，测试全过</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>落地：与 0100 同批</td><td>宏先进 <code>next</code>，本分支把它合进来；宏的测试补 <code>SwiftSyntaxBuilder</code> 的 import 与依赖。合并结果 27.2 与 26.6 都编过，26.6 下 555 个 suite、2,915 个测试全过；渲染 A/B 不重跑（合进来的只有测试）；swift-demangling 在最终提交上 651 个测试全过</td></tr>
+          <tr><td class="numeric">2026-11-20</td><td>Implemented</td><td>六个仓库合进集成分支，取号 0101，账本第 146 节；文档判断不变。后续项：MachOKit 的 <code>DyldCacheConcurrentReadTests.swift</code> 还有 3 条并发警告，没改</td></tr>
 
         </tbody>
       </table>
