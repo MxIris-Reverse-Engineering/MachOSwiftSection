@@ -1,6 +1,6 @@
 # Draft - MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-20
 - **最后更新**: 2026-11-20

@@ -4,6 +4,7 @@
 import Foundation
 import Testing
 import MachOKit
+import OrderedCollections
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 @testable import SwiftSectionTestingSupport

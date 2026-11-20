@@ -1,4 +1,5 @@
 import Demangling
+import MachOSwiftSection
 import OrderedCollections
 import SwiftDeclaration
 

@@ -1,6 +1,7 @@
 import SwiftDeclaration
 import MachOSwiftSection
 import Demangling
+import SwiftObjCInterop
 
 /// Infers type-level Swift attributes by analyzing a `TypeDefinition`'s members and metadata flags.
 ///

@@ -6,6 +6,7 @@ import Foundation
 import Testing
 import MachOKit
 import Dependencies
+import OrderedCollections
 @_spi(Internals) import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Support) @testable import SwiftInterface
