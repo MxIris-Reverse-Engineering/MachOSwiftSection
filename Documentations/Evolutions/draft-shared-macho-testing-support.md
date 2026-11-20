@@ -75,9 +75,11 @@
 3. **`MachOFixtureTests`：不绑定夹具的基类**。子类用一个 `MachOFixture` 值说明夹具从哪来（磁盘路径，或进程里某个锚点地址所在的镜像，以及是否要 `dlopen`）；基类据此建出 `machOFile`、`machOImage` 与 `fileContext`、`imageContext`、`inProcessContext`，提供 `acrossAllReaders`、`acrossAllContexts`、`usingInProcessOnly`，签名与本包现在的一致。
 4. **本机 cache 统一为进程共用**：`DyldSharedCachePath.current` 与 `DyldCacheTests` 都经 `FullDyldCache.cachedHost` / `DyldCache.host` 的 URL，不写死路径；确实需要新实例的测试显式开一份（`DyldCache(path:)` 照旧可用）。
 5. **跨读取器统一用闭包式**：MKE 约 25 个 `@Test(arguments: Reader.allCases)` 的测试改写成 `MachOFixtureTests` 子类里的 `acrossAllReaders`，比对两种读取器的结果相等后再断言。
-6. **MKE 自己的重复辅助全部换成共享版本**（动机一节的表）。
-7. **本包随后改依赖**：两个 support target 依赖 MKE 的新 product，删掉搬走的文件；`MachOFileName` / `MachOImageName` 的 SymbolTests 条目改为对 MKE struct 的 extension；`ExclusiveImageAccess` 保留一个按本包镜像名的便捷初始化；`MachOSwiftSectionFixtureTests` 改成 `MachOFixtureTests` 的子类；17 个 Swift 夹具改用 `FixtureCompiler`；`DyldCache(path: .current)` 的 25 处改为共用实例后，逐个复查依赖新实例的测试。
-8. **发版顺序**：MKE 先收尾 C++ 类恢复发 3.1.0；本提案的 MKE 部分从收尾后的 `main` 切分支，发 3.2.0；本包在 3.2.0 发布后改依赖（之前用 `USING_LOCAL_DEPENDENCIES=1` 本地验证）。
+6. **成对传入、单个闭包的重载**：本包 486 处 `acrossAllReaders` / `acrossAllContexts` 调用里，480 处的 `image:` 闭包只是把 `file:` 闭包里的读取器与被测对象换成 image 版（按读取器命名的被测对象也算在内）。新增两个同名重载，被测对象成对传入、只写一个闭包：`acrossAllReaders(fileSubject, imageSubject) { $0.offset }`；`acrossAllContexts(fileSubject, imageSubject) { subject, context in try subject.mangledTypeName(in: context) }`，`context` 是 `any ReadingContext`，被测 API 收 `some ReadingContext` 时经 SE-0352 隐式打开。先编译验证这两种写法对两种读取器与三种上下文都写得通，再把只差变量名的调用改成单闭包形式；三闭包形式保留给有实质差异的 6 处（`inProcess:` 多一层 `asPointerWrapper`）。名字不变，本包按标识符识别跨读取器测试的 `SuiteBehaviorScanner`（`:150`）不受影响。
+7. **MKE 自己的重复辅助全部换成共享版本**（动机一节的表）。
+8. **本包随后改依赖**：两个 support target 依赖 MKE 的新 product，删掉搬走的文件；`MachOFileName` / `MachOImageName` 的 SymbolTests 条目改为对 MKE struct 的 extension；`ExclusiveImageAccess` 保留一个按本包镜像名的便捷初始化；`MachOSwiftSectionFixtureTests` 改成 `MachOFixtureTests` 的子类；17 个 Swift 夹具与 57 个测试文件里手写的 `xcrun` 调用改用 `FixtureCompiler`，70 处手写的选 slice 改用 `HostSlice`；`DyldCache(path: .current)` 的 25 处改为共用实例后，逐个复查依赖新实例的测试。
+9. **Tuist 开发 workspace**（提案 0099）：`TuistScript.sh` 只给角色是 own-path 的包扫描「import Testing 的普通 target」并补 TestingMacros 插件路径（`:686-689` 的 `if role != "own-path"` 之后）。远程模式下 MKE 是 own-remote，它的 `MachOTestingSupport` 用了 `#expect` 等宏，编到它时会报 `plugin for module 'TestingMacros' not found`。改法：把 `testing_support_names` 那几行挪到 `if role != "own-path"` 之前（own-remote 包的检出目录已记在 `packages.tsv`）。在 Ultra 上用 `./TuistScript.sh test` 跑一次远程模式验证。这一条由维护 0099 的会话提醒。
+10. **发版顺序**：MKE 先收尾 C++ 类恢复发 3.1.0；本提案的 MKE 部分从收尾后的 `main` 切分支，发 3.2.0；本包在 3.2.0 发布后改依赖（之前用 `USING_LOCAL_DEPENDENCIES=1` 本地验证）。
 
 ### 非目标
 
@@ -85,6 +87,8 @@
 - 搬 Swift 专用的支持代码（夹具内容、baseline、coverage、快照对比、SymbolTestsCore 相关）。
 - 搬测试本身（`CrossReferenceAnalysisTests` 等依赖本包与 MachOObjCSection 的模块）。
 - 统一两个包的 `ForwardingMachOReader` / `ForwardingReader`：协议层级不同，本包那份保留。
+- `@FixtureSuite` 宏（本包 170 个夹具套件开头的固定 5 行）：只涉及本包的 Swift 夹具覆盖率体系，另写一份本包的提案。
+- 把 `acrossAllReaders` 做成宏：每处只重复约一行，宏得按 `fileX`→`imageX` 的命名约定改写标识符，脆弱，也会让按标识符识别测试的扫描器失效；用上面的普通函数重载代替。
 - MachOObjCSection、MachOKitUI 等其他仓库的测试改用新 product：各自另议。
 - 给 MKE 加 CI（MKE 0003 记下的后续项，另写提案）。
 
@@ -94,7 +98,7 @@
 |---|---|---|---|---|
 | MKE `Package.swift` | 修改 | 新增 target 与 product `MachOFixtureSupport`、`MachOTestingSupport`，测试 target `MachOTestingSupportTests`；各测试 target 加依赖；Tuist 适配块留在文件末尾 | 对外发布 | 1 |
 | MKE `Sources/MachOFixtureSupport/`（`DyldSharedCachePath`、`MachOImageName`、`MachOFileName`、`XcodeMachOFileName`、`DyldCache+Fixture`、`HostSlice`、`ProcessImages`、`FixtureCompiler`、`ForwardingReader`、`TestActor`、`ProcessMemory`、`Printing`） | 新增 | 从本包搬来并改为 `public`；名字类型改成 struct；`.current` 不写死；锚点由调用方传；编译器统一 clang 与 swiftc | 共用的夹具支持 | 1、2 |
-| MKE `Sources/MachOTestingSupport/`（`ExclusiveImageAccess`、`MachOFileTests`、`MachOImageTests`、`DyldCacheTests`、`XcodeMachOFileTests`、`MachOFixture`、`MachOFixtureTests`） | 新增 | 搬来并改为 `open` / `public`；新的夹具基类与跨读取器写法 | 共用的测试基类与 trait | 1、2 |
+| MKE `Sources/MachOTestingSupport/`（`ExclusiveImageAccess`、`MachOFileTests`、`MachOImageTests`、`DyldCacheTests`、`XcodeMachOFileTests`、`MachOFixture`、`MachOFixtureTests`） | 新增 | 搬来并改为 `open` / `public`；新的夹具基类与跨读取器写法，含成对传入、单个闭包的重载 | 共用的测试基类与 trait | 1、2 |
 | MKE `Tests/MachOTestingSupportTests/` | 新增 | 搬来 `DyldSharedCachePathTests`、`ExclusiveImageAccessTests`；新增 `FixtureCompilerTests`、`HostSliceTests`、`MachOFixtureTestsTests` | 共享库自己的测试 | 1、2 |
 | MKE `Tests/MachOKitExtensionsTests/`（`FixupResolutionMemoTests`、`SelfBindResolutionTests`、`DyldCacheImageSearchTests`、`DyldCacheImageIdentifierTests`、`DyldCacheSubCacheLookupTests`、`MachOReaderWrapperTests`、`Support/ForwardingReader.swift`、`Support/ChainedFixupsFixture.swift`） | 修改 / 删除 | 现编 dylib、本机 cache、归档 cache 路径、选 slice、包装读取器改用共享版本 | 去重 | 3 |
 | MKE `Tests/MachOSymbolsTests/`、`MachODependenciesTests/`、`MachOAddressResolutionTests/`、`MachOReadingTests/` | 修改 | 同上 | 去重 | 3 |
@@ -103,6 +107,9 @@
 | 本包 `Package.swift` | 修改 | 两个 support target 依赖 MKE 的新 product；去掉不再需要的依赖 | 改依赖 | 5 |
 | 本包 `Sources/TestSupport/SwiftSectionFixtureSupport/`（`DyldSharedCachePath`、`Extensions` 的通用部分、`MachOFileName`、`MachOImageName`、`XcodeMachOFileName`） | 删除 / 修改 | 删掉搬走的；`MachOFileName` / `MachOImageName` 只剩 SymbolTests 条目的 extension；本包的 `#filePath` 锚点在这里传给 MKE | 改用共享版本 | 5 |
 | 本包 `Sources/TestSupport/SwiftSectionTestingSupport/`（`ExclusiveImageAccess`、`MachOFileTests`、`MachOImageTests`、`DyldCacheTests`、`XcodeMachOFileTests`、`TestActor`、`ProcessMemory`、`MachOSwiftSectionFixtureTests`、17 个 `*Fixture.swift`） | 删除 / 修改 | 删掉搬走的；`ExclusiveImageAccess` 只剩按本包镜像名的便捷初始化；夹具基类改成 `MachOFixtureTests` 子类；夹具的编译改用 `FixtureCompiler` | 改用共享版本 | 5 |
+| 本包 `Tests/MachOSwiftSectionTests/` 里只差变量名的约 480 处 `acrossAllReaders` / `acrossAllContexts` | 修改 | 改成成对传入、单个闭包的重载 | 去掉重复的 `image:` 闭包 | 5 |
+| 本包测试里 57 个手写 `xcrun` 的文件、70 处手写选 slice | 修改 | 改用 `FixtureCompiler`、`HostSlice` | 去重 | 5 |
+| 本包 `TuistScript.sh` | 修改 | `testing_support_names` 挪到 `if role != "own-path"` 之前 | 远程模式下给 MKE 的 `MachOTestingSupport` 补 TestingMacros 插件路径 | 5 |
 | 本包 `Tests/SwiftSectionTestingSupportTests/` | 修改 | 删掉随代码搬走的两个测试 | 去重 | 5 |
 | 本包用 `DyldCache(path: .current)` 的 25 处 | 复查 | 依赖新实例的显式开一份，其余改用共用实例 | 行为统一后的复查 | 5 |
 | 本包 `AGENTS.md`、`Documentations/Internal/FixtureTestingAndContinuousIntegration.md`、`Documentations/Internal/Modules/README.md`、`ProjectEvolutionLog.md` | 修改 | 测试支持的来源、`ExclusiveImageAccess` 与 `acrossAllReaders` 的出处、锚点规则 | 文档同步 | 6 |
@@ -213,6 +220,13 @@ open class MachOFixtureTests {
     public func acrossAllReaders<Value: Equatable>(file: () throws -> Value, image: () throws -> Value, inProcess: (() throws -> Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -> Value
     public func acrossAllContexts<Value: Equatable>(file: () throws -> Value, image: () throws -> Value, inProcess: (() throws -> Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -> Value
     public func usingInProcessOnly<Value: Equatable>(_ work: (InProcessContext) throws -> Value, sourceLocation: SourceLocation = #_sourceLocation) throws -> Value
+
+    /// The same work on the subject each reader gives: `work` runs on
+    /// `fileSubject`, then on `imageSubject`, and the results must agree.
+    public func acrossAllReaders<Subject, Value: Equatable>(_ fileSubject: Subject, _ imageSubject: Subject, sourceLocation: SourceLocation = #_sourceLocation, _ work: (Subject) throws -> Value) throws -> Value
+    /// The same, reading through each subject's context: `fileContext` for
+    /// `fileSubject`, `imageContext` for `imageSubject`.
+    public func acrossAllContexts<Subject, Value: Equatable>(_ fileSubject: Subject, _ imageSubject: Subject, sourceLocation: SourceLocation = #_sourceLocation, _ work: (Subject, any ReadingContext) throws -> Value) throws -> Value
 }
 ```
 
@@ -274,6 +288,8 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
    - 行为：`compilerBuildsEachSourceOncePerProcess`
    - 行为：`compilerFailureCarriesTheDiagnostics`
    - 行为：`compilerBuildsSwiftAndCPlusPlus`
+   - 行为：`pairedSubjectsRunOneClosureOnEachReader`
+   - 行为：`pairedSubjectsOpenTheContextForAnAPITakingSomeReadingContext`（编译验证单闭包写法）
 3. **MKE 的测试改用共享版本** —— 动机一节的表，以及 `Tests/CPlusPlusSymbolsTests/`
    - 行为：MKE 全部测试照常通过，跨读取器的约 25 个测试改写为 `acrossAllReaders` 后断言不变
    - 行为：仓库里不再有 `Process` 调用 `xcrun` 的测试辅助、写死 Cryptexes 路径的常量、手写的选 slice
@@ -285,6 +301,8 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
    - 行为：本包全部测试（`IntegrationTests` 除外，照 `AGENTS.md`）照常通过
    - 行为：`SymbolTestsCoreFixtureLoadsThroughTheSharedBaseClass`
    - 行为：17 个 Swift 夹具经 `FixtureCompiler` 编出、结果与改前一致
+   - 行为：约 480 处跨读取器调用改成单闭包形式后，`SuiteBehaviorScanner` 认出的跨读取器测试数不变
+   - 行为：`./TuistScript.sh test` 的远程模式在 Ultra 上编过 MKE 的 `MachOTestingSupport`
 6. **本包文档** —— `AGENTS.md`、`FixtureTestingAndContinuousIntegration.md`、`Modules/README.md`、`ProjectEvolutionLog.md`
 
 收尾判断：MKE 写实现说明（两个 product 的契约：只能链接到测试 target、锚点由调用方传、共用本机 cache）；不写使用指南；本包与 MKE 都没有新术语要登记（`ExclusiveImageAccess`、`acrossAllReaders` 已在本包术语里）。
@@ -303,3 +321,6 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 | 2026-11-20 | MKE 先发 C++ 类恢复（3.1.0），本提案随 3.2.0 | 用户选择。否决：一起发 3.1.0。 |
 | 2026-11-20 | 按事实或先例自定的四条 | 名字类型改成 struct、`#filePath` 锚点由调用方传（跨包后锚点位置变了）；`FixtureCompiler` 同时支持 clang 与 swiftc，本包 17 个与 MKE 5 个复制的编译代码都改用它；测试本身不搬（依赖本包与 MachOObjCSection 的模块）；提案由本包维护（0098 先例），用户确认。 |
 | 2026-11-20 | 状态 → Accepted | 用户批准。实现等 MachOKitExtensions 的 C++ 类恢复收尾、发 3.1.0 之后开始。 |
+| 2026-11-20 | 加入成对传入、单个闭包的 `acrossAllReaders` / `acrossAllContexts` 重载 | 用户问能否加宏减少测试样板。调研：486 处跨读取器调用里 480 处的 `image:` 闭包只是换了变量名，但每处只重复约一行；做成宏要按命名约定改写标识符，也会让按标识符识别测试的扫描器失效。用户选择改用普通函数重载，并把能改的调用改过去。另一处值得用宏的样板——170 个夹具套件开头的固定 5 行——用户选择另写一份本包提案（`@FixtureSuite`）。 |
+| 2026-11-20 | 加入 `TuistScript.sh` 的改动 | 维护提案 0099 的会话提醒：远程模式下 MKE 是 own-remote，不在扫描 TestingMacros 插件路径的范围内，新的 `MachOTestingSupport` 会编不过。 |
+| 2026-11-20 | 用量更正 | 本包手写 `xcrun` 的测试文件是 57 个（原写 17 个 Swift 夹具），手写选 slice 70 处；都改用共享版本。 |
