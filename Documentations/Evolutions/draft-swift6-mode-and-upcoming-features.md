@@ -13,7 +13,7 @@
 
 ## 摘要
 
-六个 MachO 系列包里有五个已经在 Swift 6 语言模式下编译，complete strict concurrency checking 早已按错误执行；唯一的例外是 MachOKit（fork），它的清单还是 `swift-tools-version: 5.10`。本提案做两件事：把 MachOKit 升到 tools 6.2，让它也进入 Swift 6 语言模式（实测零错误，Sources 里零并发诊断）；然后在六个包的每个 Swift target 上开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances` 三项 upcoming feature（编译器把它们标为 Swift 7 默认开启），开关在每份清单末尾用一个循环统一加，不逐个 target 写。源码改动约 900 处，绝大部分是补 `import` 与补 `any`；非测试 target 用 `swift package migrate` 自动改，测试 target 照诊断清单手改，另有 6 处工具处理不了、要先手工改好。同为 Swift 7 默认的 `NonisolatedNonsendingByDefault`、`InternalImportsByDefault`、`ImmutableWeakCaptures`，以及独立的 `StrictMemorySafety`，量过之后明确不做（见「非目标」）。
+六个 MachO 系列包里有五个已经在 Swift 6 语言模式下编译，complete strict concurrency checking 早已按错误执行；唯一的例外是 MachOKit（fork），它的清单还是 `swift-tools-version: 5.10`。本提案做两件事：把 MachOKit 升到 tools 6.0，让它也进入 Swift 6 语言模式（实测零错误，Sources 里零并发诊断；停在 6.0 而不是 6.2，是为了 fork 的 CI 所用的 Swift 6.0 工具链还读得了清单）；然后在六个包的每个 Swift target 上开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances` 三项 upcoming feature（编译器把它们标为 Swift 7 默认开启），开关在每份清单末尾用一个循环统一加，不逐个 target 写。源码改动 723 处（717 个 fix-it 加 6 处预修），绝大部分是补 `import` 与补 `any`，源码与测试都由 `swift package --build-system native migrate` 自动改出；另有 6 处工具处理不了、要先手工改好，它写成 `internal import` 的补丁按各仓库的惯例改回普通 `import`。同为 Swift 7 默认的 `NonisolatedNonsendingByDefault`、`InternalImportsByDefault`、`ImmutableWeakCaptures`，以及独立的 `StrictMemorySafety`，量过之后明确不做（见「非目标」）。
 
 ## 动机
 
@@ -64,7 +64,8 @@
 **`swift package migrate` 的实际表现（在本库 clone 上试跑）：**
 
 - 非测试 target：在 258 个文件里套用了 300 个 fix-it（diff +304 / −57），然后在改清单那一步失败：本库的 target 写成 `extension Target` 上的静态常量，工具找不到 target（`unable to find target named 'Utilities' in package`），所以清单必须手改。退出码是 1，但源码已经改好。
-- 测试 target：一处都不改，显式 `--target <全部测试 target>` 也是 `Applied 0 fix-its`；它构建时不带测试。测试部分只能照 `--build-tests` 的迁移警告手改。
+- 测试 target：默认的构建系统（SwiftPM 6.4 起是 Swift Build）下一处都不改。它确实编了测试、也打出了 450 条测试里的迁移警告，可显式 `--target <全部测试 target>`、换全新构建目录，都是 `Applied 0 fix-its`。改用旧的构建系统（`swift package --build-system native migrate …`）就正常：探针里测试 target 套用了 303 个 fix-it（160 个文件）；正式实现时不带 `--target` 跑一遍，源码与测试一起改完（本库 605 个 fix-it、420 个文件）。
+- **native 构建系统下，`migrate` 补的 import 常常带 `internal`。** 在仓库已经 `internal import` 过的模块上（MachOKit 的 `FileIO`、`FileIOBinary`，MachOObjCSection 的 `FileIO`、`MachOKitExtensions`）这是对的；但它对别的模块也写 `internal import X`，而 Swift 6 不许同一个模块里一个文件写 `internal import X`、另一个文件写普通的 `import X`（`ambiguous implicit access level for import of 'Foundation'; it is imported as 'internal' elsewhere`），本库因此 17 个文件编不过。默认构建系统的那次探针补的都是普通 `import`。
 - 构建一失败就一处都不改。`MemberImportVisibility` 的迁移模式并不只出警告：本库有 4 处直接报错，必须先手工补 import，`migrate` 才跑得起来：
 
   | 位置 | 报错 | 补什么 |
@@ -74,16 +75,16 @@
   | `Tests/SwiftInterfaceTests/ExtensionContainerUnificationTests.swift:164` | `.values` 落到了 dynamic member lookup | `import OrderedCollections` |
   | `Tests/SwiftIndexingTests/SymbolTestsCoreIntegrationTests.swift:135` | 同上 | `import OrderedCollections` |
 
-- **`migrate` 补的 import 会遮蔽标准库的名字。** swift-semantic-string 公开声明了 `struct Error`（`Sources/Semantic/Components/Error.swift:8`）和 `struct Numeric`，与 `Swift.Error`、`Swift.Numeric` 同名；还有 `Argument`，与 ArgumentParser 的同名。文件一旦直接 `import Semantic`，裸写的 `Error` 就解析成 `Semantic.Error`。`migrate` 给本库 6 个文件加了 `import Semantic`，其中两处因此编不过：`Sources/Commands/SwiftSectionKit/ObjC/ObjCAPIRequests.swift:295` 与 `Sources/Commands/SwiftSectionKit/Swift/ABIEvolutionRequest.swift:180`（`enum …Error: Error` 被当成以 `Semantic.Error` 为 raw type），改成 `Swift.Error` 就好。危险的是不报错的情形：`catch let error as Error`、`is Error` 这类转型照样能编，只是变成永远失败的转型，编译器只给一条警告。
+- **`migrate` 补的 import 会遮蔽标准库的名字。** swift-semantic-string 公开声明了 `struct Error`（`Sources/Semantic/Components/Error.swift:8`）和 `struct Numeric`，与 `Swift.Error`、`Swift.Numeric` 同名；还有 `Argument`，与 ArgumentParser 的同名。文件一旦直接 `import Semantic`，裸写的 `Error` 就解析成 `Semantic.Error`。`migrate` 给本库 6 个文件加了 `import Semantic`，其中两处因此编不过：`Sources/Commands/SwiftSectionKit/ObjC/ObjCAPIRequests.swift:293` 与 `Sources/Commands/SwiftSectionKit/Swift/ABIEvolutionRequest.swift:179`（`enum …Error: Error` 被当成以 `Semantic.Error` 为 raw type），改成 `Swift.Error` 就好。危险的是不报错的情形：`catch let error as Error`、`is Error` 这类转型照样能编，只是变成永远失败的转型，编译器只给一条警告。
 - 补完上面 6 处、`migrate` 跑完、清单里手加开关之后，Sources 全部编过；测试 target 从第一个失败的文件开始逐个报缺 import（`TypeNameRetentionTests.swift` 缺 `MachOKit`、`SymbolicationTests.swift` 缺 `MachOKitExtensions`），与警告清单一致。
 
 **清单里给 C target 加 `swiftSettings` 是无害的。** `InternalImportsByDefault` 那轮探针在六份清单末尾用同一个循环给所有 target 追加了设置，包括 `MachOKitC`、`MachOSwiftSectionC`、`SwiftSymbolsRegistration` 这些 C target，六个包都照常编过。
 
 ## 提议方案
 
-1. **MachOKit 进 Swift 6 语言模式。** `Package.swift` 第 1 行改成 `// swift-tools-version: 6.2`（与另外五个兄弟包一致）。tools 6.x 不声明 `swiftLanguageModes` 时默认 Swift 6，不必另写。清单末尾的 `extension SwiftSetting` 里那九项 Swift 6 已经默认开启的 upcoming feature（`ForwardTrailingClosures` 到 `GlobalConcurrency`）在 Swift 6 模式下是空操作，删掉；`SwiftSetting.allCases` 的 `CaseIterable` 扩展随之删除，改用下面的统一开关。`AccessLevelOnImport` 实验特性（只在 debug 开）保留不动，实现时如果编译器提示它多余再删。
+1. **MachOKit 进 Swift 6 语言模式。** `Package.swift` 第 1 行改成 `// swift-tools-version: 6.0`。tools 6.x 不声明 `swiftLanguageModes` 时默认 Swift 6，不必另写。不跟另外五个兄弟包一样用 6.2：fork 的 CI（`.github/workflows/ci.yml`）在 Xcode 16.2 与 Linux 的 Swift 6.0.3 上编，2026-08 的提交「preserve Swift 6.0 dependency compatibility」也专门为 Swift 6.0 工具链保留了依赖范围；6.2 的清单 6.0 读不了。编译器不认识的 upcoming feature 名字（`MemberImportVisibility` 要 6.1，`InferIsolatedConformances` 要 6.2）会被忽略，所以 6.0 照样能编。清单末尾的 `extension SwiftSetting` 里那九项 Swift 6 已经默认开启的 upcoming feature（`ForwardTrailingClosures` 到 `GlobalConcurrency`）在 Swift 6 模式下是空操作，删掉；`SwiftSetting.allCases` 的 `CaseIterable` 扩展随之删除，改用下面的统一开关。`AccessLevelOnImport` 实验特性（只在 debug 开）保留不动，实现时如果编译器提示它多余再删。
 2. **六个包的每个 Swift target 统一开启三项特性。** 每份清单在 `let package = Package(...)` 之后加一个循环，给除 `system`、`binary`、`plugin` 以外的所有 target 追加同一组设置；本库沿用 `Package.swift:1541` 已有的常量。test、macro、executable target 都包括在内，`IntegrationTests` 也开（它只编译不运行）。
-3. **源码按三类处理。** 先手工改好「前期调研」里那 6 处（4 处补 import、2 处 `Swift.Error`）；再对非测试 target 跑 `swift package migrate --to-feature ExistentialAny,MemberImportVisibility,InferIsolatedConformances`，它在改清单那一步报错是预期的，以它报告的「Applied N fix-its」为准；测试 target 用 `--build-tests` 加三个 `:migrate` 开关构建，照警告逐条手改（补 import、补 `any`、给 `IntegrationTests` 的 conformance 标 `nonisolated`）。最后才加清单里的开关，正式开启后编一遍确认零错误。
+3. **源码由 `migrate` 改，前后各补一手。** 先手工改好「前期调研」里那 6 处（4 处补 import、2 处 `Swift.Error`）；再在清单还没开特性时跑 `swift package --build-system native migrate --to-feature ExistentialAny,MemberImportVisibility,InferIsolatedConformances`，源码与测试一起改（补 import、补 `any`、给 `IntegrationTests` 的 conformance 标 `nonisolated`）。本库在改清单那一步报错是预期的，以它报告的「Applied N fix-its」为准，`Package.swift` 的改动丢弃。然后把它写成 `internal import X` 的补丁改回普通 `import X`，除非这个仓库本来就 `internal import` 这个模块。最后才加清单里的开关，正式开启后编一遍确认零错误。
 4. **每加一条 `import Semantic`，就检查那个文件里裸写的 `Error`、`Numeric`、`Argument`。** 类型位置一律写成 `Swift.Error` / `Swift.Numeric`；`as Error`、`is Error` 之类的转型与 `catch` 模式逐个看。编译器的「cast always fails」警告按错误对待。
 5. **从下往上落地，不为此单独发版。** 顺序是 MachOKit、swift-semantic-string、swift-demangling、MachOKitExtensions、MachOObjCSection、本库。这些设置只影响包自身的编译，不改任何公开 API，下游用的仍是已发布的版本，所以各仓库照各自的流程合进集成分支即可，随下一次正常发版带出去。
 
@@ -103,29 +104,26 @@
 | MachOSwiftSection `Documentations/Evolutions/draft-swift6-mode-and-upcoming-features.md`、同名 `.html` | 新增 | 本提案与网页版 | 唯一提案 | 1 |
 | MachOSwiftSection `Documentations/Evolutions/README.md`、`Documentations/README.md` | 修改 | 登记本提案 | 索引 | 1 |
 | MachOKitExtensions、MachOObjCSection `Documentations/Evolutions/README.md` | 修改 | 各加一行 cross-repository 指向本提案 | 跨仓库提案的约定 | 1 |
-| MachOKit `Package.swift:1` | 修改 | `swift-tools-version` 5.10 → 6.2 | 进入 Swift 6 语言模式 | 2 |
+| MachOKit `Package.swift:1` | 修改 | `swift-tools-version` 5.10 → 6.0 | 进入 Swift 6 语言模式；6.0 而不是 6.2，CI 的 Swift 6.0 工具链才读得了 | 2 |
 | MachOKit `Package.swift:76`、`:145–171` · `extension SwiftSetting` | 修改 / 删除 | MachOKit target 不再拼 `SwiftSetting.allCases`；删掉九项 Swift 6 默认特性与 `CaseIterable` 扩展；末尾加统一开关循环 | Swift 6 模式下那九项是空操作；与另外五个包同一写法 | 2 |
-| MachOKit `Sources/MachOKit/**`（49 个文件） | 修改 | 补 56 处 import | `MemberImportVisibility` | 2 |
+| MachOKit `Sources/MachOKit/**`（49 个文件） | 修改 | 补 56 处 import：55 处 `internal import FileIO` / `FileIOBinary`（MachOKit 本来就这样 import 这两个模块），1 处普通 import | `MemberImportVisibility` | 2 |
 | MachOKit `Tests/MachOKitTests/DyldCacheConcurrentReadTests.swift` | 修改（可选） | 消掉 2 条 `SendableClosureCaptures` 与 1 条 `AddPreconcurrencyImport` 警告 | Swift 6 模式下仍是警告，不挡编译 | 2 |
 | swift-semantic-string `Package.swift`（第 94 行之后） | 修改 | 加统一开关循环 | 开启三项特性 | 3 |
 | swift-semantic-string `Sources/Semantic/Components/AnyComponent.swift`、`Frozen/FrozenSemanticString+Codable.swift`、`SemanticString+Conformances.swift` | 修改 | 补 6 处 `any` | `ExistentialAny` | 3 |
-| swift-demangling `Package.swift`（第 171 行之后） | 修改 | 加统一开关循环 | 开启三项特性 | 3 |
+| swift-demangling `Package.swift`（`let package` 之后、Tuist 块之前） | 修改 | 加统一开关循环 | 开启三项特性 | 3 |
 | swift-demangling `Sources/DemanglingTestingSupport/Required.swift` | 修改 | 补 1 处 `any` | `ExistentialAny` | 3 |
-| swift-demangling `Tests/DemanglingTests/DefectRegressionTests.swift`、`NodeTests.swift`、`TransientRemangleParityTests.swift` | 修改 | 补 3 处 import | `MemberImportVisibility` | 3 |
-| MachOKitExtensions `Package.swift`（第 390 行之后） | 修改 | 加统一开关循环 | 开启三项特性 | 4 |
+| swift-demangling `Tests/DemanglingTests/DefectRegressionTests.swift`、`NodeTests.swift`、`TransientRemangleParityTests.swift` | 修改 | 补 3 处 `import SwiftStdlibToolbox`（`migrate` 写成 `internal`，改回普通 import） | `MemberImportVisibility` | 3 |
+| MachOKitExtensions `Package.swift`（`let package` 之后、Tuist 块之前） | 修改 | 加统一开关循环 | 开启三项特性 | 4 |
 | MachOKitExtensions `Sources/MachOKitExtensions/RequiredNonOptional.swift`、`String+.swift`，`Sources/MachODependencies/DependencyLoadName.swift` | 修改 | 1 处 `any`、2 处 import | 两项特性 | 4 |
 | MachOKitExtensions `Tests/`（5 个文件：`FixupResolutionMemoTests`、`SelfBindResolutionTests`、`CPlusPlusSymbolIndexCensusTests`、`DependencyLoadNameTests`、`SymbolIndexStoreTests`） | 修改 | 2 处 `any`、3 处 import | 两项特性 | 4 |
-| MachOObjCSection `Package.swift`（第 421 行之后） | 修改 | 加统一开关循环 | 开启三项特性 | 5 |
-| MachOObjCSection `Sources/`（`MachOObjCSection` 9、`ObjCCodeReferences` 3、`ObjCMetadataSource`、`ObjCDeclarationRendering`、`ObjCInterface` 各 1） | 修改 | 补 15 处 import | `MemberImportVisibility` | 5 |
-| MachOObjCSection `Tests/`（约 19 个文件） | 修改 | 21 处 import、2 处 `any` | 两项特性 | 5 |
+| MachOObjCSection `Package.swift`（`let package` 之后、Tuist 块之前） | 修改 | 加统一开关循环 | 开启三项特性 | 5 |
+| MachOObjCSection `Sources/`、`Tests/`（33 个文件） | 修改 | 38 个 fix-it：36 处 import（其中 `internal import FileIO` 6 处、`internal import MachOKitExtensions` 12 处沿用本库已有写法，`ObjCTypeDecodeKit`、`ObjCMetadataSource` 改回普通 import）、2 处 `any` | 两项特性 | 5 |
 | MachOSwiftSection `Sources/Declaration/SwiftAttributeInference/TypeAttributeInferrer.swift` | 修改 | 加 `import SwiftObjCInterop` | 迁移模式下第 143 行的 `switch` 报不完备 | 6 |
 | MachOSwiftSection `Sources/Output/SwiftDiffing/ABIDiffer.swift` | 修改 | 加 `import MachOSwiftSection` | 迁移模式下第 289 行 `.enum` 解析错 | 6 |
-| MachOSwiftSection `Sources/Commands/SwiftSectionKit/ObjC/ObjCAPIRequests.swift:295`、`Sources/Commands/SwiftSectionKit/Swift/ABIEvolutionRequest.swift:180` | 修改 | `: Error` → `: Swift.Error` | `migrate` 补的 `import Semantic` 让 `Error` 解析成 `Semantic.Error` | 6 |
-| MachOSwiftSection `Sources/**`（约 258 个文件，其中 `SwiftSectionFixtureSupport` 约 176 个） | 修改 | `swift package migrate` 的 300 个 fix-it：import 与 `any` | 两项特性 | 6 |
+| MachOSwiftSection `Sources/Commands/SwiftSectionKit/ObjC/ObjCAPIRequests.swift:293`、`Sources/Commands/SwiftSectionKit/Swift/ABIEvolutionRequest.swift:179` | 修改 | `: Error` → `: Swift.Error` | `migrate` 补的 `import Semantic` 让 `Error` 解析成 `Semantic.Error` | 6 |
+| MachOSwiftSection `Sources/**`、`Tests/**`（420 个文件，其中 `SwiftSectionFixtureSupport` 约 176 个） | 修改 | `swift package --build-system native migrate` 的 605 个 fix-it：import、`any`、`IntegrationTests` 的 33 处 `nonisolated` conformance；`migrate` 写成 `internal import` 的 266 处全部改回普通 import | 三项特性 | 6 |
 | MachOSwiftSection `Package.swift:1541–1548` 之后、`:1550` 的 Tuist 块之前 | 修改 | 加统一开关循环，用已有的 `.existentialAny`、`.memberImportVisibility`、`.inferIsolatedConformances` | 开启三项特性；放在 Tuist 块之前，Tuist 改写 target 时设置已经在了 | 6 |
-| MachOSwiftSection `Tests/SwiftInterfaceTests/ExtensionContainerUnificationTests.swift`、`Tests/SwiftIndexingTests/SymbolTestsCoreIntegrationTests.swift` | 修改 | 加 `import OrderedCollections` | 迁移模式下 `.values` 解析错 | 7 |
-| MachOSwiftSection `Tests/**`（约 180 个文件） | 修改 | 手改约 235 处 import、41 处 `any` | 两项特性；`migrate` 不改测试 | 7 |
-| MachOSwiftSection `Tests/IntegrationTests/`（`OpaqueTypeTests`、`ObjCAPIEvolutionTests`、`ABIEvolutionTests`、`SwiftDiffableInterfaceBuilderTests`、`SwiftEvolutionInterfaceBuilderTests`、`SwiftInterfaceBuilderTests`） | 修改 | 33 处 conformance 标 `nonisolated` | `InferIsolatedConformances`，保持现有行为 | 7 |
+| MachOSwiftSection `Tests/SwiftInterfaceTests/ExtensionContainerUnificationTests.swift`、`Tests/SwiftIndexingTests/SymbolTestsCoreIntegrationTests.swift` | 修改 | 加 `import OrderedCollections` | 迁移模式下 `.values` 解析错 | 6 |
 | MachOSwiftSection `Documentations/Internal/ProjectEvolutionLog.md` | 修改 | 加一节 | 账本 | 9 |
 
 ## 架构图
@@ -136,7 +134,7 @@
 package                  language mode          upcoming features (every Swift target)
 -----------------------  ---------------------  ------------------------------------------------------
 MachOKit (fork)          - Swift 5 (tools 5.10)  - 9 Swift-6-era features (MachOKit target only)
-                         + Swift 6 (tools 6.2)   - ExistentialAny        (MachOKit target only)
+                         + Swift 6 (tools 6.0)   - ExistentialAny        (MachOKit target only)
                                                  + ExistentialAny, MemberImportVisibility, InferIsolatedConformances
 swift-semantic-string      Swift 6 (tools 6.2)   + ExistentialAny, MemberImportVisibility, InferIsolatedConformances
 swift-demangling           Swift 6 (tools 6.2)     Lifetimes (experimental, two targets, kept)
@@ -156,24 +154,27 @@ Package.swift
 + for target in package.targets where type is not system / binary / plugin {
 +     target.swiftSettings = (target.swiftSettings ?? []) + upcomingFeatureSettings
 + }
-  // MachOSwiftSection only: Tuist block (TUIST_MAPS_LOCAL_PACKAGE_TESTS) stays after the loop
+  // swift-demangling, MachOKitExtensions, MachOObjCSection, MachOSwiftSection:
+  // the Tuist block (TUIST_MAPS_LOCAL_PACKAGE_TESTS) stays after the loop
 ```
 
 迁移流程（每个包相同，本库多一步预修）：
 
 ```text
 pre-fix sites migrate mode cannot express   (MachOSwiftSection: 4 imports + 2 Swift.Error)
-  -> swift package migrate --to-feature ...  (non-test targets; fails at manifest step by design)
-  -> swift build --build-tests -Xswiftc -enable-upcoming-feature -Xswiftc <Feature>:migrate
-       -> fix every remaining warning under Tests/ by hand
-  -> add the loop to Package.swift
+  -> swift package --build-system native migrate --to-feature ...
+       (sources and tests together; MachOSwiftSection fails at the manifest step by design)
+  -> git checkout Package.swift; turn each added `internal import X` into `import X`
+       unless the package already imports X internally
+  -> commit the fix-its; then add the loop to Package.swift
   -> swift build --build-tests   (features on, zero errors)  -> swift test
   -> DEVELOPER_DIR=Xcode-26.6 swift build --build-tests      (CI toolchain, Swift 6.3)
+  -> MachOKit only: CI on Xcode 16.2 and Linux Swift 6.0.3 (workflow_dispatch)
 ```
 
 ## 详细设计
 
-**统一开关**（swift-semantic-string、swift-demangling、MachOKitExtensions、MachOObjCSection、MachOKit 写在清单末尾）：
+**统一开关**（swift-semantic-string、MachOKit 写在清单末尾；swift-demangling、MachOKitExtensions、MachOObjCSection 写在末尾的 Tuist 块之前，前面加一段 `// MARK: - Upcoming features` 注释）：
 
 ```swift
 let upcomingFeatureSettings: [SwiftSetting] = [
@@ -206,7 +207,7 @@ for target in package.targets where target.type != .system && target.type != .bi
 **MachOKit 清单**改后的相关部分：
 
 ```swift
-// swift-tools-version: 6.2
+// swift-tools-version: 6.0
 
 // ...
         .target(
@@ -231,30 +232,27 @@ for target in package.targets where target.type != .system && target.type != .bi
 }
 ```
 
-原来的 `extension SwiftSetting { static let forwardTrailingClosures … }` 与 `extension SwiftSetting: @retroactive CaseIterable` 整段删除。循环要放在清单里 `let machOKit = package.targets.first(...)` 那段 binary-parse-support 依赖处理之后或之前都可以，它只追加 `swiftSettings`。
+原来的 `extension SwiftSetting { static let forwardTrailingClosures … }` 与 `extension SwiftSetting: @retroactive CaseIterable` 整段删除，循环放在清单末尾、binary-parse-support 依赖处理之后，前面加一段注释说明 6.0 的取舍与「不认识的特性名会被忽略」。
 
 **迁移命令**（以本库为例，在 Ultra 的功能 worktree 里，`queued-build` 前缀照写）：
 
 ```bash
-queued-build swift package --scratch-path /Volumes/DerivedData/Agents.noindex/claude/SwiftPM/MachOSwiftSection \
+queued-build swift package --build-system native \
+    --scratch-path /Volumes/DerivedData/Agents.noindex/claude/SwiftPM/MachOSwiftSection-Swift6UpcomingFeatures-Migrate \
     migrate --to-feature ExistentialAny,MemberImportVisibility,InferIsolatedConformances
-
-queued-build swift build --build-tests \
-    --scratch-path /Volumes/DerivedData/Agents.noindex/claude/SwiftPM/MachOSwiftSection \
-    -Xswiftc -print-diagnostic-groups \
-    -Xswiftc -enable-upcoming-feature -Xswiftc ExistentialAny:migrate \
-    -Xswiftc -enable-upcoming-feature -Xswiftc MemberImportVisibility:migrate \
-    -Xswiftc -enable-upcoming-feature -Xswiftc InferIsolatedConformances:migrate
+git checkout -- Package.swift
 ```
 
-第一条退出码是 1 属正常（改清单失败），看输出里的 `Applied N fix-its in M files`。第二条用来列出测试 target 里剩下的警告。日志带 ANSI 颜色与 OSC 8 超链接，按 `[#组名]` 计数前要先去掉转义；同一条诊断会打印两遍（一行摘要、一行带源码框的），按「文件:行:列 + 文字」去重。
+不带 `--target` 就连测试一起改；`--build-system native` 不能省，默认的构建系统改不了测试（见前期调研）。本库退出码是 1 属正常（改清单失败），看输出里的 `Applied N fix-its in M files`；另外五个包退出码是 0，但它们改出的清单同样丢弃，统一用手写的循环。迁移用单独的构建目录，与之后用默认构建系统的验证构建分开。日志带 ANSI 颜色与 OSC 8 超链接，按 `[#组名]` 计数前要先去掉转义；同一条诊断会打印两遍（一行摘要、一行带源码框的），按「文件:行:列 + 文字」去重。
 
-**手改测试的规则**：`MemberImportVisibility` 的警告形如 `import of module 'X' is required`，在文件的 import 区按字母序补 `import X`（文件里已有 `@testable import X` 或 `@_spi(...) import X` 的，不重复加）；`ExistentialAny` 补 `any`；`InferIsolatedConformances` 的警告形如 `conformance of 'T' to 'P' should be marked 'nonisolated'`，照写 `nonisolated P`。补了 `import Semantic` 的文件按「提议方案」第 4 条检查。要是用脚本批量补 import，脚本先给用户看过再跑。
+**`internal import` 的处理**：对 `migrate` 新加的每一行 `internal import X`，看这个仓库的 Sources 与 Tests 里原来有没有 `internal import X`。有（MachOKit 的 `FileIO`、`FileIOBinary`，MachOObjCSection 的 `FileIO`、`MachOKitExtensions`）就保留；没有就改成普通 `import X`，与仓库里绝大多数 import 一致，也不会和别的文件里的普通 `import X` 冲突。补了 `import Semantic` 的文件按「提议方案」第 4 条检查。
 
 ## 替代方案考量
 
 - **MachOKit 保持 tools 5.10，只加 `.enableUpcomingFeature("StrictConcurrency")`。** Swift 5 模式下这只给 complete checking 的警告，不是错误；以后新代码出问题只是多一条警告，达不到另外五个包的约束力。否。
 - **MachOKit 保持 tools 5.10，靠 `swiftLanguageVersions: [.version("6")]` 进 Swift 6。** 能少改一行，但 `swiftLanguageVersions` 在 tools 6 已废弃改名，与五个兄弟包写法不一致，跟上游同步时第 1 行的冲突也省不掉（上游以后升 tools-version 照样冲突）。否。
+- **MachOKit 升到 tools 6.2，与五个兄弟包一致。** 草案原本这样定；实现时发现 fork 的 CI 用 Xcode 16.2 与 Linux 的 Swift 6.0.3，6.2 的清单它们读不了。改为 6.0。
+- **测试 target 照警告清单手改，或写脚本批量补 import。** 草案原本这样定（本库测试约 310 处、180 个文件）；实现时发现 `migrate` 换成 native 构建系统就能改测试，不再需要手改或脚本。
 - **逐个 target 写 `swiftSettings:`，或让 `swift package migrate` 改清单。** 本库有 53 个 target，MachOKitExtensions 24 个、MachOObjCSection 19 个，逐个写容易漏，新加的 target 也得记着写；`migrate` 在本库的清单上直接失败。统一循环一处搞定，新 target 自动带上。选循环。
 - **四项全开（再加 `NonisolatedNonsendingByDefault` 与 `InternalImportsByDefault`）。** 2026-11-20 的调研结果摆给用户之后，用户选了只开三项低风险的。理由见「前期调研」第二张表。
 - **只开 `ExistentialAny` 与 `InferIsolatedConformances`，不开 `MemberImportVisibility`。** 后者是三项里改动最大、坑最多的（4 处迁移模式硬错误、`Semantic.Error` 遮蔽），但它正是动机里「每个文件的依赖写在自己的 import 里」的来源，而且坑都已经在探针里找全并给出了改法。保留。

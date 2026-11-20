@@ -65,7 +65,7 @@ protocol NodePrintable {
     /// `*NodePrintableContext` refinement declares.
     var context: Context { get set }
 
-    var delegate: any NodePrintableDelegate? { get }
+    var delegate: (any NodePrintableDelegate)? { get }
 
     mutating func printName(_ name: Node, options: NodePrintOptions) async
 }
