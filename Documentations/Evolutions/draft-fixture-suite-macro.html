@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - @FixtureSuite 宏：夹具测试套件开头的固定写法由宏生成</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> <code>@FixtureSuite</code> 宏：夹具测试套件开头的固定写法由宏生成</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-draft">Draft</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-20</dd></div>
+    <div><dt>项目类型</dt><dd>库</dd></div>
+    <div><dt>原文</dt><dd><code>draft-fixture-suite-macro.md</code></dd></div>
+  </dl>
+</header>
+<nav class="toc" aria-label="目录"><ol>
+  <li><a href="#summary">摘要</a></li><li><a href="#decide">要你定</a></li><li><a href="#architecture">架构图</a></li><li><a href="#map">改动地图</a></li><li><a href="#proposal">提议方案</a></li><li><a href="#design">详细设计</a></li><li><a href="#motivation">动机</a></li><li><a href="#research">调研</a></li><li><a href="#alternatives">替代方案</a></li><li><a href="#impact">影响</a></li><li><a href="#steps">落地步骤</a></li><li><a href="#log">决策日志</a></li>
+</ol></nav>
+<main class="content">
+<section id="summary">
+  <h2>摘要</h2>
+<p>新增 attached 宏 <code>@FixtureSuite</code>，挂在夹具测试套件类上，生成 <code>static let testedTypeName</code>、<code>static var registeredTestMethodNames</code>，并补上对 <code>FixtureSuite</code> 协议的遵循。被测类型名默认取类名去掉 <code>Tests</code> 后缀，baseline 默认取「类名去掉 <code>Tests</code> 加 <code>Baseline</code>」；少数例外用参数写明。<code>SuiteBehaviorScanner</code> 改为也认宏的写法。<code>MachOSwiftSectionTests</code> 里的夹具套件全部改用宏，每处省 3 行。宏的实现放在新的宏 target <code>SwiftSectionTestingMacros</code>，声明放在 <code>SwiftSectionTestingSupport</code>，只有测试链接它。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+<div class="callout"><p class="callout-title">轻量档：你点头即可开工。</p><ol><li>可以开工吗？</li></ol></div>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend"><li><i class="swatch swatch-added"></i>新增</li><li><i class="swatch swatch-changed"></i>修改</li><li><i class="swatch swatch-kept"></i>不变</li></ul>
+  <div class="figure">
+  <svg viewBox="0 0 1000 300" role="img" aria-label="Targets">
+    <rect class="group" x="10" y="10" width="980" height="280" rx="10"/>
+    <text class="group-label" x="22" y="30">MachOSwiftSection (package)</text>
+    <rect class="box-kept" x="25" y="45" width="300" height="44" rx="6"/><text x="35" y="63">SwiftSectionMacros (macro)</text><text class="caption" x="35" y="80">@Layout ... production, unchanged</text>
+    <rect class="box-added" x="25" y="110" width="300" height="44" rx="6"/><text x="35" y="128">SwiftSectionTestingMacros (macro)</text><text class="caption" x="35" y="145">FixtureSuiteMacro: member + extension</text>
+    <rect class="box-added" x="25" y="175" width="300" height="44" rx="6"/><text x="35" y="193">SwiftSectionTestingMacrosTests</text><text class="caption" x="35" y="210">expansion tests</text>
+    <rect class="box-changed" x="370" y="110" width="300" height="44" rx="6"/><text x="380" y="128">SwiftSectionTestingSupport</text><text class="caption" x="380" y="145">+ macro FixtureSuite(testedTypeName:baseline:)</text>
+    <rect class="box-changed" x="370" y="45" width="300" height="44" rx="6"/><text x="380" y="63">SwiftSectionFixtureSupport</text><text class="caption" x="380" y="80">~ SuiteBehaviorScanner reads @FixtureSuite</text>
+    <rect class="box-changed" x="715" y="110" width="260" height="44" rx="6"/><text x="725" y="128">MachOSwiftSectionTests</text><text class="caption" x="725" y="145">176 suites: @FixtureSuite</text>
+    <path class="arrow" d="M 370 132 L 327 132"/>
+    <path class="arrow" d="M 520 110 L 520 91"/>
+    <path class="arrow" d="M 715 132 L 672 132"/>
+    <path class="arrow" d="M 175 175 L 175 156"/>
+  </svg>
+  </div>
+  <p class="figure-caption">新宏 target 只给测试支持依赖；扫描器同时认宏的写法与手写的静态成员。</p>
+
+  <h3>展开前后</h3>
+<pre><code>@Suite @FixtureSuite
+final class StructDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable { ... }
+
+ ↓ member
+    static let testedTypeName: Swift.String = &quot;StructDescriptor&quot;
+    static var registeredTestMethodNames: Swift.Set&lt;Swift.String&gt; { StructDescriptorBaseline.registeredTestMethodNames }
+ ↓ extension
+extension StructDescriptorTests: SwiftSectionFixtureSupport.FixtureSuite {}</code></pre>
+</section>
+<section id="map">
+  <h2>改动地图</h2>
+<div class="table-wrap"><table><thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead><tbody><tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新增宏 target <code>SwiftSectionTestingMacros</code>（SwiftSyntax、SwiftSyntaxMacros、SwiftCompilerPlugin、SwiftSyntaxBuilder）与测试 target <code>SwiftSectionTestingMacrosTests</code>（加 <code>SwiftSyntaxMacrosGenericTestSupport</code>）；<code>SwiftSectionTestingSupport</code> 依赖新宏 target；Tuist 适配块留在文件末尾</td><td>宏的实现与测试</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionTestingMacros/FixtureSuiteMacro.swift</code>、<code>TestingMacroPlugin.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>FixtureSuiteMacro</code>（<code>MemberMacro</code>、<code>ExtensionMacro</code>）：推出类名词干、读两个字面量参数、生成成员与遵循、诊断与 Fix-It</td><td>宏实现</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionTestingSupport/FixtureSuiteMacro.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>package macro FixtureSuite(testedTypeName:baseline:)</code> 声明</td><td>宏声明</td><td class="numeric">1</td></tr><tr><td><code>Tests/SwiftSectionTestingMacrosTests/FixtureSuiteMacroTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>展开测试：默认、只给 <code>testedTypeName</code>、两个都给、类名不以 <code>Tests</code> 结尾、参数不是字面量</td><td>宏的行为</td><td class="numeric">1</td></tr><tr><td><code>Sources/TestSupport/SwiftSectionFixtureSupport/Coverage/SuiteBehaviorScanner.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>认 <code>@FixtureSuite</code>：取参数或类名词干</td><td>扫描器按源码读被测类型名</td><td class="numeric">2</td></tr><tr><td><code>Tests/SwiftSectionTestingSupportTests/Coverage/SuiteBehaviorScannerTests.swift</code>、<code>Fixtures/SuiteSampleSource.swift.txt</code></td><td><span class="tag tag-changed">修改</span></td><td>加宏写法的样例与测试</td><td>扫描器的行为</td><td class="numeric">2</td></tr><tr><td><code>Tests/MachOSwiftSectionTests/Fixtures/**/*Tests.swift</code>（176 个夹具套件）</td><td><span class="tag tag-changed">修改</span></td><td>改用 <code>@FixtureSuite</code></td><td>去掉样板</td><td class="numeric">3</td></tr><tr><td><code>AGENTS.md</code>、<code>Documentations/Internal/FixtureTestingAndContinuousIntegration.md</code></td><td><span class="tag tag-changed">修改</span></td><td>添加夹具测试的写法</td><td>文档同步</td><td class="numeric">4</td></tr></tbody></table></div>
+</section>
+
+<section id="proposal">
+  <h2>提议方案</h2>
+<ol><li><strong>宏声明</strong>放在 <code>SwiftSectionTestingSupport</code>（夹具套件都 import 它），<code>package</code> 可见：member 角色生成两个静态成员，extension 角色添加 <code>FixtureSuite</code>。</li><li><strong>宏实现</strong>放在新的宏 target <code>SwiftSectionTestingMacros</code>（<code>Sources/TestSupport/SwiftSectionTestingMacros</code>），只给 <code>SwiftSectionTestingSupport</code> 依赖，生产的 <code>SwiftSectionMacros</code> 插件不带测试代码。</li><li><strong>默认值</strong>：<code>testedTypeName</code> 取类名去掉 <code>Tests</code> 后缀；baseline 取同一个词干加 <code>Baseline</code>。类名不以 <code>Tests</code> 结尾时报错并给 Fix-It（写明 <code>testedTypeName:</code>）。</li><li><strong>参数</strong>：<code>@FixtureSuite(testedTypeName: &quot;EnumTagCounts&quot;)</code>、<code>@FixtureSuite(testedTypeName: &quot;OpaqueType&quot;, baseline: OpaqueTypeBaseline.self)</code>。两个参数都只收字面量（字符串字面量、<code>类型.self</code>），给变量就报错，不静默退回默认值。</li><li><strong>扫描器</strong>：<code>SuiteBehaviorScanner</code> 先看类上有没有 <code>@FixtureSuite</code>：有就取 <code>testedTypeName:</code> 参数的字面量，没有参数就取类名去掉 <code>Tests</code>；没有宏的类照旧读静态成员。</li><li><strong>迁移</strong>：176 个夹具套件全部改用宏——类声明里去掉 <code>FixtureSuite</code> 遵循和两个静态成员，挂上 <code>@FixtureSuite</code>；5 个例外带参数。</li><li>本包 <code>AGENTS.md</code>「添加夹具测试」那几条（<code>:186</code> 一带）改成用宏的写法。</li></ol>
+<h3>非目标</h3>
+<ul><li>给 <code>MachOFileTests</code> 等其他基类的子类（<code>override class var fileName</code> 之类）做宏：属于基类配置，宏省不了几行。</li><li>把 <code>acrossAllReaders</code> 做成宏：归 <code>draft-shared-macho-testing-support</code>，用普通函数重载。</li><li>自动维护 <code>BaselineGenerator</code> 里手写的套件清单（<code>AllFixtureSuites</code> 的来源）。</li><li><code>@Suite</code> 与 <code>ExclusiveImageAccess</code> 等 trait 的组合：已经只有一行。</li></ul>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details>
+    <summary>宏声明与展开规则</summary>
+    <div class="details-body">
+<pre><code>// SwiftSectionTestingSupport
+@attached(member, names: named(testedTypeName), named(registeredTestMethodNames))
+@attached(extension, conformances: FixtureSuite)
+package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = nil) =
+    #externalMacro(module: &quot;SwiftSectionTestingMacros&quot;, type: &quot;FixtureSuiteMacro&quot;)</code></pre>
+<ul><li><strong>词干</strong>：类名去掉末尾的 <code>Tests</code>。类名不以 <code>Tests</code> 结尾且没给 <code>testedTypeName:</code> → 诊断「类名不以 Tests 结尾，写明 testedTypeName:」并给 Fix-It。</li><li><strong>baseline</strong>：参数写 <code>X.self</code> 时取 <code>X</code>，否则取「词干 + <code>Baseline</code>」。</li><li><strong>只收字面量</strong>：<code>testedTypeName:</code> 不是字符串字面量（含插值）、<code>baseline:</code> 不是 <code>类型.self</code> → 诊断落在参数上。</li><li><strong>挂错地方</strong>：挂在非 class 声明上 → 诊断。</li><li><strong>全名</strong>：生成代码写 <code>Swift.String</code>、<code>Swift.Set&lt;Swift.String&gt;</code>、<code>SwiftSectionFixtureSupport.FixtureSuite</code>。</li><li><strong>隔离</strong>：套件类继承 <code>@MainActor</code> 的 <code>MachOSwiftSectionFixtureTests</code>，协议也是 <code>@MainActor</code>，生成成员不另加隔离标注。</li><li><strong>扫描器</strong>：<code>SuiteBehaviorVisitor.visit(_ node: ClassDeclSyntax)</code> 先查 <code>node.attributes</code> 里名字最后一段是 <code>FixtureSuite</code> 的属性；有 <code>testedTypeName:</code> 字符串字面量就用它，否则用类名词干；没有该属性才走现有的静态成员读取。</li></ul>
+    </div>
+  </details>
+</section>
+
+<section id="motivation">
+  <h2>动机</h2>
+<ul><li><strong>同样的 5 行写了 176 遍。</strong> <code>MachOSwiftSectionTests</code> 里每个夹具套件的开头都是：<pre><code>@Suite
+final class StructDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
+    static let testedTypeName = &quot;StructDescriptor&quot;
+    static var registeredTestMethodNames: Set&lt;String&gt; {
+        StructDescriptorBaseline.registeredTestMethodNames
+    }</code></pre>
+<p>（<code>Tests/MachOSwiftSectionTests/Fixtures/Type/Struct/StructDescriptorTests.swift:16-21</code>）176 个类声明遵循 <code>FixtureSuite</code>；按完整写法匹配的 170 个里，165 个的被测类型名就是类名去掉 <code>Tests</code>，只有 5 个例外。</p></li><li><strong>手抄容易抄错。</strong> <code>testedTypeName</code> 决定覆盖率不变式按哪个类型检查成员（<code>FixtureSuite.swift</code> 的文档注释），抄错一个字母，这个套件就静默地对不上源码里的类型。</li><li><strong>起因</strong>：用户问能否给测试加便捷的宏减少样板。调研后，跨读取器写法 <code>acrossAllReaders</code> 不适合做宏（改用普通函数重载，归 <code>draft-shared-macho-testing-support</code>），套件开头这一处适合，另写本提案。</li></ul>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <details>
+    <summary>协议、扫描器、例外与现有宏</summary>
+    <div class="details-body">
+<ul><li><strong>协议</strong>：<code>package protocol FixtureSuite</code>（<code>Sources/TestSupport/SwiftSectionFixtureSupport/Coverage/FixtureSuite.swift</code>），<code>@MainActor</code>，两个要求：<code>static var testedTypeName: String</code>、<code>static var registeredTestMethodNames: Set&lt;String&gt;</code>。</li><li><strong>谁读这两个值</strong>：<ul><li>覆盖率不变式测试 <code>Tests/MachOSwiftSectionTests/Fixtures/MachOSwiftSectionCoverageInvariantTests.swift:53-55</code> 在运行时读 <code>suite.testedTypeName</code> 与 <code>registeredTestMethodNames</code>——宏生成的成员照样读得到。</li><li><code>SuiteBehaviorScanner</code>（<code>Coverage/SuiteBehaviorScanner.swift:118-133</code>）<strong>按源码语法</strong>读 <code>testedTypeName</code>：在类的成员里找 <code>static</code> 且初始值是字符串字面量的 <code>testedTypeName</code>。宏生成的成员不在源码里，所以扫描器要改，认 <code>@FixtureSuite</code> 的参数或类名。它的样例源码在 <code>Tests/SwiftSectionTestingSupportTests/Coverage/Fixtures/SuiteSampleSource.swift.txt</code>。</li><li><code>BaselineGenerator.writeAllFixtureSuitesIndex</code>（<code>Baseline/BaselineGenerator.swift:693-710</code>）用手维护的类名清单生成 <code>__Baseline__/AllFixtureSuites.swift</code>，不读 <code>testedTypeName</code>，不受影响。</li></ul></li><li><strong>5 个例外</strong>（类名 → <code>testedTypeName</code>、baseline）：<ul><li><code>OpaqueTypeFixtureTests</code> → <code>&quot;OpaqueType&quot;</code>、<code>OpaqueTypeBaseline</code>（类名加了 <code>Fixture</code> 避开同 target 里的快照套件 <code>OpaqueTypeTests</code>，见 <code>BaselineGenerator.swift:701-704</code>）</li><li><code>EnumFunctionsTests</code> → <code>&quot;EnumTagCounts&quot;</code>、<code>EnumFunctionsBaseline</code></li><li><code>TupleTypeMetadataElementTests</code> → <code>&quot;Element&quot;</code>、<code>TupleTypeMetadataElementBaseline</code></li><li><code>GenericContextTests</code> → <code>&quot;TargetGenericContext&quot;</code>、<code>GenericContextBaseline</code></li><li><code>GenericRequirementContentTests</code> → <code>&quot;InvertedProtocols&quot;</code>、<code>GenericRequirementContentBaseline</code></li></ul>
+<p>baseline 名除 <code>OpaqueTypeFixtureTests</code> 外都是「类名去掉 <code>Tests</code> 加 <code>Baseline</code>」。</p></li><li><strong>现有的宏</strong>：宏 target <code>SwiftSectionMacros</code>（<code>Package.swift:1007-1016</code>，<code>Sources/Support/SwiftSectionMacros</code>，<code>@Layout</code> 等），供 <code>Utilities</code>、<code>MachOSwiftSection</code> 两个生产 target 用；本包没有宏的展开测试。swift-syntax 依赖是 <code>602.0.0..&lt;605.0.0</code>（<code>Package.swift:93</code>）。</li><li><strong>同名先例</strong>：Observation 里协议 <code>Observable</code> 与宏 <code>@Observable</code> 同名，<code>@Observable</code> 解析到宏；本提案的宏与协议同名同理。</li><li><strong>宏的硬规则</strong>（<code>swift-macro-patterns</code> skill）：<code>conformances:</code> 只列一定会添加的协议——本宏总是添加 <code>FixtureSuite</code>，满足；生成代码里的类型写全名（<code>Swift.Set&lt;Swift.String&gt;</code>）。</li></ul>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>3 条被否的路</summary>
+    <div class="details-body">
+<ul><li>**把宏实现放进现有的 <code>SwiftSectionMacros</code>**：少一个 target，但生产代码链接的插件会带上测试用的宏。否决。</li><li><strong>只用基类或协议扩展给默认值</strong>：协议扩展能给 <code>testedTypeName</code> 一个按类型名推的默认实现（运行时 <code>String(describing: Self.self)</code> 去掉 <code>Tests</code>），但 <code>registeredTestMethodNames</code> 要引用 baseline 类型，运行时拿不到，且扫描器按源码读不到运行时默认值。否决。</li><li>**做成宏后不改扫描器、保留手写的 <code>testedTypeName</code>**：省一行都不到。否决。</li></ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+<h3>源码兼容性（source compatibility）</h3>
+<p>只改测试支持与测试，对外 product 不变。</p>
+<h3>ABI 兼容性（条件项）</h3>
+<p>不适用 —— 本库以 SPM 源码分发，使用方每次重新编译。</p>
+<h3>下游影响</h3>
+<p>无：新宏 target 与测试支持都不是 product。<code>draft-shared-macho-testing-support</code> 落地时，<code>MachOSwiftSectionFixtureTests</code> 变成共享基类的子类，<code>@FixtureSuite</code> 不受影响；两份提案改到同一批测试文件（这份改类声明，那份改 <code>acrossAllReaders</code> 调用），先落地的一份之后，另一份在合并时解冲突。</p>
+<h3>文档与示例</h3>
+<p><code>AGENTS.md</code> 的「添加夹具测试」步骤与 <code>FixtureTestingAndContinuousIntegration.md</code>。</p>
+<h3>API 演进与废弃策略</h3>
+<ul><li><code>package</code> 级别的宏，只给本包测试用，没有对外承诺。</li><li>不保留旧写法的兼容：迁移在同一批完成，扫描器两种写法都认，所以中途也不会坏。</li></ul>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+<ol><li><strong>宏与展开测试</strong> —— <code>Package.swift</code>、<code>SwiftSectionTestingMacros</code>、宏声明、<code>FixtureSuiteMacroTests</code><ul><li>行为：<code>defaultsTakeTheTestedTypeAndBaselineFromTheClassName</code></li><li>行为：<code>anExplicitTestedTypeNameKeepsTheBaselineFromTheClassName</code></li><li>行为：<code>anExplicitBaselineIsUsedAsWritten</code></li><li>行为：<code>aClassNameWithoutTestsAsksForTheTestedTypeName</code>（诊断加 Fix-It）</li><li>行为：<code>aNonLiteralArgumentIsRejected</code></li><li>行为：<code>theMacroAddsTheFixtureSuiteConformance</code></li></ul></li><li><strong>扫描器认宏</strong> —— <code>SuiteBehaviorScanner</code>、样例源码与测试<ul><li>行为：<code>scannerReadsTheTestedTypeNameFromTheMacroArgument</code></li><li>行为：<code>scannerTakesTheClassNameStemWhenTheMacroHasNoArgument</code></li><li>行为：<code>scannerStillReadsAStaticTestedTypeName</code></li></ul></li><li><strong>迁移 176 个套件</strong> —— <code>Tests/MachOSwiftSectionTests/Fixtures/**</code><ul><li>行为：覆盖率不变式测试照常通过，迁移前后 <code>allFixtureSuites</code> 各套件的 <code>testedTypeName</code> 与 <code>registeredTestMethodNames</code> 逐个相等</li><li>行为：<code>SuiteBehaviorScanner</code> 认出的「被测类型 → 测试方法 → 行为」与迁移前逐条相同</li></ul></li><li><strong>文档</strong> —— <code>AGENTS.md</code>、<code>FixtureTestingAndContinuousIntegration.md</code><ul><li>收尾判断：实现说明不必单写，<code>AGENTS.md</code> 的步骤与宏的文档注释够用；没有新术语。</li></ul></li></ol>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>3 条，最近一条：宏与协议同名 FixtureSuite</summary>
+    <div class="details-body">
+<div class="table-wrap"><table><thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead><tbody><tr><td>2026-11-20</td><td>Created as Draft</td><td>用户问能否给测试代码加便捷的宏减少样板。只读调研统计了两个包测试里的重复写法：值得做成宏的是 176 个夹具套件开头的固定 5 行；<code>acrossAllReaders</code> 改用普通函数重载（归 <code>draft-shared-macho-testing-support</code>）。用户选择把这个宏另写一份本包提案。</td></tr><tr><td>2026-11-20</td><td>宏实现放新 target <code>SwiftSectionTestingMacros</code></td><td>生产代码链接的 <code>SwiftSectionMacros</code> 插件不带测试用的宏。</td></tr><tr><td>2026-11-20</td><td>宏与协议同名 <code>FixtureSuite</code></td><td>照 Observation 的 <code>Observable</code> 先例，<code>@FixtureSuite</code> 读起来就是「这是一个夹具套件」。</td></tr></tbody></table></div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>
