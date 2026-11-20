@@ -39,6 +39,10 @@ let commandTestSettings: Settings = Environment.silentTest.getBoolean(default: f
 
 let project = Project(
     name: "MachOSwiftSectionCommandLine",
+    // In SwiftPM these targets belong to the MachOSwiftSection package, whose `package` declarations
+    // they use (SwiftSectionCommandTests calls SwiftSectionKit's applyTransformersEnablingCommentKinds).
+    // Tuist gives the targets it converts SWIFT_PACKAGE_NAME = MachOSwiftSection; these need the same.
+    settings: .settings(base: ["SWIFT_PACKAGE_NAME": "MachOSwiftSection"]),
     targets: [
         .target(
             name: "swift-section",
