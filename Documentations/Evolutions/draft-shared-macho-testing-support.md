@@ -1,12 +1,12 @@
 # Draft - 测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-20
 - **最后更新**: 2026-11-20
 - **所属愿景**: 无
-- **关联提案**: [0003（MachOKitExtensions）move-macho-infrastructure-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md)（`MachO` 前缀的模块归 MachOKitExtensions，本包的测试支持因此改名 `SwiftSection…`）；[0098 move-cross-reference-layers](0098-move-cross-reference-layers.md)（跨仓库迁移、由本包维护唯一提案的先例）；MachOKitExtensions 的 `draft-cplusplus-class-hierarchy`（它新加的测试辅助是本提案要合并的重复代码之一，须先发 3.1.0）
-- **实现分支 / PR**: 待定（两个仓库各一条功能分支：MachOKitExtensions 从 C++ 类恢复收尾后的 `main` 切出，本包从 `next` 切出）
+- **关联提案**: [0003（MachOKitExtensions）move-macho-infrastructure-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md)（`MachO` 前缀的模块归 MachOKitExtensions，本包的测试支持因此改名 `SwiftSection…`）；[0098 move-cross-reference-layers](0098-move-cross-reference-layers.md)（跨仓库迁移、由本包维护唯一提案的先例）；MachOKitExtensions 的 [0006-cplusplus-class-hierarchy](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0006-cplusplus-class-hierarchy.md)（它新加的测试辅助是本提案要合并的重复代码之一，已随 3.1.0 发布）；[0100-fixture-suite-macro](0100-fixture-suite-macro.md)（同一次讨论拆出的本包宏）；[0101-swift6-mode-and-upcoming-features](0101-swift6-mode-and-upcoming-features.md)（两个包开启的三项 upcoming feature，新代码照它们写）
+- **实现分支 / PR**: 两个仓库同名 `feature/shared-macho-testing-support`。MachOKitExtensions 从 `main` 切出（3.1.0 与 Swift 6 迁移之后），worktree 在 `.worktrees/MachOKitExtensions-SharedMachOTestingSupport`；本包从 `next` 切出（0100、0101 之后），worktree 在 `.worktrees/MachOSwiftSection-SharedMachOTestingSupport`，第 5、6 步等 MachOKitExtensions 3.2.0 发布后在这里做
 - **配套文档**: 待定 —— 落地时登记 MachOKitExtensions 的实现说明
 - **网页版**: 同目录同名的 `.html`
 
@@ -27,7 +27,7 @@
   | 跨读取器 | `acrossAllReaders`，429 处，但写死 SymbolTestsCore | `@Test(arguments: Reader.allCases)` 参数化，约 25 处 |
   | 包装读取器 | `ForwardingMachOReader`，约束在本包的协议上 | `Support/ForwardingReader.swift`，约束在 `MachORepresentableWithCache`，internal |
 
-- **MKE 的新功能还在继续加重复。** C++ 类恢复（MKE `draft-cplusplus-class-hierarchy`）一次就新增了两份现编 dylib、一份选 slice、两份「cache 文件加进程内同一镜像」。
+- **MKE 的新功能还在继续加重复。** C++ 类恢复（MKE 0006）一次就新增了两份现编 dylib、一份选 slice、两份「cache 文件加进程内同一镜像」。
 - **这些代码本该在 MKE。** 0003 定下 `MachO` 前缀的模块归 MKE，本包的测试支持为此从 `MachOFixtureSupport` / `MachOTestingSupport` 改名为 `SwiftSection…`（MKE 0003 的 `:102`），两个名字现在空着。
 
 ## 前期调研
@@ -87,7 +87,7 @@
 - 搬 Swift 专用的支持代码（夹具内容、baseline、coverage、快照对比、SymbolTestsCore 相关）。
 - 搬测试本身（`CrossReferenceAnalysisTests` 等依赖本包与 MachOObjCSection 的模块）。
 - 统一两个包的 `ForwardingMachOReader` / `ForwardingReader`：协议层级不同，本包那份保留。
-- `@FixtureSuite` 宏（本包 170 个夹具套件开头的固定 5 行）：只涉及本包的 Swift 夹具覆盖率体系，另写一份本包的提案。
+- `@FixtureSuite` 宏（本包 170 个夹具套件开头的固定 5 行）：只涉及本包的 Swift 夹具覆盖率体系，另写一份本包的提案（已随 [0100-fixture-suite-macro](0100-fixture-suite-macro.md) 落地）。
 - 把 `acrossAllReaders` 做成宏：每处只重复约一行，宏得按 `fileX`→`imageX` 的命名约定改写标识符，脆弱，也会让按标识符识别测试的扫描器失效；用上面的普通函数重载代替。
 - MachOObjCSection、MachOKitUI 等其他仓库的测试改用新 product：各自另议。
 - 给 MKE 加 CI（MKE 0003 记下的后续项，另写提案）。
@@ -324,3 +324,4 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 | 2026-11-20 | 加入成对传入、单个闭包的 `acrossAllReaders` / `acrossAllContexts` 重载 | 用户问能否加宏减少测试样板。调研：486 处跨读取器调用里 480 处的 `image:` 闭包只是换了变量名，但每处只重复约一行；做成宏要按命名约定改写标识符，也会让按标识符识别测试的扫描器失效。用户选择改用普通函数重载，并把能改的调用改过去。另一处值得用宏的样板——170 个夹具套件开头的固定 5 行——用户选择另写一份本包提案（`@FixtureSuite`）。 |
 | 2026-11-20 | 加入 `TuistScript.sh` 的改动 | 维护提案 0099 的会话提醒：远程模式下 MKE 是 own-remote，不在扫描 TestingMacros 插件路径的范围内，新的 `MachOTestingSupport` 会编不过。 |
 | 2026-11-20 | 用量更正 | 本包手写 `xcrun` 的测试文件是 57 个（原写 17 个 Swift 夹具），手写选 slice 70 处；都改用共享版本。 |
+| 2026-11-20 | 状态 → In Progress | 用户批准开工。前置都已就位：MachOKitExtensions 3.1.0 已发布；`@FixtureSuite`（0100）与 Swift 6 迁移（0101）已落地，两个包的每个 Swift target 都开启了 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`，新代码照这三项写。先做 MachOKitExtensions 的第 1–4 步；第 4 步的发版（3.2.0）不在开工的授权内，做到文档为止，发版另行确认。 |
