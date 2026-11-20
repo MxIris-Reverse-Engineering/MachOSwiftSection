@@ -581,3 +581,12 @@ let tuist = Tuist(
 | 2026-11-20 | 定下三个方向 | 用户选定：提供二进制缓存与 `warm`；Tuist workspace 要能跑测试，先实测再定写法；与 RuntimeViewer 的本地依赖模式双向互斥，为此顺带改 RuntimeViewer 的脚本。 |
 | 2026-11-20 | 实测定下测试的写法 | 十项实测见「前期调研」：Tuist 的测试映射对路径包一刀切，会拒绝两种形态的测试；用一段只在 Tuist 解析时生效的清单适配块处理，本库加，三个上游库也要加才能在本地模式下带测试；`SwiftSectionCommandTests` 在 `Tuist/CommandLine/Project.swift` 里手写。三个上游库要不要加，留给用户定。 |
 | 2026-11-20 | 用户批准，开始实现 | 用户选定给 MachOKitExtensions、MachOObjCSection、swift-demangling 加适配块，本地模式带测试；状态改 Accepted。实现在本库的 `feature/tuist-workspace`，三个上游库与 RuntimeViewer 各用同名分支。 |
+| 2026-11-20 | 清单改由脚本自己读 | 本想直接读 Tuist 缓存的清单索引（`swifterpm/package-info/index.json`），实测设了 `SWIFTPM_BUILD_DIR` 时 Tuist 不产出这份索引，靠它不可靠。改回提案原写法：每次 `install` 之后脚本用 `swift package dump-package`（带 `TUIST_MAPS_LOCAL_PACKAGE_TESTS=1`，8 个并行）读一遍所有包的清单存进 `Work/<checkout>/Manifests/`，名单、预检和同名检查都读它（35 个包）。Python 出错时脚本直接失败，而不是带着空名单生成。 |
+| 2026-11-20 | 解析依赖的记号带上清单的 hash | `Work/<checkout>/InstalledDependencies` 除了模式，还记 `Tuist/Package.swift`、`Package.swift`、种子锁文件与（本地模式下）上游库清单的 hash：改了 `Package.swift` 或换了根目录的 `Package.resolved`，下一次 `generate` 自己重新解析，不必记得先跑 `install`。 |
+| 2026-11-20 | CLI 的部署版本改为 macOS 12.0 | Ultra 首次构建：Tuist 把 swift-argument-parser 编成它声明的 macOS 12，10.15 的 `swift-section` import 不了它（11 处同一错误，其余全部编过）。 |
+| 2026-11-20 | 测试 target 抬到 macOS 14.0（原定「按需」，确认需要） | `TypeIndexingTests` 用的 macOS 13 API 在 10.15 下编不过。脚本把所有转换进来的测试 target（含 `IntegrationTests`）传进新变量 `TUIST_TEST_TARGET_NAMES`。 |
+| 2026-11-20 | 手写的 target 设 `SWIFT_PACKAGE_NAME = MachOSwiftSection` | `SwiftSectionCommandTests` 调用 SwiftSectionKit 的 `package` 方法；Tuist 转换的 target 都带这个设置，手写的没有。 |
+| 2026-11-20 | 导入 Testing 的库 target 加 TestingMacros 插件路径 | `SwiftSectionTestingSupport` 用了 `#require`，Xcode 只给测试 target 带 TestingMacros 插件。脚本扫描路径包里普通 target 的源码找 `import Testing`，传进新变量 `TUIST_TESTING_SUPPORT_TARGET_NAMES`；本地模式下 swift-demangling 的 `DemanglingTestingSupport` 也会被找到。 |
+| 2026-11-20 | `build` / `test` 加 `--scheme` | 本地模式下要跑上游库各自的测试 scheme（`<包名> Tests`）。 |
+| 2026-11-20 | MachOKitExtensions 的 `next` 已不需要适配块，仍按决定加上 | 探针用的是它的 `main`（有 `CPlusPlusSymbolsFixture`），`next` 上这个测试支撑 target 已经没有了，块目前不起作用。另：本库 `.worktrees/MachOKitExtensions` 链接指向它的主检出（`main`），不是它的 `next` worktree，所以公司那台上的本地模式编的是 `main`，预检会因为那个 target 关掉测试并点名。 |
+| 2026-11-20 | Tuist 往 `PrecompiledLibraries/swift-syntax/` 里写 `.build/` | 它是按路径声明的包，Tuist 在那里下载二进制产物；与它生成的工程一起写进 `.gitignore`。 |
