@@ -25,6 +25,10 @@ let commandLineDependencies: [TargetDependency] = [
     .external(name: "ArgumentParser"),
 ]
 
+// Tuist builds swift-argument-parser for macOS 12, the minimum that package declares; the package's
+// own 10.15 does not reach the executable here the way SwiftPM's build of it does.
+let commandLineDeploymentTargets: DeploymentTargets = .macOS("12.0")
+
 let commandLineSources: SourceFilesList = ["../../Sources/Executables/swift-section/**"]
 
 // MACHO_SWIFT_SECTION_SILENT_TEST=1, which Package.swift turns into SILENT_TEST for its test targets;
@@ -41,7 +45,7 @@ let project = Project(
             destinations: .macOS,
             product: .commandLineTool,
             bundleId: "com.machoswiftsection.swift-section",
-            deploymentTargets: .macOS("10.15"),
+            deploymentTargets: commandLineDeploymentTargets,
             sources: commandLineSources,
             dependencies: commandLineDependencies
         ),
@@ -50,7 +54,7 @@ let project = Project(
             destinations: .macOS,
             product: .staticFramework,
             bundleId: "com.machoswiftsection.swift-section.module",
-            deploymentTargets: .macOS("10.15"),
+            deploymentTargets: commandLineDeploymentTargets,
             sources: commandLineSources,
             dependencies: commandLineDependencies
         ),
