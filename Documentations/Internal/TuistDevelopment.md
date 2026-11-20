@@ -1,7 +1,7 @@
 # 使用指南：Tuist 开发 workspace
 
 - **面向**: 在本仓库做日常开发、想让第三方依赖走二进制缓存的人；同时改本库和上游那几个库的人；改 `Package.swift` 的 target、依赖或测试的人（同步规则）
-- **对应提案**: [draft-tuist-workspace](../Evolutions/draft-tuist-workspace.md)
+- **对应提案**: [0099-tuist-workspace](../Evolutions/0099-tuist-workspace.md)
 - **最后更新**: 2026-11-20
 
 `MachOSwiftSection-Tuist.xcworkspace` 是原生 `MachOSwiftSection.xcworkspace` 之外的第二条路，只供日常开发。它由 `./TuistScript.sh` 用 Tuist 生成：本库照常从源码编，可以跳转、可以编辑；原生 workspace 里放的五个上游库（MachOKit、MachOKitExtensions、MachOObjCSection、swift-demangling、swift-semantic-string）也从源码编；其余 27 个第三方包（swift-dependencies 一族、swift-collections、Capstone、swift-crypto、Yams……）预编进本机的 Tuist 二进制缓存，只编一次。

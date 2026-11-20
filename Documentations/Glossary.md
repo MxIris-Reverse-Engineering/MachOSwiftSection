@@ -103,6 +103,14 @@ macOS 27 与 iOS 27 的 dyld shared cache 不再给每个镜像留自己的 `__o
 - **主要出现在**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedContainerIndex.swift`、`ObjCImplementationClassIndex.swift` 的 `importedMethods(of:)`
 - **延伸阅读**：[0090-objc-imported-declarations](Evolutions/0090-objc-imported-declarations.md)
 
+### claim record（占用记录，Tuist 开发 workspace）
+
+本库与 RuntimeViewer 的 `TuistScript.sh` 共用的互斥记录：往一个检出里生成工程之前先「占用」它。被占检出的 git 目录里写 `tuist-generated-project-owner`（占用者检出的路径、在占用者那里释放它的命令、生成进来的工程名），占用者在自己的 `Tuist/.claimed-checkouts` 里列着它才算有效，否则是陈旧记录、直接接管。另一个检出占着时命令失败，并给出那边的释放命令。
+
+- **不要混淆**：与按镜像缓存的 claim（`SharedCacheRegistry`，见「eviction group、claim、live owner」）无关。
+- **主要出现在**：`TuistScript.sh`（`claim_checkout`、`release_checkout`）、RuntimeViewer 的 `TuistScript.sh`
+- **延伸阅读**：[TuistDevelopment.md](Internal/TuistDevelopment.md)「与 RuntimeViewer 共用的占用记录」、[提案 0099](Evolutions/0099-tuist-workspace.md)
+
 ### class without a class object（没有 class object 的类，`SwiftClassWithoutClassObject`）
 
 `__objc_classlist` 里没有 class object 的 Swift 类：泛型类，父类在别的 resilience domain 的类，父类是本模块泛型类的类。它们的 `class_ro_t` 都静态存在，但只有经 Swift 元数据才找得到（generic metadata pattern、`ResilientClassMetadataPattern`、静态的 incomplete metadata）。后两种有 ObjC 祖先时还在 `__objc_stublist` 里登记一个 stub。交给 MachOObjCSection 时它们叫 supplied class（`ObjCSuppliedClass`），即宿主补进 ObjC 索引器的类。与 `@objc @implementation` 类的区别：那种类有 class object，没有的是 Swift 元数据。
@@ -488,6 +496,14 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 - **为什么要有**：不在 cache 里的二进制（第三方 app、老模拟器框架）调别的镜像里的 metadata accessor 时只有一个 bind 名，得先找到那个镜像才能查它的 accessor 索引。`DependencySearchPath.inferred(forRoot:)` 从根文件的磁盘位置推断出 cache 或 system root。
 - **不要混淆**：`.machOFile(path:)` 是显式指定一个文件；system root 是按 install name 在目录树里现找。
 - **延伸阅读**：MachOKitExtensions 的 [DependencyResolution.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/DependencyResolution.md)、[提案 standalone-file-thunk-resolution](Evolutions/0030-standalone-file-thunk-resolution.md)
+
+### Tuist development workspace（Tuist 开发 workspace）
+
+`./TuistScript.sh` 用 Tuist 生成的 `MachOSwiftSection-Tuist.xcworkspace`，原生 `MachOSwiftSection.xcworkspace` 之外只供日常开发的第二条路：第三方依赖预编进本机的 Tuist 二进制缓存，本库与五个上游库从源码编，上游库可用 `--local-dependencies` 切到本地检出。发版、CI、`swift build` / `swift test` 都不走它。
+
+- **不要混淆**：「原生 workspace」指 `MachOSwiftSection.xcworkspace`（SwiftPM 包直接放进 Xcode），与它无关。
+- **主要出现在**：`TuistScript.sh`、`Tuist/`、`Workspace.swift`、`Tuist.swift`
+- **延伸阅读**：[TuistDevelopment.md](Internal/TuistDevelopment.md)、[提案 0099](Evolutions/0099-tuist-workspace.md)
 
 ### type-construction evaluation（类型构造求值）
 

@@ -3425,6 +3425,19 @@
 - **关联文档**：[Changelogs/0.26.0.md](../../Changelogs/0.26.0.md)。
 - **对应版本**：0.26.0。
 
+## 143. Tuist 开发 workspace
+
+- **时间段**：2026-11-20，五个仓库同名的分支 `feature/tuist-workspace`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上构建与测试。
+- **动机**：日常开发时第三方依赖（swift-dependencies 一族、swift-syntax、Capstone……）每次清空 DerivedData 都要重编。照 RuntimeViewer 的做法加一条只供开发用的 Tuist 路：第三方依赖走本机二进制缓存，本库与五个上游库从源码编，上游库可切换为本地检出。
+- **关键决策**：
+  - `Package.swift` 仍是唯一定义；Tuist 拒绝的两种测试形态（依赖可执行 target、依赖不属于任何 product 的 target）由清单末尾一段只在 `TUIST_MAPS_LOCAL_PACKAGE_TESTS=1` 时生效的适配块处理，MachOKitExtensions、MachOObjCSection、swift-demangling 加同一段，本地模式下六个包都带测试；`SwiftSectionCommandTests` 与 CLI 手写在 `Tuist/CommandLine/Project.swift`。
+  - Tuist 的静态 framework 链接与 SwiftPM 不同：测试与 CLI 要 `-ObjC`，只有加载期 constructor 的 `SwiftSymbolsRegistration` 要整个 `-force_load`；这些名单由 `TuistScript.sh` 读清单与源码算出，不手抄。
+  - 与 RuntimeViewer 的 Tuist 本地依赖模式共用一份占用记录，两边互斥。
+- **落地模块**：`TuistScript.sh`、`Tuist.swift`、`Workspace.swift`、`mise.toml`、`Tuist/`、`Package.swift` 末尾、`.gitignore`、原生 workspace 补齐三个成员；三个上游库的 `Package.swift`；RuntimeViewer 的 `TuistScript.sh`。
+- **文档**：提案 [0099-tuist-workspace](../Evolutions/0099-tuist-workspace.md)；使用指南 [TuistDevelopment.md](TuistDevelopment.md)；`AGENTS.md` 构建一节；术语表两条。
+- **验证**：Ultra，Xcode 27.2。远程模式的测试 scheme 与原生 `swift test --skip IntegrationTests` 逐 bundle 对照全部通过；本地模式全量 2,943 个通过；Tuist 编的 `swift-section` 与原生编的对 SymbolTestsCore 的 `dump`、`interface` 逐字节相同；清空 DerivedData 编 CLI 不走缓存 63 秒、走缓存 46 秒。四个清单在 Xcode 26.6 下也能解析。
+- **对应版本**：未发布（0.26.0 之后）；只影响开发，不进发版产物。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

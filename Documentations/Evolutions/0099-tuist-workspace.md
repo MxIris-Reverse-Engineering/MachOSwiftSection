@@ -1,13 +1,13 @@
-# Draft - Tuist 开发 workspace：第三方依赖走二进制缓存，上游库可切换为本地检出
+# 0099 - Tuist 开发 workspace：第三方依赖走二进制缓存，上游库可切换为本地检出
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-20
 - **最后更新**: 2026-11-20
 - **所属愿景**: 无
 - **关联提案**: RuntimeViewer 仓库的 `Documentations/Evolutions/0053-tuist-coexistence.md`（Tuist workspace 与原生工程并存）与 `0082-tuist-local-dependencies.md`（本地依赖模式）。本提案的脚本照它们的做法写，并顺带改 RuntimeViewer 脚本里的占用检查，让两边的本地依赖模式互斥（落地步骤第 5 步）。
 - **跨仓库**: 本提案是唯一的一份。另外四个仓库只有配套小改动：MachOKitExtensions、MachOObjCSection、swift-demangling 的 `Package.swift` 末尾各加同一段适配（第 3 步），RuntimeViewer 改 `TuistScript.sh` 与它的使用指南（第 5 步）。它们的提交信息按 slug 指回本提案，各自的文档按各仓库自己的规定同步。
-- **实现分支 / PR**: 本库 `feature/tuist-workspace`，从 `next` 切出；另外四个仓库用同名分支，从各自的集成分支切出（MachOKitExtensions 是 `main`，其余是 `next`）。
+- **实现分支 / PR**: 本库 `feature/tuist-workspace`，从 `next` 切出；另外四个仓库用同名分支，从各自的 `next` 切出。落地：本库、MachOObjCSection、swift-demangling、RuntimeViewer 合进 `next`，MachOKitExtensions 接到 `main` 上（它只有 `main` 一条远端分支，见决策日志最后一行）。
 - **配套文档**: 使用指南 [`Documentations/Internal/TuistDevelopment.md`](../Internal/TuistDevelopment.md)（第 6 步新增）
 - **网页版**: 同目录同名的 `.html`
 
@@ -17,7 +17,7 @@
 
 ## 动机
 
-- **第三方依赖在每个干净的 DerivedData 里都要重编一遍。** 本库的依赖闭包里有 27 个与本仓库开发无关的包（`tuist install` 实测解析出的清单见「前期调研」）：Capstone 的 C 库、swift-crypto、swift-collections、pointfree 的 swift-dependencies 一族、MetaCodable 与 MemberwiseInit 两个宏包、Yams、SourceKitD、swift-apinotes……原生 workspace 走 Xcode 自带的 SwiftPM 集成，每换一个 DerivedData（新 worktree、清缓存、换 Xcode）就全部从源码编一次。Tuist 的二进制缓存按内容寻址，同一台机器、同一个 Xcode 下只编一次。RuntimeViewer 用同样的做法量过：完整 App 从空 DerivedData 构建，不用缓存 504 秒，走缓存 155 秒。本库的数字还没量，第 4 步量。
+- **第三方依赖在每个干净的 DerivedData 里都要重编一遍。** 本库的依赖闭包里有 27 个与本仓库开发无关的包（`tuist install` 实测解析出的清单见「前期调研」）：Capstone 的 C 库、swift-crypto、swift-collections、pointfree 的 swift-dependencies 一族、MetaCodable 与 MemberwiseInit 两个宏包、Yams、SourceKitD、swift-apinotes……原生 workspace 走 Xcode 自带的 SwiftPM 集成，每换一个 DerivedData（新 worktree、清缓存、换 Xcode）就全部从源码编一次。Tuist 的二进制缓存按内容寻址，同一台机器、同一个 Xcode 下只编一次。RuntimeViewer 用同样的做法量过：完整 App 从空 DerivedData 构建，不用缓存 504 秒，走缓存 155 秒。本库在 Ultra 上量的：清空 DerivedData 编 `swift-section`，不走缓存 63 秒，走缓存 46 秒（决策日志「缓存计时」）。
 - **原生 workspace 切换本地上游库的方式太粗。** 今天的切换靠 `USING_LOCAL_DEPENDENCIES=1` 加兄弟目录是否存在（`Package.swift:42` 起的 `package(local:remote:)`）：这个变量要进到 Xcode 的启动环境里才生效；对所有声明了本地路径的依赖一刀切，连 workspace 里没有列出的 swift-capstone（`Package.swift:275`，`../swift-capstone` 在 `.worktrees/` 下有链接）也会被换成本地；切换后要等 Xcode 重新解析。Tuist 这边由 `Tuist/Package.swift` 按路径逐个声明要本地化的库，SwiftPM 让根包的路径依赖顶替图里所有同名声明，名单就是 workspace 的成员，切换只发生在命令行上。
 - **RuntimeViewer 的本地依赖模式已经在往本仓库的检出里写工程，而没有任何东西拦着另一方。** 它在每个按路径声明的包目录里生成 `<包名>.xcodeproj` 与 `Derived/`。2026-11-20 实测：RuntimeViewer 的集成 worktree 正占着本库的集成 worktree（本 worktree 的 git 目录里 `runtimeviewer-tuist-local-dependencies` 记着 `/Volumes/Repositories/Private/Org/MxIris-Reverse-Engineering/RuntimeViewer/.worktrees/RuntimeViewer`），本 worktree 根目录那份被忽略的 `MachOSwiftSection.xcodeproj` 就是它生成的。本库自己的 Tuist 也会在同一位置生成同名工程，两边的 `PackageSettings` 不同（配置名、警告、测试映射），谁后生成谁就让另一边的 workspace 坏掉。
 
@@ -531,7 +531,7 @@ let workspace = Workspace(
 )
 ```
 
-- 上游库的目录是绝对路径；`Path` 接受绝对路径字符串，第 3 步验证。`Workspace.swift` 能否 `import Foundation` 用 `NSString` 没验证，不行就自己切最后一段。
+- 上游库的目录是绝对路径；`Path` 接受绝对路径字符串（第 3 步验证过：本地模式下六个包的 scheme 都生成了）。包名取目录的最后一段，自己切，不 `import Foundation`。
 - 测试映射被预检关掉时 `TUIST_PACKAGE_TEST_TARGETS` 为空，只剩各 target 自己的 scheme；`SwiftSectionCommandTests` 仍在 `MachOSwiftSectionCommandLine` 工程里，Tuist 自动生成的 scheme 能跑它。
 
 ### `Tuist.swift`
@@ -562,7 +562,7 @@ let tuist = Tuist(
 )
 ```
 
-- 上游库在远程模式下也留作源码，理由与 RuntimeViewer 相同：本库经常跟着它们改、频繁挪 pin，放进缓存就要一次次重新预热；它们留作源码也能直接跳进去看。代价是远程模式从空 DerivedData 构建要多编这五个库，第 4 步量出来后若差得多再议。
+- 上游库在远程模式下也留作源码，理由与 RuntimeViewer 相同：本库经常跟着它们改、频繁挪 pin，放进缓存就要一次次重新预热；它们留作源码也能直接跳进去看。代价是远程模式从空 DerivedData 构建要多编这五个库；第 4 步量出 CLI 冷编 63 秒、走缓存 46 秒，暂不改。
 - 例外按名字匹配所有包的 target。脚本在算名单时检查有没有第三方包的 target 与名单同名，有就警告（同名的会被一起留成源码）。
 
 ### `TuistScript.sh`
@@ -742,3 +742,4 @@ let tuist = Tuist(
 | 2026-11-20 | 本地模式实测 | Ultra 上用五个上游库的沙盒副本（`TUIST_LOCAL_PACKAGE_CHECKOUTS` 指过去，各在本提案的功能分支上）打开本地模式：解析、读清单、生成都成功，六个包各有一个 `<包名> Tests` scheme，副本的 `git status` 保持干净。`MachOSwiftSection Tests` 全量 2,943 个通过、0 失败、7 个跳过（修完前面几处之后的第一次全量）；MachOKitExtensions 171 个、swift-demangling 641 个、swift-semantic-string 464 个全部通过。MachOKit 10 个失败、MachOObjCSection 26 个失败，全是测试自己读写死的路径或系统文件：`AotCachePrintTests` 读不存在的 `aot_shared_cache.0`，`ArchiveFileTests` 读 clang 17 目录（Xcode 27.2 是 21），`MachOObjCSectionTests` 的 `setUp` 读 `/Users/JH/Downloads/iOS18.5-SwiftUI`，两条 `testDylibsPreBuildLoaderSet` 在 macOS 27 的系统 cache 上读不出 loader set 版本。这些按源码判断与 Tuist 无关，没有再用原生 `swift test` 对照。切回远程模式后副本的占用全部释放。 |
 | 2026-11-20 | 缓存计时 | Ultra（28 核，Xcode 27.2），清空 DerivedData 后编 `swift-section`（Debug）：不走缓存 63 秒，走缓存 46 秒；`warm` 把 70 个第三方 target 编成 xcframework 用了 60 秒，再生成时这 70 个都换成了缓存。测试 scheme 走缓存的全量重跑用户嫌慢叫停了，没有结果；远程模式下修完的那几处都按 bundle 重跑过，本地模式的全量也已通过。写进使用指南。 |
 | 2026-11-20 | 实现完成，待用户看过后收尾 | 配套文档：使用指南已写；实现说明不另写，清单里每处特殊写法的原因都在指南「已知的坑」与本决策日志里。术语表（「Tuist 开发 workspace」「本地依赖模式」「占用记录」）留到正式收尾时判断。 |
+| 2026-11-20 | Implemented，编号 0099 | 用户看过后收尾。术语表登记「Tuist 开发 workspace」与「占用记录」（后者另注明与 `SharedCacheRegistry` 的 claim 无关）；「本地依赖模式」就是本地依赖的字面意思，不登记。落地前用 Xcode 27.2 与 26.6 各解析一遍四个包的清单：都能解析，不带变量时与改动前一致，带变量时补的 product 与拿掉的测试和设计相符（MachOKitExtensions 的 `main` 上补 `CPlusPlusDemangling`、`CPlusPlusSymbolsFixture`）。MachOKitExtensions 的功能分支切自它本地一条没推送过的 `next`（只有一个空合并，比 `main` 落后 10 个提交），落地时把那一个提交接到 `main` 上推送；那条本地 `next` 原样留着。账本第 143 节。 |
