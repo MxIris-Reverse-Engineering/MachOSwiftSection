@@ -67,12 +67,29 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         uniquingKeysWith: { first, _ in first }
     )
 
+    // A library target that imports Testing, such as a package's testing support, uses Swift Testing's
+    // macros (#expect, #require). Xcode points only test targets at the toolchain's TestingMacros
+    // plugin; SwiftPM gives it to every target. TUIST_TESTING_SUPPORT_TARGET_NAMES lists the library
+    // targets whose sources import Testing.
+    let testingSupportSettings: [String: Settings] = Dictionary(
+        targetNames(in: "TUIST_TESTING_SUPPORT_TARGET_NAMES").map { targetName in
+            (targetName, Settings.settings(base: [
+                "ENABLE_TESTING_SEARCH_PATHS": "YES",
+                "OTHER_SWIFT_FLAGS": ["$(inherited)", "-plugin-path", "$(TOOLCHAIN_DIR)/usr/lib/swift/host/plugins/testing"],
+            ]))
+        },
+        uniquingKeysWith: { first, _ in first }
+    )
+
+    // One target may need several of the settings above; their keys never overlap.
+    func mergingSettings(_ settingsByTarget: [String: Settings]...) -> [String: Settings] {
+        settingsByTarget.reduce(into: [:]) { merged, settings in
+            merged.merge(settings) { first, second in .settings(base: first.base.merging(second.base) { $1 }) }
+        }
+    }
+
     let packageSettings = PackageSettings(
-        targetSettings: warningSettings
-            .merging(restatedTraitDefinitions) { $1 }
-            .merging(testTargetSettings) { first, second in
-                .settings(base: first.base.merging(second.base) { $1 })
-            },
+        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings),
         // TuistScript.sh sets the variable to 1 unless a package declared by path still has a test of
         // a shape Tuist rejects (the manifests' TUIST_MAPS_LOCAL_PACKAGE_TESTS block removes them).
         includeLocalPackageTestTargets: processEnvironment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1"

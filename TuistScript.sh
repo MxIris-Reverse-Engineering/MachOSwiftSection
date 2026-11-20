@@ -585,6 +585,7 @@ read_manifests() {
         || fail "cannot read the manifests in $MANIFESTS_DIRECTORY; run ./TuistScript.sh install"
 import json
 import os
+import re
 import sys
 
 manifests_directory, own_identity, unlisted_tests = sys.argv[1:4]
@@ -606,7 +607,18 @@ def dependency_name(dependency):
             return dependency[kind][0]
     return None
 
-source_targets, warning_targets, test_entries, test_names, rejected = [], [], [], [], []
+source_targets, warning_targets, test_entries, test_names, testing_support_names, rejected = [], [], [], [], [], []
+testing_import = re.compile(r"^\s*(@\w+\s+)*((public|package|internal)\s+)?import\s+Testing\b", re.MULTILINE)
+
+def imports_testing(package_directory, target):
+    target_directory = os.path.join(package_directory, target.get("path") or os.path.join("Sources", target["name"]))
+    for root, _, file_names in os.walk(target_directory):
+        for file_name in file_names:
+            if file_name.endswith(".swift"):
+                with open(os.path.join(root, file_name), errors="replace") as handle:
+                    if testing_import.search(handle.read()):
+                        return True
+    return False
 own_target_names = set()
 for identity, role, directory in packages:
     if role == "third-party":
@@ -621,6 +633,9 @@ for identity, role, directory in packages:
     if role != "own-path":
         continue
     warning_targets += [target["name"] for target in targets if target["type"] != "test"]
+    testing_support_names += [
+        target["name"] for target in targets if target["type"] == "regular" and imports_testing(directory, target)
+    ]
     executable_names = {target["name"] for target in targets if target["type"] == "executable"}
     product_target_names = {
         name
@@ -659,6 +674,7 @@ print("SOURCE_TARGETS=" + ",".join(source_targets))
 print("WARNING_TARGETS=" + ",".join(warning_targets))
 print("TEST_TARGETS=" + ";".join(test_entries))
 print("TEST_TARGET_NAMES=" + ",".join(test_names))
+print("TESTING_SUPPORT_TARGET_NAMES=" + ",".join(testing_support_names))
 for reason in rejected:
     print("REJECTED=" + reason)
 PYTHON
@@ -666,6 +682,7 @@ PYTHON
     TUIST_WARNING_TARGET_NAMES=""
     TUIST_PACKAGE_TEST_TARGETS=""
     TUIST_TEST_TARGET_NAMES=""
+    TUIST_TESTING_SUPPORT_TARGET_NAMES=""
     TUIST_MAPS_LOCAL_PACKAGE_TESTS=1
     while IFS='=' read -r key value; do
         case "$key" in
@@ -673,6 +690,7 @@ PYTHON
             WARNING_TARGETS) TUIST_WARNING_TARGET_NAMES="$value";;
             TEST_TARGETS) TUIST_PACKAGE_TEST_TARGETS="$value";;
             TEST_TARGET_NAMES) TUIST_TEST_TARGET_NAMES="$value";;
+            TESTING_SUPPORT_TARGET_NAMES) TUIST_TESTING_SUPPORT_TARGET_NAMES="$value";;
             REJECTED)
                 warn "Tuist would reject $value"
                 TUIST_MAPS_LOCAL_PACKAGE_TESTS=0;;
@@ -686,7 +704,7 @@ PYTHON
         TUIST_TEST_TARGET_NAMES=""
     fi
     export TUIST_SOURCE_TARGET_NAMES TUIST_WARNING_TARGET_NAMES TUIST_PACKAGE_TEST_TARGETS TUIST_TEST_TARGET_NAMES \
-        TUIST_MAPS_LOCAL_PACKAGE_TESTS
+        TUIST_TESTING_SUPPORT_TARGET_NAMES TUIST_MAPS_LOCAL_PACKAGE_TESTS
 }
 
 # --- Commands -------------------------------------------------------------------------------------
