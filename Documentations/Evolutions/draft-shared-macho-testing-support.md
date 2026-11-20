@@ -159,8 +159,10 @@ SomeSuite : MachOSwiftSectionFixtureTests (MSS) : MachOFixtureTests (MKE)
 // MachOFixtureSupport
 public struct DyldSharedCachePath: Hashable, Sendable, CustomStringConvertible {
     public let path: String
-    public init(path: String)
-    /// This Mac's cache, as the system locates it.
+    public let versionLabel: String
+    public init(path: String, versionLabel: String)
+    public var url: URL { get }
+    /// This Mac's cache, as the system locates it (`FullDyldCache.cachedHost`), labeled `current`.
     public static var current: DyldSharedCachePath { get }
     public static func macOS(_ version: String) -> DyldSharedCachePath
     public static func iOS(_ version: String) -> DyldSharedCachePath
@@ -169,34 +171,57 @@ public struct DyldSharedCachePath: Hashable, Sendable, CustomStringConvertible {
 public struct MachOImageName: Hashable, Sendable, ExpressibleByStringLiteral {
     public let name: String
     public init(_ name: String)
-    public static let foundation: MachOImageName   // the system images both packages use
+    public static let SwiftUI: MachOImageName       // spelled like the image: .AppKit, .Foundation, …
 }
 
 public struct MachOFileName: Hashable, Sendable {
-    /// A path, absolute or relative to `anchor` — the caller's `#filePath`
-    /// climbed to its package root.
+    /// A path, absolute or relative to `anchor` — the caller's `#filePath`.
     public init(path: String, relativeTo anchor: URL? = nil)
+    public let url: URL
+    public static let Finder: MachOFileName         // system files: .Dock, .Freeform, simulator runtimes, …
+}
+
+public struct XcodeMachOFileName: Hashable, Sendable {
+    public init(location: Location, name: String)
+    public static func sharedFrameworks(_ framework: SharedFrameworks) -> XcodeMachOFileName   // and frameworks(_:), plugins(_:)
     public var url: URL { get }
 }
 
+public func loadFromFile(named fileName: MachOFileName) throws -> File
+extension MachOImage { public init?(named imageName: MachOImageName) }
+extension DyldCache { public convenience init(path: DyldSharedCachePath) throws; public func machOFile(named: MachOImageName) -> MachOFile? }
+extension FullDyldCache { public convenience init(path: DyldSharedCachePath) throws; public func machOFile(named: MachOImageName) -> MachOFile? }
+
 public enum HostSlice {
-    /// The slice of a file for this process's CPU, matching type and subtype.
+    public static var processCPU: CPU { get }
+    /// The slice of a file for this process's CPU: same type and subtype, else same type.
     public static func machOFile(at url: URL) throws -> MachOFile
+    public static func machOFile(in file: File, path: String = "") throws -> MachOFile
+    public static func slice(among slices: [MachOFile]) -> MachOFile?
 }
 
 public enum ProcessImages {
     public static func image(containing address: UnsafeRawPointer) -> MachOImage?
+    public static func path(ofImageContaining address: UnsafeRawPointer) -> String?
+    public static func image(atPath path: String) -> MachOImage?
     /// The image of this Mac's cache at `path`, and the same image loaded here.
     public static func cacheFileAndLoadedImage(path: String) throws -> (file: MachOFile, image: MachOImage)
 }
 
-public struct FixtureCompiler: Sendable {
+public struct FixtureCompiler: Sendable {           // macOS only
     public enum Language: Sendable { case c, cPlusPlus, swift }
     public static let shared: FixtureCompiler
-    /// Compiles `source` into a dynamic library once per process for the same
-    /// source and arguments; the directory goes away when the process exits.
+    /// Compiles `source` into `lib<name>.dylib` (install name `@rpath/lib<name>.dylib`) once per
+    /// process for the same name, language, source and arguments; the directory goes away when
+    /// the process exits.
     public func dynamicLibrary(named name: String, language: Language, source: String, arguments: [String] = []) throws -> URL
+    public var productsDirectory: URL { get }
 }
+
+public struct ForwardingReader<Base: MachORepresentableWithCache, Declaration: ForwardingReaderDeclaration>: MachORepresentableWithCache
+
+/// `print()` on `CustomStringConvertible` and `Error`, quiet when `MACHO_TESTING_SILENT=1`.
+public enum TestOutput { public static let isSilent: Bool }
 
 // MachOTestingSupport
 public struct ExclusiveImageAccess: SuiteTrait, TestTrait, TestScoping {
@@ -209,14 +234,14 @@ public struct MachOFixture: Sendable {
 }
 
 @MainActor
-open class MachOFixtureTests {
+open class MachOFixtureTests: Sendable {
     open class var fixture: MachOFixture { get }
     public let machOFile: MachOFile
     public let machOImage: MachOImage
     public let fileContext: MachOContext<MachOFile>
     public let imageContext: MachOContext<MachOImage>
     public let inProcessContext: InProcessContext
-    public init() throws
+    public init() async throws
     public func acrossAllReaders<Value: Equatable>(file: () throws -> Value, image: () throws -> Value, inProcess: (() throws -> Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -> Value
     public func acrossAllContexts<Value: Equatable>(file: () throws -> Value, image: () throws -> Value, inProcess: (() throws -> Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -> Value
     public func usingInProcessOnly<Value: Equatable>(_ work: (InProcessContext) throws -> Value, sourceLocation: SourceLocation = #_sourceLocation) throws -> Value
@@ -227,12 +252,19 @@ open class MachOFixtureTests {
     /// The same, reading through each subject's context: `fileContext` for
     /// `fileSubject`, `imageContext` for `imageSubject`.
     public func acrossAllContexts<Subject, Value: Equatable>(_ fileSubject: Subject, _ imageSubject: Subject, sourceLocation: SourceLocation = #_sourceLocation, _ work: (Subject, any ReadingContext) throws -> Value) throws -> Value
+    /// The same work on each reader itself: `machOFile`, then `machOImage`.
+    public func acrossAllReaders<Value: Equatable>(sourceLocation: SourceLocation = #_sourceLocation, _ work: (any MachORepresentableWithCache) throws -> Value) throws -> Value
 }
+
+// MachOFileTests, MachOImageTests, DyldCacheTests (the current cache is `FullDyldCache.cachedHost`),
+// XcodeMachOFileTests: open classes with `open class var` hooks, `public init() async throws`.
 ```
 
-- 签名以本包现有的为准，只把泛型参数改成完整的单词（本包的 `T` 换成 `Value`），调用点不变。
-- `FixtureCompiler` 按「语言 + 源码 + 参数」的摘要缓存产物 URL，锁保护；失败把编译器输出原样放进错误。
-- `MachOFixtureTests.fixture` 的默认实现 `fatalError`，提醒子类必须给出夹具。
+- 签名以本包现有的为准，只把泛型参数改成完整的单词（本包的 `T` 换成 `Value`），调用点不变；`MachOFixtureTests` 的初始化因此保持 `async throws`。
+- 上面的接口是实现后的样子；与开工前草稿的出入（`versionLabel`、静态成员的拼写、第三个 `acrossAllReaders` 重载、`.print()` 的静默开关等）逐条记在决策日志。
+- `FixtureCompiler` 按「名字 + 语言 + 源码 + 参数」缓存产物，失败也缓存，锁保护；每份产物一个目录，失败时错误带命令与编译器 stderr 的全部内容。
+- `MachOFixtureTests.fixture` 的默认实现 `fatalError`，提醒子类必须给出夹具；读不到夹具时初始化抛 `MachOFixtureError`。
+- 契约与用法写在 MachOKitExtensions 的实现说明 `Internal/TestingSupport.md`。
 
 ## 替代方案考量
 

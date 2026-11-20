@@ -179,7 +179,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 
 <section id="decide">
   <h2>要你定</h2>
-<div class="callout"><p class="callout-title">已批准（Accepted）。实现等 MachOKitExtensions 的 C++ 类恢复收尾（3.1.0）之后开始。</p></div>
+<div class="callout"><p class="callout-title">MachOKitExtensions 的部分（第 1–4 步）已在它的功能分支上做完，发 3.2.0 等用户确认；本包的第 5、6 步等 3.2.0 发布后再做。</p></div>
 </section>
 
 <section id="architecture">
@@ -246,13 +246,15 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="design">
   <h2>详细设计</h2>
   <details>
-    <summary>公开 API 草图</summary>
+    <summary>公开 API（实现后）</summary>
     <div class="details-body">
 <pre><code>// MachOFixtureSupport
 public struct DyldSharedCachePath: Hashable, Sendable, CustomStringConvertible {
     public let path: String
-    public init(path: String)
-    /// This Mac&#x27;s cache, as the system locates it.
+    public let versionLabel: String
+    public init(path: String, versionLabel: String)
+    public var url: URL { get }
+    /// This Mac&#x27;s cache, as the system locates it (`FullDyldCache.cachedHost`), labeled `current`.
     public static var current: DyldSharedCachePath { get }
     public static func macOS(_ version: String) -&gt; DyldSharedCachePath
     public static func iOS(_ version: String) -&gt; DyldSharedCachePath
@@ -261,34 +263,57 @@ public struct DyldSharedCachePath: Hashable, Sendable, CustomStringConvertible {
 public struct MachOImageName: Hashable, Sendable, ExpressibleByStringLiteral {
     public let name: String
     public init(_ name: String)
-    public static let foundation: MachOImageName   // the system images both packages use
+    public static let SwiftUI: MachOImageName       // spelled like the image: .AppKit, .Foundation, …
 }
 
 public struct MachOFileName: Hashable, Sendable {
-    /// A path, absolute or relative to `anchor` — the caller&#x27;s `#filePath`
-    /// climbed to its package root.
+    /// A path, absolute or relative to `anchor` — the caller&#x27;s `#filePath`.
     public init(path: String, relativeTo anchor: URL? = nil)
+    public let url: URL
+    public static let Finder: MachOFileName         // system files: .Dock, .Freeform, simulator runtimes, …
+}
+
+public struct XcodeMachOFileName: Hashable, Sendable {
+    public init(location: Location, name: String)
+    public static func sharedFrameworks(_ framework: SharedFrameworks) -&gt; XcodeMachOFileName   // and frameworks(_:), plugins(_:)
     public var url: URL { get }
 }
 
+public func loadFromFile(named fileName: MachOFileName) throws -&gt; File
+extension MachOImage { public init?(named imageName: MachOImageName) }
+extension DyldCache { public convenience init(path: DyldSharedCachePath) throws; public func machOFile(named: MachOImageName) -&gt; MachOFile? }
+extension FullDyldCache { public convenience init(path: DyldSharedCachePath) throws; public func machOFile(named: MachOImageName) -&gt; MachOFile? }
+
 public enum HostSlice {
-    /// The slice of a file for this process&#x27;s CPU, matching type and subtype.
+    public static var processCPU: CPU { get }
+    /// The slice of a file for this process&#x27;s CPU: same type and subtype, else same type.
     public static func machOFile(at url: URL) throws -&gt; MachOFile
+    public static func machOFile(in file: File, path: String = &quot;&quot;) throws -&gt; MachOFile
+    public static func slice(among slices: [MachOFile]) -&gt; MachOFile?
 }
 
 public enum ProcessImages {
     public static func image(containing address: UnsafeRawPointer) -&gt; MachOImage?
+    public static func path(ofImageContaining address: UnsafeRawPointer) -&gt; String?
+    public static func image(atPath path: String) -&gt; MachOImage?
     /// The image of this Mac&#x27;s cache at `path`, and the same image loaded here.
     public static func cacheFileAndLoadedImage(path: String) throws -&gt; (file: MachOFile, image: MachOImage)
 }
 
-public struct FixtureCompiler: Sendable {
+public struct FixtureCompiler: Sendable {           // macOS only
     public enum Language: Sendable { case c, cPlusPlus, swift }
     public static let shared: FixtureCompiler
-    /// Compiles `source` into a dynamic library once per process for the same
-    /// source and arguments; the directory goes away when the process exits.
+    /// Compiles `source` into `lib&lt;name&gt;.dylib` (install name `@rpath/lib&lt;name&gt;.dylib`) once per
+    /// process for the same name, language, source and arguments; the directory goes away when
+    /// the process exits.
     public func dynamicLibrary(named name: String, language: Language, source: String, arguments: [String] = []) throws -&gt; URL
+    public var productsDirectory: URL { get }
 }
+
+public struct ForwardingReader&lt;Base: MachORepresentableWithCache, Declaration: ForwardingReaderDeclaration&gt;: MachORepresentableWithCache
+
+/// `print()` on `CustomStringConvertible` and `Error`, quiet when `MACHO_TESTING_SILENT=1`.
+public enum TestOutput { public static let isSilent: Bool }
 
 // MachOTestingSupport
 public struct ExclusiveImageAccess: SuiteTrait, TestTrait, TestScoping {
@@ -301,14 +326,14 @@ public struct MachOFixture: Sendable {
 }
 
 @MainActor
-open class MachOFixtureTests {
+open class MachOFixtureTests: Sendable {
     open class var fixture: MachOFixture { get }
     public let machOFile: MachOFile
     public let machOImage: MachOImage
     public let fileContext: MachOContext&lt;MachOFile&gt;
     public let imageContext: MachOContext&lt;MachOImage&gt;
     public let inProcessContext: InProcessContext
-    public init() throws
+    public init() async throws
     public func acrossAllReaders&lt;Value: Equatable&gt;(file: () throws -&gt; Value, image: () throws -&gt; Value, inProcess: (() throws -&gt; Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -&gt; Value
     public func acrossAllContexts&lt;Value: Equatable&gt;(file: () throws -&gt; Value, image: () throws -&gt; Value, inProcess: (() throws -&gt; Value)? = nil, sourceLocation: SourceLocation = #_sourceLocation) throws -&gt; Value
     public func usingInProcessOnly&lt;Value: Equatable&gt;(_ work: (InProcessContext) throws -&gt; Value, sourceLocation: SourceLocation = #_sourceLocation) throws -&gt; Value
@@ -319,8 +344,13 @@ open class MachOFixtureTests {
     /// The same, reading through each subject&#x27;s context: `fileContext` for
     /// `fileSubject`, `imageContext` for `imageSubject`.
     public func acrossAllContexts&lt;Subject, Value: Equatable&gt;(_ fileSubject: Subject, _ imageSubject: Subject, sourceLocation: SourceLocation = #_sourceLocation, _ work: (Subject, any ReadingContext) throws -&gt; Value) throws -&gt; Value
-}</code></pre>
-<ul><li>签名以本包现有的为准，只把泛型参数改成完整的单词（本包的 <code>T</code> 换成 <code>Value</code>），调用点不变。</li><li><code>FixtureCompiler</code> 按「语言 + 源码 + 参数」的摘要缓存产物 URL，锁保护；失败把编译器输出原样放进错误。</li><li><code>MachOFixtureTests.fixture</code> 的默认实现 <code>fatalError</code>，提醒子类必须给出夹具。</li></ul>
+    /// The same work on each reader itself: `machOFile`, then `machOImage`.
+    public func acrossAllReaders&lt;Value: Equatable&gt;(sourceLocation: SourceLocation = #_sourceLocation, _ work: (any MachORepresentableWithCache) throws -&gt; Value) throws -&gt; Value
+}
+
+// MachOFileTests, MachOImageTests, DyldCacheTests (the current cache is `FullDyldCache.cachedHost`),
+// XcodeMachOFileTests: open classes with `open class var` hooks, `public init() async throws`.</code></pre>
+<ul><li>签名以本包现有的为准，只把泛型参数改成完整的单词（本包的 <code>T</code> 换成 <code>Value</code>），调用点不变；<code>MachOFixtureTests</code> 的初始化因此保持 <code>async throws</code>。</li><li>上面的接口是实现后的样子；与开工前草稿的出入（<code>versionLabel</code>、静态成员的拼写、第三个 <code>acrossAllReaders</code> 重载、<code>.print()</code> 的静默开关等）逐条记在决策日志。</li><li><code>FixtureCompiler</code> 按「名字 + 语言 + 源码 + 参数」缓存产物，失败也缓存，锁保护；每份产物一个目录，失败时错误带命令与编译器 stderr 的全部内容。</li><li><code>MachOFixtureTests.fixture</code> 的默认实现 <code>fatalError</code>，提醒子类必须给出夹具；读不到夹具时初始化抛 <code>MachOFixtureError</code>。</li><li>契约与用法写在 MachOKitExtensions 的实现说明 <code>Internal/TestingSupport.md</code>。</li></ul>
     </div>
   </details>
 
@@ -388,9 +418,9 @@ open class MachOFixtureTests {
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>13 条，最近一条：用量更正</summary>
+    <summary>23 条，最近一条：MKE 第 4 步的文档完成，实现完成（MKE 部分），待用户看过后收尾</summary>
     <div class="details-body">
-<div class="table-wrap"><table><thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead><tbody><tr><td>2026-11-20</td><td>Created as Draft</td><td>用户希望把本包 TestingSupport 的通用部分搬到 MachOKitExtensions，统一两个包的测试用例。先由只读调研查清可搬与不可搬的部分、两边的重复与分叉，再经两轮澄清提问定下方案。</td></tr><tr><td>2026-11-20</td><td>两个包一起统一，走完整档</td><td>用户选择。否决：只统一 MKE 内部；先不做。</td></tr><tr><td>2026-11-20</td><td>拆成 <code>MachOFixtureSupport</code>（无 Testing）与 <code>MachOTestingSupport</code>（Testing）</td><td>用户选择。否决：一个 product。依据 write-tests skill 对外 product 的规则与本包当年的拆法。</td></tr><tr><td>2026-11-20</td><td>测试基类原样搬</td><td>用户选择。否决：顺便改成 Swift Testing trait（另议）。</td></tr><tr><td>2026-11-20</td><td>本机 cache 统一为进程共用</td><td>用户选择。否决：两种入口并存。本包依赖新实例的测试逐个复查。</td></tr><tr><td>2026-11-20</td><td>跨读取器统一用闭包式 <code>acrossAllReaders</code></td><td>用户选择。否决：统一用参数化（本包 429 处要改写）。</td></tr><tr><td>2026-11-20</td><td>夹具基类泛化为 <code>MachOFixtureTests</code></td><td>用户选择。否决：值类型组合（两种形状会并存）。</td></tr><tr><td>2026-11-20</td><td>MKE 先发 C++ 类恢复（3.1.0），本提案随 3.2.0</td><td>用户选择。否决：一起发 3.1.0。</td></tr><tr><td>2026-11-20</td><td>按事实或先例自定的四条</td><td>名字类型改成 struct、<code>#filePath</code> 锚点由调用方传（跨包后锚点位置变了）；<code>FixtureCompiler</code> 同时支持 clang 与 swiftc，本包 17 个与 MKE 5 个复制的编译代码都改用它；测试本身不搬（依赖本包与 MachOObjCSection 的模块）；提案由本包维护（0098 先例），用户确认。</td></tr><tr><td>2026-11-20</td><td>状态 → Accepted</td><td>用户批准。实现等 MachOKitExtensions 的 C++ 类恢复收尾、发 3.1.0 之后开始。</td></tr><tr><td>2026-11-20</td><td>加入成对传入、单个闭包的 <code>acrossAllReaders</code> / <code>acrossAllContexts</code> 重载</td><td>用户问能否加宏减少测试样板。调研：486 处跨读取器调用里 480 处的 <code>image:</code> 闭包只是换了变量名，但每处只重复约一行；做成宏要按命名约定改写标识符，也会让按标识符识别测试的扫描器失效。用户选择改用普通函数重载，并把能改的调用改过去。另一处值得用宏的样板——170 个夹具套件开头的固定 5 行——用户选择另写一份本包提案（<code>@FixtureSuite</code>）。</td></tr><tr><td>2026-11-20</td><td>加入 <code>TuistScript.sh</code> 的改动</td><td>维护提案 0099 的会话提醒：远程模式下 MKE 是 own-remote，不在扫描 TestingMacros 插件路径的范围内，新的 <code>MachOTestingSupport</code> 会编不过。</td></tr><tr><td>2026-11-20</td><td>用量更正</td><td>本包手写 <code>xcrun</code> 的测试文件是 57 个（原写 17 个 Swift 夹具），手写选 slice 70 处；都改用共享版本。</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead><tbody><tr><td>2026-11-20</td><td>Created as Draft</td><td>用户希望把本包 TestingSupport 的通用部分搬到 MachOKitExtensions，统一两个包的测试用例。先由只读调研查清可搬与不可搬的部分、两边的重复与分叉，再经两轮澄清提问定下方案。</td></tr><tr><td>2026-11-20</td><td>两个包一起统一，走完整档</td><td>用户选择。否决：只统一 MKE 内部；先不做。</td></tr><tr><td>2026-11-20</td><td>拆成 <code>MachOFixtureSupport</code>（无 Testing）与 <code>MachOTestingSupport</code>（Testing）</td><td>用户选择。否决：一个 product。依据 write-tests skill 对外 product 的规则与本包当年的拆法。</td></tr><tr><td>2026-11-20</td><td>测试基类原样搬</td><td>用户选择。否决：顺便改成 Swift Testing trait（另议）。</td></tr><tr><td>2026-11-20</td><td>本机 cache 统一为进程共用</td><td>用户选择。否决：两种入口并存。本包依赖新实例的测试逐个复查。</td></tr><tr><td>2026-11-20</td><td>跨读取器统一用闭包式 <code>acrossAllReaders</code></td><td>用户选择。否决：统一用参数化（本包 429 处要改写）。</td></tr><tr><td>2026-11-20</td><td>夹具基类泛化为 <code>MachOFixtureTests</code></td><td>用户选择。否决：值类型组合（两种形状会并存）。</td></tr><tr><td>2026-11-20</td><td>MKE 先发 C++ 类恢复（3.1.0），本提案随 3.2.0</td><td>用户选择。否决：一起发 3.1.0。</td></tr><tr><td>2026-11-20</td><td>按事实或先例自定的四条</td><td>名字类型改成 struct、<code>#filePath</code> 锚点由调用方传（跨包后锚点位置变了）；<code>FixtureCompiler</code> 同时支持 clang 与 swiftc，本包 17 个与 MKE 5 个复制的编译代码都改用它；测试本身不搬（依赖本包与 MachOObjCSection 的模块）；提案由本包维护（0098 先例），用户确认。</td></tr><tr><td>2026-11-20</td><td>状态 → Accepted</td><td>用户批准。实现等 MachOKitExtensions 的 C++ 类恢复收尾、发 3.1.0 之后开始。</td></tr><tr><td>2026-11-20</td><td>加入成对传入、单个闭包的 <code>acrossAllReaders</code> / <code>acrossAllContexts</code> 重载</td><td>用户问能否加宏减少测试样板。调研：486 处跨读取器调用里 480 处的 <code>image:</code> 闭包只是换了变量名，但每处只重复约一行；做成宏要按命名约定改写标识符，也会让按标识符识别测试的扫描器失效。用户选择改用普通函数重载，并把能改的调用改过去。另一处值得用宏的样板——170 个夹具套件开头的固定 5 行——用户选择另写一份本包提案（<code>@FixtureSuite</code>）。</td></tr><tr><td>2026-11-20</td><td>加入 <code>TuistScript.sh</code> 的改动</td><td>维护提案 0099 的会话提醒：远程模式下 MKE 是 own-remote，不在扫描 TestingMacros 插件路径的范围内，新的 <code>MachOTestingSupport</code> 会编不过。</td></tr><tr><td>2026-11-20</td><td>用量更正</td><td>本包手写 <code>xcrun</code> 的测试文件是 57 个（原写 17 个 Swift 夹具），手写选 slice 70 处；都改用共享版本。</td></tr><tr><td>2026-11-20</td><td>状态 → In Progress</td><td>用户批准开工。前置都已就位：MachOKitExtensions 3.1.0 已发布；<code>@FixtureSuite</code>（0100）与 Swift 6 迁移（0101）已落地，两个包的每个 Swift target 都开启了 <code>ExistentialAny</code>、<code>MemberImportVisibility</code>、<code>InferIsolatedConformances</code>，新代码照这三项写。先做 MachOKitExtensions 的第 1–4 步；第 4 步的发版（3.2.0）不在开工的授权内，做到文档为止，发版另行确认。</td></tr><tr><td>2026-11-20</td><td>MKE 第 1、2 步完成，合成一个提交</td><td>两步共用测试 target，第 1 步的选 slice 测试要用第 2 步的编译器造一个三架构的 fat 库，分开提交得各编一遍。新 target <code>MachOTestingSupportTests</code> 的 20 个测试在 Ultra 上通过（Xcode 27.2）。</td></tr><tr><td>2026-11-20</td><td><code>DyldSharedCachePath</code> 保留 <code>versionLabel</code>，<code>rawValue</code> 改名 <code>path</code></td><td>本包 <code>ABIEvolutionTests</code> 按它给版本轴命名。本包自己命名的几个 cache（<code>iOS_18_5</code> 等，路径在本机的 Generic 卷上）不搬，第 5 步用 extension 补回。</td></tr><tr><td>2026-11-20</td><td>名字类型的静态成员照镜像本名拼写（<code>.SwiftUI</code>、<code>.Foundation</code>），不按详细设计的草稿写成 <code>.foundation</code></td><td>成员的值就是镜像名；本包几百处调用照旧编译，第 5 步只补 SymbolTests 那几条。<code>XcodeMachOFileName</code> 也改成 struct（位置加名字），用静态函数保留 <code>.sharedFrameworks(.SourceKitSupport)</code> 的写法；找不到文件时不再 <code>fatalError</code>，读取时报错。</td></tr><tr><td>2026-11-20</td><td><code>.print()</code> 的静默开关改为运行时环境变量 <code>MACHO_TESTING_SILENT=1</code></td><td>原来是编译条件 <code>SILENT_TEST</code>，由本包清单加在自己的 target 上，搬到 MKE 后到不了 MKE 的模块。第 5 步要让本包 CI（以及 Tuist 的测试 scheme）设这个变量。</td></tr><tr><td>2026-11-20</td><td><code>MachOFixtureTests</code> 的初始化保持 <code>async throws</code>；新增第三个重载 <code>acrossAllReaders { machO in … }</code></td><td>前者照本包现有签名，有子类写了 <code>override init() async throws</code>。后者把两个读取器本身交给同一个闭包：MKE 的 C++ 测试要比的就是读取器，而 <code>MachOFile</code> 与 <code>MachOImage</code> 不能当成同一个泛型参数传给成对的重载。</td></tr><tr><td>2026-11-20</td><td>实现细节自定</td><td><code>FixtureCompiler</code> 每份产物单独一个目录，库之间用 <code>-L</code>、<code>-l</code> 链接，<code>strip -x</code> 改用链接参数 <code>-Wl,-x</code>；失败的结果也缓存。<code>HostSlice</code> 先找同 CPU 类型且子类型相同的 slice，再退到同类型，再找不到就报错，不再像本包那样退到第一个 slice；单架构文件不论 CPU 都直接用。<code>MachOFixture(imageContaining:)</code> 用 <code>dladdr</code> 拿到镜像的文件路径，所以不支持 shared cache 里的镜像（那种用 <code>ProcessImages.cacheFileAndLoadedImage(path:)</code>）。读不到夹具时抛 MKE 的 <code>MachOFixtureError</code>；本包第 5 步可以在子类里把它换成带重编说明的 <code>FixtureLoadError</code>。<code>DyldCacheTests</code> 读本机 cache 时用 <code>FullDyldCache.cachedHost</code> 和它的 <code>mainCache</code>。<code>ExclusiveImageAccess</code> 在 MKE 只有按字符串的初始化，同提案。</td></tr><tr><td>2026-11-20</td><td>MKE 第 3 步完成</td><td><code>ClassIndexTestImages</code> 与测试里那份 <code>ForwardingReader</code> 删掉；5 处现编库改用 <code>FixtureCompiler</code>；写死 Cryptexes 的 3 处与归档 cache 的 3 处改用 <code>DyldSharedCachePath</code>；手写选 slice 的 6 处改用 <code>HostSlice</code>。<code>ChainedFixupsFixture</code> 故意读每一个 slice（要覆盖 x86_64 与 arm64e 两种指针格式），不算选 slice，保留。<code>CPlusPlusClassIndexStoreTests</code> 改成 <code>MachOFixtureTests</code> 的子类，17 个参数化测试改写为 <code>acrossAllReaders</code>，实际数比提案估的约 25 个少。</td></tr><tr><td>2026-11-20</td><td>跨读取器比较的是去掉偏移的形状</td><td>同一份数据在文件里与加载后的偏移不同，C++ 测试先把类与 vtable 投影成 <code>ClassShape</code>、<code>VirtualTableShape</code> 再比较；偏移之间的关系在闭包里各自算成布尔值或距离返回。改写时查出一处读取器之间的真实差别：另一个镜像里的基类，文件读出绑定所写的 <code>libc++.1.dylib</code>，进程里读出 dyld 找到符号的 <code>libc++abi.dylib</code>（被 libc++ 重新导出）。原测试只查名字含 <code>libc++</code>，两边都满足，属于既有行为，不是这次引入的；形状里只记「在另一个镜像」，各读取器分别判断是不是 libc++。</td></tr><tr><td>2026-11-20</td><td>MKE 第 4 步的文档完成，实现完成（MKE 部分），待用户看过后收尾</td><td>新增实现说明 <code>Internal/TestingSupport.md</code>，README 的 product 表加两行，文档索引与提案索引登记（提案索引是跨仓库行）。验证在 Ultra 上（Xcode 27.2）：MKE 全量 <code>swift test</code> 271 个测试通过，原始退出码 0；带 <code>CPLUSPLUS_CLASS_CENSUS_FRAMEWORKS</code> 的 TSTables 与 Espresso 普查也通过（断言精确计数）。发 3.2.0 不在开工的授权内，等用户确认；第 5、6 步等 3.2.0 发布后在本包做。</td></tr></tbody></table></div>
     </div>
   </details>
 
