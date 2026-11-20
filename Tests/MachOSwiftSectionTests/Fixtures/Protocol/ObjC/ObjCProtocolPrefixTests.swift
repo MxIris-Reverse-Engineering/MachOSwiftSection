@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// `Protocols.ObjCInheritingProtocolTest: NSObjectProtocol` requirement,
 /// which surfaces an `ObjCProtocolPrefix` resolving to `NSObject`.
 @Suite
-final class ObjCProtocolPrefixTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ObjCProtocolPrefix"
-    static var registeredTestMethodNames: Set<String> {
-        ObjCProtocolPrefixBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ObjCProtocolPrefixTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstPrefixes() throws -> (file: ObjCProtocolPrefix, image: ObjCProtocolPrefix) {
         let file = try BaselineFixturePicker.objcProtocolPrefix_first(in: machOFile)
         let image = try BaselineFixturePicker.objcProtocolPrefix_first(in: machOImage)

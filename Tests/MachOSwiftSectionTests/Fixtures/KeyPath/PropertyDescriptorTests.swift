@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// offset only lives in the metadata, and a resilient class's settable
 /// computed property. Every assertion runs across both readers.
 @Suite
-final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "PropertyDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        PropertyDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Shape {
         let label: String
         let file: PropertyDescriptor

@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class BorrowTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "BorrowTypeMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        BorrowTypeMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class BorrowTypeMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let metadata = BorrowTypeMetadata(
             layout: .init(kind: 0x309, referent: .init(address: 0)),

@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 /// offset of `Structs.StructTest` (the same path `ContextDescriptorWrapper.resolve`
 /// uses to dispatch on the `kind` byte).
 @Suite
-final class ContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        ContextDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: read the bare `ContextDescriptor` header at the
     /// `Structs.StructTest` offset against both readers.
     private func loadStructTestContextDescriptors() throws -> (file: ContextDescriptor, image: ContextDescriptor) {

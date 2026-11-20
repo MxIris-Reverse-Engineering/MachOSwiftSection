@@ -20,12 +20,8 @@ import SwiftSectionFixtureSupport
 ///
 /// **Reader asymmetry:** the metadata source originates from MachOImage.
 @Suite
-final class AnyClassMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AnyClassMetadataProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        AnyClassMetadataProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AnyClassMetadataProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load `ClassMetadataObjCInterop` for `ClassTest`, then
     /// re-resolve at the same offset as a slim `AnyClassMetadata`.
     private func loadAnyClassMetadata() throws -> AnyClassMetadata {

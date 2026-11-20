@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 /// `SymbolTestsHelper.Object`, cross-module) and asserts cross-reader
 /// agreement on the discovered scalars.
 @Suite
-final class ObjCResilientClassStubInfoTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ObjCResilientClassStubInfo"
-    static var registeredTestMethodNames: Set<String> {
-        ObjCResilientClassStubInfoBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ObjCResilientClassStubInfoTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load the `ObjCResilientClassStubInfo` record from
     /// `ObjCResilientStubFixtures.ResilientObjCStubChild`.
     private func loadResilientObjCStubChildStub(

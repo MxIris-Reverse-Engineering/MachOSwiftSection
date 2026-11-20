@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// (`GenericStructLayoutRequirement.parameters[0]`), one for a typePack
 /// parameter (`ParameterPackRequirementTest.parameters[0]`).
 @Suite
-final class GenericParamDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericParamDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        GenericParamDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericParamDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadLayoutRequirementParam0() throws -> (file: GenericParamDescriptor, image: GenericParamDescriptor) {

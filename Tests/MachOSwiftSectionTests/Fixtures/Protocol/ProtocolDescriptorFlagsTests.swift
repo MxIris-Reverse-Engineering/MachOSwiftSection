@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// the Suite exercises the flag accessors against synthetic raw values
 /// embedded in the baseline.
 @Suite
-final class ProtocolDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let flags = ProtocolDescriptorFlags(rawValue: ProtocolDescriptorFlagsBaseline.swift.rawValue)
         #expect(flags.rawValue == ProtocolDescriptorFlagsBaseline.swift.rawValue)

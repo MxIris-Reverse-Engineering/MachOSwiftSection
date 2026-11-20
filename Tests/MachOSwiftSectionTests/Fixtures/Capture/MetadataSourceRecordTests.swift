@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// in the metadata source grammar, not in Swift's type mangling, and this
 /// library deliberately reports it unparsed.
 @Suite
-final class MetadataSourceRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataSourceRecord"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataSourceRecordBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataSourceRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Carrier {
         let index: Int
         let file: MetadataSourceRecord

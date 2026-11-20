@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// We pick a live instance via `Protocols.ProtocolWitnessTableTest`'s
 /// `baseRequirement` slot.
 @Suite
-final class ProtocolBaseRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolBaseRequirement"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolBaseRequirementBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolBaseRequirementTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadBaseRequirements() throws -> (file: ProtocolBaseRequirement, image: ProtocolBaseRequirement) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOImage)

@@ -23,12 +23,8 @@ import SwiftSectionFixtureSupport
 /// (reached via `Foundation`'s in-process metadata) is the canonical
 /// `ObjCClassWrapperMetadata` carrier.
 @Suite
-final class ObjCClassWrapperMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ObjCClassWrapperMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        ObjCClassWrapperMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ObjCClassWrapperMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func layout() async throws {
         let kindRaw = try usingInProcessOnly { context in
             let metadata = try ObjCClassWrapperMetadata.resolve(

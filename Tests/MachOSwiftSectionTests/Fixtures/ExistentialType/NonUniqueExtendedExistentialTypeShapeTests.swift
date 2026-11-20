@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class NonUniqueExtendedExistentialTypeShapeTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "NonUniqueExtendedExistentialTypeShape"
-    static var registeredTestMethodNames: Set<String> {
-        NonUniqueExtendedExistentialTypeShapeBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class NonUniqueExtendedExistentialTypeShapeTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func syntheticShape() -> NonUniqueExtendedExistentialTypeShape {
         NonUniqueExtendedExistentialTypeShape(
             layout: .init(

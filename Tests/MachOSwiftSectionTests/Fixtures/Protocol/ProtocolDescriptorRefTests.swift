@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// from the baseline, plus exercises `name(in:)` end-to-end via the
 /// fixture's ObjC inheriting protocol.
 @Suite
-final class ProtocolDescriptorRefTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolDescriptorRef"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolDescriptorRefBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolDescriptorRefTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Synthetic Swift / ObjC factories
 
     @Test("init(storage:)") func initializerWithStorage() async throws {

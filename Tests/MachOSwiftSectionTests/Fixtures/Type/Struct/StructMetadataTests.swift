@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class StructMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "StructMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        StructMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class StructMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialize a `StructMetadata` for `Structs.StructTest` by calling the
     /// MachOImage metadata accessor and resolving the response. Returns `nil`
     /// only if the accessor isn't reachable for the descriptor (which we

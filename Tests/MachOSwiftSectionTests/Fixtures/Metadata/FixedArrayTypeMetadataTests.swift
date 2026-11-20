@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class FixedArrayTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "FixedArrayTypeMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        FixedArrayTypeMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class FixedArrayTypeMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let metadata = FixedArrayTypeMetadata(
             layout: .init(kind: 0x308, count: 0, element: .init(address: 0)),

@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// MachO-only debug formatter `implementationAddressString(in:)` must
 /// produce a non-empty hex string.
 @Suite
-final class ResilientWitnessTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ResilientWitness"
-    static var registeredTestMethodNames: Set<String> {
-        ResilientWitnessBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ResilientWitnessTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstWitnesses() throws -> (file: ResilientWitness, image: ResilientWitness) {
         let fileConformance = try BaselineFixturePicker.protocolConformance_resilientWitnessFirst(in: machOFile)
         let imageConformance = try BaselineFixturePicker.protocolConformance_resilientWitnessFirst(in: machOImage)

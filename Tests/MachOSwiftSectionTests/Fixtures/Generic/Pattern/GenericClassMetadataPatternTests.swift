@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// simplest generic class in the fixture, and the only pattern that trails a
 /// partial pattern.
 @Suite
-final class GenericClassMetadataPatternTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericClassMetadataPattern"
-    static var registeredTestMethodNames: Set<String> {
-        GenericClassMetadataPatternBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericClassMetadataPatternTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadPatterns() throws -> (file: GenericClassMetadataPattern, image: GenericClassMetadataPattern) {
         (
             file: try BaselineFixturePicker.genericClassMetadataPattern_classNonRequirement(in: machOFile),

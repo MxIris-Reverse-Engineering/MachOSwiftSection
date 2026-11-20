@@ -27,12 +27,8 @@ import SwiftSectionFixtureSupport
 ///   - `parameterPack` — typePackHeader/typePacks
 ///   - `invertibleProtocol` — invertedProtocols requirement
 @Suite
-final class GenericContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TargetGenericContext"
-    static var registeredTestMethodNames: Set<String> {
-        GenericContextBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite(testedTypeName: "TargetGenericContext")
+final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadContextsFromFile(

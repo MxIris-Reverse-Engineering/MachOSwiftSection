@@ -24,12 +24,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class ExistentialTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExistentialTypeMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        ExistentialTypeMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExistentialTypeMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func layout() async throws {
         let resolved = try usingInProcessOnly { context in
             try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)

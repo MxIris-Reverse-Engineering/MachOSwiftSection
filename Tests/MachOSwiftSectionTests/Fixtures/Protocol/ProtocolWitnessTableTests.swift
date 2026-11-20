@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// `ProtocolConformance` in the fixture that surfaces one and verify
 /// the offset equals the baseline.
 @Suite
-final class ProtocolWitnessTableTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolWitnessTable"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolWitnessTableBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolWitnessTableTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstWitnessTables() throws -> (file: ProtocolWitnessTable, image: ProtocolWitnessTable) {
         let fileConformance = try required(
             try machOFile.swift.protocolConformances.first(where: { $0.witnessTablePattern != nil })

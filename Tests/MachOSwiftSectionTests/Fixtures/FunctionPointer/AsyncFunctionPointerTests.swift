@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// assertion runs across both readers, because everything the record exposes
 /// is either a raw word or pure relative-pointer arithmetic.
 @Suite
-final class AsyncFunctionPointerTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AsyncFunctionPointer"
-    static var registeredTestMethodNames: Set<String> {
-        AsyncFunctionPointerBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AsyncFunctionPointerTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Carrier {
         let label: String
         let file: AsyncFunctionPointer

@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 /// established presence-flag pattern (`MangledName` and `GenericContext`
 /// aren't cheaply Equatable).
 @Suite
-final class AnonymousContextTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AnonymousContext"
-    static var registeredTestMethodNames: Set<String> {
-        AnonymousContextBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AnonymousContextTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: instantiate the `AnonymousContext` wrapper against both
     /// readers through their reading contexts.
     private func loadFirstAnonymousContexts() throws -> (file: AnonymousContext, image: AnonymousContext) {

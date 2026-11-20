@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// other two `nil`). PublicMemberScanner does NOT emit MethodKey entries
 /// for enum cases.
 @Suite
-final class ContextDescriptorKindSpecificFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextDescriptorKindSpecificFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ContextDescriptorKindSpecificFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextDescriptorKindSpecificFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the `ContextDescriptorKindSpecificFlags` from
     /// `Structs.StructTest`'s descriptor against both readers.
     private func loadStructTestKindSpecificFlags() throws -> (file: ContextDescriptorKindSpecificFlags, image: ContextDescriptorKindSpecificFlags) {

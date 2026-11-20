@@ -27,12 +27,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class ForeignClassMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ForeignClassMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        ForeignClassMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ForeignClassMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func layout() async throws {
         let kindRaw = try usingInProcessOnly { context in
             let metadata = try ForeignClassMetadata.resolve(

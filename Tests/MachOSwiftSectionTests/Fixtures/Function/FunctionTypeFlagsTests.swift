@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// `isThrowing`, etc.) are pure raw-value bit decoders and are tracked
 /// via the sentinel allowlist (`pureDataUtilityEntries`).
 @Suite
-final class FunctionTypeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "FunctionTypeFlags"
-    static var registeredTestMethodNames: Set<String> {
-        FunctionTypeFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class FunctionTypeFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func numberOfParameters() async throws {
         let result = try usingInProcessOnly { context in
             try FunctionTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibFunctionIntToVoid, in: context)

@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// against deterministic inputs and compare against the literal baseline
 /// — there is no MachO dependency here.
 @Suite
-final class EnumFunctionsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "EnumTagCounts"
-    static var registeredTestMethodNames: Set<String> {
-        EnumFunctionsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite(testedTypeName: "EnumTagCounts")
+final class EnumFunctionsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func numTags() async throws {
         for entry in EnumFunctionsBaseline.cases {
             let result = getEnumTagCounts(

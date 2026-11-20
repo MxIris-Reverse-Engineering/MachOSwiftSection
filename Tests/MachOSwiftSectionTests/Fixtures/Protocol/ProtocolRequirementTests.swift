@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 /// `ProtocolBaseRequirement` (the second struct in the same file) gets
 /// its own Suite (`ProtocolBaseRequirementTests`).
 @Suite
-final class ProtocolRequirementTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolRequirement"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolRequirementBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolRequirementTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstRequirements() throws -> (file: ProtocolRequirement, image: ProtocolRequirement) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolWitnessTableTest(in: machOImage)

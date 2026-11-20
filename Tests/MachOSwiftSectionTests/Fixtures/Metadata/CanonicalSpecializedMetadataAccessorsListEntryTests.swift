@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class CanonicalSpecializedMetadataAccessorsListEntryTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "CanonicalSpecializedMetadataAccessorsListEntry"
-    static var registeredTestMethodNames: Set<String> {
-        CanonicalSpecializedMetadataAccessorsListEntryBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class CanonicalSpecializedMetadataAccessorsListEntryTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// `offset` is set by the memberwise initialiser; cross-reader
     /// agreement is trivial (no MachO read is involved).
     @Test func offset() async throws {

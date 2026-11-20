@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// We exercise it against `Protocols.ProtocolTest` whose kind-specific
 /// flags slot resolves to a real value.
 @Suite
-final class ProtocolContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolContextDescriptorFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolContextDescriptorFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadProtocolTestFlags() throws -> (file: ProtocolContextDescriptorFlags, image: ProtocolContextDescriptorFlags) {
         let fileDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.protocol_ProtocolTest(in: machOImage)

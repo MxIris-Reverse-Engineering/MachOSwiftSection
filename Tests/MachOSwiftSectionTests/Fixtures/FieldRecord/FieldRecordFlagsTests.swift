@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// exercises each membership predicate against synthetic raw values
 /// embedded in the baseline.
 @Suite
-final class FieldRecordFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "FieldRecordFlags"
-    static var registeredTestMethodNames: Set<String> {
-        FieldRecordFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class FieldRecordFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let flags = FieldRecordFlags(rawValue: FieldRecordFlagsBaseline.allBits.rawValue)
         #expect(flags.rawValue == FieldRecordFlagsBaseline.allBits.rawValue)

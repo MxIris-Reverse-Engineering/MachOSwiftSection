@@ -18,12 +18,8 @@ import SwiftSectionFixtureSupport
 /// keys nested types by their inner struct name, so the
 /// `testedTypeName` here is `"Element"`.
 @Suite
-final class TupleTypeMetadataElementTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "Element"
-    static var registeredTestMethodNames: Set<String> {
-        TupleTypeMetadataElementBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite(testedTypeName: "Element")
+final class TupleTypeMetadataElementTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func type() async throws {
         let address = try usingInProcessOnly { context in
             let tuple = try TupleTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibTupleIntString, in: context)

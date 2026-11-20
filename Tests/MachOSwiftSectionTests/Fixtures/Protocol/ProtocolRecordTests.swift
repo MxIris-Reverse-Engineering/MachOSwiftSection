@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// `__swift5_protos` section. We pick the first record from the fixture
 /// and verify its offset and resolved descriptor offset/name.
 @Suite
-final class ProtocolRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolRecord"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolRecordBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadFirstRecords() throws -> (file: ProtocolRecord, image: ProtocolRecord) {
         let file = try BaselineFixturePicker.protocolRecord_first(in: machOFile)
         let image = try BaselineFixturePicker.protocolRecord_first(in: machOImage)

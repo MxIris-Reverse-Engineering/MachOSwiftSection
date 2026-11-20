@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class CanonicalSpecializedMetadatasListEntryTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "CanonicalSpecializedMetadatasListEntry"
-    static var registeredTestMethodNames: Set<String> {
-        CanonicalSpecializedMetadatasListEntryBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class CanonicalSpecializedMetadatasListEntryTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let entry = CanonicalSpecializedMetadatasListEntry(
             layout: .init(metadata: .init(relativeOffset: 0)),

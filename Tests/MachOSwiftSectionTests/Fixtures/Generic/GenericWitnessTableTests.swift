@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// `layout`) for the Coverage Invariant test and documents the missing
 /// runtime coverage.
 @Suite
-final class GenericWitnessTableTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericWitnessTable"
-    static var registeredTestMethodNames: Set<String> {
-        GenericWitnessTableBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericWitnessTableTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func registrationOnly() async throws {
         // No live carrier surfaced by the current public API — see
         // Generator note.

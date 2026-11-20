@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class CanonicalSpecializedMetadatasCachingOnceTokenTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "CanonicalSpecializedMetadatasCachingOnceToken"
-    static var registeredTestMethodNames: Set<String> {
-        CanonicalSpecializedMetadatasCachingOnceTokenBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class CanonicalSpecializedMetadatasCachingOnceTokenTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let token = CanonicalSpecializedMetadatasCachingOnceToken(
             layout: .init(token: .init(relativeOffset: 0)),

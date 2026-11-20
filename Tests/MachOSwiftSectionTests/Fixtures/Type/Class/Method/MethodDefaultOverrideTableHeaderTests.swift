@@ -10,12 +10,8 @@ import SwiftSectionFixtureSupport
 /// default-override table, so a live header cannot be sourced. The Suite
 /// documents the missing runtime coverage.
 @Suite
-final class MethodDefaultOverrideTableHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MethodDefaultOverrideTableHeader"
-    static var registeredTestMethodNames: Set<String> {
-        MethodDefaultOverrideTableHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MethodDefaultOverrideTableHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func registrationOnly() async throws {
         // No live instance available in SymbolTestsCore; the Suite registers
         // the public surface (offset, layout) for the Coverage Invariant

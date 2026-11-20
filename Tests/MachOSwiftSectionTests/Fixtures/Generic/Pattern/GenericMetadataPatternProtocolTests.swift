@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// is the one part of the two layouts that must agree, and the class carrier
 /// is the only one with a trailing partial pattern.
 @Suite
-final class GenericMetadataPatternProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericMetadataPatternProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        GenericMetadataPatternProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericMetadataPatternProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Carrier {
         let label: String
         let file: any GenericMetadataPatternProtocol

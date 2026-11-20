@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// asymmetric (the metadata originates from MachOImage but its methods
 /// accept the file/image/inProcess context families).
 @Suite
-final class StructMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "StructMetadataProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        StructMetadataProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class StructMetadataProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestMetadata() throws -> StructMetadata {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))

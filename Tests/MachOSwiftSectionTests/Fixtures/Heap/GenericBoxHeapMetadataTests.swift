@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class GenericBoxHeapMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericBoxHeapMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        GenericBoxHeapMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericBoxHeapMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let metadata = GenericBoxHeapMetadata(
             layout: .init(

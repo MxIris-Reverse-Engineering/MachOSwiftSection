@@ -23,12 +23,8 @@ import SwiftSectionFixtureSupport
 /// at the language-runtime level. Tests guard the in-process metadata
 /// access with `if #available` rather than annotating the suite class.
 @Suite
-final class ExtendedExistentialTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExtendedExistentialTypeMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        ExtendedExistentialTypeMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExtendedExistentialTypeMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func layout() async throws {
         guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else { return }
         // Returning a struct directly as a tuple is not Equatable, so

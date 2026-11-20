@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// implementation offset, and presence-flags for the resolved class/method
 /// pointers.
 @Suite
-final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MethodOverrideDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        MethodOverrideDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load the first override entry of `Classes.SubclassTest`
     /// from each reader.
     private func loadFirstOverrides() throws -> (file: MethodOverrideDescriptor, image: MethodOverrideDescriptor) {

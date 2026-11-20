@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class EnumMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "EnumMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        EnumMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class EnumMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialize an `EnumMetadata` for `Enums.NoPayloadEnumTest` by
     /// calling the MachOImage metadata accessor and resolving the
     /// response's value-type wrapper.

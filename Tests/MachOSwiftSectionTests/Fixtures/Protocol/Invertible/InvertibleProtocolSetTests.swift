@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// `RequirementInSignature`), so the Suite exercises the accessors
 /// against the synthetic raw values embedded in the baseline.
 @Suite
-final class InvertibleProtocolSetTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "InvertibleProtocolSet"
-    static var registeredTestMethodNames: Set<String> {
-        InvertibleProtocolSetBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class InvertibleProtocolSetTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let set = InvertibleProtocolSet(rawValue: InvertibleProtocolSetBaseline.both.rawValue)
         #expect(set.rawValue == InvertibleProtocolSetBaseline.both.rawValue)

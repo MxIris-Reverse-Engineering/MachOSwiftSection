@@ -19,12 +19,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class ValueWitnessTableTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ValueWitnessTable"
-    static var registeredTestMethodNames: Set<String> {
-        ValueWitnessTableBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ValueWitnessTableTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestValueWitnesses() throws -> ValueWitnessTable {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
         let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))

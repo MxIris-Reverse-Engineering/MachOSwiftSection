@@ -21,12 +21,8 @@ import SwiftSectionFixtureSupport
 ///     baseline records this invariant. (No fixture in `SymbolTestsCore`
 ///     currently surfaces a non-nil `payloadSize`.)
 @Suite
-final class EnumMetadataProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "EnumMetadataProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        EnumMetadataProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class EnumMetadataProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadNoPayloadEnumMetadata() throws -> EnumMetadata {
         let descriptor = try BaselineFixturePicker.enum_NoPayloadEnumTest(in: machOImage)
         let accessor = try required(try descriptor.metadataAccessorFunction(in: imageContext))

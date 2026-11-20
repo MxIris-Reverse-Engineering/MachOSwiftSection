@@ -157,14 +157,14 @@ package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = 
 
 ## 落地步骤
 
-1. **宏与展开测试** —— `Package.swift`、`SwiftSectionTestingMacros`、宏声明、`FixtureSuiteMacroTests`
+1. **宏与展开测试**（完成）—— `Package.swift`、`SwiftSectionTestingMacros`、宏声明、`FixtureSuiteMacroTests`
    - 行为：`defaultsTakeTheTestedTypeAndBaselineFromTheClassName`
    - 行为：`anExplicitTestedTypeNameKeepsTheBaselineFromTheClassName`
    - 行为：`anExplicitBaselineIsUsedAsWritten`
    - 行为：`aClassNameWithoutTestsAsksForTheTestedTypeName`（诊断加 Fix-It）
    - 行为：`aNonLiteralArgumentIsRejected`
    - 行为：`theMacroAddsTheFixtureSuiteConformance`
-2. **扫描器认宏** —— `SuiteBehaviorScanner`、样例源码与测试
+2. **扫描器认宏**（完成）—— `SuiteBehaviorScanner`、样例源码与测试
    - 行为：`scannerReadsTheTestedTypeNameFromTheMacroArgument`
    - 行为：`scannerTakesTheClassNameStemWhenTheMacroHasNoArgument`
    - 行为：`scannerStillReadsAStaticTestedTypeName`
@@ -182,3 +182,5 @@ package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = 
 | 2026-11-20 | 宏实现放新 target `SwiftSectionTestingMacros` | 生产代码链接的 `SwiftSectionMacros` 插件不带测试用的宏。 |
 | 2026-11-20 | 宏与协议同名 `FixtureSuite` | 照 Observation 的 `Observable` 先例，`@FixtureSuite` 读起来就是「这是一个夹具套件」。 |
 | 2026-11-20 | 状态 → Accepted | 用户批准，开始实现。 |
+| 2026-11-20 | 第 1、2 步完成 | 宏的 6 个展开测试与扫描器的 9 个测试在 MacBook 上通过（Ultra 负载过高，按规则分流）。 |
+| 2026-11-20 | 套件数更正：171 个，迁 170 个 | 提案里的 176 是 grep 把扫描器样例文本里的几个类也数进去了。`CoroFunctionPointerTests` 自己编夹具、没有 baseline，注册名单是字面量，套不上宏，保持手写。 |

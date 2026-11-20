@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///   - `AnyObject.self` flags (`0x0`) — anchor `classConstraint` (`.class`);
 ///     `Any.self` reading `.any` is pinned by `FlagWordDecodingTests`.
 @Suite
-final class ExistentialTypeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ExistentialTypeFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ExistentialTypeFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ExistentialTypeFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializer() async throws {
         let result = try usingInProcessOnly { context in
             let metadata = try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)

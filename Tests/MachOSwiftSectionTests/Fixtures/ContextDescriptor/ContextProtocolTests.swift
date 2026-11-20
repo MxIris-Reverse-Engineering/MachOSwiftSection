@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// We exercise the protocol-extension method through a `Struct` context
 /// built off `Structs.StructTest`'s descriptor.
 @Suite
-final class ContextProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        ContextProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func parent() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)

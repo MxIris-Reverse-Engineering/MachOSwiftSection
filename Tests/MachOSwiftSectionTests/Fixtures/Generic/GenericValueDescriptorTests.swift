@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// (Phase B7) and asserts cross-reader equality on `offset`,
 /// `layout.type`, and `type.rawValue`.
 @Suite
-final class GenericValueDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericValueDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        GenericValueDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericValueDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the first `GenericValueDescriptor` from
     /// `FixedSizeArray`'s generic context against both readers.
     private func loadFirstValue() throws -> (file: GenericValueDescriptor, image: GenericValueDescriptor) {

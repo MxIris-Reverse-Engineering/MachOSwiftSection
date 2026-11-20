@@ -19,12 +19,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class FullMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "FullMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        FullMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class FullMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialize a `FullMetadata<StructMetadata>` for `Structs.StructTest`
     /// from a MachOImage metadata accessor.
     private func loadFullStructMetadata() throws -> FullMetadata<StructMetadata> {

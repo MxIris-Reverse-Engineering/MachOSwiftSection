@@ -17,12 +17,8 @@ import SwiftSectionFixtureSupport
 /// `AssociatedTypeWitnessPatterns.ConcreteWitnessTest`'s
 /// `AssociatedTypeDescriptor` (witnessing `First = Int`).
 @Suite
-final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "AssociatedTypeRecord"
-    static var registeredTestMethodNames: Set<String> {
-        AssociatedTypeRecordBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     // MARK: - Helpers
 
     private func loadFirstRecord() throws -> (file: AssociatedTypeRecord, image: AssociatedTypeRecord) {

@@ -10,12 +10,8 @@ import SwiftSectionFixtureSupport
 /// The Suite picks the vtable header from `Classes.ClassTest` and asserts
 /// cross-reader equality on `offset`, `vTableOffset`, and `vTableSize`.
 @Suite
-final class VTableDescriptorHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "VTableDescriptorHeader"
-    static var registeredTestMethodNames: Set<String> {
-        VTableDescriptorHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class VTableDescriptorHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadClassTestVTableHeaders() throws -> (file: VTableDescriptorHeader, image: VTableDescriptorHeader) {
         let fileDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.class_ClassTest(in: machOImage)

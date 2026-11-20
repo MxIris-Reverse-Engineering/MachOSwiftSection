@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class HeapMetadataHeaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "HeapMetadataHeader"
-    static var registeredTestMethodNames: Set<String> {
-        HeapMetadataHeaderBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class HeapMetadataHeaderTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Materialise a `HeapMetadataHeader` for `Classes.ClassTest` from the
     /// loaded MachOImage's metadata accessor. The class metadata is loaded
     /// as `ClassMetadataObjCInterop`; the heap header lives at

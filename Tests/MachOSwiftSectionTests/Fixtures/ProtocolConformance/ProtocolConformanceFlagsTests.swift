@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 /// asserts each accessor against the baseline literal — this validates both
 /// the bitfield parsing and the `init(rawValue:)`/`rawValue` round-trip.
 @Suite
-final class ProtocolConformanceFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ProtocolConformanceFlags"
-    static var registeredTestMethodNames: Set<String> {
-        ProtocolConformanceFlagsBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ProtocolConformanceFlagsTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test("init(rawValue:)") func initializerWithRawValue() async throws {
         let flags = ProtocolConformanceFlags(rawValue: ProtocolConformanceFlagsBaseline.structTestProtocolTest.rawValue)
         #expect(flags.rawValue == ProtocolConformanceFlagsBaseline.structTestProtocolTest.rawValue)

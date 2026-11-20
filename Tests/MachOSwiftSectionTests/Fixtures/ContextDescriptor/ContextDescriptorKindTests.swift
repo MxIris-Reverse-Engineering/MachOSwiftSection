@@ -14,12 +14,8 @@ import SwiftSectionFixtureSupport
 /// The kind value is sampled off `Structs.StructTest`'s descriptor — a
 /// `.struct` kind whose `description == "struct"` and `mangledType == "V"`.
 @Suite
-final class ContextDescriptorKindTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ContextDescriptorKind"
-    static var registeredTestMethodNames: Set<String> {
-        ContextDescriptorKindBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ContextDescriptorKindTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: extract the `ContextDescriptorKind` from
     /// `Structs.StructTest`'s descriptor against both readers.
     private func loadStructTestKinds() throws -> (file: ContextDescriptorKind, image: ContextDescriptorKind) {

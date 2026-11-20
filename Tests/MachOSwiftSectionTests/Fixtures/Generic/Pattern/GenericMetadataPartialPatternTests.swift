@@ -11,12 +11,8 @@ import SwiftSectionFixtureSupport
 /// `GenericClassNonRequirement<A>`'s class pattern — the one partial pattern
 /// the fixture contains.
 @Suite
-final class GenericMetadataPartialPatternTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericMetadataPartialPattern"
-    static var registeredTestMethodNames: Set<String> {
-        GenericMetadataPartialPatternBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericMetadataPartialPatternTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadPartialPatterns() throws -> (file: GenericMetadataPartialPattern, image: GenericMetadataPartialPattern) {
         let filePattern = try BaselineFixturePicker.genericClassMetadataPattern_classNonRequirement(in: machOFile)
         let imagePattern = try BaselineFixturePicker.genericClassMetadataPattern_classNonRequirement(in: machOImage)

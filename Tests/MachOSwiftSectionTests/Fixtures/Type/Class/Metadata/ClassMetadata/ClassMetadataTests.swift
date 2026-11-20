@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// **Reader asymmetry:** the metadata source originates from MachOImage.
 @Suite
-final class ClassMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ClassMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        ClassMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ClassMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load `ClassTest`'s metadata via the accessor (returned as
     /// `ClassMetadataObjCInterop`); the related `descriptorOffset` is a
     /// static lookup on `ClassMetadata`.

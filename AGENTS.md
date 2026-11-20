@@ -188,6 +188,8 @@ That directory is exhaustively covered by `Tests/MachOSwiftSectionTests/Fixtures
 5. `swift package --allow-writing-to-package-directory regen-baselines --suite <Name>`.
 6. Re-run the affected Suite.
 
+A new Suite is a class marked `@FixtureSuite` (SwiftSectionTestingSupport): the macro adds `testedTypeName` — the class name without `Tests` — and `registeredTestMethodNames` read from `<Stem>Baseline`, plus the `FixtureSuite` conformance. Name either with a literal only when it differs (`@FixtureSuite(testedTypeName: "EnumTagCounts")`); `SuiteBehaviorScanner` reads the tested type from the attribute the same way. [draft-fixture-suite-macro](Documentations/Evolutions/draft-fixture-suite-macro.md).
+
 A type with genuinely nothing to test goes on the sentinel allowlist with a typed `SentinelReason` (`pureDataUtility` / `runtimeOnly` / `needsFixtureExtension`) in `CoverageAllowlistEntries.swift`. Rationale and history: [FixtureTestingAndContinuousIntegration.md](Documentations/Internal/FixtureTestingAndContinuousIntegration.md).
 
 </important>

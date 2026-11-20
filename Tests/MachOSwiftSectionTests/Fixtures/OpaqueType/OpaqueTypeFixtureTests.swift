@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 /// public surface and exercises members against a synthetic memberwise
 /// instance.
 @Suite
-final class OpaqueTypeFixtureTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "OpaqueType"
-    static var registeredTestMethodNames: Set<String> {
-        OpaqueTypeBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite(testedTypeName: "OpaqueType", baseline: OpaqueTypeBaseline.self)
+final class OpaqueTypeFixtureTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Synthetic descriptor — flags layout uses
     /// `ContextDescriptorKind.opaqueType` (4) with no kind-specific
     /// flags, so `numUnderlyingTypeArguments == 0`.

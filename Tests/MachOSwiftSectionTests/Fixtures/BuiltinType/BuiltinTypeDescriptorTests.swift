@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class BuiltinTypeDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "BuiltinTypeDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        BuiltinTypeDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class BuiltinTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadDescriptors() throws -> (file: BuiltinTypeDescriptor, image: BuiltinTypeDescriptor) {
         let file = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOFile)
         let image = try BaselineFixturePicker.builtinTypeDescriptor_first(in: machOImage)

@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 ///   `totalSizeInBytes    = (neg + pos) * sizeof(UnsafeRawPointer)`
 ///   `addressPointInBytes =  neg        * sizeof(UnsafeRawPointer)`
 @Suite
-final class MetadataBoundsProtocolTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MetadataBoundsProtocol"
-    static var registeredTestMethodNames: Set<String> {
-        MetadataBoundsProtocolBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MetadataBoundsProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func makeBounds() -> MetadataBounds {
         MetadataBounds(
             layout: .init(

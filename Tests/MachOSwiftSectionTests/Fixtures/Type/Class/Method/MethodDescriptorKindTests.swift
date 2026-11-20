@@ -10,12 +10,8 @@ import SwiftSectionFixtureSupport
 /// Suite pins both the raw values and the `description` strings, so any
 /// accidental renumbering or display tweak fails a test.
 @Suite
-final class MethodDescriptorKindTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "MethodDescriptorKind"
-    static var registeredTestMethodNames: Set<String> {
-        MethodDescriptorKindBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class MethodDescriptorKindTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func description() async throws {
         // Pin raw values + descriptions per case.
         #expect(MethodDescriptorKind.method.rawValue == MethodDescriptorKindBaseline.method.rawValue)

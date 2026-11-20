@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// Two pickers feed the assertions: `Classes.ClassTest` (no superclass)
 /// and `Classes.SubclassTest` (has a superclass mangled name).
 @Suite
-final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "ClassDescriptor"
-    static var registeredTestMethodNames: Set<String> {
-        ClassDescriptorBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadClassTestDescriptors() throws -> (file: ClassDescriptor, image: ClassDescriptor) {
         let file = try BaselineFixturePicker.class_ClassTest(in: machOFile)
         let image = try BaselineFixturePicker.class_ClassTest(in: machOImage)

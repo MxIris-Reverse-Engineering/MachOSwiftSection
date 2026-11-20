@@ -15,12 +15,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class SingletonMetadataInitializationTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "SingletonMetadataInitialization"
-    static var registeredTestMethodNames: Set<String> {
-        SingletonMetadataInitializationBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class SingletonMetadataInitializationTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     /// Helper: load the picked class descriptor and its
     /// SingletonMetadataInitialization payload from both readers.
     private func loadInits() throws -> (file: SingletonMetadataInitialization, image: SingletonMetadataInitialization) {

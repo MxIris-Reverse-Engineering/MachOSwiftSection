@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// surface (`offset`, `layout`) for the Coverage Invariant test and
 /// documents the missing runtime coverage.
 @Suite
-final class GenericEnvironmentTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "GenericEnvironment"
-    static var registeredTestMethodNames: Set<String> {
-        GenericEnvironmentBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class GenericEnvironmentTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func registrationOnly() async throws {
         // No live carrier surfaced by the static reader — see Generator note.
         #expect(GenericEnvironmentBaseline.registeredTestMethodNames.contains("layout"))

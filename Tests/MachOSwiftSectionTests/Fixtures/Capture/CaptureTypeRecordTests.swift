@@ -12,12 +12,8 @@ import SwiftSectionFixtureSupport
 /// the record's location and the fact that the payload resolves; the payload
 /// itself is only required to agree across readers.
 @Suite
-final class CaptureTypeRecordTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "CaptureTypeRecord"
-    static var registeredTestMethodNames: Set<String> {
-        CaptureTypeRecordBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class CaptureTypeRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private struct Carrier {
         let index: Int
         let file: CaptureTypeRecord

@@ -13,12 +13,8 @@ import SwiftSectionFixtureSupport
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
-final class HeapLocalVariableMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "HeapLocalVariableMetadata"
-    static var registeredTestMethodNames: Set<String> {
-        HeapLocalVariableMetadataBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class HeapLocalVariableMetadataTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func offset() async throws {
         let metadata = HeapLocalVariableMetadata(
             layout: .init(

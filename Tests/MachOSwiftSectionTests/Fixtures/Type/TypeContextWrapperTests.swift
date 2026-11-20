@@ -16,12 +16,8 @@ import SwiftSectionFixtureSupport
 /// `TypeContextWrapper.forTypeContextDescriptorWrapper` to materialize a
 /// `.struct(...)` wrapper.
 @Suite
-final class TypeContextWrapperTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
-    static let testedTypeName = "TypeContextWrapper"
-    static var registeredTestMethodNames: Set<String> {
-        TypeContextWrapperBaseline.registeredTestMethodNames
-    }
-
+@FixtureSuite
+final class TypeContextWrapperTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     private func loadStructTestWrappers() throws -> (file: TypeContextWrapper, image: TypeContextWrapper) {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
