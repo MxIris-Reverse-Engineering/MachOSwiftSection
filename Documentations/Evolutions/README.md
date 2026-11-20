@@ -109,6 +109,7 @@
 | [0097](0097-offline-cross-references-and-symbolication.md) | 交叉引用与地址符号化扩展到磁盘文件和归档 dyld cache（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Implemented |
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
+| draft | [测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport](draft-shared-macho-testing-support.md) | Accepted |
 | [0098](0098-move-cross-reference-layers.md) | 交叉引用的核心层与 ObjC 层迁出本库，进 MachOKitExtensions 与 MachOObjCSection（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Implemented |
 | [cross-repository MachOKitExtensions 0002](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0002-move-reading-and-resolving-modules.md) | 把 MachOReading 与 MachOResolving 迁入 MachOKitExtensions 2.0.0：由那边维护唯一提案；本库删掉这两个 target，同时删掉 0057 废弃的读取写法 | Implemented |
 | [cross-repository MachOKitExtensions 0003](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md) | 其余 MachO 基础模块迁入 MachOKitExtensions 2.0.0，`MachOSymbols` 拆出 C/C++ 符号索引：由那边维护唯一提案；本库的 Swift 符号索引改名 `SwiftSymbols` / `SwiftSymbolIndexStore` | Implemented |
