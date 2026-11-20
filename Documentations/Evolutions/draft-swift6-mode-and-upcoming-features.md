@@ -8,7 +8,7 @@
 - **关联提案**: 无
 - **跨仓库**: 本提案是 MachOKit（fork）、swift-semantic-string、swift-demangling、MachOKitExtensions、MachOObjCSection 与本库共用的唯一提案。MachOKitExtensions 与 MachOObjCSection 的提案索引各加一行 cross-repository 指向这里（落地步骤第 1 步）；另外三个仓库没有提案目录，不加。
 - **实现分支 / PR**: 六个仓库都是 `feature/swift6-mode-and-upcoming-features`。MachOKitExtensions 从 `origin/main` 切（它只有 `main`，本地那条没推过的 `next` 不能用），其余五个从各自的 `next` 切。
-- **配套文档**: 待定 —— 落地时判断
+- **配套文档**: 无 —— 没有新的调用方契约，迁移的坑记在本提案里（决策日志「文档判断」）
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -315,8 +315,10 @@ upcoming feature 只作用于开启它的 target 本身的编译，不传给依�
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 
-- **要不要配套专题文章** —— 预计不需要：没有新的调用方契约；「迁移模式的四类坑」已在本提案里写全。落地时再确认。
-- **有没有引入新术语** —— 预计没有。
+- **要不要配套专题文章** —— 不需要：没有新的调用方契约；迁移时踩到的坑已在本提案里写全（决策日志「文档判断」）。
+- **有没有引入新术语** —— 没有。
+
+第 1–8 步已完成，验证结果见决策日志「验证结果」；第 9 步留给正式收尾。
 
 ## 决策日志
 
@@ -330,3 +332,6 @@ upcoming feature 只作用于开启它的 target 本身的编译，不传给依�
 | 2026-11-20 | `any P?` 改成 `(any P)?` | Swift 6.4 的 fix-it 写出的 `any P?` 在 Swift 6.3（CI 的 Xcode 26.6）下报错；swift-demangling、MachOKitExtensions、本库各一处 |
 | 2026-11-20 | 14 个测试文件写 `Swift.Error` | 除了预修的两处，`migrate` 还给 93 个文件加了 `import Semantic`，其中 14 个测试文件里有类型位置的裸 `Error`（`struct …Error: Error`、`any Error`、`(any Error).self`），全部改成 `Swift.Error`；源码里没有，也没有出现「转型永远失败」的警告 |
 | 2026-11-20 | MachOKit 一个测试的期望符号名 | `MachOPrintTests.testFindSymbolByName` 按名字找测试二进制里的一个 curry thunk；Swift 6 模式把对 `LoadCommand.dylib` 的未调用引用推断为 `@Sendable`（SE-0418），mangling 多了 `Yb`，测试改为新名字。其余失败的 5 个用例在基线上同样失败（`libclang_rt.osx.a` 不存在等环境原因） |
+| 2026-11-20 | 验证结果 | 全部在 Ultra 上跑。六个包用 Xcode 27.2 与 26.6 都编过（含全部测试目标）。测试：swift-semantic-string、swift-demangling、MachOKitExtensions 全过；MachOKit 只剩基线上同样失败的 5 个环境用例；MachOObjCSection 的 `MachOObjCSectionTests` 这个 XCTest 类在 `setUp` 读用户本机的 `/Users/JH/Downloads/iOS18.5-SwiftUI`，在基线上同样崩溃，跳过它后其余全过；本库在 Xcode 26.6 下 554 个 suite、2,906 个测试全过。渲染 A/B（基线 `next`，三条腿含归档 cache 26.6 与 15.5、模拟器 runtime、进程内 MachOImage）84 对逐字节一致。Tuist 工作区 `warm` 与 `build` 都成功。fork 的 CI 在 Xcode 16.2 与 Linux Swift 6.0.3 上通过 |
+| 2026-11-20 | 文档判断 | 不配使用指南或实现说明：没有新的调用方契约，迁移时踩到的坑都写在本提案里；没有新术语；`CLAUDE.md` 不加条目，漏写 `any` 或漏 import 编译器当场报错，`Semantic.Error` 遮蔽也会让类型位置编不过。账本一节留到正式收尾时随取号一起写 |
+| 2026-11-20 | 实现完成，待用户看过后收尾 | 六个仓库的功能分支都已推送 |
