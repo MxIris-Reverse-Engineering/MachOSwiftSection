@@ -41,6 +41,18 @@ let workspace = Workspace(
                 parallelization: .swiftTestingOnly
             ))
         }
-        return .scheme(name: "\(packageName(ofDirectory: entry.directory)) Tests", testAction: .targets(testableTargets))
+        return .scheme(
+            name: "\(packageName(ofDirectory: entry.directory)) Tests",
+            testAction: .targets(
+                testableTargets,
+                // The test process as `swift test` runs it. The Thread Performance Checker inserts
+                // libRPAC.dylib, which rebinds calls in the loaded images: the cross-reference tests that
+                // compare a cache image read in process with the same image read from its file then
+                // see calls into libRPAC. The Main Thread Checker swizzles Objective-C methods the same
+                // way. Tuist 4.210 writes only the Main Thread Checker's attribute; TuistScript.sh adds
+                // disablePerformanceAntipatternChecker to the generated schemes.
+                diagnosticsOptions: .options(mainThreadCheckerEnabled: false, performanceAntipatternCheckerEnabled: false)
+            )
+        )
     }
 )

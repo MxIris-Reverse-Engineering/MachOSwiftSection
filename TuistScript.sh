@@ -805,6 +805,35 @@ generate_workspace() {
     log "Generating $WORKSPACE ($configuration, $CURRENT_DEPENDENCY_MODE dependencies)"
     run_tuist "generate-$configuration" "${TUIST[@]}" generate --no-open --configuration "$configuration" \
         || fail "tuist generate failed"
+    turn_off_the_thread_performance_checker
+}
+
+# The test schemes run their tests the way `swift test` does, without Xcode's Thread Performance
+# Checker: it inserts libRPAC.dylib, which rebinds calls in the loaded images, and the cross-reference
+# tests that compare a cache image read in process with the same image read from its file then see
+# calls into libRPAC. Workspace.swift asks for it to be off, but Tuist 4.210 writes only the Main
+# Thread Checker's attribute into a scheme's TestAction, so this adds the other one.
+turn_off_the_thread_performance_checker() {
+    $DRY_RUN && return 0
+    python3 - "$WORKSPACE/xcshareddata/xcschemes" <<'SCHEME_EDIT'
+import glob
+import os
+import re
+import sys
+
+for path in glob.glob(os.path.join(sys.argv[1], "* Tests.xcscheme")):
+    with open(path) as handle:
+        scheme = handle.read()
+    def add_attribute(match):
+        element = match.group(0)
+        if "disablePerformanceAntipatternChecker" in element:
+            return element
+        return element[:-1].rstrip() + '\n      disablePerformanceAntipatternChecker = "YES">'
+    updated = re.sub(r"<TestAction\b[^>]*>", add_attribute, scheme, count=1)
+    if updated != scheme:
+        with open(path, "w") as handle:
+            handle.write(updated)
+SCHEME_EDIT
 }
 
 warm_cache() {

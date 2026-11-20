@@ -64,6 +64,9 @@ let project = Project(
             name: "swift-section",
             destinations: .macOS,
             product: .commandLineTool,
+            // Tuist would name the executable swift_section, as it turns every dash of a target's name
+            // into an underscore.
+            productName: "swift-section",
             bundleId: "com.machoswiftsection.swift-section",
             deploymentTargets: commandLineDeploymentTargets,
             sources: commandLineSources,
