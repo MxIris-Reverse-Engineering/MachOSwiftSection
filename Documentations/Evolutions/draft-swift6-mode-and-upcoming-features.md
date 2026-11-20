@@ -108,13 +108,14 @@
 | MachOKit `Package.swift:76`、`:145–171` · `extension SwiftSetting` | 修改 / 删除 | MachOKit target 不再拼 `SwiftSetting.allCases`；删掉九项 Swift 6 默认特性与 `CaseIterable` 扩展；末尾加统一开关循环 | Swift 6 模式下那九项是空操作；与另外五个包同一写法 | 2 |
 | MachOKit `Sources/MachOKit/**`（49 个文件） | 修改 | 补 56 处 import：55 处 `internal import FileIO` / `FileIOBinary`（MachOKit 本来就这样 import 这两个模块），1 处普通 import | `MemberImportVisibility` | 2 |
 | MachOKit `Tests/MachOKitTests/DyldCacheConcurrentReadTests.swift` | 修改（可选） | 消掉 2 条 `SendableClosureCaptures` 与 1 条 `AddPreconcurrencyImport` 警告 | Swift 6 模式下仍是警告，不挡编译 | 2 |
+| MachOKit `Tests/MachOKitTests/MachOPrintTests.swift` · `testFindSymbolByName` | 修改 | 期望的 thunk 名字换成带 `Yb` 的 Swift 6 mangling | Swift 6 模式下未调用的枚举 case 引用推断为 `@Sendable`（SE-0418） | 2 |
 | swift-semantic-string `Package.swift`（第 94 行之后） | 修改 | 加统一开关循环 | 开启三项特性 | 3 |
 | swift-semantic-string `Sources/Semantic/Components/AnyComponent.swift`、`Frozen/FrozenSemanticString+Codable.swift`、`SemanticString+Conformances.swift` | 修改 | 补 6 处 `any` | `ExistentialAny` | 3 |
 | swift-demangling `Package.swift`（`let package` 之后、Tuist 块之前） | 修改 | 加统一开关循环 | 开启三项特性 | 3 |
-| swift-demangling `Sources/DemanglingTestingSupport/Required.swift` | 修改 | 补 1 处 `any` | `ExistentialAny` | 3 |
+| swift-demangling `Sources/DemanglingTestingSupport/Required.swift:8` | 修改 | `error: Error?` → `error: (any Error)?` | `ExistentialAny`；括号是 Swift 6.3 要求的 | 3 |
 | swift-demangling `Tests/DemanglingTests/DefectRegressionTests.swift`、`NodeTests.swift`、`TransientRemangleParityTests.swift` | 修改 | 补 3 处 `import SwiftStdlibToolbox`（`migrate` 写成 `internal`，改回普通 import） | `MemberImportVisibility` | 3 |
 | MachOKitExtensions `Package.swift`（`let package` 之后、Tuist 块之前） | 修改 | 加统一开关循环 | 开启三项特性 | 4 |
-| MachOKitExtensions `Sources/MachOKitExtensions/RequiredNonOptional.swift`、`String+.swift`，`Sources/MachODependencies/DependencyLoadName.swift` | 修改 | 1 处 `any`、2 处 import | 两项特性 | 4 |
+| MachOKitExtensions `Sources/MachOKitExtensions/RequiredNonOptional.swift:8`、`String+.swift`，`Sources/MachODependencies/DependencyLoadName.swift` | 修改 | `(any Error)?`、2 处 import（`BinaryParseSupport` 改回普通 import） | 两项特性 | 4 |
 | MachOKitExtensions `Tests/`（5 个文件：`FixupResolutionMemoTests`、`SelfBindResolutionTests`、`CPlusPlusSymbolIndexCensusTests`、`DependencyLoadNameTests`、`SymbolIndexStoreTests`） | 修改 | 2 处 `any`、3 处 import | 两项特性 | 4 |
 | MachOObjCSection `Package.swift`（`let package` 之后、Tuist 块之前） | 修改 | 加统一开关循环 | 开启三项特性 | 5 |
 | MachOObjCSection `Sources/`、`Tests/`（33 个文件） | 修改 | 38 个 fix-it：36 处 import（其中 `internal import FileIO` 6 处、`internal import MachOKitExtensions` 12 处沿用本库已有写法，`ObjCTypeDecodeKit`、`ObjCMetadataSource` 改回普通 import）、2 处 `any` | 两项特性 | 5 |
@@ -124,6 +125,8 @@
 | MachOSwiftSection `Sources/**`、`Tests/**`（420 个文件，其中 `SwiftSectionFixtureSupport` 约 176 个） | 修改 | `swift package --build-system native migrate` 的 605 个 fix-it：import、`any`、`IntegrationTests` 的 33 处 `nonisolated` conformance；`migrate` 写成 `internal import` 的 266 处全部改回普通 import | 三项特性 | 6 |
 | MachOSwiftSection `Package.swift:1541–1548` 之后、`:1550` 的 Tuist 块之前 | 修改 | 加统一开关循环，用已有的 `.existentialAny`、`.memberImportVisibility`、`.inferIsolatedConformances` | 开启三项特性；放在 Tuist 块之前，Tuist 改写 target 时设置已经在了 | 6 |
 | MachOSwiftSection `Tests/SwiftInterfaceTests/ExtensionContainerUnificationTests.swift`、`Tests/SwiftIndexingTests/SymbolTestsCoreIntegrationTests.swift` | 修改 | 加 `import OrderedCollections` | 迁移模式下 `.values` 解析错 | 6 |
+| MachOSwiftSection `Sources/Output/SwiftPrinting/NodePrintables/NodePrintable.swift:68` | 修改 | `any NodePrintableDelegate?` → `(any NodePrintableDelegate)?` | Swift 6.4 的 fix-it 写法 Swift 6.3 不接受 | 6 |
+| MachOSwiftSection `Tests/`（14 个文件：`OpaqueWitnessDumpAnnotationTests`、`SymbolTestsCoreIntegrationTests`、`CrossImageOpaqueReferenceTests`、`DiffRendererHeaderFailureTests`、`ExtensionContextTypeNameTests`、`LegacyDyldInfoBindTests`、`OpaqueConstraintRenderingTests`、`OpaqueParameterDepthTests`、`OpaqueParameterInMultiDepthExtensionTests`、`OpaqueParameterWithoutProtocolRequirementTests`、`PrintFailureEventTests`、`ProjectedOpaqueMemberWitnessTests`、`PropertyWrapperSynthesizedMemberTests`、`GenericTypeNameSubstitutionTests`） | 修改 | 28 处类型位置的 `Error` → `Swift.Error` | `migrate` 补的 `import Semantic` 让裸 `Error` 解析成 `Semantic.Error` | 6 |
 | MachOSwiftSection `Documentations/Internal/ProjectEvolutionLog.md` | 修改 | 加一节 | 账本 | 9 |
 
 ## 架构图
@@ -293,17 +296,16 @@ upcoming feature 只作用于开启它的 target 本身的编译，不传给依�
 1. **提案进集成分支，跨仓库登记** —— 改动地图第 1–3 行
    - 行为：`proposalIsListedInBothIndexes`、`siblingIndexesPointAtTheProposal`
 2. **MachOKit 进 Swift 6 并开三项特性**（fork 的 `.worktrees/MachOKit-Swift6UpcomingFeatures`，从 `next` 切） —— 第 4–7 行
-   - 行为：`machOKitTargetsCompileInSwift6Mode`、`machOKitBuildsWithAllThreeUpcomingFeatures`、`machOKitTestsPassSkippingAotCachePrintTests`（已知 5 个环境失败照旧）、`machOKitBuildsWithXcode26_6`
+   - 行为：`machOKitTargetsCompileInSwift6Mode`、`machOKitBuildsWithAllThreeUpcomingFeatures`、`machOKitTestsPassSkippingAotCachePrintTests`（已知 5 个环境失败照旧）、`machOKitBuildsWithXcode26_6`、`machOKitCIPassesOnSwift6_0`（手动触发 fork 的 `ci.yml`：Xcode 16.2 与 Linux Swift 6.0.3）、`findSymbolByNameLooksUpTheSwift6Mangling`
 3. **swift-semantic-string 与 swift-demangling 开三项特性** —— 第 8–12 行
    - 行为：`semanticStringBuildsAndTestsWithUpcomingFeatures`、`demanglingBuildsAndTestsWithUpcomingFeatures`、`demanglingLifetimesFeatureStillEnabledInBothTargets`、两者 `buildsWithXcode26_6`
 4. **MachOKitExtensions 开三项特性**（从 `origin/main` 切） —— 第 13–15 行
    - 行为：`machOKitExtensionsBuildsAndTestsWithUpcomingFeatures`、`buildsWithXcode26_6`
 5. **MachOObjCSection 开三项特性** —— 第 16–18 行
    - 行为：`machOObjCSectionBuildsAndTestsWithUpcomingFeatures`、`buildsWithXcode26_6`
-6. **本库 Sources：预修、migrate、开关** —— 第 19–22 行
-   - 行为：`preFixedSitesCompileUnderMigrationMode`、`migrateAppliesAllNonTestFixIts`、`noFileImportingSemanticSpellsBareErrorOrNumeric`、`allNonTestTargetsBuildWithUpcomingFeatures`
-7. **本库 Tests：手改剩余警告** —— 第 23–25 行
-   - 行为：`allTestTargetsBuildWithUpcomingFeatures`（含 `IntegrationTests`）、`noMigrationWarningRemains`
+6. **本库：预修、migrate、开关** —— 第 19–24 行
+   - 行为：`preFixedSitesCompileUnderMigrationMode`、`migrateAppliesSourceAndTestFixIts`、`noModuleIsImportedAtTwoAccessLevels`、`noFileImportingSemanticSpellsBareErrorOrNumeric`、`optionalExistentialsAreParenthesizedForSwift6_3`、`allTargetsBuildWithUpcomingFeatures`（含 `IntegrationTests`，Xcode 27.2 与 26.6 都编）
+7. **（并入第 6 步）** 草案里「测试照警告手改」这一步不再需要：`--build-system native` 的 `migrate` 连测试一起改了。
 8. **本库全量验证** —— 不改代码
    - 行为：`fullSuitePassesSkippingIntegrationTests`、`fullSuitePassesWithXcode26_6`、`renderingABVerificationIsByteIdentical`（`SystemFrameworkRenderingVerification.md` 的三条腿，对照组为 `next`；补 import 只改名字解析，A/B 用来兜住遮蔽一类不报错的变化）、`tuistWorkspaceGeneratesAndBuilds`、`noCastAlwaysFailsWarning`
 9. **落地** —— 第 26 行
@@ -322,3 +324,9 @@ upcoming feature 只作用于开启它的 target 本身的编译，不传给依�
 |------|------|------|
 | 2026-11-20 | Created as Draft | 用户要求把 MachO 系列库迁到 Swift 6、开启严格并发，并评估开启全部新特性的改动量。实测发现五个包已是 Swift 6 模式，只有 MachOKit 停在 Swift 5 且切换后零错误；Swift 7 默认的六项特性逐项量过之后，用户选定「MachOKit 切 Swift 6 + `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`」，另外三项与 `StrictMemorySafety` 不做 |
 | 2026-11-20 | Accepted | 用户批准，开始实现 |
+| 2026-11-20 | MachOKit 用 tools 6.0 | 草案定的 6.2 会让 fork 的 CI（Xcode 16.2、Linux Swift 6.0.3）读不了清单；6.0 同样默认 Swift 6 模式。手动触发的 CI 两项都通过，证明 Swift 6.0 在 Swift 6 模式下能编、不认识的特性名被忽略 |
+| 2026-11-20 | 测试也交给 `migrate` | 默认构建系统下 `migrate` 不改测试（450 条测试警告、0 个 fix-it）；`--build-system native` 下一遍就改完源码与测试，草案里的手改与批量脚本都不需要了 |
+| 2026-11-20 | `internal import` 改回普通 import | native 构建系统下 `migrate` 会写 `internal import X`，在本库与已有的普通 `import X` 冲突（17 个文件报访问级别有歧义）。规则：仓库对这个模块已有 `internal import` 先例的保留，其余改成普通 import |
+| 2026-11-20 | `any P?` 改成 `(any P)?` | Swift 6.4 的 fix-it 写出的 `any P?` 在 Swift 6.3（CI 的 Xcode 26.6）下报错；swift-demangling、MachOKitExtensions、本库各一处 |
+| 2026-11-20 | 14 个测试文件写 `Swift.Error` | 除了预修的两处，`migrate` 还给 93 个文件加了 `import Semantic`，其中 14 个测试文件里有类型位置的裸 `Error`（`struct …Error: Error`、`any Error`、`(any Error).self`），全部改成 `Swift.Error`；源码里没有，也没有出现「转型永远失败」的警告 |
+| 2026-11-20 | MachOKit 一个测试的期望符号名 | `MachOPrintTests.testFindSymbolByName` 按名字找测试二进制里的一个 curry thunk；Swift 6 模式把对 `LoadCommand.dylib` 的未调用引用推断为 `@Sendable`（SE-0418），mangling 多了 `Yb`，测试改为新名字。其余失败的 5 个用例在基线上同样失败（`libclang_rt.osx.a` 不存在等环境原因） |
