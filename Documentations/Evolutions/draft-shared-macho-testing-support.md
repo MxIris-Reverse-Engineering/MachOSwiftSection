@@ -69,8 +69,8 @@
 ## 提议方案
 
 1. **MKE 新增两个 product**（3.2.0）：
-   - `MachOFixtureSupport`（`Sources/MachOFixtureSupport`，不 import Testing）：`DyldSharedCachePath`、`MachOImageName` / `MachOFileName` / `XcodeMachOFileName`（可扩展的 struct）、打开 cache 与镜像的扩展、`hostSlice(of:)`、取进程内镜像（按锚点地址 `dladdr`、按名字）、「cache 里的文件与进程内同一镜像」成对返回、`FixtureCompiler`（clang 与 swiftc，同一份源码与参数只编一次，进程结束时清理临时目录）、`ForwardingReader`、`TestActor`、`ProcessMemory`、`.print()`。
-   - `MachOTestingSupport`（`Sources/MachOTestingSupport`，import Testing，依赖前者与 MachOReading）：`ExclusiveImageAccess`、`MachOFileTests`、`MachOImageTests`、`DyldCacheTests`、`XcodeMachOFileTests`，以及新的 `MachOFixtureTests`。
+   - `MachOFixtureSupport`（`Sources/TestSupport/MachOFixtureSupport`，不 import Testing）：`DyldSharedCachePath`、`MachOImageName` / `MachOFileName` / `XcodeMachOFileName`（可扩展的 struct）、打开 cache 与镜像的扩展、`hostSlice(of:)`、取进程内镜像（按锚点地址 `dladdr`、按名字）、「cache 里的文件与进程内同一镜像」成对返回、`FixtureCompiler`（clang 与 swiftc，同一份源码与参数只编一次，进程结束时清理临时目录）、`ForwardingReader`、`TestActor`、`ProcessMemory`、`.print()`。
+   - `MachOTestingSupport`（`Sources/TestSupport/MachOTestingSupport`，import Testing，依赖前者与 MachOReading）：`ExclusiveImageAccess`、`MachOFileTests`、`MachOImageTests`、`DyldCacheTests`、`XcodeMachOFileTests`，以及新的 `MachOFixtureTests`。
 2. **测试基类原样搬**：保留「继承基类拿到镜像」的写法，只改访问级别（`open` / `public`）与上面列出的必要改动。改成 Swift Testing trait 的写法以后另写提案。
 3. **`MachOFixtureTests`：不绑定夹具的基类**。子类用一个 `MachOFixture` 值说明夹具从哪来（磁盘路径，或进程里某个锚点地址所在的镜像，以及是否要 `dlopen`）；基类据此建出 `machOFile`、`machOImage` 与 `fileContext`、`imageContext`、`inProcessContext`，提供 `acrossAllReaders`、`acrossAllContexts`、`usingInProcessOnly`，签名与本包现在的一致。
 4. **本机 cache 统一为进程共用**：`DyldSharedCachePath.current` 与 `DyldCacheTests` 都经 `FullDyldCache.cachedHost` / `DyldCache.host` 的 URL，不写死路径；确实需要新实例的测试显式开一份（`DyldCache(path:)` 照旧可用）。
@@ -97,8 +97,8 @@
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
 |---|---|---|---|---|
 | MKE `Package.swift` | 修改 | 新增 target 与 product `MachOFixtureSupport`、`MachOTestingSupport`，测试 target `MachOTestingSupportTests`；各测试 target 加依赖；Tuist 适配块留在文件末尾 | 对外发布 | 1 |
-| MKE `Sources/MachOFixtureSupport/`（`DyldSharedCachePath`、`MachOImageName`、`MachOFileName`、`XcodeMachOFileName`、`DyldCache+Fixture`、`HostSlice`、`ProcessImages`、`FixtureCompiler`、`ForwardingReader`、`TestActor`、`ProcessMemory`、`Printing`） | 新增 | 从本包搬来并改为 `public`；名字类型改成 struct；`.current` 不写死；锚点由调用方传；编译器统一 clang 与 swiftc | 共用的夹具支持 | 1、2 |
-| MKE `Sources/MachOTestingSupport/`（`ExclusiveImageAccess`、`MachOFileTests`、`MachOImageTests`、`DyldCacheTests`、`XcodeMachOFileTests`、`MachOFixture`、`MachOFixtureTests`） | 新增 | 搬来并改为 `open` / `public`；新的夹具基类与跨读取器写法，含成对传入、单个闭包的重载 | 共用的测试基类与 trait | 1、2 |
+| MKE `Sources/TestSupport/MachOFixtureSupport/`（`DyldSharedCachePath`、`MachOImageName`、`MachOFileName`、`XcodeMachOFileName`、`DyldCache+Fixture`、`HostSlice`、`ProcessImages`、`FixtureCompiler`、`ForwardingReader`、`TestActor`、`ProcessMemory`、`Printing`） | 新增 | 从本包搬来并改为 `public`；名字类型改成 struct；`.current` 不写死；锚点由调用方传；编译器统一 clang 与 swiftc | 共用的夹具支持 | 1、2 |
+| MKE `Sources/TestSupport/MachOTestingSupport/`（`ExclusiveImageAccess`、`MachOFileTests`、`MachOImageTests`、`DyldCacheTests`、`XcodeMachOFileTests`、`MachOFixture`、`MachOFixtureTests`） | 新增 | 搬来并改为 `open` / `public`；新的夹具基类与跨读取器写法，含成对传入、单个闭包的重载 | 共用的测试基类与 trait | 1、2 |
 | MKE `Tests/MachOTestingSupportTests/` | 新增 | 搬来 `DyldSharedCachePathTests`、`ExclusiveImageAccessTests`；新增 `FixtureCompilerTests`、`HostSliceTests`、`MachOFixtureTestsTests` | 共享库自己的测试 | 1、2 |
 | MKE `Tests/MachOKitExtensionsTests/`（`FixupResolutionMemoTests`、`SelfBindResolutionTests`、`DyldCacheImageSearchTests`、`DyldCacheImageIdentifierTests`、`DyldCacheSubCacheLookupTests`、`MachOReaderWrapperTests`、`Support/ForwardingReader.swift`、`Support/ChainedFixupsFixture.swift`） | 修改 / 删除 | 现编 dylib、本机 cache、归档 cache 路径、选 slice、包装读取器改用共享版本 | 去重 | 3 |
 | MKE `Tests/MachOSymbolsTests/`、`MachODependenciesTests/`、`MachOAddressResolutionTests/`、`MachOReadingTests/` | 修改 | 同上 | 去重 | 3 |
@@ -307,7 +307,7 @@ MKE 新增实现说明 `Internal/TestingSupport.md`、README 的 product 表；�
 
 MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 
-1. **两个 product 的骨架与搬来的代码**（完成）—— MKE `Package.swift`、`Sources/MachOFixtureSupport/`、`Sources/MachOTestingSupport/`、`Tests/MachOTestingSupportTests/`
+1. **两个 product 的骨架与搬来的代码**（完成）—— MKE `Package.swift`、`Sources/TestSupport/MachOFixtureSupport/`、`Sources/TestSupport/MachOTestingSupport/`、`Tests/MachOTestingSupportTests/`
    - 行为：`currentCachePathIsTheOneTheSystemLocates`
    - 行为：`archivedCachePathsKeepTheirLayout`
    - 行为：`hostSliceMatchesTheProcessSubtype`
@@ -369,3 +369,4 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 | 2026-11-20 | `FixtureCompiler` 的锁改用 FrameworkToolbox 的 `OSToolbox.Mutex`，MKE 因此新增依赖 FrameworkToolbox（只有 `MachOFixtureSupport` 用） | 用户要求：不用 `NSLock`，尽量不写 `@unchecked Sendable`。标准库的 `Mutex` 要 macOS 15、`OSAllocatedUnfairLock` 要 macOS 13，MKE 的下限是 macOS 10.15，OSToolbox 的 `Mutex` 用法相同、没有版本限制。产物目录与退出时清理改成两个全局 `let`；`ProcessMemory` 的格式化器改为用时现建，去掉 `nonisolated(unsafe)`；测试里 `MachOFixtureTests` 子类多写的 `@unchecked Sendable` 删掉（MainActor 基类本就 Sendable）。MKE 全量测试通过，退出码 0。本包第 5 步同样不要再写 `NSLock`。 |
 | 2026-11-20 | MKE 其余模块的 `NSLock` 也一并换成 `OSToolbox.Mutex`，随 3.2.0 发布 | 用户决定：FrameworkToolbox 本来就是 MSS 与 RuntimeViewer 的依赖。19 个文件、7 个库 target；每段临界区的范围保持不变（先查、出锁构建、再进锁写回的照旧）；能被编译器认作 `Sendable` 的类型去掉了 `@unchecked`，还持有 `DyldCache`、`FullDyldCache`、指针的 5 个保留并写明原因。非 `Sendable` 的值存进锁时用 `withLockUnchecked`（6 处），各有注释。MKE 全量测试与 TSTables、Espresso 普查通过，退出码 0。 |
 | 2026-11-20 | MKE 撤掉 Linux 支持 | OSToolbox 的 `Mutex` 基于 `os_unfair_lock`，只在 Apple 平台上有，换锁后 Linux 编不过。用户选择撤掉承诺（否决：给 OSToolbox 补 Linux 实现；在 MKE 里按平台分开用标准库的 `Mutex`）。此前从没有 Linux CI，也没在 Linux 上验证过。MachOObjCSection 依赖 MKE，它对 Linux 的承诺随之失效。 |
+| 2026-11-20 | MKE 的 `Sources/` 按层分组，两个测试支持 target 在 `Sources/TestSupport/` 下 | 用户要求照本包 0055 分组，MKE 另写了提案 `draft-group-sources-by-layer`，同一分支、随 3.2.0。本提案改动地图里 MKE 的源码路径随之更新。 |
