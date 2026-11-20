@@ -3438,6 +3438,19 @@
 - **验证**：Ultra，Xcode 27.2。远程模式的测试 scheme 与原生 `swift test --skip IntegrationTests` 逐 bundle 对照全部通过；本地模式全量 2,943 个通过；Tuist 编的 `swift-section` 与原生编的对 SymbolTestsCore 的 `dump`、`interface` 逐字节相同；清空 DerivedData 编 CLI 不走缓存 63 秒、走缓存 46 秒。四个清单在 Xcode 26.6 下也能解析。
 - **对应版本**：未发布（0.26.0 之后）；只影响开发，不进发版产物。
 
+## 144. 静态链接也带上符号语言注册
+
+- **时间段**：2026-11-20，`feature/registration-link-anchor`（本库与 MachOObjCSection 同名）。
+- **动机**：Swift 与 ObjC 两种符号语言由 C 文件里的 `static` 加载期 constructor 登记（第 141 节），文件里没有别的符号。SwiftPM 与 Xcode 自带的包集成整块链接 target，constructor 总会带上；从静态归档链接的使用方（Tuist 的静态 framework、静态库）只拉被引用的成员，`-ObjC` 也不拉它，注册表就是空的。本库的 Tuist workspace 当时靠脚本给它加 `-force_load` 绕过（第 143 节），RuntimeViewer 的 Tuist workspace 漏了，用链接探针实测证实；用户要求在库里根治。
+- **关键决策**：注册用的 C 文件另外导出一个什么都不做的锚点函数，由定义该语言、注册该语言的那个 Swift 文件在注册函数里调用。那个 Swift 文件定义了 extension，带 `-ObjC` 的链接一定拉进它；本库的 Swift 索引扫描每次都用它的识别规则，用到索引也会拉进它。它对锚点的引用再把 C 文件连同 constructor 拉进来。constructor 照旧负责在任何代码查询之前完成注册。没有改成显式注册（使用方调用一个函数）：那要所有使用方都记得调用。
+- **落地模块**：`Sources/Symbols/SwiftSymbolsRegistration/`（锚点与头文件）、`Sources/Symbols/SwiftSymbols/SymbolLanguage+Swift.swift`；MachOObjCSection 的 `MachOObjCSectionC/symbol_language_registration.c` 与 `SymbolLanguage+ObjectiveC.swift`。本库 `TuistScript.sh` 对带 constructor 的 target 加 `-force_load` 的通用规则保留作保险。
+- **文档**：`Modules/SwiftSymbols.md` 注册一条、`TuistDevelopment.md` 已知的坑、`AGENTS.md` 的 MachOSymbols 一条（别删那个调用）。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上，Xcode 27.2。
+  - `SwiftSymbolLanguageRegistrationTests` 4 个通过，含新的 `languageFileRefersToTheRegistrationAnchor`：它钉住引用的两端，因为 SwiftPM 整块链接，单元测试看不到静态归档漏掉成员。MachOObjCSection 的 `ObjectiveCSymbolLanguageTests` 5 个通过。两个库的改动用 Xcode 26.6 也编得过。
+  - 静态归档链接：用 `swift build` 编出的 11 个 SwiftSymbols 目标文件打成归档，只带 `-ObjC` 链接。注册文件带锚点时 constructor 被拉进来；换回改动前的注册文件，其余不变，constructor 不在。
+  - RuntimeViewer 的 Tuist workspace 改动前没有这两个 constructor，它先在清单里对 15 个链到本库的 target 加了 `-force_load`。改后 App、插件、两个注入载荷、`runtime-viewer-cli` 与 10 个测试 bundle 里都有，见它 0053 的决策日志；它跟上本库与 MachOObjCSection 的 `next` 之后，那些 `-force_load` 可以去掉。
+- **对应版本**：未发布（0.26.0 之后）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

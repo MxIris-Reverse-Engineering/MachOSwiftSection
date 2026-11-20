@@ -29,6 +29,32 @@ struct SwiftSymbolLanguageRegistrationTests {
         #expect(SymbolLanguage(ofSymbolNamed: "__ZN4llvm5Value4dumpEv") == .cPlusPlus)
     }
 
+    /// A static link (a Tuist static framework, a static library) loads
+    /// SwiftSymbolsRegistration.c, and the constructor that registers the
+    /// language, only because SymbolLanguage+Swift.swift refers to its anchor:
+    /// the constructor is static, so the file defines nothing else, and -ObjC
+    /// does not load it either. SwiftPM links every target whole, so no test
+    /// here can watch an archive leave the file out; this pins both halves of
+    /// the reference instead.
+    @Test func languageFileRefersToTheRegistrationAnchor() throws {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let symbolSources = packageRoot.appendingPathComponent("Sources/Symbols")
+        let registrationSource = try String(
+            contentsOf: symbolSources.appendingPathComponent("SwiftSymbolsRegistration/SwiftSymbolsRegistration.c"),
+            encoding: .utf8
+        )
+        let languageSource = try String(
+            contentsOf: symbolSources.appendingPathComponent("SwiftSymbols/SymbolLanguage+Swift.swift"),
+            encoding: .utf8
+        )
+        // Not static: a static function is no symbol a reference can name.
+        #expect(registrationSource.contains("\nvoid swift_symbols_registration_anchor(void) {"))
+        #expect(languageSource.contains("\n    swift_symbols_registration_anchor()\n"))
+    }
+
     @Test func cAndCPlusPlusStoreLeavesSwiftNamesOut() throws {
         let (swiftCore, swiftSymbols, otherSymbols) = try Self.swiftCoreSymbols()
         try #require(!swiftSymbols.isEmpty && !otherSymbols.isEmpty)
