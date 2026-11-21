@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-21</dd></div>
+    <div><dt>项目类型</dt><dd>库</dd></div>
+    <div><dt>原文</dt><dd><code>draft-cross-reference-test-scan-load.md</code></dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#decide">要你定</a></li>
+    <li><a href="#architecture">架构图</a></li>
+    <li><a href="#map">改动地图</a></li>
+    <li><a href="#design">详细设计</a></li>
+    <li><a href="#research">调研</a></li>
+    <li><a href="#alternatives">替代方案</a></li>
+    <li><a href="#impact">影响</a></li>
+    <li><a href="#steps">落地步骤</a></li>
+    <li><a href="#log">决策日志</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p><code>CrossReferenceAnalysisTests</code> 里有四个测试辅助函数用不设上限的 <code>DispatchQueue.concurrentPerform</code> 扫描整份 dyld shared cache，Debug 构建下每次跑测试都把机器的全部核心占满好几分钟。本提案做两件事：</p>
+  <ol>
+    <li><strong>测试限并发</strong>：新增全进程共用的扫描名额 <code>ImageScanConcurrency</code>，默认 <code>max(2, 核心数 / 2)</code>，四处扫描改走它；Swift Testing 并行跑多个套件时，所有扫描加起来也不超过名额。另加源码扫描测试，禁止以后绕过它直接调 <code>concurrentPerform</code>。</li>
+    <li><strong>Debug 提速</strong>：Tuist 开发工作区里，让 <code>MachOCodeReferences</code>、<code>ARM64InstructionDecoding</code> 在 Debug 配置下也用 <code>-O</code> 编译，去掉每条指令一次的 Swift 运行时元数据查找。</li>
+  </ol>
+  <p>库的公开 API、原生 <code>MachOSwiftSection.xcworkspace</code>、<code>swift test</code> 与 CI 的行为都不变。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+  <div class="callout">
+    <p class="callout-title">轻量档：看过简报点头即可开工</p>
+    <ol>
+      <li>名额取半数核心（Ultra 上 14 个）、至少 2 个，可以吗？</li>
+      <li><code>-O</code> 只给采样里出现的两个模块，本包自己的 <code>CrossReferenceAnalysis</code> 保持可调试，可以吗？</li>
+    </ol>
+  </div>
+  <div class="callout callout-warning">
+    <p class="callout-title">未实测</p>
+    <p>「开 <code>-O</code> 后接近 Release 的速度」是推测；Tuist 的 <code>base</code> 设置能否覆盖按配置写的 <code>-Onone</code> 也未验证。落地第 1、4、5 步分别量基线、验证设置、复测。</p>
+  </div>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+    <li><i class="swatch swatch-removed"></i>删除</li>
+    <li><i class="swatch swatch-kept"></i>不变</li>
+  </ul>
+
+  <div class="figure">
+  <svg viewBox="0 0 1000 340" role="img" aria-label="What changes">
+    <rect class="group" x="10" y="10" width="600" height="320" rx="10"/>
+    <text class="group-label" x="22" y="30">Tests/CrossReferenceAnalysisTests/</text>
+    <rect class="box-changed" x="25" y="42" width="330" height="44" rx="6"/><text x="35" y="60">CrossReferenceAnalyzerTests</text><text class="caption" x="35" y="77">imagesReferencing(_:among:)</text>
+    <rect class="box-changed" x="25" y="94" width="330" height="44" rx="6"/><text x="35" y="112">SwiftTypeReferenceTests</text><text class="caption" x="35" y="129">imagesReferencing(_:among:)</text>
+    <rect class="box-changed" x="25" y="146" width="330" height="44" rx="6"/><text x="35" y="164">ObjectiveCClassReferenceTests</text><text class="caption" x="35" y="181">imagesReferencing(_:at:among:)</text>
+    <rect class="box-changed" x="25" y="198" width="330" height="44" rx="6"/><text x="35" y="216">FunctionStartOutsideTextTests</text><text class="caption" x="35" y="233">imagesWithAStartOutsideText()</text>
+    <rect class="box-removed" x="405" y="42" width="190" height="44" rx="6"/><text class="strike" x="415" y="60">concurrentPerform</text><text class="caption" x="415" y="77">every core, per call</text>
+    <rect class="box-added" x="405" y="110" width="190" height="62" rx="6"/><text x="415" y="130">ImageScanConcurrency</text><text class="caption" x="415" y="148">max(2, cores / 2)</text><text class="caption" x="415" y="163">process-wide permits</text>
+    <path class="arrow" d="M 355 64 L 405 135"/>
+    <path class="arrow" d="M 355 116 L 405 140"/>
+    <path class="arrow" d="M 355 168 L 405 146"/>
+    <path class="arrow" d="M 355 220 L 405 152"/>
+    <rect class="box-added" x="25" y="254" width="212" height="30" rx="6"/><text x="35" y="274">ImageScanConcurrencyTests</text>
+    <rect class="box-added" x="247" y="254" width="194" height="30" rx="6"/><text x="257" y="274">ParallelScanSourceTests</text>
+    <rect class="box-kept" x="25" y="292" width="370" height="28" rx="6"/><text x="35" y="311">ScanThroughputBenchmarkTests  (opt-in, unchanged)</text>
+
+    <rect class="group" x="630" y="10" width="360" height="320" rx="10"/>
+    <text class="group-label" x="642" y="30">Tuist/Package.swift  targetSettings</text>
+    <rect class="box-added" x="645" y="42" width="320" height="34" rx="6"/><text x="655" y="64">optimizedScanSettings</text>
+    <rect class="box-changed" x="645" y="96" width="320" height="44" rx="6"/><text x="655" y="114">MachOCodeReferences</text><text class="caption" x="655" y="131">Debug: -Onone → -O</text>
+    <rect class="box-changed" x="645" y="150" width="320" height="44" rx="6"/><text x="655" y="168">ARM64InstructionDecoding</text><text class="caption" x="655" y="185">Debug: -Onone → -O</text>
+    <rect class="box-kept" x="645" y="214" width="320" height="44" rx="6"/><text x="655" y="232">CrossReferenceAnalysis</text><text class="caption" x="655" y="249">Debug: -Onone (unchanged)</text>
+    <rect class="box-kept" x="645" y="268" width="320" height="44" rx="6"/><text x="655" y="286">ObjCCodeReferences</text><text class="caption" x="655" y="303">Debug: -Onone (unchanged)</text>
+    <path class="arrow" d="M 700 76 L 700 96"/>
+    <path class="arrow" d="M 965 59 L 980 59 L 980 172 L 965 172"/>
+  </svg>
+  </div>
+  <p class="figure-caption">改了什么：四处调用点改走共用名额；Tuist 清单给两个扫描模块在 Debug 下开 <code>-O</code>。</p>
+
+  <div class="figure">
+  <svg viewBox="0 0 1000 220" role="img" aria-label="How the budget is shared">
+    <rect class="box-kept" x="20" y="20" width="250" height="40" rx="6"/><text x="30" y="45">suite A  concurrentPerform(n)</text>
+    <rect class="box-kept" x="20" y="80" width="250" height="40" rx="6"/><text x="30" y="105">suite B  concurrentPerform(m)</text>
+    <rect class="box-kept" x="20" y="140" width="250" height="40" rx="6"/><text x="30" y="165">suite C  concurrentPerform(k)</text>
+    <rect class="box-added" x="320" y="70" width="250" height="60" rx="6"/><text x="330" y="92">workers ≤ budget per call</text><text class="caption" x="330" y="110">each pulls the next index</text><text class="caption" x="330" y="124">from a shared cursor</text>
+    <rect class="box-added" x="630" y="20" width="350" height="62" rx="6"/><text x="640" y="42">permits  (DispatchSemaphore)</text><text class="caption" x="640" y="60">value = maximumConcurrentScans</text><text class="caption" x="640" y="74">shared by every call in the process</text>
+    <rect class="box-kept" x="630" y="120" width="350" height="40" rx="6"/><text x="640" y="145">scan one image, then signal()</text>
+    <path class="arrow" d="M 270 40 L 320 90"/>
+    <path class="arrow" d="M 270 100 L 320 100"/>
+    <path class="arrow" d="M 270 160 L 320 110"/>
+    <path class="arrow" d="M 570 90 L 630 55"/>
+    <path class="arrow" d="M 805 82 L 805 120"/>
+    <text class="caption" x="320" y="205">images being scanned at once, all suites together ≤ maximumConcurrentScans</text>
+  </svg>
+  </div>
+  <p class="figure-caption">名额在并行的套件之间共用：每次调用最多起「名额」个工作者，每扫一个镜像先取一个名额。</p>
+
+  <div class="figure">
+  <svg viewBox="0 0 1000 230" role="img" aria-label="Debug hot path before and after">
+    <rect class="group" x="10" y="10" width="480" height="210" rx="10"/>
+    <text class="group-label" x="22" y="30">before: MachOCodeReferences at -Onone</text>
+    <rect class="box-kept" x="25" y="42" width="450" height="34" rx="6"/><text x="35" y="64">ReferenceScanner.scanFunction(at:)</text>
+    <rect class="box-removed" x="25" y="90" width="450" height="34" rx="6"/><text class="strike" x="35" y="112">IndexingIterator&lt;Range&lt;Int&gt;&gt;.next()  unspecialized</text>
+    <rect class="box-removed" x="25" y="138" width="450" height="34" rx="6"/><text class="strike" x="35" y="160">swift_getTupleTypeMetadata2</text>
+    <rect class="box-removed" x="25" y="182" width="450" height="30" rx="6"/><text class="strike" x="35" y="202">one global lock, 28 threads contend</text>
+    <path class="arrow" d="M 250 76 L 250 90"/>
+    <path class="arrow" d="M 250 124 L 250 138"/>
+    <path class="arrow" d="M 250 172 L 250 182"/>
+    <rect class="group" x="510" y="10" width="480" height="210" rx="10"/>
+    <text class="group-label" x="522" y="30">after: MachOCodeReferences at -O</text>
+    <rect class="box-changed" x="525" y="42" width="450" height="34" rx="6"/><text x="535" y="64">ReferenceScanner.scanFunction(at:)</text>
+    <rect class="box-added" x="525" y="90" width="450" height="34" rx="6"/><text x="535" y="112">specialized, inlined integer loop</text>
+    <text class="caption" x="535" y="145">no runtime metadata lookup per instruction</text>
+    <path class="arrow" d="M 750 76 L 750 90"/>
+  </svg>
+  </div>
+  <p class="figure-caption">Debug 下热路径为什么慢：未特化的区间循环每走一步都查一次元组元数据，28 个线程争同一把锁。</p>
+</section>
+
+<section id="map">
+  <h2>改动地图</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+    <tbody>
+      <tr><td><code>Tests/CrossReferenceAnalysisTests/ImageScanConcurrency.swift</code> · <code>ImageScanConcurrency</code></td><td><span class="tag tag-added">新增</span></td><td>进程共用的名额 <code>maximumConcurrentScans</code> 与信号量，入口 <code>concurrentPerform(iterations:execute:)</code>；私有的 <code>IterationCursor</code></td><td>四处扫描共用一份上限，并行的套件不叠加</td><td class="numeric">2</td></tr>
+      <tr><td><code>…/ImageScanConcurrencyTests.swift</code> · <code>ImageScanConcurrencyTests</code></td><td><span class="tag tag-added">新增</span></td><td>四个行为测试</td><td>钉住「每个下标只跑一次」与「同时进行的不超过名额」</td><td class="numeric">2</td></tr>
+      <tr><td><code>…/CrossReferenceAnalyzerTests.swift</code> · <code>imagesReferencing(_:among:)</code></td><td><span class="tag tag-changed">修改</span></td><td><code>DispatchQueue.concurrentPerform</code> → <code>ImageScanConcurrency.concurrentPerform</code></td><td>不限并发的整份 cache 扫描</td><td class="numeric">3</td></tr>
+      <tr><td><code>…/SwiftTypeReferenceTests.swift</code> · <code>imagesReferencing(_:among:)</code></td><td><span class="tag tag-changed">修改</span></td><td>同上</td><td>同上</td><td class="numeric">3</td></tr>
+      <tr><td><code>…/ObjectiveCClassReferenceTests.swift</code> · <code>imagesReferencing(_:at:among:)</code></td><td><span class="tag tag-changed">修改</span></td><td>同上</td><td>同上（这次采样抓到的那处）</td><td class="numeric">3</td></tr>
+      <tr><td><code>…/FunctionStartOutsideTextTests.swift</code> · <code>imagesWithAStartOutsideText()</code></td><td><span class="tag tag-changed">修改</span></td><td>同上</td><td>同上</td><td class="numeric">3</td></tr>
+      <tr><td><code>…/ParallelScanSourceTests.swift</code> · <code>ParallelScanSourceTests</code></td><td><span class="tag tag-added">新增</span></td><td>禁止名额与基准之外直接调 <code>DispatchQueue.concurrentPerform(</code>；<code>theScanDiscriminates</code></td><td>以后新写的测试默认会照抄旧写法</td><td class="numeric">3</td></tr>
+      <tr><td><code>Tuist/Package.swift</code> · <code>optimizedScanSettings</code></td><td><span class="tag tag-added">新增</span></td><td>两个扫描模块 <code>SWIFT_OPTIMIZATION_LEVEL = -O</code>，并入 <code>mergingSettings(...)</code></td><td>Debug 下扫描的时间过半花在运行时元数据查找</td><td class="numeric">4</td></tr>
+      <tr><td><code>Documentations/Internal/TuistDevelopment.md</code></td><td><span class="tag tag-changed">修改</span></td><td>「已知的坑」加一条：两个扫描模块在 Debug 下也开 <code>-O</code>，要调试时从名单里临时拿掉再生成</td><td>Tuist 工作区与原生 workspace 的有意差异</td><td class="numeric">5</td></tr>
+      <tr><td><code>Documentations/Internal/FixtureTestingAndContinuousIntegration.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新增小节「整份 cache 扫描共用一份并发名额（2026-11-21）」</td><td>记录设计来历</td><td class="numeric">5</td></tr>
+      <tr><td><code>AGENTS.md</code>（<code>CLAUDE.md</code> 是它的符号链接）</td><td><span class="tag tag-changed">修改</span></td><td>测试规则块加一条：并行扫描很多镜像的测试走 <code>ImageScanConcurrency.concurrentPerform</code></td><td>agent 默认会照抄旧写法</td><td class="numeric">5</td></tr>
+      <tr><td><code>Documentations/Internal/ProjectEvolutionLog.md</code></td><td><span class="tag tag-changed">修改</span></td><td>落地时追加一节，节号按落地规则取</td><td>每个非平凡批次记一节</td><td>落地</td></tr>
+      <tr><td><code>Documentations/Evolutions/README.md</code>、<code>Documentations/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>登记本提案</td><td>索引</td><td>现在 / 落地</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details open>
+    <summary><code>ImageScanConcurrency</code></summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">enum</span> <span class="token-type">ImageScanConcurrency</span> {
+    <span class="token-keyword">static let</span> maximumConcurrentScans = max(<span class="token-number">2</span>, <span class="token-type">ProcessInfo</span>.processInfo.activeProcessorCount / <span class="token-number">2</span>)
+
+    <span class="token-keyword">private static let</span> permits = <span class="token-type">DispatchSemaphore</span>(value: maximumConcurrentScans)
+
+    <span class="token-keyword">static func</span> concurrentPerform(iterations: <span class="token-type">Int</span>, execute body: (<span class="token-type">Int</span>) -&gt; <span class="token-type">Void</span>) {
+        <span class="token-keyword">guard</span> iterations &gt; <span class="token-number">0</span> <span class="token-keyword">else</span> { <span class="token-keyword">return</span> }
+        <span class="token-keyword">let</span> cursor = <span class="token-type">IterationCursor</span>(iterationCount: iterations)
+        <span class="token-type">DispatchQueue</span>.concurrentPerform(iterations: min(maximumConcurrentScans, iterations)) { _ <span class="token-keyword">in</span>
+            <span class="token-keyword">while let</span> index = cursor.next() {
+                permits.wait()
+                <span class="token-keyword">defer</span> { permits.signal() }
+                body(index)
+            }
+        }
+    }
+}</code></pre>
+      <ul>
+        <li><strong>每次调用也限工作者数</strong>：只靠信号量的话，多出来的线程全阻塞在 <code>permits.wait()</code> 上，workqueue 还会补新线程；先限工作者数，阻塞线程就有上界。</li>
+        <li><strong>不会卡死</strong>：名额只在扫一个镜像期间持有，扫描是同步 CPU 工作，不等线程池；调用线程即便是 cooperative thread，等的也是不需要池线程的扫描线程归还名额。嵌套调用会卡死，文档注释写明禁止。</li>
+        <li><strong>CI</strong>：3 核 runner 上 <code>3 / 2 = 1</code>，取下限 2。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>调用点与源码扫描测试</summary>
+    <div class="details-body">
+      <p>四处调用点只把 <code>DispatchQueue.concurrentPerform(iterations:)</code> 换成 <code>ImageScanConcurrency.concurrentPerform(iterations:)</code>，闭包体、<code>ImageIndexCollector</code> 与 <code>flagsBase</code> 写法都不变。</p>
+      <p><code>ParallelScanSourceTests</code> 照 <code>MemoryAccessScanTests</code> 的写法：从 <code>#filePath</code> 取本 target 目录，逐行扫 <code>.swift</code> 文件、跳过注释行，匹配 <code>DispatchQueue.concurrentPerform(</code>；允许名单是 <code>ImageScanConcurrency.swift</code> 与 <code>ScanThroughputBenchmarkTests.swift</code>。</p>
+    </div>
+  </details>
+  <details>
+    <summary><code>Tuist/Package.swift</code> 与后备写法</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">let</span> optimizedScanSettings: [<span class="token-type">String</span>: <span class="token-type">Settings</span>] = <span class="token-type">Dictionary</span>(
+    [<span class="token-string">"MachOCodeReferences"</span>, <span class="token-string">"ARM64InstructionDecoding"</span>].map { targetName <span class="token-keyword">in</span>
+        (targetName, <span class="token-type">Settings</span>.settings(base: [<span class="token-string">"SWIFT_OPTIMIZATION_LEVEL"</span>: <span class="token-string">"-O"</span>]))
+    },
+    uniquingKeysWith: { first, _ <span class="token-keyword">in</span> first }
+)</code></pre>
+      <p>并入 <code>mergingSettings(...)</code>；键与其它几组不重叠。若第 4 步发现 <code>base</code> 覆盖不了生成工程里按配置写的 <code>-Onone</code>，改用 <code>Settings.settings(configurations: [.debug(name: .debug, settings: ["SWIFT_OPTIMIZATION_LEVEL": "-O"])])</code>，并让 <code>mergingSettings</code> 连 <code>configurations</code> 一起合并。</p>
+    </div>
+  </details>
+  <details>
+    <summary>怎么量</summary>
+    <div class="details-body">
+      <ul>
+        <li>同机没有别的测试在跑时量，<code>TUIST_SCRIPT_ROOT</code> 用 agent 专属目录。</li>
+        <li>先 <code>queued-build ./TuistScript.sh build --scheme "MachOSwiftSection Tests"</code> 排除编译，再 <code>queued-build ./TuistScript.sh test --scheme "MachOSwiftSection Tests" -- -only-testing:CrossReferenceAnalysisTests</code>。</li>
+        <li>每 10 秒读一次 <code>ps -o %cpu=,time= -p &lt;xctest pid&gt;</code>，取峰值与最后的累计 CPU 时间；墙钟时间取 <code>.xcresult</code>。成败只认原始退出码。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <details>
+    <summary>采样数据与代码位置</summary>
+    <div class="details-body">
+      <ul>
+        <li>2026-11-21，Ultra（28 核）：xctest 持续 2369% CPU，跑了 8 分多钟仍未结束；28 个工作线程全在 <code>ObjectiveCClassReferenceTests.imagesReferencing</code> → <code>CrossReferenceAnalyzer.references(to:inImageAt:)</code> → <code>ReferenceScanner.scanFunction(at:)</code>。</li>
+        <li>工作线程约 11 600 个样本：栈顶是元组元数据缓存 <code>LockingConcurrentMap&lt;TupleCacheEntry&gt;::getOrInsert</code> 的 4762 个（约 41%）；经过 <code>swift_getTupleTypeMetadata2</code> 的约 46%，泛型元数据实例化约 13%。</li>
+        <li>热点循环：<code>RegisterFile.swift:148</code>（<code>for register in 0 ... 18</code>）、<code>RegisterFile.swift:48</code>、<code>ReferenceScanner.swift:150</code> 与 <code>:292</code>（逐条指令的循环），都在 MachOKitExtensions 的 <code>MachOCodeReferences</code>。</li>
+        <li>栈顶前 30 名里的自家函数只来自 <code>MachOCodeReferences</code> 与 <code>ARM64InstructionDecoding</code>；两者都没有 <code>assert</code>，<code>-O</code> 不丢检查。</li>
+        <li>Release 下整份 cache 两三秒扫完（AGENTS.md）；Debug 要几分钟（<code>ObjectiveCClassReferenceTests</code> 注释）。</li>
+        <li>先例：<code>ConcurrentDefinitionPrintingTests.taskGroupWidth = max(2, activeProcessorCount / 2)</code>；测试 target 部署到 macOS 14，用 <code>NSLock</code> 而不是 <code>Mutex</code>。</li>
+        <li>Tuist 生成的工程在每个 target 的每个配置里写 <code>SWIFT_OPTIMIZATION_LEVEL</code>；<code>base</code> 能否覆盖未验证。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>7 条，均已否决</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>改 MachOKitExtensions 的热点循环</strong>：<code>swift test</code> 也受益，但收益只有元数据那块、要发新版、写法变别扭；留作以后的选项。</li>
+        <li><strong>整个 Debug 工作区开 <code>-O</code> / 用 Release 跑测试</strong>：失去所有模块的调试能力，Release 还要另开 testability，范围远超问题。</li>
+        <li><strong><code>CrossReferenceAnalysis</code>、<code>ObjCCodeReferences</code> 也开 <code>-O</code></strong>：采样里不是瓶颈；前者是本包最常调试的代码，还有一处 <code>assert</code>。</li>
+        <li><strong>每次调用各自限宽</strong>：并行的套件加起来又是满核。</li>
+        <li><strong>四个套件串行化</strong>：<code>.serialized</code> 只管套件内部，跨套件要重组结构。</li>
+        <li><strong>降低 QoS</strong>：CPU 照样占满；<code>.background</code> 会压到能效核，慢很多。</li>
+        <li><strong>用 <code>concurrentMap(maximumConcurrency:)</code></strong>：async、跑在 cooperative pool 上，且上限按调用各算各的。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+  <ul>
+    <li><strong>源码兼容性</strong>：纯新增，库的公开 API 不变。</li>
+    <li><strong>ABI</strong>：不适用 —— 本库以 SPM 源码分发。</li>
+    <li><strong>下游</strong>：无；<code>Tuist/Package.swift</code> 只用于本仓库的开发工作区。</li>
+    <li><strong>并行的功能分支</strong>：<code>feature/shared-macho-testing-support</code> 也改了 <code>FunctionStartOutsideTextTests.swift</code>，合并时可能有小冲突。</li>
+    <li><strong>API 演进</strong>：不适用，不需要版本号跃迁。</li>
+  </ul>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+  <ol>
+    <li><strong>量基线</strong>（不改代码）—— <code>baselineWallTimeCpuTimeAndPeakAreRecordedInTheProposal</code></li>
+    <li><strong>加名额与测试</strong> —— <code>everyIterationRunsExactlyOnce</code>、<code>noMoreThanTheBudgetRunAtOnce</code>、<code>twoCallsAtOnceShareTheBudget</code>、<code>zeroIterationsReturnWithoutRunning</code>；临时换回裸 <code>concurrentPerform</code> 确认上限相关的两条会失败</li>
+    <li><strong>四处调用点改走名额，加源码扫描测试</strong> —— <code>everyParallelScanGoesThroughTheSharedBudget</code>、<code>theScanDiscriminates</code>，原有测试全部通过</li>
+    <li><strong>Tuist 里两个模块开 <code>-O</code></strong> —— <code>debugConfigurationCompilesTheScanModulesOptimized</code>、<code>crossReferenceAnalysisStaysUnoptimizedInDebug</code>；不通过就启用后备写法</li>
+    <li><strong>复测并更新文档</strong> —— <code>cpuPeakStaysWithinTheBudget</code>、<code>wallTimeAndCpuTimeAreRecordedAgainstTheBaseline</code>；再采样决定要不要扩大 <code>-O</code> 名单</li>
+  </ol>
+  <p>收尾判断：预计不需要专题文章（设计来历进 FixtureTestingAndContinuousIntegration.md，Tuist 差异进 TuistDevelopment.md），不引入新术语。</p>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>2 条，最近一条：Accepted</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-21</td><td>Created as Draft</td><td>Ultra 上跑 Debug 测试时 xctest 长时间占满 28 核。采样定位到四处不限并发的整份 cache 扫描，以及 Debug 下扫描循环每条指令都查一次运行时元数据。用户决定两项都改：测试限并发；Debug 提速走 Tuist 配置，不改 MachOKitExtensions 源码。按轻量档写提案。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>Accepted</td><td>用户批准，开始实现。</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>
