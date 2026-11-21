@@ -118,3 +118,4 @@
 | [0100](0100-fixture-suite-macro.md) | `@FixtureSuite` 宏：夹具测试套件开头的固定写法由宏生成 | Implemented |
 | [0101](0101-swift6-mode-and-upcoming-features.md) | MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature：MachOKit 切 Swift 6，六个包开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`（跨仓库唯一提案） | Implemented |
 | [0102](0102-multiline-type-formatting.md) | 长类型拆行：放不下的类型按括号结构拆成多行 | Implemented |
+| [0103](0103-cross-reference-test-scan-load.md) | 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化 | Implemented |

@@ -22,7 +22,7 @@ struct FunctionStartOutsideTextTests {
         defer { flags.deallocate() }
         nonisolated(unsafe) let flagsBase = flags.baseAddress!
         let analyzer = self.analyzer
-        DispatchQueue.concurrentPerform(iterations: imageCount) { imageIndex in
+        ImageScanConcurrency.concurrentPerform(iterations: imageCount) { imageIndex in
             let table = analyzer.imageSet.transientFunctionTable(ofImageAt: imageIndex)
             (flagsBase + imageIndex).pointee = table.starts.contains { $0 < table.textStart || $0 >= table.textEnd }
         }

@@ -109,6 +109,19 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
         uniquingKeysWith: { first, _ in first }
     )
 
+    // A Debug build of the cross-reference scan spends most of its time in the Swift runtime, not in
+    // the scan: an unspecialized range loop looks tuple metadata up on every instruction, under one
+    // lock every thread shares, so CrossReferenceAnalysisTests' whole-cache scans take minutes instead
+    // of the seconds a Release build needs. The scan's two hottest modules, both MachOKitExtensions',
+    // compile optimized in every configuration here; this package's own CrossReferenceAnalysis stays
+    // debuggable (evolution proposal cross-reference-test-scan-load).
+    let optimizedScanSettings: [String: Settings] = Dictionary(
+        ["MachOCodeReferences", "ARM64InstructionDecoding"].map { targetName in
+            (targetName, Settings.settings(base: ["SWIFT_OPTIMIZATION_LEVEL": "-O"]))
+        },
+        uniquingKeysWith: { first, _ in first }
+    )
+
     // One target may need several of the settings above; their keys never overlap.
     func mergingSettings(_ settingsByTarget: [String: Settings]...) -> [String: Settings] {
         settingsByTarget.reduce(into: [:]) { merged, settings in
@@ -117,7 +130,7 @@ let localPackageDependencies: [PackageDescription.Package.Dependency] = localPac
     }
 
     let packageSettings = PackageSettings(
-        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings),
+        targetSettings: mergingSettings(warningSettings, restatedTraitDefinitions, testTargetSettings, testingSupportSettings, optimizedScanSettings),
         // TuistScript.sh sets the variable to 1 unless a package declared by path still has a test of
         // a shape Tuist rejects (the manifests' TUIST_MAPS_LOCAL_PACKAGE_TESTS block removes them).
         includeLocalPackageTestTargets: processEnvironment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1"
