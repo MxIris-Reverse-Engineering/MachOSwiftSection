@@ -295,7 +295,7 @@ Settings.settings(configurations: [.debug(name: .debug, settings: ["SWIFT_OPTIMI
    - 行为：`everyParallelScanGoesThroughTheSharedBudget`
    - 行为：`theScanDiscriminates`
    - 行为：四个套件原有的测试照旧全部通过
-4. **Tuist 里两个扫描模块开 `-O`** —— 改动地图第 8 行
+4. **Tuist 里两个扫描模块开 `-O`** —— 改动地图第 8 行（已完成）
    - 行为：`debugConfigurationCompilesTheScanModulesOptimized`（重新生成后，生成的 `MachOKitExtensions.xcodeproj` 里 `MachOCodeReferences`、`ARM64InstructionDecoding` 的 Debug 配置是 `-O`，构建日志里它们的编译命令带 `-O`）
    - 行为：`crossReferenceAnalysisStaysUnoptimizedInDebug`
    - 验证不通过就启用「详细设计」里的后备写法，再验证一次
@@ -319,3 +319,4 @@ Settings.settings(configurations: [.debug(name: .debug, settings: ["SWIFT_OPTIMI
 | 2026-11-21 | 基线 | Ultra，`next` 的代码，Tuist Debug，`-only-testing:CrossReferenceAnalysisTests`：124 个测试用时 841 秒（Swift Testing 的报告）；xctest 累计 CPU 时间约 234 分钟（约 14 030 秒，平均约 17 个核心）；`ps` 读到的 `%cpu` 峰值 2356%。同机另有一个会话的 `swift test` 占着约 4 个核心。3 个失败是新 worktree 缺 `SymbolTestsCore` 夹具，按 AGENTS.md 链接主检出的 `DerivedData` 后解决，与本提案无关。 |
 | 2026-11-21 | 第 2 步验证 | 入口临时换成裸 `concurrentPerform` 时，两条上限测试失败；只按调用限宽、不共用名额时，只有 `twoCallsAtOnceShareTheBudget` 失败，证明这条测试抓得住「名额必须全进程共用」。正式实现四条全过。 |
 | 2026-11-21 | 第 3 步验证 | 把一处调用点临时改回 `DispatchQueue.concurrentPerform` 时 `everyParallelScanGoesThroughTheSharedBudget` 失败，恢复后通过。四个重型套件单独复测一次要十几分钟，与第 4 步之后的整批复测合并进行。 |
+| 2026-11-21 | 第 4 步验证 | `base` 里的 `SWIFT_OPTIMIZATION_LEVEL` 盖过了 Tuist 按配置写的值，后备写法不需要：重新生成后，`MachOKitExtensions.xcodeproj` 里 `MachOCodeReferences`、`ARM64InstructionDecoding` 的 Debug 配置是 `-O`，同工程没进名单的 `MachOAddressResolution` 仍是 `-Onone`；本包 `MachOSwiftSection.xcodeproj` 里 `CrossReferenceAnalysis` 的 Debug 仍是 `-Onone`。 |
