@@ -34,11 +34,7 @@ final class KeyPathComputedPropertyBodyTests: MachOSwiftSectionFixtureTests, @un
         sourceLocation: SourceLocation = #_sourceLocation
     ) throws {
         let bodies = try loadBodies()
-        let result = try acrossAllReaders(
-            file: { accessor(bodies.file) },
-            image: { accessor(bodies.image) },
-            sourceLocation: sourceLocation
-        )
+        let result = try acrossAllReaders(bodies.file, bodies.image, sourceLocation: sourceLocation) { accessor($0) }
         #expect(result == expectation, sourceLocation: sourceLocation)
     }
 

@@ -17,7 +17,7 @@ import Demangling
 @Suite(.disabled("Research probe — enable explicitly when revisiting thunk shapes"))
 struct RealThunkShapeProbe {
     @Test func printsEveryDistinctThunkShape() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         var printedThunkOffsets: Set<Int> = []

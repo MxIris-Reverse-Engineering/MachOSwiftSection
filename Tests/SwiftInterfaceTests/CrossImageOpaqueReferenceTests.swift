@@ -8,6 +8,7 @@ import Demangling
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftInterface
 import Semantic
+import SwiftSectionTestingSupport
 
 /// An associated-type witness built from a `some` result that lives in
 /// ANOTHER image — the shape SwiftUI's `SidebarListBody.CollectionViewBody.Body`
@@ -135,12 +136,7 @@ struct CrossImageOpaqueReferenceTests {
 
     private func loadClient() throws -> (client: MachOFile, corePath: String) {
         let fixture = try Self.fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: fixture.clientLibraryURL) {
-        case .machO(let machOFile):
-            return (machOFile, fixture.coreLibraryURL.path)
-        case .fat(let fatFile):
-            return (try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }), fixture.coreLibraryURL.path)
-        }
+        return (try HostSlice.machOFile(at: fixture.clientLibraryURL), fixture.coreLibraryURL.path)
     }
 
     /// How the two unexpandable witnesses must be spelled: the attribute the

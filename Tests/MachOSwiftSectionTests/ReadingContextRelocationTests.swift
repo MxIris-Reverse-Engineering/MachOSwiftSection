@@ -65,7 +65,7 @@ final class ReadingContextRelocationTests: MachOSwiftSectionFixtureTests, @unche
 /// files, so a cross-image reference is a bind rather than a rebase.
 enum StandaloneSimulatorRuntimeLibraries {
     static let synchronizationPath: String = {
-        let swiftUIPath = MachOFileName.iOS_26_5_Simulator_SwiftUI.rawValue
+        let swiftUIPath = MachOFileName.iOS_26_5_Simulator_SwiftUI.path
         let runtimeRoot = swiftUIPath.dropLast("/System/Library/Frameworks/SwiftUI.framework/SwiftUI".count)
         return runtimeRoot + "/usr/lib/swift/libswiftSynchronization.dylib"
     }()

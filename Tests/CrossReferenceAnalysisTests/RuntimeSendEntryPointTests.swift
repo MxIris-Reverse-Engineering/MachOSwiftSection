@@ -21,7 +21,7 @@ struct RuntimeSendEntryPointTests {
     private static let fixture = Result<Fixture, any Error> {
         // Without ARC, so no call the compiler adds stands among them.
         try CompiledFixture.load(
-            libraryName: "libCrossReferenceRuntimeSends.dylib",
+            named: "CrossReferenceRuntimeSends",
             sources: [
                 "Sends.m": """
                 #import <Foundation/Foundation.h>

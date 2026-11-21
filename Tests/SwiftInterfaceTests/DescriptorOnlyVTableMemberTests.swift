@@ -136,13 +136,7 @@ enum DescriptorOnlyMemberFixture {
     }
 
     static func machOFile(_ variant: Variant) throws -> MachOFile {
-        switch try MachOKit.loadFromFile(url: try libraryURL(variant)) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        try HostSlice.machOFile(at: libraryURL(variant))
     }
 
     /// The `.strippedLocals` copy loaded into the test process — only that

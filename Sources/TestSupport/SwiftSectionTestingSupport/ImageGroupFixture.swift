@@ -288,7 +288,7 @@ package enum ImageGroupFixture {
     package static func imageGroups() throws -> [[Image]] {
         try compilationResult.get().map { libraries in
             try libraries.map { library in
-                try Image(name: library.name, machOFile: machOFile(at: library.libraryURL))
+                try Image(name: library.name, machOFile: HostSlice.machOFile(at: library.libraryURL))
             }
         }
     }
@@ -297,15 +297,5 @@ package enum ImageGroupFixture {
     package static func image(named imageName: String, atVersion versionIndex: Int) throws -> MachOFile {
         let image = try imageGroups()[versionIndex].first { $0.name == imageName }
         return try #require(image, "\(imageName) is not part of version \(labels[versionIndex])").machOFile
-    }
-
-    private static func machOFile(at libraryURL: URL) throws -> MachOFile {
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
     }
 }

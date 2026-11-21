@@ -50,19 +50,13 @@ final class ModuleContextTests: MachOSwiftSectionFixtureTests, @unchecked Sendab
 
     @Test func descriptor() async throws {
         let contexts = try loadSymbolTestsCoreContexts()
-        let descriptorOffsets = try acrossAllReaders(
-            file: { contexts.file.descriptor.offset },
-            image: { contexts.image.descriptor.offset }
-        )
+        let descriptorOffsets = try acrossAllReaders(contexts.file, contexts.image) { $0.descriptor.offset }
         #expect(descriptorOffsets == ModuleContextBaseline.symbolTestsCore.descriptorOffset)
     }
 
     @Test func name() async throws {
         let contexts = try loadSymbolTestsCoreContexts()
-        let result = try acrossAllReaders(
-            file: { contexts.file.name },
-            image: { contexts.image.name }
-        )
+        let result = try acrossAllReaders(contexts.file, contexts.image) { $0.name }
         #expect(result == ModuleContextBaseline.symbolTestsCore.name)
     }
 }

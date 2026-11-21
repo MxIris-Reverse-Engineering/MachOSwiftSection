@@ -36,20 +36,14 @@ final class CaptureTypeRecordTests: MachOSwiftSectionFixtureTests, @unchecked Se
 
     @Test func offset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.offset },
-                image: { carrier.image.offset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.offset }
             #expect(result == carrier.expected.offset, "record \(carrier.index)")
         }
     }
 
     @Test func layout() async throws {
         for carrier in try allCarriers() {
-            let relativeOffset = try acrossAllReaders(
-                file: { carrier.file.layout.mangledTypeName.relativeOffset },
-                image: { carrier.image.layout.mangledTypeName.relativeOffset }
-            )
+            let relativeOffset = try acrossAllReaders(carrier.file, carrier.image) { $0.layout.mangledTypeName.relativeOffset }
             #expect(relativeOffset != 0, "record \(carrier.index)")
         }
         // A capture type record is exactly one relative pointer; the whole

@@ -24,10 +24,7 @@ final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, @
 
     @Test func offset() async throws {
         let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.offset },
-            image: { patterns.image.offset }
-        )
+        let result = try acrossAllReaders(patterns.file, patterns.image) { $0.offset }
         #expect(result == ResilientClassMetadataPatternBaseline.offset)
 
         // The pattern is reached through the singleton record's union field,
@@ -41,10 +38,7 @@ final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, @
 
     @Test func layout() async throws {
         let patterns = try loadPatterns()
-        let classFlags = try acrossAllReaders(
-            file: { patterns.file.layout.classFlags },
-            image: { patterns.image.layout.classFlags }
-        )
+        let classFlags = try acrossAllReaders(patterns.file, patterns.image) { $0.layout.classFlags }
         #expect(classFlags == ResilientClassMetadataPatternBaseline.classFlags)
         // Three function pointers, the class flag word and two interop
         // pointers.
@@ -60,10 +54,7 @@ final class ResilientClassMetadataPatternTests: MachOSwiftSectionFixtureTests, @
             (\ResilientClassMetadataPattern.Layout.data, ResilientClassMetadataPatternBaseline.dataOffset),
             (\ResilientClassMetadataPattern.Layout.metaclass, ResilientClassMetadataPatternBaseline.metaclassOffset),
         ] {
-            let resolved = try acrossAllReaders(
-                file: { patterns.file.resolvedDirectOffset(from: keyPath) },
-                image: { patterns.image.resolvedDirectOffset(from: keyPath) }
-            )
+            let resolved = try acrossAllReaders(patterns.file, patterns.image) { $0.resolvedDirectOffset(from: keyPath) }
             #expect(resolved == expected)
         }
     }

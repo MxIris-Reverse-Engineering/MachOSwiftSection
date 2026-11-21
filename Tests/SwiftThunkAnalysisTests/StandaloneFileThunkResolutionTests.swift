@@ -6,6 +6,7 @@ import MachOSwiftSection
 import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
+import SwiftSectionFixtureSupport
 @testable import SwiftThunkAnalysis
 
 /// A kind-9 thunk in a file that is **not** in a dyld shared cache calls the
@@ -107,39 +108,17 @@ struct StandaloneFileThunkResolutionTests {
     /// `__swift_instantiateConcreteTypeFromMangledNameV2`, found by its local
     /// symbol — whose value is an address, which a dylib's `__TEXT` at 0 had
     /// let pass for a file offset.
-    private static let executableCompilationResult: Result<URL, any Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("ThunkProbeExecutableFixture-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("ThunkProbe.swift")
-            let mainSourceURL = workingDirectory.appendingPathComponent("main.swift")
-            let executableURL = workingDirectory.appendingPathComponent("ThunkProbe")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-            try executableMainSource.write(to: mainSourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                "swiftc", "-O", "-module-name", "ThunkProbe",
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, mainSourceURL.path, "-o", executableURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain before waiting, or a long diagnostic deadlocks both sides.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return executableURL
-        }
-    }()
+    private static func compileExecutableFixture() throws -> URL {
+        try FixtureCompiler.shared.executable(
+            named: "ThunkProbe",
+            language: .swift,
+            sourceFiles: [
+                FixtureSourceFile(name: "ThunkProbe.swift", contents: fixtureSource),
+                FixtureSourceFile(name: "main.swift", contents: executableMainSource),
+            ],
+            arguments: ["-O", "-target", "arm64-apple-macosx15.0"]
+        )
+    }
 
     private static let executableMainSource = """
     let holder = ProbeHolder()
@@ -147,23 +126,11 @@ struct StandaloneFileThunkResolutionTests {
     """
 
     private func loadExecutableFixture() throws -> MachOFile {
-        let executableURL = try Self.executableCompilationResult.get()
-        switch try File.loadFromFile(url: executableURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: try Self.compileExecutableFixture())
     }
 
     private func loadFixture() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: try Self.fixtureCompilationResult.get())
     }
 
     private struct ResolvedField {

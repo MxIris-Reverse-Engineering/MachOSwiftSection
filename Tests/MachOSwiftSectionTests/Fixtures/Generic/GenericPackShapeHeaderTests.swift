@@ -25,21 +25,15 @@ final class GenericPackShapeHeaderTests: MachOSwiftSectionFixtureTests, @uncheck
 
     @Test func offset() async throws {
         let headers = try loadHeaders()
-        let result = try acrossAllReaders(file: { headers.file.offset }, image: { headers.image.offset })
+        let result = try acrossAllReaders(headers.file, headers.image) { $0.offset }
         #expect(result == GenericPackShapeHeaderBaseline.parameterPackHeader.offset)
     }
 
     @Test func layout() async throws {
         let headers = try loadHeaders()
 
-        let numPacks = try acrossAllReaders(
-            file: { headers.file.layout.numPacks },
-            image: { headers.image.layout.numPacks }
-        )
-        let numShapeClasses = try acrossAllReaders(
-            file: { headers.file.layout.numShapeClasses },
-            image: { headers.image.layout.numShapeClasses }
-        )
+        let numPacks = try acrossAllReaders(headers.file, headers.image) { $0.layout.numPacks }
+        let numShapeClasses = try acrossAllReaders(headers.file, headers.image) { $0.layout.numShapeClasses }
 
         #expect(numPacks == GenericPackShapeHeaderBaseline.parameterPackHeader.layoutNumPacks)
         #expect(numShapeClasses == GenericPackShapeHeaderBaseline.parameterPackHeader.layoutNumShapeClasses)

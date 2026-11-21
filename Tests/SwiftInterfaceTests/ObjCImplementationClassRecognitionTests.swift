@@ -242,7 +242,7 @@ struct AppKitObjCImplementationClassTests {
     }
 
     @Test(.enabled(if: runsOnMacOS26OrLater, "NSGlassEffectView ships with macOS 26")) func appKitGlassEffectViewIsDefinitive() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .AppKit), "the running system's cache has no AppKit")
         let facts = try #require(ObjCImplementationClasses.facts(forClassNamed: "NSGlassEffectView", in: machOFile))
         guard case .definitive(let reasons) = facts.evidence else {

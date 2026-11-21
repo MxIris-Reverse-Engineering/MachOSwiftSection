@@ -21,7 +21,7 @@ import Demangling
 @Suite(.disabled("Survey probe — enable explicitly to measure the resolution rate"))
 struct ThunkResolutionSurveyProbe {
     @Test func printsResolutionOfEveryThunk() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         var seenThunkOffsets: Set<Int> = []

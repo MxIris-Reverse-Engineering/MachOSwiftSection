@@ -23,10 +23,9 @@ final class ContextProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Send
         let fileContextWrapper = try Struct(descriptor: fileDescriptor, in: fileContext)
         let imageContextWrapper = try Struct(descriptor: imageDescriptor, in: imageContext)
 
-        let presence = try acrossAllContexts(
-            file: { (try fileContextWrapper.parent(in: fileContext)) != nil },
-            image: { (try imageContextWrapper.parent(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileContextWrapper, imageContextWrapper) { contextWrapper, context in
+            (try contextWrapper.parent(in: context)) != nil
+        }
         #expect(presence == ContextProtocolBaseline.structTest.hasParent)
     }
 }

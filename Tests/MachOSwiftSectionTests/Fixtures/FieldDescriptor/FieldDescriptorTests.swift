@@ -44,10 +44,7 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
 
     @Test func offset() async throws {
         let descriptors = try loadGenericStructFieldDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.offset },
-            image: { descriptors.image.offset }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.offset }
         #expect(result == FieldDescriptorBaseline.genericStructNonRequirement.offset)
     }
 
@@ -55,22 +52,13 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
         // Cross-reader equality on the per-field layout values
         // (numFields and fieldRecordSize, kind via raw value).
         let descriptors = try loadGenericStructFieldDescriptors()
-        let numFields = try acrossAllReaders(
-            file: { Int(descriptors.file.layout.numFields) },
-            image: { Int(descriptors.image.layout.numFields) }
-        )
+        let numFields = try acrossAllReaders(descriptors.file, descriptors.image) { Int($0.layout.numFields) }
         #expect(numFields == FieldDescriptorBaseline.genericStructNonRequirement.layoutNumFields)
 
-        let fieldRecordSize = try acrossAllReaders(
-            file: { Int(descriptors.file.layout.fieldRecordSize) },
-            image: { Int(descriptors.image.layout.fieldRecordSize) }
-        )
+        let fieldRecordSize = try acrossAllReaders(descriptors.file, descriptors.image) { Int($0.layout.fieldRecordSize) }
         #expect(fieldRecordSize == FieldDescriptorBaseline.genericStructNonRequirement.layoutFieldRecordSize)
 
-        let kindRaw = try acrossAllReaders(
-            file: { descriptors.file.layout.kind },
-            image: { descriptors.image.layout.kind }
-        )
+        let kindRaw = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.kind }
         #expect(kindRaw == FieldDescriptorBaseline.genericStructNonRequirement.kindRawValue)
     }
 
@@ -81,17 +69,11 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
     /// whole section is the real assertion here.
     @Test func actualSize() async throws {
         let genericDescriptors = try loadGenericStructFieldDescriptors()
-        let genericSize = try acrossAllReaders(
-            file: { genericDescriptors.file.actualSize },
-            image: { genericDescriptors.image.actualSize }
-        )
+        let genericSize = try acrossAllReaders(genericDescriptors.file, genericDescriptors.image) { $0.actualSize }
         #expect(genericSize == FieldDescriptorBaseline.genericStructNonRequirement.actualSize)
 
         let structTestDescriptors = try loadStructTestFieldDescriptors()
-        let structTestSize = try acrossAllReaders(
-            file: { structTestDescriptors.file.actualSize },
-            image: { structTestDescriptors.image.actualSize }
-        )
+        let structTestSize = try acrossAllReaders(structTestDescriptors.file, structTestDescriptors.image) { $0.actualSize }
         #expect(structTestSize == FieldDescriptorBaseline.structTest.actualSize)
         #expect(structTestSize == MemoryLayout<FieldDescriptor.Layout>.size)
 
@@ -108,10 +90,7 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
 
     @Test func kind() async throws {
         let descriptors = try loadGenericStructFieldDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.kind.rawValue },
-            image: { descriptors.image.kind.rawValue }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.kind.rawValue }
         #expect(result == FieldDescriptorBaseline.genericStructNonRequirement.kindRawValue)
     }
 
@@ -119,28 +98,25 @@ final class FieldDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
 
     @Test func mangledTypeName() async throws {
         let descriptors = try loadGenericStructFieldDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try? descriptors.file.mangledTypeName(in: fileContext)) != nil },
-            image: { (try? descriptors.image.mangledTypeName(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(descriptors.file, descriptors.image) { descriptor, context in
+            (try? descriptor.mangledTypeName(in: context)) != nil
+        }
         #expect(presence == FieldDescriptorBaseline.genericStructNonRequirement.hasMangledTypeName)
     }
 
     @Test func records() async throws {
         // Fixture with non-empty records: GenericStructNonRequirement (3 fields).
         let genericDescriptors = try loadGenericStructFieldDescriptors()
-        let genericCount = try acrossAllContexts(
-            file: { try genericDescriptors.file.records(in: fileContext).count },
-            image: { try genericDescriptors.image.records(in: imageContext).count }
-        )
+        let genericCount = try acrossAllContexts(genericDescriptors.file, genericDescriptors.image) { descriptor, context in
+            try descriptor.records(in: context).count
+        }
         #expect(genericCount == FieldDescriptorBaseline.genericStructNonRequirement.recordsCount)
 
         // Fixture with empty records: StructTest (0 fields, only a computed body).
         let structTestDescriptors = try loadStructTestFieldDescriptors()
-        let structTestCount = try acrossAllContexts(
-            file: { try structTestDescriptors.file.records(in: fileContext).count },
-            image: { try structTestDescriptors.image.records(in: imageContext).count }
-        )
+        let structTestCount = try acrossAllContexts(structTestDescriptors.file, structTestDescriptors.image) { descriptor, context in
+            try descriptor.records(in: context).count
+        }
         #expect(structTestCount == FieldDescriptorBaseline.structTest.recordsCount)
     }
 }

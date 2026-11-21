@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import SwiftSectionFixtureSupport
 @_spi(Internals) import MachOCodeReferences
 @_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import ARM64InstructionDecoding
@@ -113,16 +114,16 @@ struct SymbolicationTests {
     /// library the analyzer does not cover, or — linked `-interposable` — to
     /// its own function.
     @Test func symbolicatesGlobalOffsetTableSlotToItsBoundSymbol() throws {
-        let (directory, library) = try CompiledFixture.build(
-            libraryName: "libSlots.dylib",
-            sources: ["Slots.c": """
+        let library = try FixtureCompiler.shared.dynamicLibrary(
+            named: "Slots",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "Slots.c", contents: """
             #include <stdio.h>
             __attribute__((noinline)) int slotCallee(int value) { return value * 5; }
             int slotCaller(int value) { puts("calling"); return slotCallee(value); }
-            """],
-            compilerArguments: ["-O1", "-Wl,-interposable"]
+            """)],
+            arguments: ["-arch", "arm64", "-O1", "-Wl,-interposable"]
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
         let file = try MachOFile(url: library)
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [file])
         let callee = try #require(analyzer.functions(inImageAt: 0).first { $0.name == .symbol("_slotCallee") })
@@ -173,9 +174,10 @@ struct SymbolicationTests {
     /// Strings, an instance variable's offset variable and a selector
     /// reference, in a library compiled for the test.
     @Test func symbolicatesStringsAndObjectiveCSlots() throws {
-        let (directory, library) = try CompiledFixture.build(
-            libraryName: "libObjectiveCSlots.dylib",
-            sources: ["Slots.m": """
+        let library = try FixtureCompiler.shared.dynamicLibrary(
+            named: "ObjectiveCSlots",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "Slots.m", contents: """
             #import <Foundation/Foundation.h>
             @interface Holder : NSOperation { @public long _held; }
             @end
@@ -184,10 +186,9 @@ struct SymbolicationTests {
             long readHeld(Holder *holder) { return holder->_held; }
             const char *cString(void) { return "symbolicated characters"; }
             NSString *constantString(void) { return @"symbolicated constant"; }
-            """],
-            compilerArguments: ["-O1", "-fobjc-arc", "-framework", "Foundation"]
+            """)],
+            arguments: ["-arch", "arm64", "-O1", "-fobjc-arc", "-framework", "Foundation"]
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
         let file = try MachOFile(url: library)
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [file], recordingStringReferences: true)
         let references = analyzer.referenceTable(ofImageAt: 0).references

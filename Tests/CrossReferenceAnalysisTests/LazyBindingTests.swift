@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftSectionFixtureSupport
 @testable import CrossReferenceAnalysis
 @_spi(Internals) import MachOCodeReferences
 @_spi(Internals) import ObjCCodeReferences
@@ -15,24 +16,16 @@ import Testing
 @Suite(.enabled(if: SharedAnalyzer.analyzer != nil, "needs an arm64 process with a dyld shared cache"))
 struct LazyBindingTests {
     @Test func aLazilyBoundStubReachesItsTarget() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CrossReferenceAnalysisTests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let source = directory.appendingPathComponent("LazyBinding.c")
-        try "#include <stdio.h>\nvoid crossReferenceLazyBindingCall(void) { puts(\"called\"); }\n".write(to: source, atomically: true, encoding: .utf8)
-        let library = directory.appendingPathComponent("libLazyBinding.dylib")
-
-        let compiler = Process()
-        compiler.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        compiler.arguments = [
-            "clang", "-dynamiclib", "-arch", "arm64", "-O1",
-            // Classic dyld info rather than chained fixups: lazy pointers and a __stub_helper.
-            "-mmacosx-version-min=11.0", "-Wl,-no_fixup_chains",
-            "-o", library.path, source.path,
-        ]
-        try compiler.run()
-        compiler.waitUntilExit()
-        try #require(compiler.terminationStatus == 0, "could not build the lazily bound fixture")
+        let library = try FixtureCompiler.shared.dynamicLibrary(
+            named: "LazyBinding",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "LazyBinding.c", contents: "#include <stdio.h>\nvoid crossReferenceLazyBindingCall(void) { puts(\"called\"); }\n")],
+            arguments: [
+                "-arch", "arm64", "-O1",
+                // Classic dyld info rather than chained fixups: lazy pointers and a __stub_helper.
+                "-mmacosx-version-min=11.0", "-Wl,-no_fixup_chains",
+            ]
+        )
         _ = try #require(dlopen(library.path, RTLD_LAZY | RTLD_LOCAL))
 
         let analyzer = try #require(CrossReferenceAnalyzer())

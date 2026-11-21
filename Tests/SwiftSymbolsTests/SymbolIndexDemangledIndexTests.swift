@@ -140,13 +140,7 @@ final class SymbolIndexDemangledIndexTests: MachOFileTests, @unchecked Sendable 
             }.start()
             let machOFile: MachOFile
             do {
-                switch try loadFromFile(named: .SymbolTestsCore) {
-                case .machO(let machO):
-                    machOFile = machO
-                case .fat(let fatFile):
-                    guard let machO = try fatFile.machOFiles().first(where: { $0.header.cpuType == .arm64 }) else { exit(EXIT_FAILURE) }
-                    machOFile = machO
-                }
+                machOFile = try HostSlice.machOFile(in: try loadFromFile(named: .SymbolTestsCore))
             } catch {
                 exit(EXIT_FAILURE)
             }

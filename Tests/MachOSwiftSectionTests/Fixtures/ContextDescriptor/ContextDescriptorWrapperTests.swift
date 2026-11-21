@@ -27,46 +27,31 @@ final class ContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func protocolDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.protocolDescriptor != nil },
-            image: { wrappers.image.protocolDescriptor != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.protocolDescriptor != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasProtocolDescriptor)
     }
 
     @Test func extensionContextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.extensionContextDescriptor != nil },
-            image: { wrappers.image.extensionContextDescriptor != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.extensionContextDescriptor != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasExtensionContextDescriptor)
     }
 
     @Test func opaqueTypeDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.opaqueTypeDescriptor != nil },
-            image: { wrappers.image.opaqueTypeDescriptor != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.opaqueTypeDescriptor != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasOpaqueTypeDescriptor)
     }
 
     @Test func moduleContextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.moduleContextDescriptor != nil },
-            image: { wrappers.image.moduleContextDescriptor != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.moduleContextDescriptor != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasModuleContextDescriptor)
     }
 
     @Test func anonymousContextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.anonymousContextDescriptor != nil },
-            image: { wrappers.image.anonymousContextDescriptor != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.anonymousContextDescriptor != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasAnonymousContextDescriptor)
     }
 
@@ -74,82 +59,55 @@ final class ContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func isType() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isType },
-            image: { wrappers.image.isType }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isType }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isType)
     }
 
     @Test func isEnum() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isEnum },
-            image: { wrappers.image.isEnum }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isEnum }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isEnum)
     }
 
     @Test func isStruct() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isStruct },
-            image: { wrappers.image.isStruct }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isStruct }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isStruct)
     }
 
     @Test func isClass() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isClass },
-            image: { wrappers.image.isClass }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isClass }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isClass)
     }
 
     @Test func isProtocol() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isProtocol },
-            image: { wrappers.image.isProtocol }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isProtocol }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isProtocol)
     }
 
     @Test func isAnonymous() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isAnonymous },
-            image: { wrappers.image.isAnonymous }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isAnonymous }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isAnonymous)
     }
 
     @Test func isExtension() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isExtension },
-            image: { wrappers.image.isExtension }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isExtension }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isExtension)
     }
 
     @Test func isModule() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isModule },
-            image: { wrappers.image.isModule }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isModule }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isModule)
     }
 
     @Test func isOpaqueType() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.isOpaqueType },
-            image: { wrappers.image.isOpaqueType }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.isOpaqueType }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.isOpaqueType)
     }
 
@@ -159,37 +117,25 @@ final class ContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @unche
         let wrappers = try loadStructTestWrappers()
         // `contextDescriptor` returns `any ContextDescriptorProtocol`; the
         // `offset` is the cross-reader-stable scalar.
-        let result = try acrossAllReaders(
-            file: { wrappers.file.contextDescriptor.offset },
-            image: { wrappers.image.contextDescriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.contextDescriptor.offset }
         #expect(result == ContextDescriptorWrapperBaseline.structTest.descriptorOffset)
     }
 
     @Test func namedContextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.namedContextDescriptor != nil },
-            image: { wrappers.image.namedContextDescriptor != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.namedContextDescriptor != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasNamedContextDescriptor)
     }
 
     @Test func typeContextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.typeContextDescriptor != nil },
-            image: { wrappers.image.typeContextDescriptor != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.typeContextDescriptor != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasTypeContextDescriptor)
     }
 
     @Test func typeContextDescriptorWrapper() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllReaders(
-            file: { wrappers.file.typeContextDescriptorWrapper != nil },
-            image: { wrappers.image.typeContextDescriptorWrapper != nil }
-        )
+        let presence = try acrossAllReaders(wrappers.file, wrappers.image) { $0.typeContextDescriptorWrapper != nil }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasTypeContextDescriptorWrapper)
     }
 
@@ -197,19 +143,17 @@ final class ContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func parent() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllContexts(
-            file: { (try wrappers.file.parent(in: fileContext)) != nil },
-            image: { (try wrappers.image.parent(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(wrappers.file, wrappers.image) { wrapper, context in
+            (try wrapper.parent(in: context)) != nil
+        }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasParent)
     }
 
     @Test func genericContext() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllContexts(
-            file: { (try wrappers.file.genericContext(in: fileContext)) != nil },
-            image: { (try wrappers.image.genericContext(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(wrappers.file, wrappers.image) { wrapper, context in
+            (try wrapper.genericContext(in: context)) != nil
+        }
         #expect(presence == ContextDescriptorWrapperBaseline.structTest.hasGenericContext)
     }
 

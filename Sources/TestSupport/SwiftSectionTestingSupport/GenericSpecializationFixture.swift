@@ -222,68 +222,23 @@ package enum GenericSpecializationFixture {
         package var description: String { "\(moduleName) fixture compilation failed:\n\(diagnostics)" }
     }
 
-    private enum WorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in WorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private static let compilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = WorkingDirectoryCleanup.registration
-            WorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("Fixture.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName).dylib")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                // The language mode pinned: CI's toolchain and a newer local one
-                // must compile the same source the same way. `-Onone` keeps the
-                // private type, which nothing references.
-                "swiftc", "-swift-version", "5", "-Onone", "-emit-library",
-                "-module-name", moduleName,
-                // The absolute output path as the install name, so the
-                // in-process leg loads with no rpath.
-                "-Xlinker", "-install_name", "-Xlinker", libraryURL.path,
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw CompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
-    }()
-
+    /// Compiled once per process by the shared compiler. The source keeps
+    /// the file name it always had, which private discriminators hash.
     package static func libraryURL() throws -> URL {
-        try compilationResult.get()
+        try FixtureCompiler.shared.dynamicLibrary(
+            named: moduleName,
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "Fixture.swift", contents: source)],
+            // The language mode pinned: CI's toolchain and a newer local one
+            // must compile the same source the same way. `-Onone` keeps the
+            // private type, which nothing references.
+            arguments: ["-swift-version", "5", "-Onone"]
+        )
     }
 
     /// The fixture read from disk — what the offline path sees.
     package static func machOFile() throws -> MachOFile {
-        switch try MachOKit.loadFromFile(url: libraryURL()) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        try HostSlice.machOFile(at: libraryURL())
     }
 
     /// The fixture loaded into the test process — what the runtime path sees.
@@ -307,7 +262,7 @@ package enum GenericSpecializationFixture {
     /// the offline indexer's sub-indexer for the standard library's
     /// protocols and conformances.
     package static func systemStandardLibraryFile() throws -> MachOFile {
-        let cache = try DyldCache(url: URL(fileURLWithPath: DyldSharedCachePath.current.rawValue))
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         return try #require(cache.machOFile(by: .name("libswiftCore")), "libswiftCore not found in the running system's dyld shared cache")
     }
 }

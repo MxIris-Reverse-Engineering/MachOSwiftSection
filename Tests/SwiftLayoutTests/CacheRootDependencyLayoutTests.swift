@@ -12,7 +12,7 @@ import SwiftSectionFixtureSupport
 /// of the suite it decorates is a circular macro reference.
 enum ArchivedMacOS15LayoutFixtures {
     static let cachePath = DyldSharedCachePath.macOS_15_5
-    static var hasCache: Bool { FileManager.default.fileExists(atPath: cachePath.rawValue) }
+    static var hasCache: Bool { FileManager.default.fileExists(atPath: cachePath.path) }
 
     static func swiftUICore() throws -> MachOFile {
         let cache = try FullDyldCache(path: cachePath)

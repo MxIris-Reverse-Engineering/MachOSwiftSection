@@ -175,7 +175,9 @@ extension Package.Dependency {
             // 3.0.0 leaves Swift symbol names to this package: `SwiftSymbols`
             // defines `SymbolLanguage.swift` and registers it when the image
             // loads (proposal split-symbol-language).
-            from: "3.0.0",
+            // 3.2.0 ships the test support this package builds on: the
+            // `MachOFixtureSupport` and `MachOTestingSupport` products.
+            from: "3.2.0",
         ),
     )
 
@@ -359,6 +361,19 @@ extension Target.Dependency {
     )
     static let MachOFoundation = Target.Dependency.product(
         name: "MachOFoundation",
+        package: "MachOKitExtensions",
+    )
+    // The Swift-free half of the test support, shared with
+    // MachOKitExtensions' own tests since its 3.2.0: fixture names, opening
+    // caches and images, slice picking, the fixture compiler
+    // (`MachOFixtureSupport`, no Testing), and the trait and base classes on
+    // top of it (`MachOTestingSupport`).
+    static let MachOFixtureSupport = Target.Dependency.product(
+        name: "MachOFixtureSupport",
+        package: "MachOKitExtensions",
+    )
+    static let MachOTestingSupport = Target.Dependency.product(
+        name: "MachOTestingSupport",
         package: "MachOKitExtensions",
     )
     static let MachOKitMain = Target.Dependency.product(
@@ -1044,11 +1059,14 @@ extension Target {
     /// Fixture-loading helpers, baseline generators, coverage scanners, and
     /// non-Testing-dependent code. Importable from non-test targets (e.g.
     /// `baseline-generator`) without dragging in `Testing.framework`.
+    /// Re-exports MachOKitExtensions' `MachOFixtureSupport`, which it adds
+    /// this package's fixture names and named caches to.
     static let SwiftSectionFixtureSupport = Target.target(
         name: "SwiftSectionFixtureSupport",
         dependencies: [
             .product(.MachOKit),
             .product(.MachOFoundation),
+            .product(.MachOFixtureSupport),
             .target(.SwiftSymbols),
             .product(.MachOReading),
             .product(.MachOResolving),
@@ -1068,8 +1086,11 @@ extension Target {
         swiftSettings: testSettings,
     )
 
-    /// `swift-testing` base classes (`MachOFileTests`, `MachOImageTests`,
-    /// `DyldCacheTests`, `XcodeMachOFileTests`, `MachOSwiftSectionFixtureTests`).
+    /// `swift-testing` support: `MachOSwiftSectionFixtureTests` and the Swift
+    /// fixtures, on top of MachOKitExtensions' `MachOTestingSupport` (the
+    /// `MachOFileTests`, `MachOImageTests`, `DyldCacheTests`,
+    /// `XcodeMachOFileTests` and `MachOFixtureTests` base classes and
+    /// `ExclusiveImageAccess`), which it re-exports.
     /// Splitting this out from `SwiftSectionFixtureSupport` keeps `Testing.framework`
     /// out of the link line for non-test targets.
     static let SwiftSectionTestingSupport = Target.target(
@@ -1082,6 +1103,7 @@ extension Target {
             .product(.MachOReading),
             .product(.MachOResolving),
             .target(.SwiftSectionFixtureSupport),
+            .product(.MachOTestingSupport),
             .target(.MachOSwiftSection),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
@@ -1610,12 +1632,14 @@ for target in package.targets where target.type != .system && target.type != .bi
 // MARK: - Tuist development workspace
 
 // MachOSwiftSection's Tuist development workspace (its Documentations/Internal/TuistDevelopment.md)
-// maps this package's tests with Tuist, which rejects two shapes SwiftPM accepts: a test that depends
-// on an executable target, and a test that depends on a target no product contains. Only while Tuist
-// resolves the packages, with TUIST_MAPS_LOCAL_PACKAGE_TESTS=1, the first kind is left out and the
-// second kind gets a library product of its own. Nothing changes without the variable.
+// maps this package's tests with Tuist, which rejects shapes SwiftPM accepts: a test that depends on
+// an executable target or on a macro target (Tuist builds a macro as a plugin, so `@testable import`
+// of it finds no module), and a test that depends on a target no product contains. Only while Tuist
+// resolves the packages, with TUIST_MAPS_LOCAL_PACKAGE_TESTS=1, the first kinds are left out — the
+// macro expansion tests then run under `swift test` only — and the last kind gets a library product
+// of its own. Nothing changes without the variable.
 if Context.environment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1" {
-    let executableTargetNames = Set(package.targets.filter { $0.type == .executable }.map(\.name))
+    let executableOrMacroTargetNames = Set(package.targets.filter { $0.type == .executable || $0.type == .macro }.map(\.name))
     func dependencyName(_ dependency: Target.Dependency) -> String? {
         switch dependency {
         case .targetItem(let name, _), .byNameItem(let name, _):
@@ -1626,7 +1650,7 @@ if Context.environment["TUIST_MAPS_LOCAL_PACKAGE_TESTS"] == "1" {
     }
     package.targets.removeAll { target in
         target.type == .test && target.dependencies.contains { dependency in
-            dependencyName(dependency).map(executableTargetNames.contains) ?? false
+            dependencyName(dependency).map(executableOrMacroTargetNames.contains) ?? false
         }
     }
     let productTargetNames = Set(package.products.flatMap { product in (product as? Product.Library)?.targets ?? [] })

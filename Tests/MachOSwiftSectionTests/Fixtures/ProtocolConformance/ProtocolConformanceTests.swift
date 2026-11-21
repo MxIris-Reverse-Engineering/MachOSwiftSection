@@ -55,28 +55,19 @@ final class ProtocolConformanceTests: MachOSwiftSectionFixtureTests, @unchecked 
 
     @Test func descriptor() async throws {
         let (file, image) = try loadStructTestProtocolTest()
-        let result = try acrossAllReaders(
-            file: { file.descriptor.offset },
-            image: { image.descriptor.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.descriptor.offset }
         #expect(result == ProtocolConformanceBaseline.structTestProtocolTest.descriptorOffset)
     }
 
     @Test func flags() async throws {
         let (file, image) = try loadStructTestProtocolTest()
-        let result = try acrossAllReaders(
-            file: { file.flags.rawValue },
-            image: { image.flags.rawValue }
-        )
+        let result = try acrossAllReaders(file, image) { $0.flags.rawValue }
         #expect(result == ProtocolConformanceBaseline.structTestProtocolTest.flagsRawValue)
     }
 
     @Test("protocol") func conformedProtocol() async throws {
         let (file, image) = try loadStructTestProtocolTest()
-        let result = try acrossAllReaders(
-            file: { file.protocol != nil },
-            image: { image.protocol != nil }
-        )
+        let result = try acrossAllReaders(file, image) { $0.protocol != nil }
         #expect(result == ProtocolConformanceBaseline.structTestProtocolTest.hasProtocol)
     }
 
@@ -97,19 +88,13 @@ final class ProtocolConformanceTests: MachOSwiftSectionFixtureTests, @unchecked 
 
     @Test func witnessTablePattern() async throws {
         let (file, image) = try loadStructTestProtocolTest()
-        let result = try acrossAllReaders(
-            file: { file.witnessTablePattern != nil },
-            image: { image.witnessTablePattern != nil }
-        )
+        let result = try acrossAllReaders(file, image) { $0.witnessTablePattern != nil }
         #expect(result == ProtocolConformanceBaseline.structTestProtocolTest.hasWitnessTablePattern)
     }
 
     @Test func retroactiveContextDescriptor() async throws {
         let (file, image) = try loadStructTestProtocolTest()
-        let result = try acrossAllReaders(
-            file: { file.retroactiveContextDescriptor != nil },
-            image: { image.retroactiveContextDescriptor != nil }
-        )
+        let result = try acrossAllReaders(file, image) { $0.retroactiveContextDescriptor != nil }
         #expect(result == ProtocolConformanceBaseline.structTestProtocolTest.hasRetroactiveContextDescriptor)
     }
 
@@ -117,55 +102,37 @@ final class ProtocolConformanceTests: MachOSwiftSectionFixtureTests, @unchecked 
 
     @Test func conditionalRequirements() async throws {
         let (file, image) = try loadConditionalFirst()
-        let result = try acrossAllReaders(
-            file: { file.conditionalRequirements.count },
-            image: { image.conditionalRequirements.count }
-        )
+        let result = try acrossAllReaders(file, image) { $0.conditionalRequirements.count }
         #expect(result == ProtocolConformanceBaseline.conditionalFirst.conditionalRequirementsCount)
     }
 
     @Test func conditionalPackShapeDescriptors() async throws {
         let (file, image) = try loadStructTestProtocolTest()
-        let result = try acrossAllReaders(
-            file: { file.conditionalPackShapeDescriptors.count },
-            image: { image.conditionalPackShapeDescriptors.count }
-        )
+        let result = try acrossAllReaders(file, image) { $0.conditionalPackShapeDescriptors.count }
         #expect(result == ProtocolConformanceBaseline.structTestProtocolTest.conditionalPackShapeDescriptorsCount)
     }
 
     @Test func resilientWitnessesHeader() async throws {
         let (file, image) = try loadResilientFirst()
-        let result = try acrossAllReaders(
-            file: { file.resilientWitnessesHeader != nil },
-            image: { image.resilientWitnessesHeader != nil }
-        )
+        let result = try acrossAllReaders(file, image) { $0.resilientWitnessesHeader != nil }
         #expect(result == ProtocolConformanceBaseline.resilientFirst.hasResilientWitnessesHeader)
     }
 
     @Test func resilientWitnesses() async throws {
         let (file, image) = try loadResilientFirst()
-        let result = try acrossAllReaders(
-            file: { file.resilientWitnesses.count },
-            image: { image.resilientWitnesses.count }
-        )
+        let result = try acrossAllReaders(file, image) { $0.resilientWitnesses.count }
         #expect(result == ProtocolConformanceBaseline.resilientFirst.resilientWitnessesCount)
     }
 
     @Test func genericWitnessTable() async throws {
         let (file, image) = try loadStructTestProtocolTest()
-        let result = try acrossAllReaders(
-            file: { file.genericWitnessTable != nil },
-            image: { image.genericWitnessTable != nil }
-        )
+        let result = try acrossAllReaders(file, image) { $0.genericWitnessTable != nil }
         #expect(result == ProtocolConformanceBaseline.structTestProtocolTest.hasGenericWitnessTable)
     }
 
     @Test func globalActorReference() async throws {
         let (file, image) = try loadGlobalActorFirst()
-        let result = try acrossAllReaders(
-            file: { file.globalActorReference != nil },
-            image: { image.globalActorReference != nil }
-        )
+        let result = try acrossAllReaders(file, image) { $0.globalActorReference != nil }
         #expect(result == ProtocolConformanceBaseline.globalActorFirst.hasGlobalActorReference)
     }
 

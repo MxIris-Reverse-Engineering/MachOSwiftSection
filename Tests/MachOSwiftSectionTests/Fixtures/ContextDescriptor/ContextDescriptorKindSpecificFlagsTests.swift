@@ -28,28 +28,19 @@ final class ContextDescriptorKindSpecificFlagsTests: MachOSwiftSectionFixtureTes
 
     @Test func protocolFlags() async throws {
         let flags = try loadStructTestKindSpecificFlags()
-        let presence = try acrossAllReaders(
-            file: { flags.file.protocolFlags != nil },
-            image: { flags.image.protocolFlags != nil }
-        )
+        let presence = try acrossAllReaders(flags.file, flags.image) { $0.protocolFlags != nil }
         #expect(presence == ContextDescriptorKindSpecificFlagsBaseline.structTest.hasProtocolFlags)
     }
 
     @Test func typeFlags() async throws {
         let flags = try loadStructTestKindSpecificFlags()
-        let presence = try acrossAllReaders(
-            file: { flags.file.typeFlags != nil },
-            image: { flags.image.typeFlags != nil }
-        )
+        let presence = try acrossAllReaders(flags.file, flags.image) { $0.typeFlags != nil }
         #expect(presence == ContextDescriptorKindSpecificFlagsBaseline.structTest.hasTypeFlags)
     }
 
     @Test func anonymousFlags() async throws {
         let flags = try loadStructTestKindSpecificFlags()
-        let presence = try acrossAllReaders(
-            file: { flags.file.anonymousFlags != nil },
-            image: { flags.image.anonymousFlags != nil }
-        )
+        let presence = try acrossAllReaders(flags.file, flags.image) { $0.anonymousFlags != nil }
         #expect(presence == ContextDescriptorKindSpecificFlagsBaseline.structTest.hasAnonymousFlags)
     }
 }

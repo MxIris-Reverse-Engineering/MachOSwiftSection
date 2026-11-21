@@ -31,10 +31,7 @@ final class GlobalActorReferenceTests: MachOSwiftSectionFixtureTests, @unchecked
 
     @Test func offset() async throws {
         let (file, image) = try loadFirstReferences()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == GlobalActorReferenceBaseline.firstReference.offset)
     }
 
@@ -53,10 +50,7 @@ final class GlobalActorReferenceTests: MachOSwiftSectionFixtureTests, @unchecked
     /// overload over both readers here.
     @Test func typeName() async throws {
         let (file, image) = try loadFirstReferences()
-        let result = try acrossAllContexts(
-            file: { try file.typeName(in: fileContext).symbolString },
-            image: { try image.typeName(in: imageContext).symbolString }
-        )
+        let result = try acrossAllContexts(file, image) { reference, context in try reference.typeName(in: context).symbolString }
         #expect(result == GlobalActorReferenceBaseline.firstReference.typeNameSymbolString)
     }
 }

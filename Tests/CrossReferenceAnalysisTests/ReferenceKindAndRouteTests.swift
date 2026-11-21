@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import SwiftSectionFixtureSupport
 @_spi(Internals) import MachOCodeReferences
 @_spi(Internals) import ObjCCodeReferences
 @_spi(Internals) import ARM64InstructionDecoding
@@ -42,13 +43,14 @@ struct ReferenceKindAndRouteTests {
     }
     """
 
-    private func objectiveCLibrary(stripped: Bool = false) throws -> (directory: URL, file: MachOFile) {
-        let (directory, library) = try CompiledFixture.build(
-            libraryName: "libKinds.dylib",
-            sources: ["Kinds.m": Self.objectiveCSource],
-            compilerArguments: ["-O1", "-fobjc-arc", "-framework", "Foundation"] + (stripped ? ["-Wl,-x"] : [])
+    private func objectiveCLibrary(stripped: Bool = false) throws -> MachOFile {
+        let library = try FixtureCompiler.shared.dynamicLibrary(
+            named: "Kinds",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "Kinds.m", contents: Self.objectiveCSource)],
+            arguments: ["-arch", "arm64", "-O1", "-fobjc-arc", "-framework", "Foundation"] + (stripped ? ["-Wl,-x"] : [])
         )
-        return (directory, try MachOFile(url: library))
+        return try MachOFile(url: library)
     }
 
     private func function(named name: String, in analyzer: CrossReferenceAnalyzer) throws -> CodeFunction {
@@ -67,8 +69,7 @@ struct ReferenceKindAndRouteTests {
     /// list, whose entry points at the same variable.
     @Test(arguments: [false, true])
     func instanceVariableOffsetLoadsBecomeInstanceVariableReferences(stripped: Bool) throws {
-        let (directory, file) = try objectiveCLibrary(stripped: stripped)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try objectiveCLibrary(stripped: stripped)
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [file])
         for method in ["-[Counter increment]", "-[Counter describe]"] {
             let references = analyzer.references(madeBy: try function(named: method, in: analyzer))
@@ -83,8 +84,7 @@ struct ReferenceKindAndRouteTests {
     /// Strings are recorded when the analyzer is made to, or for a query for
     /// a string key — not in a whole-image table otherwise.
     @Test func stringReferencesAreRecordedOnlyWhenRequested() throws {
-        let (directory, file) = try objectiveCLibrary()
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try objectiveCLibrary()
         let withoutStrings = try CrossReferenceAnalyzer(machOFiles: [file])
         #expect(!withoutStrings.recordsStringReferences)
         #expect(!withoutStrings.referenceTable(ofImageAt: 0).references.contains { reference in
@@ -106,8 +106,7 @@ struct ReferenceKindAndRouteTests {
     /// A constant `CFString` is referenced by its characters, eight-bit or
     /// UTF-16 alike.
     @Test func constantStringReferencesCarryTheirCharacters() throws {
-        let (directory, file) = try objectiveCLibrary()
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try objectiveCLibrary()
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [file], recordingStringReferences: true)
         let ascii = analyzer.references(madeBy: try function(named: "_constantStringFunction", in: analyzer)).map(\.target)
         #expect(ascii.contains(.constantString("a constant string literal")), "\(ascii)")
@@ -121,12 +120,12 @@ struct ReferenceKindAndRouteTests {
     /// `add` to the characters, `sub #0x20`. The `add` names the string; the
     /// subtraction names no other.
     @Test func swiftLargeStringLiteralPointsAtItsCharacters() throws {
-        let (directory, library) = try CompiledFixture.buildSwift(libraryName: "libLargeString.dylib", source: """
+        // The module is `Fixture`, which the expected symbol spells.
+        let library = try FixtureCompiler.shared.dynamicLibrary(named: "Fixture", language: .swift, source: """
         @inline(never) public func largeStringLiteral() -> String {
             "a string literal longer than fifteen bytes"
         }
-        """)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        """, arguments: ["-O", "-target", "arm64-apple-macos14"])
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [MachOFile(url: library)], recordingStringReferences: true)
         let function = try #require(analyzer.functions(inImageAt: 0).first { $0.name == .symbol("_$s7Fixture18largeStringLiteralSSyF") })
         let strings = analyzer.references(madeBy: function).filter { if case .cString = $0.target { true } else { false } }
@@ -139,8 +138,7 @@ struct ReferenceKindAndRouteTests {
     /// address is built, an instance variable's offset is loaded through its
     /// slot.
     @Test func everyReferenceCarriesTheRouteItTook() throws {
-        let (directory, file) = try objectiveCLibrary()
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try objectiveCLibrary()
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [file], recordingStringReferences: true)
         let references = analyzer.references(madeBy: try function(named: "_callEverything", in: analyzer))
         func route(of target: CodeReferenceTarget) -> CodeReferenceRoute? {
@@ -180,8 +178,7 @@ struct ReferenceKindAndRouteTests {
     /// The table and the index a host keeps answer the same — the new kinds
     /// and every route included.
     @Test func referenceIndexRoundTripsNewTargetsAndRoutes() throws {
-        let (directory, file) = try objectiveCLibrary()
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try objectiveCLibrary()
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [file], recordingStringReferences: true)
         let table = analyzer.referenceTable(ofImageAt: 0)
         let index = analyzer.referenceIndex(ofImageAt: 0)

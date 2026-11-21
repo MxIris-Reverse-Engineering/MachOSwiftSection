@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDeclarationRendering
 import SwiftDump
+import SwiftSectionFixtureSupport
 @_spi(Internals) import SwiftInspection
 import SwiftThunkAnalysis
 import Demangling
@@ -129,12 +130,7 @@ struct OpaqueWitnessDumpAnnotationTests {
 
     private func loadClient() throws -> (client: MachOFile, corePath: String) {
         let fixture = try Self.fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: fixture.clientLibraryURL) {
-        case .machO(let machOFile):
-            return (machOFile, fixture.coreLibraryURL.path)
-        case .fat(let fatFile):
-            return (try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }), fixture.coreLibraryURL.path)
-        }
+        return (try HostSlice.machOFile(at: fixture.clientLibraryURL), fixture.coreLibraryURL.path)
     }
 
     /// The dump of every conformance in the client, keyed by

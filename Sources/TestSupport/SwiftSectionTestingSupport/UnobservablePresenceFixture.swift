@@ -220,13 +220,7 @@ package enum UnobservablePresenceFixture {
     /// The compiled versions as readers, oldest first.
     package static func machOFiles() throws -> [MachOFile] {
         try libraryURLs().map { libraryURL in
-            switch try MachOKit.loadFromFile(url: libraryURL) {
-            case .machO(let machOFile):
-                return machOFile
-            case .fat(let fatFile):
-                let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-                return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-            }
+            return try HostSlice.machOFile(at: libraryURL)
         }
     }
 }

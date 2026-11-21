@@ -107,13 +107,7 @@ struct PrivateDeclarationsWholeTreeTests {
     /// SymbolTestsCore declares private types (`PrivateDoppelgangers.swift`,
     /// `Structs.swift`), so here the names compared do read some.
     @Test func symbolTestsCore() async throws {
-        let machOFile: MachOFile
-        switch try loadFromFile(named: .SymbolTestsCore) {
-        case .machO(let thinMachOFile):
-            machOFile = thinMachOFile
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let machOFile = try HostSlice.machOFile(in: loadFromFile(named: .SymbolTestsCore))
         let indexer = SwiftDeclarationIndexer(configuration: .init(), eventHandlers: [], in: machOFile)
         try await indexer.prepare()
 

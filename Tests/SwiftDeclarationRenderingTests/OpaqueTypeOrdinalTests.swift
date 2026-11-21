@@ -7,6 +7,7 @@ import MachOFoundation
 import Demangling
 @_spi(Internals) import SwiftInspection
 @_spi(Internals) import SwiftSymbols
+import SwiftSectionFixtureSupport
 
 /// A declaration may produce more than one opaque type — `-> Pair<some P, some P>`
 /// is two — and the demangled `opaqueType` node says which one it is in its
@@ -23,17 +24,6 @@ import Demangling
 /// survived a full dump of both.
 @Suite
 struct OpaqueTypeOrdinalTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
     /// `Anchor` keeps a `__DATA` segment in the dylib (see AGENTS.md,
     /// "On-the-fly-compiled fixture dylibs need a class").
     ///
@@ -77,52 +67,14 @@ struct OpaqueTypeOrdinalTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("OpaqueTypeOrdinalFixture-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("OpaqueTypeOrdinalFixture.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("libOpaqueTypeOrdinalFixture.dylib")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                "swiftc", "-emit-library", "-module-name", "OpaqueTypeOrdinalFixture",
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
-    }()
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "opaque-type-ordinal fixture compilation failed:\n\(diagnostics)" }
-    }
-
     private func loadFixtureMachOFile() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: "OpaqueTypeOrdinalFixture",
+            language: .swift,
+            source: Self.fixtureSource,
+            arguments: ["-target", "arm64-apple-macosx15.0"]
+        )
+        return try HostSlice.machOFile(at: libraryURL)
     }
 
     /// `…QOMQ` is the opaque type descriptor's own symbol; `makeOpaquePair`'s

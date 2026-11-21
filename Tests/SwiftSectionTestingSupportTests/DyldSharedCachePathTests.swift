@@ -1,24 +1,13 @@
 import Testing
 import SwiftSectionFixtureSupport
 
-/// `DyldSharedCachePath` builds an archived cache's path and label from its
-/// version. The named macOS caches are built that way too, and only the
-/// integration dumps — which nothing runs automatically — open them, so a
-/// path or a label that came out wrong would go unnoticed until someone ran
-/// one by hand.
+/// The named macOS caches this package adds to `DyldSharedCachePath` are
+/// built from a version. Only the integration dumps — which nothing runs
+/// automatically — open them, so a path or a label that came out wrong would
+/// go unnoticed until someone ran one by hand. How a version spells an
+/// archived path is MachOKitExtensions' to test.
 @Suite
 struct DyldSharedCachePathTests {
-    @Test("A version names the cache file in that version's directory on the volume, and labels it")
-    func versionSpellsTheArchivedPathAndLabel() {
-        let internalBuild = DyldSharedCachePath.macOS("14.0(Internal)")
-        #expect(internalBuild.rawValue == "/Volumes/DyldSharedCaches/macOS/14.0(Internal)/dyld_shared_cache_arm64e")
-        #expect(internalBuild.versionLabel == "14.0(Internal)")
-
-        let device = DyldSharedCachePath.iOS("27.0")
-        #expect(device.rawValue == "/Volumes/DyldSharedCaches/iOS/27.0/dyld_shared_cache_arm64e")
-        #expect(device.versionLabel == "27.0")
-    }
-
     /// The paths these named caches spelled out before they were built from a
     /// version, and the labels the evolution dumps used to write out for
     /// them by hand.
@@ -29,7 +18,7 @@ struct DyldSharedCachePathTests {
         (.macOS_27_0, "/Volumes/DyldSharedCaches/macOS/27.0/dyld_shared_cache_arm64e", "27.0"),
     ])
     func namedCacheKeepsItsPathAndLabel(cachePath: DyldSharedCachePath, expectedPath: String, expectedVersionLabel: String) {
-        #expect(cachePath.rawValue == expectedPath)
+        #expect(cachePath.path == expectedPath)
         #expect(cachePath.versionLabel == expectedVersionLabel)
     }
 }

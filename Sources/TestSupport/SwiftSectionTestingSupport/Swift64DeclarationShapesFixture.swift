@@ -226,12 +226,6 @@ package enum Swift64DeclarationShapesFixture {
     }()
 
     package static func machOFile() throws -> MachOFile {
-        switch try MachOKit.loadFromFile(url: try compilationResult.get()) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        return try HostSlice.machOFile(at: compilationResult.get())
     }
 }

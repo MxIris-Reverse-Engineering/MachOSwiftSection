@@ -35,55 +35,37 @@ final class ProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
 
     @Test func name() async throws {
         let (file, image) = try loadProtocolTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.name },
-            image: { image.name }
-        )
+        let result = try acrossAllReaders(file, image) { $0.name }
         #expect(result == ProtocolBaseline.protocolTest.name)
     }
 
     @Test func descriptor() async throws {
         let (file, image) = try loadProtocolTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.descriptor.offset },
-            image: { image.descriptor.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.descriptor.offset }
         #expect(result == ProtocolBaseline.protocolTest.descriptorOffset)
     }
 
     @Test func protocolFlags() async throws {
         let (file, image) = try loadProtocolTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.protocolFlags.rawValue },
-            image: { image.protocolFlags.rawValue }
-        )
+        let result = try acrossAllReaders(file, image) { $0.protocolFlags.rawValue }
         #expect(result == ProtocolBaseline.protocolTest.protocolFlagsRawValue)
     }
 
     @Test func baseRequirement() async throws {
         let (file, image) = try loadProtocolTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.baseRequirement != nil },
-            image: { image.baseRequirement != nil }
-        )
+        let result = try acrossAllReaders(file, image) { $0.baseRequirement != nil }
         #expect(result == ProtocolBaseline.protocolTest.hasBaseRequirement)
     }
 
     @Test func requirementInSignatures() async throws {
         let (file, image) = try loadProtocolTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.requirementInSignatures.count },
-            image: { image.requirementInSignatures.count }
-        )
+        let result = try acrossAllReaders(file, image) { $0.requirementInSignatures.count }
         #expect(result == ProtocolBaseline.protocolTest.requirementInSignaturesCount)
     }
 
     @Test func requirements() async throws {
         let (file, image) = try loadWitnessTableTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.requirements.count },
-            image: { image.requirements.count }
-        )
+        let result = try acrossAllReaders(file, image) { $0.requirements.count }
         #expect(result == ProtocolBaseline.protocolWitnessTableTest.requirementsCount)
     }
 
@@ -91,19 +73,13 @@ final class ProtocolTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
 
     @Test func numberOfRequirements() async throws {
         let (file, image) = try loadWitnessTableTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.numberOfRequirements },
-            image: { image.numberOfRequirements }
-        )
+        let result = try acrossAllReaders(file, image) { $0.numberOfRequirements }
         #expect(result == ProtocolBaseline.protocolWitnessTableTest.numberOfRequirements)
     }
 
     @Test func numberOfRequirementsInSignature() async throws {
         let (file, image) = try loadProtocolTestProtocols()
-        let result = try acrossAllReaders(
-            file: { file.numberOfRequirementsInSignature },
-            image: { image.numberOfRequirementsInSignature }
-        )
+        let result = try acrossAllReaders(file, image) { $0.numberOfRequirementsInSignature }
         #expect(result == ProtocolBaseline.protocolTest.numberOfRequirementsInSignature)
     }
 

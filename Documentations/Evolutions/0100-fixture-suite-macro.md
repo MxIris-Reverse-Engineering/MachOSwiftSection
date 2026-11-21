@@ -5,7 +5,7 @@
 - **创建日期**: 2026-11-20
 - **最后更新**: 2026-11-20
 - **所属愿景**: 无
-- **关联提案**: [draft-shared-macho-testing-support](draft-shared-macho-testing-support.md)（同一次「减少测试样板」的讨论里拆出来；那份统一跨包的测试支持，这份只管本包的 Swift 夹具覆盖率体系，两份互不依赖）
+- **关联提案**: [0104-shared-macho-testing-support](0104-shared-macho-testing-support.md)（同一次「减少测试样板」的讨论里拆出来；那份统一跨包的测试支持，这份只管本包的 Swift 夹具覆盖率体系，两份互不依赖）
 - **实现分支 / PR**: `feature/fixture-suite-macro`，从 `next` 切出，快进合入 `next`
 - **配套文档**: 无单独文档；用法写在 `AGENTS.md`「添加夹具测试」与 [FixtureTestingAndContinuousIntegration.md](../Internal/FixtureTestingAndContinuousIntegration.md)「套件头由 `@FixtureSuite` 生成」一节；演进账本第 145 节
 - **网页版**: 同目录同名的 `.html`
@@ -29,7 +29,7 @@
 
   （`Tests/MachOSwiftSectionTests/Fixtures/Type/Struct/StructDescriptorTests.swift:16-21`）171 个夹具套件遵循 `FixtureSuite`；按完整写法匹配的 170 个里，165 个的被测类型名就是类名去掉 `Tests`，只有 5 个例外。
 - **手抄容易抄错。** `testedTypeName` 决定覆盖率不变式按哪个类型检查成员（`FixtureSuite.swift` 的文档注释），抄错一个字母，这个套件就静默地对不上源码里的类型。
-- **起因**：用户问能否给测试加便捷的宏减少样板。调研后，跨读取器写法 `acrossAllReaders` 不适合做宏（改用普通函数重载，归 `draft-shared-macho-testing-support`），套件开头这一处适合，另写本提案。
+- **起因**：用户问能否给测试加便捷的宏减少样板。调研后，跨读取器写法 `acrossAllReaders` 不适合做宏（改用普通函数重载，归 `0104-shared-macho-testing-support`），套件开头这一处适合，另写本提案。
 
 ## 前期调研
 
@@ -63,7 +63,7 @@
 ### 非目标
 
 - 给 `MachOFileTests` 等其他基类的子类（`override class var fileName` 之类）做宏：属于基类配置，宏省不了几行。
-- 把 `acrossAllReaders` 做成宏：归 `draft-shared-macho-testing-support`，用普通函数重载。
+- 把 `acrossAllReaders` 做成宏：归 `0104-shared-macho-testing-support`，用普通函数重载。
 - 自动维护 `BaselineGenerator` 里手写的套件清单（`AllFixtureSuites` 的来源）。
 - `@Suite` 与 `ExclusiveImageAccess` 等 trait 的组合：已经只有一行。
 
@@ -144,7 +144,7 @@ package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = 
 
 ### 下游影响
 
-无：新宏 target 与测试支持都不是 product。`draft-shared-macho-testing-support` 落地时，`MachOSwiftSectionFixtureTests` 变成共享基类的子类，`@FixtureSuite` 不受影响；两份提案改到同一批测试文件（这份改类声明，那份改 `acrossAllReaders` 调用），先落地的一份之后，另一份在合并时解冲突。
+无：新宏 target 与测试支持都不是 product。`0104-shared-macho-testing-support` 落地时，`MachOSwiftSectionFixtureTests` 变成共享基类的子类，`@FixtureSuite` 不受影响；两份提案改到同一批测试文件（这份改类声明，那份改 `acrossAllReaders` 调用），先落地的一份之后，另一份在合并时解冲突。
 
 ### 文档与示例
 
@@ -178,7 +178,7 @@ package macro FixtureSuite(testedTypeName: String? = nil, baseline: Any.Type? = 
 
 | 日期 | 变更 | 说明 |
 |------|------|------|
-| 2026-11-20 | Created as Draft | 用户问能否给测试代码加便捷的宏减少样板。只读调研统计了两个包测试里的重复写法：值得做成宏的是 176 个夹具套件开头的固定 5 行；`acrossAllReaders` 改用普通函数重载（归 `draft-shared-macho-testing-support`）。用户选择把这个宏另写一份本包提案。 |
+| 2026-11-20 | Created as Draft | 用户问能否给测试代码加便捷的宏减少样板。只读调研统计了两个包测试里的重复写法：值得做成宏的是 176 个夹具套件开头的固定 5 行；`acrossAllReaders` 改用普通函数重载（归 `0104-shared-macho-testing-support`）。用户选择把这个宏另写一份本包提案。 |
 | 2026-11-20 | 宏实现放新 target `SwiftSectionTestingMacros` | 生产代码链接的 `SwiftSectionMacros` 插件不带测试用的宏。 |
 | 2026-11-20 | 宏与协议同名 `FixtureSuite` | 照 Observation 的 `Observable` 先例，`@FixtureSuite` 读起来就是「这是一个夹具套件」。 |
 | 2026-11-20 | 状态 → Accepted | 用户批准，开始实现。 |

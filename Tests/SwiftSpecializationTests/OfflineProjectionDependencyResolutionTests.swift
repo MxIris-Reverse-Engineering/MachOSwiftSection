@@ -92,14 +92,7 @@ struct OfflineProjectionDependencyResolutionTests {
     }()
 
     private func loadFixtureMachOFile() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        try HostSlice.machOFile(at: Self.fixtureCompilationResult.get())
     }
 
     @Test("a field's projected member and its layout are read from the same images")

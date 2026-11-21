@@ -26,10 +26,7 @@ final class ContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @uncheck
 
     @Test func rawValue() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.rawValue },
-            image: { flags.image.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.rawValue }
         #expect(result == ContextDescriptorFlagsBaseline.structTest.rawValue)
     }
 
@@ -51,28 +48,19 @@ final class ContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @uncheck
 
     @Test func kind() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.kind.rawValue },
-            image: { flags.image.kind.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.kind.rawValue }
         #expect(result == ContextDescriptorFlagsBaseline.structTest.kindRawValue)
     }
 
     @Test func version() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.version },
-            image: { flags.image.version }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.version }
         #expect(result == ContextDescriptorFlagsBaseline.structTest.version)
     }
 
     @Test func kindSpecificFlagsRawValue() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.kindSpecificFlagsRawValue },
-            image: { flags.image.kindSpecificFlagsRawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.kindSpecificFlagsRawValue }
         #expect(result == ContextDescriptorFlagsBaseline.structTest.kindSpecificFlagsRawValue)
     }
 
@@ -80,37 +68,25 @@ final class ContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @uncheck
         let flags = try loadStructTestFlags()
         // `kindSpecificFlags` returns `ContextDescriptorKindSpecificFlags?`,
         // which isn't trivially Equatable. Use presence-only assertion.
-        let presence = try acrossAllReaders(
-            file: { flags.file.kindSpecificFlags != nil },
-            image: { flags.image.kindSpecificFlags != nil }
-        )
+        let presence = try acrossAllReaders(flags.file, flags.image) { $0.kindSpecificFlags != nil }
         #expect(presence == ContextDescriptorFlagsBaseline.structTest.hasKindSpecificFlags)
     }
 
     @Test func hasInvertibleProtocols() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.hasInvertibleProtocols },
-            image: { flags.image.hasInvertibleProtocols }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.hasInvertibleProtocols }
         #expect(result == ContextDescriptorFlagsBaseline.structTest.hasInvertibleProtocols)
     }
 
     @Test func isUnique() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isUnique },
-            image: { flags.image.isUnique }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isUnique }
         #expect(result == ContextDescriptorFlagsBaseline.structTest.isUnique)
     }
 
     @Test func isGeneric() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isGeneric },
-            image: { flags.image.isGeneric }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isGeneric }
         #expect(result == ContextDescriptorFlagsBaseline.structTest.isGeneric)
     }
 }

@@ -32,10 +32,7 @@ final class ContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Se
 
     @Test func offset() async throws {
         let descriptors = try loadStructTestContextDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.offset },
-            image: { descriptors.image.offset }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.offset }
         #expect(result == ContextDescriptorBaseline.structTest.offset)
     }
 
@@ -44,10 +41,7 @@ final class ContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Se
         // Cross-reader equality on the only stable scalar field
         // (`flags.rawValue`); `parent` is a relative pointer whose value
         // varies by reader.
-        let flagsRaw = try acrossAllReaders(
-            file: { descriptors.file.layout.flags.rawValue },
-            image: { descriptors.image.layout.flags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.flags.rawValue }
         #expect(flagsRaw == ContextDescriptorBaseline.structTest.layoutFlagsRawValue)
     }
 }

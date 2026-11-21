@@ -27,10 +27,7 @@ final class AnonymousContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests,
 
     @Test func rawValue() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.rawValue },
-            image: { flags.image.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.rawValue }
         #expect(result == AnonymousContextDescriptorFlagsBaseline.firstAnonymous.rawValue)
     }
 
@@ -47,10 +44,7 @@ final class AnonymousContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests,
 
     @Test func hasMangledName() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.hasMangledName },
-            image: { flags.image.hasMangledName }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.hasMangledName }
         #expect(result == AnonymousContextDescriptorFlagsBaseline.firstAnonymous.hasMangledName)
     }
 }

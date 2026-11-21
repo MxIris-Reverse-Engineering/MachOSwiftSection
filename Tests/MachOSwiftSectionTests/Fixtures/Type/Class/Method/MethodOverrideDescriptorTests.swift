@@ -28,10 +28,7 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func offset() async throws {
         let overrides = try loadFirstOverrides()
-        let result = try acrossAllReaders(
-            file: { overrides.file.offset },
-            image: { overrides.image.offset }
-        )
+        let result = try acrossAllReaders(overrides.file, overrides.image) { $0.offset }
         #expect(result == MethodOverrideDescriptorBaseline.firstSubclassOverride.offset)
     }
 
@@ -51,10 +48,9 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, @unche
     /// ancestor depending on layout). Verify cross-reader presence.
     @Test func classDescriptor() async throws {
         let overrides = try loadFirstOverrides()
-        let presence = try acrossAllContexts(
-            file: { (try overrides.file.classDescriptor(in: fileContext)) != nil },
-            image: { (try overrides.image.classDescriptor(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(overrides.file, overrides.image) { descriptor, context in
+            (try descriptor.classDescriptor(in: context)) != nil
+        }
         #expect(presence == true)
     }
 
@@ -62,10 +58,9 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, @unche
     /// Exercise the ReadingContext overload across both readers.
     @Test func methodDescriptor() async throws {
         let overrides = try loadFirstOverrides()
-        let presence = try acrossAllContexts(
-            file: { (try overrides.file.methodDescriptor(in: fileContext)) != nil },
-            image: { (try overrides.image.methodDescriptor(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(overrides.file, overrides.image) { descriptor, context in
+            (try descriptor.methodDescriptor(in: context)) != nil
+        }
         #expect(presence == true)
     }
 
@@ -74,10 +69,7 @@ final class MethodOverrideDescriptorTests: MachOSwiftSectionFixtureTests, @unche
     /// and identical across readers.
     @Test func implementationOffset() async throws {
         let overrides = try loadFirstOverrides()
-        let result = try acrossAllReaders(
-            file: { overrides.file.implementationOffset },
-            image: { overrides.image.implementationOffset }
-        )
+        let result = try acrossAllReaders(overrides.file, overrides.image) { $0.implementationOffset }
         #expect(result != nil)
         #expect(result == MethodOverrideDescriptorBaseline.firstSubclassOverride.implementationOffset)
     }

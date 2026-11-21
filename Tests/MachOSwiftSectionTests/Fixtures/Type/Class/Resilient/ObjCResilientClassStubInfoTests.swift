@@ -32,10 +32,7 @@ final class ObjCResilientClassStubInfoTests: MachOSwiftSectionFixtureTests, @unc
     @Test func offset() async throws {
         let fileSubject = try loadResilientObjCStubChildStub(in: machOFile)
         let imageSubject = try loadResilientObjCStubChildStub(in: machOImage)
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == ObjCResilientClassStubInfoBaseline.resilientObjCStubChild.offset)
     }
 
@@ -44,10 +41,7 @@ final class ObjCResilientClassStubInfoTests: MachOSwiftSectionFixtureTests, @unc
         let imageSubject = try loadResilientObjCStubChildStub(in: machOImage)
         // The relative raw pointer's relativeOffset scalar must agree
         // across readers (it's a stable file/image-relative displacement).
-        let result = try acrossAllReaders(
-            file: { fileSubject.layout.stub.relativeOffset },
-            image: { imageSubject.layout.stub.relativeOffset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.stub.relativeOffset }
         #expect(result == ObjCResilientClassStubInfoBaseline.resilientObjCStubChild.layoutStubRelativeOffset)
     }
 }

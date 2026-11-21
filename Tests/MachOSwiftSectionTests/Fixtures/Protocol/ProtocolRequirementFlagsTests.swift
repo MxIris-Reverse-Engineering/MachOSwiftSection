@@ -32,28 +32,19 @@ final class ProtocolRequirementFlagsTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func rawValue() async throws {
         let (file, image) = try loadFirstRequirementFlags()
-        let result = try acrossAllReaders(
-            file: { file.rawValue },
-            image: { image.rawValue }
-        )
+        let result = try acrossAllReaders(file, image) { $0.rawValue }
         #expect(result == ProtocolRequirementFlagsBaseline.witnessTableMethod.rawValue)
     }
 
     @Test func kind() async throws {
         let (file, image) = try loadFirstRequirementFlags()
-        let result = try acrossAllReaders(
-            file: { file.kind?.rawValue },
-            image: { image.kind?.rawValue }
-        )
+        let result = try acrossAllReaders(file, image) { $0.kind?.rawValue }
         #expect(result == ProtocolRequirementFlagsBaseline.witnessTableMethod.kindRawValue)
     }
 
     @Test func isCoroutine() async throws {
         let (file, image) = try loadFirstRequirementFlags()
-        let result = try acrossAllReaders(
-            file: { file.isCoroutine },
-            image: { image.isCoroutine }
-        )
+        let result = try acrossAllReaders(file, image) { $0.isCoroutine }
         #expect(result == ProtocolRequirementFlagsBaseline.witnessTableMethod.isCoroutine)
 
         // Synthetic: read coroutine kind sets isCoroutine.
@@ -63,10 +54,7 @@ final class ProtocolRequirementFlagsTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func isAsync() async throws {
         let (file, image) = try loadFirstRequirementFlags()
-        let result = try acrossAllReaders(
-            file: { file.isAsync },
-            image: { image.isAsync }
-        )
+        let result = try acrossAllReaders(file, image) { $0.isAsync }
         #expect(result == ProtocolRequirementFlagsBaseline.witnessTableMethod.isAsync)
 
         // Synthetic: method + maybeAsync sets isAsync.
@@ -76,10 +64,7 @@ final class ProtocolRequirementFlagsTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func isInstance() async throws {
         let (file, image) = try loadFirstRequirementFlags()
-        let result = try acrossAllReaders(
-            file: { file.isInstance },
-            image: { image.isInstance }
-        )
+        let result = try acrossAllReaders(file, image) { $0.isInstance }
         #expect(result == ProtocolRequirementFlagsBaseline.witnessTableMethod.isInstance)
     }
 

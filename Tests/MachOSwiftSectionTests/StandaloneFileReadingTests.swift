@@ -19,7 +19,7 @@ import SwiftSectionFixtureSupport
 @Suite
 struct StandaloneFileReadingTests {
     private static var isHostDyldCacheAvailable: Bool {
-        FileManager.default.fileExists(atPath: DyldSharedCachePath.current.rawValue)
+        FileManager.default.fileExists(atPath: DyldSharedCachePath.current.path)
     }
 
     @Test(.enabled(if: isHostDyldCacheAvailable))
@@ -55,7 +55,7 @@ struct StandaloneFileReadingTests {
     /// The first bytes of the host's dyld cache: enough for MachOKit to accept
     /// a file as a cache.
     private static func hostCacheHeaderBytes() throws -> Data {
-        let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: DyldSharedCachePath.current.rawValue))
+        let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: DyldSharedCachePath.current.path))
         defer { try? fileHandle.close() }
         return try #require(try fileHandle.read(upToCount: 0x10000))
     }

@@ -57,7 +57,7 @@ struct SymbolicManglingIndexTests {
     /// proposal's memory note: what the paired references cost per image.
     @Test(.enabled(if: runsOnMacOS26OrLater, "the anchor symbols ship with macOS 26's AppKit"))
     func referenceCensusOfSystemCacheImages() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         var censusLines: [String] = []
         for imageName in [MachOImageName.AppKit, .SwiftUICore] {
             let machOFile = try #require(cache.machOFile(named: imageName), "the running system's cache has no \(imageName)")
@@ -224,7 +224,7 @@ struct SymbolicManglingIndexTests {
     }
 
     private static func appKitFileInSystemCache() throws -> MachOFile {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         return try #require(cache.machOFile(named: .AppKit), "the running system's cache has no AppKit")
     }
 

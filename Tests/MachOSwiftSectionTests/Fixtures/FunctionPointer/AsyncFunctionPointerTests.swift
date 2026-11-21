@@ -49,26 +49,17 @@ final class AsyncFunctionPointerTests: MachOSwiftSectionFixtureTests, @unchecked
 
     @Test func offset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.offset },
-                image: { carrier.image.offset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.offset }
             #expect(result == carrier.expected.offset, "\(carrier.label)")
         }
     }
 
     @Test func layout() async throws {
         for carrier in try allCarriers() {
-            let relativeOffset = try acrossAllReaders(
-                file: { carrier.file.layout.function.relativeOffset },
-                image: { carrier.image.layout.function.relativeOffset }
-            )
+            let relativeOffset = try acrossAllReaders(carrier.file, carrier.image) { $0.layout.function.relativeOffset }
             #expect(Int(relativeOffset) == carrier.expected.functionOffset.map { $0 - carrier.expected.offset }, "\(carrier.label)")
 
-            let contextSize = try acrossAllReaders(
-                file: { carrier.file.layout.expectedContextSize },
-                image: { carrier.image.layout.expectedContextSize }
-            )
+            let contextSize = try acrossAllReaders(carrier.file, carrier.image) { $0.layout.expectedContextSize }
             #expect(contextSize == carrier.expected.expectedContextSize, "\(carrier.label)")
         }
         // The whole record is two words; a Swift struct that grew padding
@@ -78,10 +69,7 @@ final class AsyncFunctionPointerTests: MachOSwiftSectionFixtureTests, @unchecked
         // Resolving the function pointer is pure arithmetic, so it is
         // identical across readers and pinned as a literal.
         for carrier in try allCarriers() {
-            let functionOffset = try acrossAllReaders(
-                file: { carrier.file.resolvedDirectOffset(from: \.function) },
-                image: { carrier.image.resolvedDirectOffset(from: \.function) }
-            )
+            let functionOffset = try acrossAllReaders(carrier.file, carrier.image) { $0.resolvedDirectOffset(from: \.function) }
             #expect(functionOffset == carrier.expected.functionOffset, "\(carrier.label)")
             // The record never points at itself: the whole reason it exists
             // is that it is NOT the entry point.

@@ -678,18 +678,7 @@ package enum BaselineGenerator {
     }
 
     private static func loadFixtureMachOFile() throws -> MachOFile {
-        let file = try loadFromFile(named: .SymbolTestsCore)
-        switch file {
-        case .fat(let fat):
-            return try required(
-                fat.machOFiles().first(where: { $0.header.cpuType == .arm64 })
-                    ?? fat.machOFiles().first
-            )
-        case .machO(let machO):
-            return machO
-        @unknown default:
-            fatalError()
-        }
+        try HostSlice.machOFile(in: loadFromFile(named: .SymbolTestsCore))
     }
 
     /// Hand-maintained index of every Suite type registered in `dispatchSuite`.

@@ -7,6 +7,7 @@ import MachOSwiftSection
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
 import OrderedCollections
+import SwiftSectionFixtureSupport
 
 /// Two modules compiled on the fly, each carrying a class (a struct-only
 /// fixture dylib has no `__DATA` segment and MachOKit before 0.52.103 mis-walked
@@ -139,12 +140,7 @@ enum WrappedPropertyFixture {
     }
 
     static func machOFile(at url: URL) throws -> MachOFile {
-        switch try File.loadFromFile(url: url) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: url)
     }
 
     /// Loads both dylibs into the test process (the kit first, so the

@@ -25,7 +25,7 @@ import SwiftThunkAnalysis
 struct ThunkEnvironmentImageTablesTests {
     @Test("A fresh environment does not walk the symbol table again")
     func freshEnvironmentReusesTheImagesRuntimeSymbols() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .SwiftUI))
         // A type descriptor: inside the image and not a metadata accessor,
         // so a lookup gets as far as the image's own runtime symbols.
@@ -54,7 +54,7 @@ struct ThunkEnvironmentImageTablesTests {
 
     @Test("A fresh environment does not read the cache's image list again")
     func freshEnvironmentReusesTheCachesImageTable() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .SwiftUI))
         let swiftCore = try #require(cache.machOFile(by: .path("/usr/lib/swift/libswiftCore.dylib")))
         // A runtime entry point another image of the cache exports: naming it

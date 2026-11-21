@@ -36,10 +36,7 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecke
 
     @Test func offset() async throws {
         let descriptors = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.offset },
-            image: { descriptors.image.offset }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.offset }
         #expect(result == TypeContextDescriptorBaseline.structTest.offset)
     }
 
@@ -48,10 +45,7 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecke
         // Cross-reader equality on the only stable scalar field
         // (`flags.rawValue`); other layout fields are relative pointers
         // whose value varies by reader.
-        let flagsRaw = try acrossAllReaders(
-            file: { descriptors.file.layout.flags.rawValue },
-            image: { descriptors.image.layout.flags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.flags.rawValue }
         #expect(flagsRaw == TypeContextDescriptorBaseline.structTest.layoutFlagsRawValue)
     }
 
@@ -60,10 +54,9 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecke
     /// is exercised end-to-end via the Type/Enum Suites.
     @Test func enumDescriptor() async throws {
         let descriptors = try loadStructTestDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try descriptors.file.enumDescriptor(in: fileContext)) != nil },
-            image: { (try descriptors.image.enumDescriptor(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(descriptors.file, descriptors.image) { descriptor, context in
+            (try descriptor.enumDescriptor(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasEnumDescriptor)
     }
 
@@ -71,10 +64,9 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecke
     /// for our struct fixture. Witnesses the true branch.
     @Test func structDescriptor() async throws {
         let descriptors = try loadStructTestDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try descriptors.file.structDescriptor(in: fileContext)) != nil },
-            image: { (try descriptors.image.structDescriptor(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(descriptors.file, descriptors.image) { descriptor, context in
+            (try descriptor.structDescriptor(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasStructDescriptor)
     }
 
@@ -83,10 +75,9 @@ final class TypeContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchecke
     /// is exercised end-to-end via the Type/Class Suites.
     @Test func classDescriptor() async throws {
         let descriptors = try loadStructTestDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try descriptors.file.classDescriptor(in: fileContext)) != nil },
-            image: { (try descriptors.image.classDescriptor(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(descriptors.file, descriptors.image) { descriptor, context in
+            (try descriptor.classDescriptor(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorBaseline.structTest.hasClassDescriptor)
     }
 }

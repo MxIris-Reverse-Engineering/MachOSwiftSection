@@ -27,58 +27,6 @@ import SwiftPrinting
 /// record does not — the assertions hold; see the last test.
 @Suite(.serialized)
 struct RawLayoutBuiltinDescriptorRenderingTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "raw-layout fixture compilation failed:\n\(diagnostics)" }
-    }
-
-    private static let fixtureCompilationResult: Result<URL, any Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("RawLayoutRenderingFixture-\(UUID().uuidString)")
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("RawLayouts.swift")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-            let libraryURL = workingDirectory.appendingPathComponent("libProbeRawLayout.dylib")
-            try run(swiftcArguments: [
-                "-O", "-emit-library", "-module-name", "ProbeRawLayout",
-                "-enable-experimental-feature", "RawLayout",
-                // Value generics (`let count: Int`) need macOS 26.
-                "-target", "arm64-apple-macosx26.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ])
-            return libraryURL
-        }
-    }()
-
-    private static func run(swiftcArguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = ["swiftc"] + swiftcArguments
-        let standardErrorPipe = Pipe()
-        process.standardError = standardErrorPipe
-        try process.run()
-        // Drain before waiting, or a long diagnostic deadlocks both sides.
-        let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-        }
-    }
-
     private static let source = """
     public final class ProbeAnchor {}
 
@@ -113,19 +61,26 @@ struct RawLayoutBuiltinDescriptorRenderingTests {
     }
     """
 
+    private static func libraryURL() throws -> URL {
+        try FixtureCompiler.shared.dynamicLibrary(
+            named: "ProbeRawLayout",
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "RawLayouts.swift", contents: source)],
+            arguments: [
+                "-O",
+                "-enable-experimental-feature", "RawLayout",
+                // Value generics (`let count: Int`) need macOS 26.
+                "-target", "arm64-apple-macosx26.0",
+            ]
+        )
+    }
+
     private func renderInterface() async throws -> String {
         try await printInterface(marksCommentStructure: false).string
     }
 
     private func printInterface(marksCommentStructure: Bool) async throws -> SemanticString {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        let machOFile: MachOFile
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let file):
-            machOFile = file
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let machOFile = try HostSlice.machOFile(at: Self.libraryURL())
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.printConfiguration.marksCommentStructure = marksCommentStructure
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)

@@ -32,10 +32,7 @@ final class ResilientSuperclassTests: MachOSwiftSectionFixtureTests, @unchecked 
     @Test func offset() async throws {
         let fileSubject = try loadResilientChildSuperclass(in: machOFile)
         let imageSubject = try loadResilientChildSuperclass(in: machOImage)
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == ResilientSuperclassBaseline.resilientChild.offset)
     }
 
@@ -44,10 +41,7 @@ final class ResilientSuperclassTests: MachOSwiftSectionFixtureTests, @unchecked 
         let imageSubject = try loadResilientChildSuperclass(in: machOImage)
         // The relative raw pointer's relativeOffset scalar must agree
         // across readers (it's a stable file/image-relative displacement).
-        let result = try acrossAllReaders(
-            file: { fileSubject.layout.superclass.relativeOffset },
-            image: { imageSubject.layout.superclass.relativeOffset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.superclass.relativeOffset }
         #expect(result == ResilientSuperclassBaseline.resilientChild.layoutSuperclassRelativeOffset)
     }
 }

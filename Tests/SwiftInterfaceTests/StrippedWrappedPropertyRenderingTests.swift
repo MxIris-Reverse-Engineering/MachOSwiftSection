@@ -124,13 +124,7 @@ struct StrippedWrappedPropertyRenderingTests {
 
     private func printOfflineInterface(marksCommentStructure: Bool) async throws -> SemanticString {
         let products = try Self.compilationResult.get()
-        let machOFile: MachOFile
-        switch try File.loadFromFile(url: products.clientURL) {
-        case .machO(let file):
-            machOFile = file
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let machOFile = try HostSlice.machOFile(at: products.clientURL)
         var printConfiguration = SwiftDeclarationPrintConfiguration()
         printConfiguration.marksCommentStructure = marksCommentStructure
         let configuration = SwiftInterfaceBuilderConfiguration(

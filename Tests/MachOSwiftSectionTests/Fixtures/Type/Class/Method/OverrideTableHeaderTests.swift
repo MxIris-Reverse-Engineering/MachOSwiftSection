@@ -24,19 +24,13 @@ final class OverrideTableHeaderTests: MachOSwiftSectionFixtureTests, @unchecked 
 
     @Test func offset() async throws {
         let headers = try loadSubclassOverrideHeaders()
-        let result = try acrossAllReaders(
-            file: { headers.file.offset },
-            image: { headers.image.offset }
-        )
+        let result = try acrossAllReaders(headers.file, headers.image) { $0.offset }
         #expect(result == OverrideTableHeaderBaseline.subclassTest.offset)
     }
 
     @Test func layout() async throws {
         let headers = try loadSubclassOverrideHeaders()
-        let numEntries = try acrossAllReaders(
-            file: { headers.file.layout.numEntries },
-            image: { headers.image.layout.numEntries }
-        )
+        let numEntries = try acrossAllReaders(headers.file, headers.image) { $0.layout.numEntries }
         #expect(numEntries == OverrideTableHeaderBaseline.subclassTest.layoutNumEntries)
     }
 }

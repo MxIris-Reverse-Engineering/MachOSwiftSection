@@ -69,20 +69,14 @@ final class StructTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
     @Test func descriptor() async throws {
         let structs = try loadStructTestStructs()
 
-        let descriptorOffsets = try acrossAllReaders(
-            file: { structs.file.descriptor.offset },
-            image: { structs.image.descriptor.offset }
-        )
+        let descriptorOffsets = try acrossAllReaders(structs.file, structs.image) { $0.descriptor.offset }
         #expect(descriptorOffsets == StructBaseline.structTest.descriptorOffset)
     }
 
     @Test func genericContext() async throws {
         // Concrete struct (`StructTest`): no generic context.
         let structs = try loadStructTestStructs()
-        let structTestPresence = try acrossAllReaders(
-            file: { structs.file.genericContext != nil },
-            image: { structs.image.genericContext != nil }
-        )
+        let structTestPresence = try acrossAllReaders(structs.file, structs.image) { $0.genericContext != nil }
         #expect(structTestPresence == StructBaseline.structTest.hasGenericContext)
 
         // Generic struct (`GenericStructNonRequirement<A>`): has a generic context.
@@ -94,73 +88,51 @@ final class StructTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
             descriptor: try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machOImage),
             in: imageContext
         )
-        let genericPresence = try acrossAllReaders(
-            file: { genericFile.genericContext != nil },
-            image: { genericImage.genericContext != nil }
-        )
+        let genericPresence = try acrossAllReaders(genericFile, genericImage) { $0.genericContext != nil }
         #expect(genericPresence == StructBaseline.genericStructNonRequirement.hasGenericContext)
     }
 
     @Test func foreignMetadataInitialization() async throws {
         let structs = try loadStructTestStructs()
-        let presence = try acrossAllReaders(
-            file: { structs.file.foreignMetadataInitialization != nil },
-            image: { structs.image.foreignMetadataInitialization != nil }
-        )
+        let presence = try acrossAllReaders(structs.file, structs.image) { $0.foreignMetadataInitialization != nil }
         #expect(presence == StructBaseline.structTest.hasForeignMetadataInitialization)
     }
 
     @Test func singletonMetadataInitialization() async throws {
         let structs = try loadStructTestStructs()
-        let presence = try acrossAllReaders(
-            file: { structs.file.singletonMetadataInitialization != nil },
-            image: { structs.image.singletonMetadataInitialization != nil }
-        )
+        let presence = try acrossAllReaders(structs.file, structs.image) { $0.singletonMetadataInitialization != nil }
         #expect(presence == StructBaseline.structTest.hasSingletonMetadataInitialization)
     }
 
     @Test func canonicalSpecializedMetadatas() async throws {
         let structs = try loadStructTestStructs()
-        let count = try acrossAllReaders(
-            file: { structs.file.canonicalSpecializedMetadatas.count },
-            image: { structs.image.canonicalSpecializedMetadatas.count }
-        )
+        let count = try acrossAllReaders(structs.file, structs.image) { $0.canonicalSpecializedMetadatas.count }
         #expect(count == StructBaseline.structTest.canonicalSpecializedMetadatasCount)
     }
 
     @Test func canonicalSpecializedMetadatasListCount() async throws {
         let structs = try loadStructTestStructs()
-        let presence = try acrossAllReaders(
-            file: { structs.file.canonicalSpecializedMetadatasListCount != nil },
-            image: { structs.image.canonicalSpecializedMetadatasListCount != nil }
-        )
+        let presence = try acrossAllReaders(structs.file, structs.image) { $0.canonicalSpecializedMetadatasListCount != nil }
         #expect(presence == StructBaseline.structTest.hasCanonicalSpecializedMetadatasListCount)
     }
 
     @Test func canonicalSpecializedMetadatasCachingOnceToken() async throws {
         let structs = try loadStructTestStructs()
-        let presence = try acrossAllReaders(
-            file: { structs.file.canonicalSpecializedMetadatasCachingOnceToken != nil },
-            image: { structs.image.canonicalSpecializedMetadatasCachingOnceToken != nil }
-        )
+        let presence = try acrossAllReaders(structs.file, structs.image) { swiftStruct in
+            swiftStruct.canonicalSpecializedMetadatasCachingOnceToken != nil
+        }
         #expect(presence == StructBaseline.structTest.hasCanonicalSpecializedMetadatasCachingOnceToken)
     }
 
     @Test func invertibleProtocolSet() async throws {
         let structs = try loadStructTestStructs()
-        let presence = try acrossAllReaders(
-            file: { structs.file.invertibleProtocolSet != nil },
-            image: { structs.image.invertibleProtocolSet != nil }
-        )
+        let presence = try acrossAllReaders(structs.file, structs.image) { $0.invertibleProtocolSet != nil }
         #expect(presence == StructBaseline.structTest.hasInvertibleProtocolSet)
     }
 
     @Test func singletonMetadataPointer() async throws {
         let structs = try loadStructTestStructs()
-        let presence = try acrossAllReaders(
-            file: { structs.file.singletonMetadataPointer != nil },
-            image: { structs.image.singletonMetadataPointer != nil }
-        )
+        let presence = try acrossAllReaders(structs.file, structs.image) { $0.singletonMetadataPointer != nil }
         #expect(presence == StructBaseline.structTest.hasSingletonMetadataPointer)
     }
 }

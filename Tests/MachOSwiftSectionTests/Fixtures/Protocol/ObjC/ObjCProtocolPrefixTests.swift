@@ -45,10 +45,7 @@ final class ObjCProtocolPrefixTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func name() async throws {
         let (file, image) = try loadFirstPrefixes()
-        let result = try acrossAllContexts(
-            file: { try file.name(in: fileContext) },
-            image: { try image.name(in: imageContext) }
-        )
+        let result = try acrossAllContexts(file, image) { prefix, context in try prefix.name(in: context) }
         #expect(result == ObjCProtocolPrefixBaseline.firstPrefix.name)
     }
 

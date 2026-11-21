@@ -31,19 +31,13 @@ final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sen
 
     @Test func offset() async throws {
         let methods = try loadFirstMethods()
-        let result = try acrossAllReaders(
-            file: { methods.file.offset },
-            image: { methods.image.offset }
-        )
+        let result = try acrossAllReaders(methods.file, methods.image) { $0.offset }
         #expect(result == MethodDescriptorBaseline.firstClassTestMethod.offset)
     }
 
     @Test func layout() async throws {
         let methods = try loadFirstMethods()
-        let flagsRaw = try acrossAllReaders(
-            file: { methods.file.layout.flags.rawValue },
-            image: { methods.image.layout.flags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(methods.file, methods.image) { $0.layout.flags.rawValue }
         #expect(flagsRaw == MethodDescriptorBaseline.firstClassTestMethod.layoutFlagsRawValue)
     }
 
@@ -51,10 +45,7 @@ final class MethodDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sen
     /// a literal and identical across readers.
     @Test func implementationOffset() async throws {
         let methods = try loadFirstMethods()
-        let result = try acrossAllReaders(
-            file: { methods.file.implementationOffset },
-            image: { methods.image.implementationOffset }
-        )
+        let result = try acrossAllReaders(methods.file, methods.image) { $0.implementationOffset }
         #expect(result == MethodDescriptorBaseline.firstClassTestMethod.implementationOffset)
     }
 

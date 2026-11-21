@@ -73,35 +73,26 @@ final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, @u
 
     @Test func offset() async throws {
         let layout = try layoutRequirements()
-        let layoutOffset = try acrossAllReaders(file: { layout.file.offset }, image: { layout.image.offset })
+        let layoutOffset = try acrossAllReaders(layout.file, layout.image) { $0.offset }
         #expect(layoutOffset == GenericRequirementDescriptorBaseline.layoutRequirement.offset)
 
         let swift = try swiftProtocolRequirements()
-        let swiftOffset = try acrossAllReaders(file: { swift.file.offset }, image: { swift.image.offset })
+        let swiftOffset = try acrossAllReaders(swift.file, swift.image) { $0.offset }
         #expect(swiftOffset == GenericRequirementDescriptorBaseline.swiftProtocolRequirement.offset)
     }
 
     @Test func layout() async throws {
         // Layout-level rawValue cross-reader equality on each fixture.
         let layout = try layoutRequirements()
-        let layoutRaw = try acrossAllReaders(
-            file: { layout.file.layout.flags.rawValue },
-            image: { layout.image.layout.flags.rawValue }
-        )
+        let layoutRaw = try acrossAllReaders(layout.file, layout.image) { $0.layout.flags.rawValue }
         #expect(layoutRaw == GenericRequirementDescriptorBaseline.layoutRequirement.flagsRawValue)
 
         let baseClass = try baseClassRequirements()
-        let baseClassRaw = try acrossAllReaders(
-            file: { baseClass.file.layout.flags.rawValue },
-            image: { baseClass.image.layout.flags.rawValue }
-        )
+        let baseClassRaw = try acrossAllReaders(baseClass.file, baseClass.image) { $0.layout.flags.rawValue }
         #expect(baseClassRaw == GenericRequirementDescriptorBaseline.baseClassRequirement.flagsRawValue)
 
         let sameType = try sameTypeRequirements()
-        let sameTypeRaw = try acrossAllReaders(
-            file: { sameType.file.layout.flags.rawValue },
-            image: { sameType.image.layout.flags.rawValue }
-        )
+        let sameTypeRaw = try acrossAllReaders(sameType.file, sameType.image) { $0.layout.flags.rawValue }
         #expect(sameTypeRaw == GenericRequirementDescriptorBaseline.sameTypeRequirement.flagsRawValue)
     }
 
@@ -109,38 +100,23 @@ final class GenericRequirementDescriptorTests: MachOSwiftSectionFixtureTests, @u
 
     @Test func content() async throws {
         let layout = try layoutRequirements()
-        let layoutKind = try acrossAllReaders(
-            file: { describeContentKind(layout.file.content) },
-            image: { describeContentKind(layout.image.content) }
-        )
+        let layoutKind = try acrossAllReaders(layout.file, layout.image) { describeContentKind($0.content) }
         #expect(layoutKind == GenericRequirementDescriptorBaseline.layoutRequirement.contentKindCase)
 
         let swift = try swiftProtocolRequirements()
-        let swiftKind = try acrossAllReaders(
-            file: { describeContentKind(swift.file.content) },
-            image: { describeContentKind(swift.image.content) }
-        )
+        let swiftKind = try acrossAllReaders(swift.file, swift.image) { describeContentKind($0.content) }
         #expect(swiftKind == GenericRequirementDescriptorBaseline.swiftProtocolRequirement.contentKindCase)
 
         let objc = try objcProtocolRequirements()
-        let objcKind = try acrossAllReaders(
-            file: { describeContentKind(objc.file.content) },
-            image: { describeContentKind(objc.image.content) }
-        )
+        let objcKind = try acrossAllReaders(objc.file, objc.image) { describeContentKind($0.content) }
         #expect(objcKind == GenericRequirementDescriptorBaseline.objcProtocolRequirement.contentKindCase)
 
         let baseClass = try baseClassRequirements()
-        let baseClassKind = try acrossAllReaders(
-            file: { describeContentKind(baseClass.file.content) },
-            image: { describeContentKind(baseClass.image.content) }
-        )
+        let baseClassKind = try acrossAllReaders(baseClass.file, baseClass.image) { describeContentKind($0.content) }
         #expect(baseClassKind == GenericRequirementDescriptorBaseline.baseClassRequirement.contentKindCase)
 
         let sameType = try sameTypeRequirements()
-        let sameTypeKind = try acrossAllReaders(
-            file: { describeContentKind(sameType.file.content) },
-            image: { describeContentKind(sameType.image.content) }
-        )
+        let sameTypeKind = try acrossAllReaders(sameType.file, sameType.image) { describeContentKind($0.content) }
         #expect(sameTypeKind == GenericRequirementDescriptorBaseline.sameTypeRequirement.contentKindCase)
     }
 

@@ -34,17 +34,6 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
 
     // MARK: - Fixture
 
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
     /// `Anchor` keeps a `__DATA` segment in the dylib (see AGENTS.md,
     /// "On-the-fly-compiled fixture dylibs need a class"). `Holder.first` is
     /// the payload: a `_read` accessor, which under CoroutineAccessors lowers
@@ -66,71 +55,40 @@ final class CoroFunctionPointerTests: FixtureSuite, @unchecked Sendable {
     }
     """
 
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "coro-function-pointer fixture compilation failed:\n\(diagnostics)" }
+    /// Both compiles failed; carries what each one reported.
+    private struct BothCompilationsFailedError: Swift.Error, CustomStringConvertible {
+        let withFeatureFlagFailure: any Swift.Error
+        let withoutFeatureFlagFailure: any Swift.Error
+        var description: String { "coro-function-pointer fixture compilation failed:\n\(withFeatureFlagFailure)\n\(withoutFeatureFlagFailure)" }
     }
 
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("CoroFunctionPointerFixture-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("CoroFunctionPointerFixture.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("libCoroFunctionPointerFixture.dylib")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            // The feature is still experimental, so it must be requested by
-            // name; should it ever graduate, the flag becomes unknown and the
-            // compile fails, so fall back to building without it — the
-            // accessors lower to `yield_once_2` either way once it is on by
-            // default. `-enable-library-evolution` is what forces the
-            // accessors to be dispatched (and therefore emitted) at all.
-            var lastDiagnostics = ""
-            func compile(withCoroutineAccessorsFlag requestsFeature: Bool) throws -> Int32 {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-                var arguments = [
-                    "swiftc", "-emit-library",
-                    "-module-name", "CoroFunctionPointerFixture",
-                    "-enable-library-evolution",
-                ]
-                if requestsFeature {
-                    arguments += ["-enable-experimental-feature", "CoroutineAccessors"]
-                }
-                arguments += [sourceURL.path, "-o", libraryURL.path]
-                process.arguments = arguments
-                let standardErrorPipe = Pipe()
-                process.standardError = standardErrorPipe
-                try process.run()
-                // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
-                lastDiagnostics = String(decoding: standardErrorPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                process.waitUntilExit()
-                return process.terminationStatus
-            }
-
-            if try compile(withCoroutineAccessorsFlag: true) != 0 {
-                let withFlagDiagnostics = lastDiagnostics
-                guard try compile(withCoroutineAccessorsFlag: false) == 0 else {
-                    throw FixtureCompilationError(diagnostics: withFlagDiagnostics + lastDiagnostics)
-                }
-            }
-            return libraryURL
-        }
-    }()
-
     private func loadFixtureMachOFile() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
+        // The feature is still experimental, so it must be requested by
+        // name; should it ever graduate, the flag becomes unknown and the
+        // compile fails, so fall back to building without it — the
+        // accessors lower to `yield_once_2` either way once it is on by
+        // default. `-enable-library-evolution` is what forces the
+        // accessors to be dispatched (and therefore emitted) at all.
+        func compile(withCoroutineAccessorsFlag requestsFeature: Bool) throws -> URL {
+            try FixtureCompiler.shared.dynamicLibrary(
+                named: "CoroFunctionPointerFixture",
+                language: .swift,
+                source: Self.fixtureSource,
+                arguments: ["-enable-library-evolution"] + (requestsFeature ? ["-enable-experimental-feature", "CoroutineAccessors"] : [])
+            )
         }
+
+        let libraryURL: URL
+        do {
+            libraryURL = try compile(withCoroutineAccessorsFlag: true)
+        } catch let withFeatureFlagFailure {
+            do {
+                libraryURL = try compile(withCoroutineAccessorsFlag: false)
+            } catch let withoutFeatureFlagFailure {
+                throw BothCompilationsFailedError(withFeatureFlagFailure: withFeatureFlagFailure, withoutFeatureFlagFailure: withoutFeatureFlagFailure)
+            }
+        }
+        return try HostSlice.machOFile(at: libraryURL)
     }
 
     /// The one `…Twc` record in the fixture, plus the file it came from.

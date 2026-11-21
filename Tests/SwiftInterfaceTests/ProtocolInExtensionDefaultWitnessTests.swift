@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
 import Semantic
+import SwiftSectionFixtureSupport
 
 /// A protocol declared in an extension of another module's type prints its
 /// default-implementation extensions in the interface's top-level block for
@@ -23,22 +24,6 @@ import Semantic
 /// its extensions, and not in the top-level block, which ran first.
 @Suite(.serialized)
 struct ProtocolInExtensionDefaultWitnessTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "protocol-in-extension default-witness fixture compilation failed:\n\(diagnostics)" }
-    }
-
     /// `FixtureAnchor` is ballast: a fixture dylib with no class has no
     /// `__DATA` segment, which older MachOKit releases mis-walked.
     private static let source = """
@@ -57,52 +42,19 @@ struct ProtocolInExtensionDefaultWitnessTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("ProtocolInExtensionDefaultWitnessFixture-\(UUID().uuidString)")
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("ProtocolInExtensionDefaultWitness.swift")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-            let libraryURL = workingDirectory.appendingPathComponent("libProbeDefaultWitness.dylib")
+    private static func libraryURL() throws -> URL {
+        try FixtureCompiler.shared.dynamicLibrary(
+            named: "ProbeDefaultWitness",
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "ProtocolInExtensionDefaultWitness.swift", contents: source)],
             // Library evolution makes `Labeled` resilient, which is what
             // gives its requirement a default witness of its own.
-            try run(swiftcArguments: [
-                "-swift-version", "5", "-O", "-emit-library", "-enable-library-evolution",
-                "-module-name", "ProbeDefaultWitness",
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ])
-            return libraryURL
-        }
-    }()
-
-    private static func run(swiftcArguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = ["swiftc"] + swiftcArguments
-        let standardErrorPipe = Pipe()
-        process.standardError = standardErrorPipe
-        try process.run()
-        // Drain before waiting, or a long diagnostic deadlocks both sides.
-        let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-        }
+            arguments: ["-swift-version", "5", "-O", "-enable-library-evolution", "-target", "arm64-apple-macosx15.0"]
+        )
     }
 
     private func makeBuilder() async throws -> SwiftInterfaceBuilder<MachOFile> {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        let machOFile: MachOFile
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let file):
-            machOFile = file
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let machOFile = try HostSlice.machOFile(at: Self.libraryURL())
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machOFile)
         try await builder.prepare()
         return builder

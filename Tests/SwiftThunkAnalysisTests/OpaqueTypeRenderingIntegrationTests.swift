@@ -48,7 +48,7 @@ struct OpaqueTypeRenderingIntegrationTests {
     }
 
     @Test func readingTheThunksNamesTypesThatWereBareAddresses() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         let before = try await AccessorThunkResolution.$taskResolver.withValue(UnreadableAccessorThunkResolver()) {
@@ -74,7 +74,7 @@ struct OpaqueTypeRenderingIntegrationTests {
     /// unread — the type-construction evaluator reads the thunk the first
     /// landing had to refuse.
     @Test func everyAccessorReferenceResolves() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         let rendered = try await renderedWitnesses(in: machO)
@@ -89,7 +89,7 @@ struct OpaqueTypeRenderingIntegrationTests {
     /// generic arguments thrown away. Now the reference prints as
     /// `accessor function at N` inside the type it sits in.
     @Test func whenTheThunkCannotBeReadTheReferenceStaysInsideItsType() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         let rendered = try await AccessorThunkResolution.$taskResolver.withValue(UnreadableAccessorThunkResolver()) {
@@ -113,7 +113,7 @@ struct OpaqueTypeRenderingIntegrationTests {
     /// comment line per branch above the `typealias`, and the `typealias`
     /// itself is the branch taken on the newest platform.
     @Test func everyBranchPrintsAboveTheWitness() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         var dumpsWithBranches: [String] = []
@@ -149,7 +149,7 @@ struct OpaqueTypeRenderingIntegrationTests {
     /// The other branch is not lost: asked for candidates, the resolution
     /// reports every branch, each rendered in place of the whole witness.
     @Test func theOtherBranchIsReportedAsACandidate() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
 
         var twoWayResolutions: [Node.OpaqueTypeResolution] = []

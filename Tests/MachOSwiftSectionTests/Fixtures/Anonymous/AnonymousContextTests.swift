@@ -61,28 +61,19 @@ final class AnonymousContextTests: MachOSwiftSectionFixtureTests, @unchecked Sen
 
     @Test func descriptor() async throws {
         let contexts = try loadFirstAnonymousContexts()
-        let descriptorOffsets = try acrossAllReaders(
-            file: { contexts.file.descriptor.offset },
-            image: { contexts.image.descriptor.offset }
-        )
+        let descriptorOffsets = try acrossAllReaders(contexts.file, contexts.image) { $0.descriptor.offset }
         #expect(descriptorOffsets == AnonymousContextBaseline.firstAnonymous.descriptorOffset)
     }
 
     @Test func genericContext() async throws {
         let contexts = try loadFirstAnonymousContexts()
-        let presence = try acrossAllReaders(
-            file: { contexts.file.genericContext != nil },
-            image: { contexts.image.genericContext != nil }
-        )
+        let presence = try acrossAllReaders(contexts.file, contexts.image) { $0.genericContext != nil }
         #expect(presence == AnonymousContextBaseline.firstAnonymous.hasGenericContext)
     }
 
     @Test func mangledName() async throws {
         let contexts = try loadFirstAnonymousContexts()
-        let presence = try acrossAllReaders(
-            file: { contexts.file.mangledName != nil },
-            image: { contexts.image.mangledName != nil }
-        )
+        let presence = try acrossAllReaders(contexts.file, contexts.image) { $0.mangledName != nil }
         #expect(presence == AnonymousContextBaseline.firstAnonymous.hasMangledName)
     }
 }

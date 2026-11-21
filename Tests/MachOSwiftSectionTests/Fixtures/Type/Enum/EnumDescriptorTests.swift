@@ -46,27 +46,17 @@ final class EnumDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func offset() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.offset)
     }
 
     @Test func layout() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let numPayloadCasesAndPayloadSizeOffset = try acrossAllReaders(
-            file: { fileSubject.layout.numPayloadCasesAndPayloadSizeOffset },
-            image: { imageSubject.layout.numPayloadCasesAndPayloadSizeOffset }
-        )
-        let numEmptyCases = try acrossAllReaders(
-            file: { fileSubject.layout.numEmptyCases },
-            image: { imageSubject.layout.numEmptyCases }
-        )
-        let flagsRaw = try acrossAllReaders(
-            file: { fileSubject.layout.flags.rawValue },
-            image: { imageSubject.layout.flags.rawValue }
-        )
+        let numPayloadCasesAndPayloadSizeOffset = try acrossAllReaders(fileSubject, imageSubject) { descriptor in
+            descriptor.layout.numPayloadCasesAndPayloadSizeOffset
+        }
+        let numEmptyCases = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.numEmptyCases }
+        let flagsRaw = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.flags.rawValue }
         #expect(numPayloadCasesAndPayloadSizeOffset == EnumDescriptorBaseline.noPayloadEnumTest.layoutNumPayloadCasesAndPayloadSizeOffset)
         #expect(numEmptyCases == EnumDescriptorBaseline.noPayloadEnumTest.layoutNumEmptyCases)
         #expect(flagsRaw == EnumDescriptorBaseline.noPayloadEnumTest.layoutFlagsRawValue)
@@ -76,28 +66,19 @@ final class EnumDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func numberOfCases() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.numberOfCases },
-            image: { imageSubject.numberOfCases }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.numberOfCases }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.numberOfCases)
     }
 
     @Test func numberOfEmptyCases() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.numberOfEmptyCases },
-            image: { imageSubject.numberOfEmptyCases }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.numberOfEmptyCases }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.numberOfEmptyCases)
     }
 
     @Test func numberOfPayloadCases() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.numberOfPayloadCases },
-            image: { imageSubject.numberOfPayloadCases }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.numberOfPayloadCases }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.numberOfPayloadCases)
     }
 
@@ -105,19 +86,13 @@ final class EnumDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func hasPayloadSizeOffset() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasPayloadSizeOffset },
-            image: { imageSubject.hasPayloadSizeOffset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasPayloadSizeOffset }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.hasPayloadSizeOffset)
     }
 
     @Test func payloadSizeOffset() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.payloadSizeOffset },
-            image: { imageSubject.payloadSizeOffset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.payloadSizeOffset }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.payloadSizeOffset)
     }
 
@@ -126,50 +101,35 @@ final class EnumDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     /// Witnessed by `NoPayloadEnumTest`: false (4 cases, not 1).
     @Test func isSingleEmptyCaseOnly() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.isSingleEmptyCaseOnly },
-            image: { imageSubject.isSingleEmptyCaseOnly }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.isSingleEmptyCaseOnly }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.isSingleEmptyCaseOnly)
     }
 
     /// Witnessed by `NoPayloadEnumTest`: false (no payload case).
     @Test func isSinglePayloadCaseOnly() async throws {
         let (fileSubject, imageSubject) = try loadNoPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.isSinglePayloadCaseOnly },
-            image: { imageSubject.isSinglePayloadCaseOnly }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.isSinglePayloadCaseOnly }
         #expect(result == EnumDescriptorBaseline.noPayloadEnumTest.isSinglePayloadCaseOnly)
     }
 
     /// Witnessed by `SinglePayloadEnumTest`: 1 payload + 2 empty = `true`.
     @Test func isSinglePayload() async throws {
         let (fileSubject, imageSubject) = try loadSinglePayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.isSinglePayload },
-            image: { imageSubject.isSinglePayload }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.isSinglePayload }
         #expect(result == EnumDescriptorBaseline.singlePayloadEnumTest.isSinglePayload)
     }
 
     /// Witnessed by `MultiPayloadEnumTests`: 3 payloads + 1 empty = `true`.
     @Test func isMultiPayload() async throws {
         let (fileSubject, imageSubject) = try loadMultiPayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.isMultiPayload },
-            image: { imageSubject.isMultiPayload }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.isMultiPayload }
         #expect(result == EnumDescriptorBaseline.multiPayloadEnumTest.isMultiPayload)
     }
 
     /// Witnessed by `SinglePayloadEnumTest`: at least one payload case.
     @Test func hasPayloadCases() async throws {
         let (fileSubject, imageSubject) = try loadSinglePayloadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasPayloadCases },
-            image: { imageSubject.hasPayloadCases }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasPayloadCases }
         #expect(result == EnumDescriptorBaseline.singlePayloadEnumTest.hasPayloadCases)
     }
 }

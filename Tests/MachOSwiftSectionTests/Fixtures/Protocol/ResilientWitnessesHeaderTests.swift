@@ -22,19 +22,13 @@ final class ResilientWitnessesHeaderTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func offset() async throws {
         let (file, image) = try loadFirstHeaders()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == ResilientWitnessesHeaderBaseline.firstHeader.offset)
     }
 
     @Test func layout() async throws {
         let (file, image) = try loadFirstHeaders()
-        let result = try acrossAllReaders(
-            file: { file.layout.numWitnesses },
-            image: { image.layout.numWitnesses }
-        )
+        let result = try acrossAllReaders(file, image) { $0.layout.numWitnesses }
         #expect(result == ResilientWitnessesHeaderBaseline.firstHeader.layoutNumWitnesses)
     }
 }

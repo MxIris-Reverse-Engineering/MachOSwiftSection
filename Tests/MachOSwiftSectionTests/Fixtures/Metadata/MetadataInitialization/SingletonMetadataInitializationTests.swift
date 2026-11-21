@@ -34,28 +34,16 @@ final class SingletonMetadataInitializationTests: MachOSwiftSectionFixtureTests,
         let inits = try loadInits()
         // Both readers must agree on the absolute offset within the
         // descriptor's trailing-objects layout.
-        let result = try acrossAllReaders(
-            file: { inits.file.offset },
-            image: { inits.image.offset }
-        )
+        let result = try acrossAllReaders(inits.file, inits.image) { $0.offset }
         #expect(result > 0)
     }
 
     @Test func layout() async throws {
         let inits = try loadInits()
         // Cross-reader equality on each of the three relative pointers.
-        let cacheOffset = try acrossAllReaders(
-            file: { inits.file.layout.initializationCacheOffset.relativeOffset },
-            image: { inits.image.layout.initializationCacheOffset.relativeOffset }
-        )
-        let incompleteOffset = try acrossAllReaders(
-            file: { inits.file.layout.incompleteMetadata.relativeOffset },
-            image: { inits.image.layout.incompleteMetadata.relativeOffset }
-        )
-        let completionOffset = try acrossAllReaders(
-            file: { inits.file.layout.completionFunction.relativeOffset },
-            image: { inits.image.layout.completionFunction.relativeOffset }
-        )
+        let cacheOffset = try acrossAllReaders(inits.file, inits.image) { $0.layout.initializationCacheOffset.relativeOffset }
+        let incompleteOffset = try acrossAllReaders(inits.file, inits.image) { $0.layout.incompleteMetadata.relativeOffset }
+        let completionOffset = try acrossAllReaders(inits.file, inits.image) { $0.layout.completionFunction.relativeOffset }
 
         // Recover the signed Int32 values from the UInt64 baseline bits.
         let expectedCache = Int32(truncatingIfNeeded: SingletonMetadataInitializationBaseline.firstSingletonInit.initializationCacheRelativeOffsetBits)
@@ -69,16 +57,14 @@ final class SingletonMetadataInitializationTests: MachOSwiftSectionFixtureTests,
         // for this carrier, a class WITHOUT a resilient superclass, it holds
         // the incomplete metadata; `ResilientClassMetadataPatternTests` reads
         // the same word on a carrier where it is a pattern instead.
-        let resolvedIncomplete = try acrossAllReaders(
-            file: { inits.file.resolvedDirectOffset(from: \.incompleteMetadata) },
-            image: { inits.image.resolvedDirectOffset(from: \.incompleteMetadata) }
-        )
+        let resolvedIncomplete = try acrossAllReaders(inits.file, inits.image) { initialization in
+            initialization.resolvedDirectOffset(from: \.incompleteMetadata)
+        }
         #expect(resolvedIncomplete == SingletonMetadataInitializationBaseline.firstSingletonInit.incompleteMetadataOffset)
 
-        let resolvedCompletion = try acrossAllReaders(
-            file: { inits.file.resolvedDirectOffset(from: \.completionFunction) },
-            image: { inits.image.resolvedDirectOffset(from: \.completionFunction) }
-        )
+        let resolvedCompletion = try acrossAllReaders(inits.file, inits.image) { initialization in
+            initialization.resolvedDirectOffset(from: \.completionFunction)
+        }
         #expect(resolvedCompletion == SingletonMetadataInitializationBaseline.firstSingletonInit.completionFunctionOffset)
     }
 

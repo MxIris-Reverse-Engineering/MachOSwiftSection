@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
 import Semantic
+import SwiftSectionTestingSupport
 
 /// The spelling of an opaque result type's constraints beyond the plain
 /// `some Protocol<Argument>` shape the fixture covers.
@@ -27,56 +28,6 @@ import Semantic
 /// its `<Int>` and `Set<Int>` printed as `Swift.Set`.
 @Suite(.serialized)
 struct OpaqueConstraintRenderingTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "opaque-constraint fixture compilation failed:\n\(diagnostics)" }
-    }
-
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("OpaqueConstraintFixture-\(UUID().uuidString)")
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("OpaqueConstraints.swift")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-            let libraryURL = workingDirectory.appendingPathComponent("libProbeOpaqueConstraint.dylib")
-            try run(swiftcArguments: [
-                "-O", "-emit-library", "-module-name", "ProbeOpaqueConstraint",
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ])
-            return libraryURL
-        }
-    }()
-
-    private static func run(swiftcArguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = ["swiftc"] + swiftcArguments
-        let standardErrorPipe = Pipe()
-        process.standardError = standardErrorPipe
-        try process.run()
-        // Drain before waiting, or a long diagnostic deadlocks both sides.
-        let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-        }
-    }
-
     /// The classes double as ballast: a struct-only fixture dylib has no
     /// `__DATA` segment and MachOKit before 0.52.103 mis-walked its chained-fixup
     /// pages.
@@ -104,14 +55,13 @@ struct OpaqueConstraintRenderingTests {
     """
 
     private func renderInterface() async throws -> String {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        let machOFile: MachOFile
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let file):
-            machOFile = file
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: "ProbeOpaqueConstraint",
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "OpaqueConstraints.swift", contents: Self.source)],
+            arguments: ["-O", "-target", "arm64-apple-macosx15.0"]
+        )
+        let machOFile = try HostSlice.machOFile(at: libraryURL)
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machOFile)
         builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machOFile))
         try await builder.prepare()

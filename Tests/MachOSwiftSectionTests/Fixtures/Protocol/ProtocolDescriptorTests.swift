@@ -23,27 +23,15 @@ final class ProtocolDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func offset() async throws {
         let (file, image) = try loadProtocolTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == ProtocolDescriptorBaseline.protocolTest.offset)
     }
 
     @Test func layout() async throws {
         let (file, image) = try loadProtocolTestDescriptors()
-        let numRequirementsInSignature = try acrossAllReaders(
-            file: { file.layout.numRequirementsInSignature },
-            image: { image.layout.numRequirementsInSignature }
-        )
-        let numRequirements = try acrossAllReaders(
-            file: { file.layout.numRequirements },
-            image: { image.layout.numRequirements }
-        )
-        let flagsRaw = try acrossAllReaders(
-            file: { file.layout.flags.rawValue },
-            image: { image.layout.flags.rawValue }
-        )
+        let numRequirementsInSignature = try acrossAllReaders(file, image) { $0.layout.numRequirementsInSignature }
+        let numRequirements = try acrossAllReaders(file, image) { $0.layout.numRequirements }
+        let flagsRaw = try acrossAllReaders(file, image) { $0.layout.flags.rawValue }
 
         #expect(numRequirementsInSignature == ProtocolDescriptorBaseline.protocolTest.layoutNumRequirementsInSignature)
         #expect(numRequirements == ProtocolDescriptorBaseline.protocolTest.layoutNumRequirements)
@@ -56,10 +44,7 @@ final class ProtocolDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
     /// the ReadingContext overload over both readers here.
     @Test func associatedTypes() async throws {
         let (file, image) = try loadProtocolTestDescriptors()
-        let result = try acrossAllContexts(
-            file: { try file.associatedTypes(in: fileContext) },
-            image: { try image.associatedTypes(in: imageContext) }
-        )
+        let result = try acrossAllContexts(file, image) { descriptor, context in try descriptor.associatedTypes(in: context) }
         #expect(result == ProtocolDescriptorBaseline.protocolTest.associatedTypes)
     }
 }

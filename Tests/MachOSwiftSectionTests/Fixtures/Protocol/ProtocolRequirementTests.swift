@@ -42,19 +42,13 @@ final class ProtocolRequirementTests: MachOSwiftSectionFixtureTests, @unchecked 
 
     @Test func offset() async throws {
         let (file, image) = try loadFirstRequirements()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == ProtocolRequirementBaseline.firstRequirement.offset)
     }
 
     @Test func layout() async throws {
         let (file, image) = try loadFirstRequirements()
-        let result = try acrossAllReaders(
-            file: { file.layout.flags.rawValue },
-            image: { image.layout.flags.rawValue }
-        )
+        let result = try acrossAllReaders(file, image) { $0.layout.flags.rawValue }
         #expect(result == ProtocolRequirementBaseline.firstRequirement.layoutFlagsRawValue)
     }
 
@@ -63,18 +57,12 @@ final class ProtocolRequirementTests: MachOSwiftSectionFixtureTests, @unchecked 
     /// real offset for a defaulted one — and identical across readers.
     @Test func defaultImplementationOffset() async throws {
         let (file, image) = try loadFirstRequirements()
-        let result = try acrossAllReaders(
-            file: { file.defaultImplementationOffset },
-            image: { image.defaultImplementationOffset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.defaultImplementationOffset }
         #expect(result == nil)
         #expect(result == ProtocolRequirementBaseline.firstRequirement.defaultImplementationOffset)
 
         let (defaultedFile, defaultedImage) = try loadFirstDefaultedRequirements()
-        let defaultedResult = try acrossAllReaders(
-            file: { defaultedFile.defaultImplementationOffset },
-            image: { defaultedImage.defaultImplementationOffset }
-        )
+        let defaultedResult = try acrossAllReaders(defaultedFile, defaultedImage) { $0.defaultImplementationOffset }
         #expect(defaultedResult != nil)
         #expect(defaultedResult == ProtocolRequirementBaseline.firstDefaultedRequirement.defaultImplementationOffset)
         // The literal is the resolved target, never the pointer field's own

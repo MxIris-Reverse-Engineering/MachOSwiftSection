@@ -50,28 +50,19 @@ final class ExtensionContextTests: MachOSwiftSectionFixtureTests, @unchecked Sen
 
     @Test func descriptor() async throws {
         let contexts = try loadFirstExtensionContexts()
-        let descriptorOffsets = try acrossAllReaders(
-            file: { contexts.file.descriptor.offset },
-            image: { contexts.image.descriptor.offset }
-        )
+        let descriptorOffsets = try acrossAllReaders(contexts.file, contexts.image) { $0.descriptor.offset }
         #expect(descriptorOffsets == ExtensionContextBaseline.firstExtension.descriptorOffset)
     }
 
     @Test func genericContext() async throws {
         let contexts = try loadFirstExtensionContexts()
-        let presence = try acrossAllReaders(
-            file: { contexts.file.genericContext != nil },
-            image: { contexts.image.genericContext != nil }
-        )
+        let presence = try acrossAllReaders(contexts.file, contexts.image) { $0.genericContext != nil }
         #expect(presence == ExtensionContextBaseline.firstExtension.hasGenericContext)
     }
 
     @Test func extendedContextMangledName() async throws {
         let contexts = try loadFirstExtensionContexts()
-        let presence = try acrossAllReaders(
-            file: { contexts.file.extendedContextMangledName != nil },
-            image: { contexts.image.extendedContextMangledName != nil }
-        )
+        let presence = try acrossAllReaders(contexts.file, contexts.image) { $0.extendedContextMangledName != nil }
         #expect(presence == ExtensionContextBaseline.firstExtension.hasExtendedContextMangledName)
     }
 }

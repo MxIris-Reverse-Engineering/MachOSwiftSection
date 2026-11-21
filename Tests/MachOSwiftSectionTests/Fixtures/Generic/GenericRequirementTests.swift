@@ -104,10 +104,7 @@ final class GenericRequirementTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func descriptor() async throws {
         let layout = try layoutRequirements()
-        let result = try acrossAllReaders(
-            file: { layout.file.descriptor.offset },
-            image: { layout.image.descriptor.offset }
-        )
+        let result = try acrossAllReaders(layout.file, layout.image) { $0.descriptor.offset }
         #expect(result == GenericRequirementBaseline.layoutRequirement.descriptorOffset)
     }
 

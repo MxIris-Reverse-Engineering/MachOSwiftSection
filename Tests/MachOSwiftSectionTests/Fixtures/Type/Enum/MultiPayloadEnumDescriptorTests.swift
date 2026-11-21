@@ -34,19 +34,13 @@ final class MultiPayloadEnumDescriptorTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func offset() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.offset)
     }
 
     @Test func layout() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let sizeFlags = try acrossAllReaders(
-            file: { fileSubject.layout.sizeFlags },
-            image: { imageSubject.layout.sizeFlags }
-        )
+        let sizeFlags = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.sizeFlags }
         #expect(sizeFlags == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.layoutSizeFlags)
     }
 
@@ -54,46 +48,41 @@ final class MultiPayloadEnumDescriptorTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func mangledTypeName() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let rawString = try acrossAllContexts(
-            file: { try fileSubject.mangledTypeName(in: fileContext).rawString },
-            image: { try imageSubject.mangledTypeName(in: imageContext).rawString }
-        )
+        let rawString = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            try descriptor.mangledTypeName(in: context).rawString
+        }
         #expect(rawString == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.mangledTypeNameRawString)
     }
 
     @Test func contents() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let count = try acrossAllContexts(
-            file: { try fileSubject.contents(in: fileContext).count },
-            image: { try imageSubject.contents(in: imageContext).count }
-        )
+        let count = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            try descriptor.contents(in: context).count
+        }
         #expect(count == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.contentsCount)
     }
 
     @Test func payloadSpareBits() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let count = try acrossAllContexts(
-            file: { try fileSubject.payloadSpareBits(in: fileContext).count },
-            image: { try imageSubject.payloadSpareBits(in: imageContext).count }
-        )
+        let count = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            try descriptor.payloadSpareBits(in: context).count
+        }
         #expect(count == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitsCount)
     }
 
     @Test func payloadSpareBitMaskByteOffset() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllContexts(
-            file: { try fileSubject.payloadSpareBitMaskByteOffset(in: fileContext) },
-            image: { try imageSubject.payloadSpareBitMaskByteOffset(in: imageContext) }
-        )
+        let result = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            try descriptor.payloadSpareBitMaskByteOffset(in: context)
+        }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitMaskByteOffset)
     }
 
     @Test func payloadSpareBitMaskByteCount() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllContexts(
-            file: { try fileSubject.payloadSpareBitMaskByteCount(in: fileContext) },
-            image: { try imageSubject.payloadSpareBitMaskByteCount(in: imageContext) }
-        )
+        let result = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            try descriptor.payloadSpareBitMaskByteCount(in: context)
+        }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitMaskByteCount)
     }
 
@@ -101,64 +90,43 @@ final class MultiPayloadEnumDescriptorTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func contentsSizeInWord() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.contentsSizeInWord },
-            image: { imageSubject.contentsSizeInWord }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.contentsSizeInWord }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.contentsSizeInWord)
     }
 
     @Test func flags() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.flags },
-            image: { imageSubject.flags }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.flags }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.flags)
     }
 
     @Test func usesPayloadSpareBits() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.usesPayloadSpareBits },
-            image: { imageSubject.usesPayloadSpareBits }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.usesPayloadSpareBits }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.usesPayloadSpareBits)
     }
 
     @Test func sizeFlagsIndex() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.sizeFlagsIndex },
-            image: { imageSubject.sizeFlagsIndex }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.sizeFlagsIndex }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.sizeFlagsIndex)
     }
 
     @Test func payloadSpareBitMaskByteCountIndex() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.payloadSpareBitMaskByteCountIndex },
-            image: { imageSubject.payloadSpareBitMaskByteCountIndex }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.payloadSpareBitMaskByteCountIndex }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitMaskByteCountIndex)
     }
 
     @Test func payloadSpareBitsIndex() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.payloadSpareBitsIndex },
-            image: { imageSubject.payloadSpareBitsIndex }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.payloadSpareBitsIndex }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.payloadSpareBitsIndex)
     }
 
     @Test func actualSize() async throws {
         let (fileSubject, imageSubject) = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.actualSize },
-            image: { imageSubject.actualSize }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.actualSize }
         #expect(result == MultiPayloadEnumDescriptorBaseline.multiPayloadEnumTest.actualSize)
     }
 }

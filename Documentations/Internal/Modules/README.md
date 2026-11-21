@@ -48,6 +48,6 @@
 | MachOSwiftSectionC | — | 待写 |
 | SwiftSectionMacros | — | 待写 |
 | Utilities | — | 待写 |
-| SwiftSectionFixtureSupport / SwiftSectionTestingSupport(C) / baseline-generator | — | 待写（测试基础设施，可合并成一篇） |
+| SwiftSectionFixtureSupport / SwiftSectionTestingSupport(C) / baseline-generator | — | 待写（测试基础设施，可合并成一篇）；通用部分建在 MachOKitExtensions 的 `MachOFixtureSupport` / `MachOTestingSupport` 上，见 [FixtureTestingAndContinuousIntegration.md](../FixtureTestingAndContinuousIntegration.md)「测试支持的通用部分在 MachOKitExtensions」 |
 
 （`Demangling` / `Semantic` 来自上游包 swift-demangling / swift-semantic-string，`MachOKitExtensions` / `MachOObjCSection` 是 sibling 外部包，文档归各自仓库——上表标「由 MachOKitExtensions 提供」的模块也一样。）

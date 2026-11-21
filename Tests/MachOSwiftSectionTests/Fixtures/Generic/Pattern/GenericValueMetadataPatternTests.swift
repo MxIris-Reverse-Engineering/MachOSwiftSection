@@ -23,33 +23,25 @@ final class GenericValueMetadataPatternTests: MachOSwiftSectionFixtureTests, @un
 
     @Test func offset() async throws {
         let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.offset },
-            image: { patterns.image.offset }
-        )
+        let result = try acrossAllReaders(patterns.file, patterns.image) { $0.offset }
         #expect(result == GenericValueMetadataPatternBaseline.offset)
     }
 
     @Test func layout() async throws {
         let patterns = try loadPatterns()
-        let flagsRaw = try acrossAllReaders(
-            file: { patterns.file.layout.patternFlags.rawValue },
-            image: { patterns.image.layout.patternFlags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(patterns.file, patterns.image) { $0.layout.patternFlags.rawValue }
         #expect(flagsRaw == GenericValueMetadataPatternBaseline.patternFlagsRawValue)
         // Three header words plus the value witness pointer.
         #expect(MemoryLayout<GenericValueMetadataPattern.Layout>.size == 16)
 
-        let instantiationFunctionOffset = try acrossAllReaders(
-            file: { patterns.file.resolvedDirectOffset(from: \.instantiationFunction) },
-            image: { patterns.image.resolvedDirectOffset(from: \.instantiationFunction) }
-        )
+        let instantiationFunctionOffset = try acrossAllReaders(patterns.file, patterns.image) { pattern in
+            pattern.resolvedDirectOffset(from: \.instantiationFunction)
+        }
         #expect(instantiationFunctionOffset == GenericValueMetadataPatternBaseline.instantiationFunctionOffset)
 
-        let completionFunctionOffset = try acrossAllReaders(
-            file: { patterns.file.resolvedDirectOffset(from: \.completionFunction) },
-            image: { patterns.image.resolvedDirectOffset(from: \.completionFunction) }
-        )
+        let completionFunctionOffset = try acrossAllReaders(patterns.file, patterns.image) { pattern in
+            pattern.resolvedDirectOffset(from: \.completionFunction)
+        }
         #expect(completionFunctionOffset == GenericValueMetadataPatternBaseline.completionFunctionOffset)
     }
 
@@ -58,20 +50,14 @@ final class GenericValueMetadataPatternTests: MachOSwiftSectionFixtureTests, @un
     /// mistake this accessor exists to prevent.
     @Test func metadataKind() async throws {
         let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.metadataKind?.rawValue },
-            image: { patterns.image.metadataKind?.rawValue }
-        )
+        let result = try acrossAllReaders(patterns.file, patterns.image) { $0.metadataKind?.rawValue }
         #expect(result == GenericValueMetadataPatternBaseline.metadataKindRawValue)
         #expect(patterns.file.metadataKind == .struct)
     }
 
     @Test func numberOfTrailingPartialPatterns() async throws {
         let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.numberOfTrailingPartialPatterns },
-            image: { patterns.image.numberOfTrailingPartialPatterns }
-        )
+        let result = try acrossAllReaders(patterns.file, patterns.image) { $0.numberOfTrailingPartialPatterns }
         #expect(result == GenericValueMetadataPatternBaseline.numberOfTrailingPartialPatterns)
         // A value pattern never counts the class-only immediate-members bit,
         // which on this carrier is set as part of the metadata kind.
@@ -83,19 +69,13 @@ final class GenericValueMetadataPatternTests: MachOSwiftSectionFixtureTests, @un
     /// answer for size, stride, alignment and extra inhabitants.
     @Test func valueWitnessesOffset() async throws {
         let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.valueWitnessesOffset },
-            image: { patterns.image.valueWitnessesOffset }
-        )
+        let result = try acrossAllReaders(patterns.file, patterns.image) { $0.valueWitnessesOffset }
         #expect(result == GenericValueMetadataPatternBaseline.valueWitnessesOffset)
     }
 
     @Test func valueWitnessesIsIndirect() async throws {
         let patterns = try loadPatterns()
-        let result = try acrossAllReaders(
-            file: { patterns.file.valueWitnessesIsIndirect },
-            image: { patterns.image.valueWitnessesIsIndirect }
-        )
+        let result = try acrossAllReaders(patterns.file, patterns.image) { $0.valueWitnessesIsIndirect }
         #expect(result == GenericValueMetadataPatternBaseline.valueWitnessesIsIndirect)
         // The two readings are mutually exclusive: an indirect pointer names
         // no offset within this image.

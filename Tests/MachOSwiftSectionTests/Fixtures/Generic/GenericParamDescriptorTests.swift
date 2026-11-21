@@ -41,65 +41,41 @@ final class GenericParamDescriptorTests: MachOSwiftSectionFixtureTests, @uncheck
 
     @Test func offset() async throws {
         let layout = try loadLayoutRequirementParam0()
-        let layoutResult = try acrossAllReaders(
-            file: { layout.file.offset },
-            image: { layout.image.offset }
-        )
+        let layoutResult = try acrossAllReaders(layout.file, layout.image) { $0.offset }
         #expect(layoutResult == GenericParamDescriptorBaseline.layoutRequirementParam0.offset)
 
         let pack = try loadParameterPackParam0()
-        let packResult = try acrossAllReaders(
-            file: { pack.file.offset },
-            image: { pack.image.offset }
-        )
+        let packResult = try acrossAllReaders(pack.file, pack.image) { $0.offset }
         #expect(packResult == GenericParamDescriptorBaseline.parameterPackParam0.offset)
     }
 
     @Test func layout() async throws {
         let layout = try loadLayoutRequirementParam0()
-        let layoutRaw = try acrossAllReaders(
-            file: { layout.file.layout.rawValue },
-            image: { layout.image.layout.rawValue }
-        )
+        let layoutRaw = try acrossAllReaders(layout.file, layout.image) { $0.layout.rawValue }
         #expect(layoutRaw == GenericParamDescriptorBaseline.layoutRequirementParam0.layoutRawValue)
 
         let pack = try loadParameterPackParam0()
-        let packRaw = try acrossAllReaders(
-            file: { pack.file.layout.rawValue },
-            image: { pack.image.layout.rawValue }
-        )
+        let packRaw = try acrossAllReaders(pack.file, pack.image) { $0.layout.rawValue }
         #expect(packRaw == GenericParamDescriptorBaseline.parameterPackParam0.layoutRawValue)
     }
 
     @Test func hasKeyArgument() async throws {
         let layout = try loadLayoutRequirementParam0()
-        let layoutResult = try acrossAllReaders(
-            file: { layout.file.hasKeyArgument },
-            image: { layout.image.hasKeyArgument }
-        )
+        let layoutResult = try acrossAllReaders(layout.file, layout.image) { $0.hasKeyArgument }
         #expect(layoutResult == GenericParamDescriptorBaseline.layoutRequirementParam0.hasKeyArgument)
 
         let pack = try loadParameterPackParam0()
-        let packResult = try acrossAllReaders(
-            file: { pack.file.hasKeyArgument },
-            image: { pack.image.hasKeyArgument }
-        )
+        let packResult = try acrossAllReaders(pack.file, pack.image) { $0.hasKeyArgument }
         #expect(packResult == GenericParamDescriptorBaseline.parameterPackParam0.hasKeyArgument)
     }
 
     @Test func kind() async throws {
         let layout = try loadLayoutRequirementParam0()
-        let layoutResult = try acrossAllReaders(
-            file: { layout.file.kind.rawValue },
-            image: { layout.image.kind.rawValue }
-        )
+        let layoutResult = try acrossAllReaders(layout.file, layout.image) { $0.kind.rawValue }
         #expect(layoutResult == GenericParamDescriptorBaseline.layoutRequirementParam0.kindRawValue)
 
         let pack = try loadParameterPackParam0()
-        let packResult = try acrossAllReaders(
-            file: { pack.file.kind.rawValue },
-            image: { pack.image.kind.rawValue }
-        )
+        let packResult = try acrossAllReaders(pack.file, pack.image) { $0.kind.rawValue }
         #expect(packResult == GenericParamDescriptorBaseline.parameterPackParam0.kindRawValue)
     }
 }

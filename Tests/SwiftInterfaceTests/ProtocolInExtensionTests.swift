@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import Semantic
+import SwiftSectionFixtureSupport
 import Demangling
 @_spi(Support) @testable import SwiftDeclaration
 @_spi(Support) @testable import SwiftIndexing
@@ -24,56 +25,6 @@ import OrderedCollections
 /// extensions block, like the extensions of a protocol nested in a type.
 @Suite(.serialized)
 struct ProtocolInExtensionTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "protocol-in-extension fixture compilation failed:\n\(diagnostics)" }
-    }
-
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("ProtocolInExtensionFixture-\(UUID().uuidString)")
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("ProtocolsInExtensions.swift")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-            let libraryURL = workingDirectory.appendingPathComponent("libProbeProtocolInExtension.dylib")
-            try run(swiftcArguments: [
-                "-swift-version", "5", "-O", "-emit-library", "-module-name", "ProbeProtocolInExtension",
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ])
-            return libraryURL
-        }
-    }()
-
-    private static func run(swiftcArguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = ["swiftc"] + swiftcArguments
-        let standardErrorPipe = Pipe()
-        process.standardError = standardErrorPipe
-        try process.run()
-        // Drain before waiting, or a long diagnostic deadlocks both sides.
-        let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-        }
-    }
-
     /// `FixtureAnchor` is ballast: a fixture dylib with no class has no
     /// `__DATA` segment, which older MachOKit releases mis-walked.
     ///
@@ -123,14 +74,17 @@ struct ProtocolInExtensionTests {
     }
     """
 
+    private static func libraryURL() throws -> URL {
+        try FixtureCompiler.shared.dynamicLibrary(
+            named: "ProbeProtocolInExtension",
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "ProtocolsInExtensions.swift", contents: source)],
+            arguments: ["-swift-version", "5", "-O", "-target", "arm64-apple-macosx15.0"]
+        )
+    }
+
     private func loadFixture() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let file):
-            return file
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: Self.libraryURL())
     }
 
     /// The lines starting an `extension` while inside another declaration's

@@ -51,7 +51,7 @@ struct AccessorThunkReaderTests {
     }
 
     @Test func resolvesAnAvailabilityConditionalThunkInSwiftUI() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI), "the running system's cache has no SwiftUI")
         guard let thunk = try firstAccessorThunk(in: machO) else {
             // A future SwiftUI may carry none; that is not a defect here.
@@ -103,7 +103,7 @@ struct AccessorThunkReaderTests {
     /// sides move together with the OS, so the check stays green across
     /// upgrades while still failing if the disassembly reads the wrong branch.
     @Test func theRuntimesAnswerIsAmongTheOfflineCandidates() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machO = try #require(cache.machOFile(named: .SwiftUI))
         guard let thunk = try firstAccessorThunk(in: machO) else { return }
 

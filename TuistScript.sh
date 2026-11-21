@@ -412,8 +412,9 @@ if [[ "$LOCAL_DEPENDENCIES_DIRECTORY" != "$RECORDED_LOCAL_DEPENDENCIES_DIRECTORY
 fi
 use_dependency_mode "$DEPENDENCY_MODE"
 
-# The manifests evaluate MACHO_SWIFT_SECTION_SILENT_TEST; the hand-written test target reads it as
-# TUIST_SILENT_TEST, the only form a Tuist manifest sees.
+# The manifests evaluate MACHO_SWIFT_SECTION_SILENT_TEST; the hand-written test target and the test
+# schemes (MACHO_TESTING_SILENT in their environment) read it as TUIST_SILENT_TEST, the only form a Tuist
+# manifest sees.
 if [[ "${MACHO_SWIFT_SECTION_SILENT_TEST:-}" == "1" ]]; then
     export TUIST_SILENT_TEST=1
 else
@@ -683,12 +684,14 @@ for identity, role, directory in packages:
     names += [f"{manifest['name']}_{target['name']}" for target in targets if target.get("resources")]
     own_target_names.update(names)
     source_targets += names
-    if role != "own-path":
-        continue
-    warning_targets += [target["name"] for target in targets if target["type"] != "test"]
+    # An upstream package built from Tuist's checkout (the remote mode) has library targets that import
+    # Testing too, such as MachOKitExtensions' MachOTestingSupport; they need the plugin path all the same.
     testing_support_names += [
         target["name"] for target in targets if target["type"] == "regular" and imports_testing(directory, target)
     ]
+    if role != "own-path":
+        continue
+    warning_targets += [target["name"] for target in targets if target["type"] != "test"]
     constructor_names = {target["name"] for target in targets if target["type"] == "regular" and has_load_time_constructor(directory, target)}
     if constructor_names:
         for target in targets:

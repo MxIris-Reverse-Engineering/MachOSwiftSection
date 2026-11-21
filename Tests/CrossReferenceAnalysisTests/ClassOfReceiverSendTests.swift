@@ -21,7 +21,7 @@ struct ClassOfReceiverSendTests {
     private static let fixture = Result<Fixture, any Error> {
         // Without ARC, so no call the compiler adds stands among them.
         try CompiledFixture.load(
-            libraryName: "libCrossReferenceClassOfReceiver.dylib",
+            named: "CrossReferenceClassOfReceiver",
             sources: [
                 "ClassOfReceiver.m": """
                 #import <Foundation/Foundation.h>

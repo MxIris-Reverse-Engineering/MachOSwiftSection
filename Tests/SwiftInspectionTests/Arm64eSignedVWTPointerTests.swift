@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftSectionFixtureSupport
 @testable import SwiftInspection
 
 // MARK: - Test Enum
@@ -42,17 +43,12 @@ private enum Arm64eProbeHost {
     /// `nil` when the host can execute arm64e third-party processes; otherwise
     /// the reason the probe layer must skip.
     static let arm64eExecutionUnavailabilityReason: String? = {
-        let canarySourceURL = temporaryDirectoryURL.appendingPathComponent("canary.c")
-        let canaryBinaryURL = temporaryDirectoryURL.appendingPathComponent("canary")
-        do {
-            try "int main(void) { return 42; }\n".write(to: canarySourceURL, atomically: true, encoding: .utf8)
-        } catch {
-            return "cannot write canary source: \(error)"
-        }
-        guard let compileResult = try? spawn(
-            executablePath: "/usr/bin/xcrun",
-            arguments: ["clang", "-arch", "arm64e", "-o", canaryBinaryURL.path, canarySourceURL.path]
-        ), compileResult.exitCode == 0 else {
+        guard let canaryBinaryURL = try? FixtureCompiler.shared.executable(
+            named: "canary",
+            language: .c,
+            source: "int main(void) { return 42; }\n",
+            arguments: ["-arch", "arm64e"]
+        ) else {
             return "clang cannot produce an arm64e canary on this host"
         }
         guard let runResult = try? spawn(executablePath: canaryBinaryURL.path, arguments: []) else {

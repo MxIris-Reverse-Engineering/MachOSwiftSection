@@ -181,7 +181,7 @@ struct NodeKindParityTests {
     ]
 
     @Test func noTypePositionKindRendersEmpty() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .SwiftUI), "the running system's cache has no SwiftUI")
 
         let result = try await NodeKindParitySurvey.run(on: machOFile)
@@ -208,7 +208,7 @@ struct NodeKindParityTests {
 @Suite(.disabled("Research probe — enable explicitly when auditing printer parity"))
 struct NodeKindParityProbe {
     @Test func reportsEveryKindAndSample() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .SwiftUI), "the running system's cache has no SwiftUI")
 
         let result = try await NodeKindParitySurvey.run(on: machOFile)

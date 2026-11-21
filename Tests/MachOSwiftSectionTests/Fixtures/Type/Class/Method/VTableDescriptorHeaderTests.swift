@@ -24,23 +24,14 @@ final class VTableDescriptorHeaderTests: MachOSwiftSectionFixtureTests, @uncheck
 
     @Test func offset() async throws {
         let headers = try loadClassTestVTableHeaders()
-        let result = try acrossAllReaders(
-            file: { headers.file.offset },
-            image: { headers.image.offset }
-        )
+        let result = try acrossAllReaders(headers.file, headers.image) { $0.offset }
         #expect(result == VTableDescriptorHeaderBaseline.classTest.offset)
     }
 
     @Test func layout() async throws {
         let headers = try loadClassTestVTableHeaders()
-        let vTableOffset = try acrossAllReaders(
-            file: { headers.file.layout.vTableOffset },
-            image: { headers.image.layout.vTableOffset }
-        )
-        let vTableSize = try acrossAllReaders(
-            file: { headers.file.layout.vTableSize },
-            image: { headers.image.layout.vTableSize }
-        )
+        let vTableOffset = try acrossAllReaders(headers.file, headers.image) { $0.layout.vTableOffset }
+        let vTableSize = try acrossAllReaders(headers.file, headers.image) { $0.layout.vTableSize }
         #expect(vTableOffset == VTableDescriptorHeaderBaseline.classTest.layoutVTableOffset)
         #expect(vTableSize == VTableDescriptorHeaderBaseline.classTest.layoutVTableSize)
     }

@@ -7,6 +7,7 @@ import MachOSwiftSection
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftInterface
 import Semantic
+import SwiftSectionTestingSupport
 
 /// The depth of an opaque result's parameters: the innermost depth of the
 /// descriptor's own layout, counted over every context above it that adds
@@ -198,13 +199,7 @@ struct OpaqueParameterDepthTests {
     }
 
     private static func machOFile() throws -> MachOFile {
-        let libraryURL = try fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let file):
-            return file
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: fixtureCompilationResult.get())
     }
 
     /// The fixture loaded into the process, read the way RuntimeViewer reads

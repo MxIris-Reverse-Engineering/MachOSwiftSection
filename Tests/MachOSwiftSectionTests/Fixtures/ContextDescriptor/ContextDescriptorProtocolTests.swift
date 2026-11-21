@@ -24,10 +24,9 @@ final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unch
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let presence = try acrossAllContexts(
-            file: { (try fileDescriptor.parent(in: fileContext)) != nil },
-            image: { (try imageDescriptor.parent(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileDescriptor, imageDescriptor) { descriptor, context in
+            (try descriptor.parent(in: context)) != nil
+        }
         #expect(presence == ContextDescriptorProtocolBaseline.structTest.hasParent)
     }
 
@@ -35,10 +34,9 @@ final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unch
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let presence = try acrossAllContexts(
-            file: { (try fileDescriptor.genericContext(in: fileContext)) != nil },
-            image: { (try imageDescriptor.genericContext(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileDescriptor, imageDescriptor) { descriptor, context in
+            (try descriptor.genericContext(in: context)) != nil
+        }
         #expect(presence == ContextDescriptorProtocolBaseline.structTest.hasGenericContext)
     }
 
@@ -46,10 +44,9 @@ final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unch
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let presence = try acrossAllContexts(
-            file: { (try fileDescriptor.moduleContextDescriptor(in: fileContext)) != nil },
-            image: { (try imageDescriptor.moduleContextDescriptor(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileDescriptor, imageDescriptor) { descriptor, context in
+            (try descriptor.moduleContextDescriptor(in: context)) != nil
+        }
         #expect(presence == ContextDescriptorProtocolBaseline.structTest.hasModuleContextDescriptor)
     }
 
@@ -57,10 +54,9 @@ final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unch
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let result = try acrossAllContexts(
-            file: { try fileDescriptor.isCImportedContextDescriptor(in: fileContext) },
-            image: { try imageDescriptor.isCImportedContextDescriptor(in: imageContext) }
-        )
+        let result = try acrossAllContexts(fileDescriptor, imageDescriptor) { descriptor, context in
+            try descriptor.isCImportedContextDescriptor(in: context)
+        }
         #expect(result == ContextDescriptorProtocolBaseline.structTest.isCImportedContextDescriptor)
     }
 
@@ -72,10 +68,7 @@ final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @unch
         // through `layout.flags`. Exercise the path by reading `kind` (a stable
         // scalar `ContextDescriptorKind`) via the dot-access syntax that triggers
         // dynamic-member lookup.
-        let result = try acrossAllReaders(
-            file: { fileDescriptor.kind.rawValue },
-            image: { imageDescriptor.kind.rawValue }
-        )
+        let result = try acrossAllReaders(fileDescriptor, imageDescriptor) { $0.kind.rawValue }
         #expect(result == ContextDescriptorProtocolBaseline.structTest.subscriptKindRawValue)
     }
 }

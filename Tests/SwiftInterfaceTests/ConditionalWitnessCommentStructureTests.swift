@@ -22,22 +22,6 @@ import SwiftSectionTestingSupport
 /// written into the witness record, so the fixture here is built for it.
 @Suite
 struct ConditionalWitnessCommentStructureTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "conditional-witness fixture compilation failed:\n\(diagnostics)" }
-    }
-
     private static let moduleName = "CommentStructureConditionalWitnessFixture"
 
     /// `FixtureAnchor` is ballast: a fixture dylib with no class has no
@@ -68,48 +52,14 @@ struct ConditionalWitnessCommentStructureTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("\(moduleName).swift")
-            let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName).dylib")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                "swiftc", "-swift-version", "5", "-O", "-emit-library",
-                "-module-name", moduleName,
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain before waiting, or a long diagnostic deadlocks both sides.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
-    }()
-
     private func printInterface(marksCommentStructure: Bool) async throws -> FrozenSemanticString {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        let machOFile: MachOFile
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let file):
-            machOFile = file
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: Self.moduleName,
+            language: .swift,
+            source: Self.fixtureSource,
+            arguments: ["-swift-version", "5", "-O", "-target", "arm64-apple-macosx15.0"]
+        )
+        let machOFile = try HostSlice.machOFile(at: libraryURL)
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.printConfiguration.marksCommentStructure = marksCommentStructure
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)

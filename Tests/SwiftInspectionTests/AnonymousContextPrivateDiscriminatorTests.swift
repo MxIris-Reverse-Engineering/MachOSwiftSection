@@ -34,7 +34,7 @@ struct AnonymousContextPrivateDiscriminatorTests {
 
     @Test(.enabled(if: runsOnMacOS26OrLater, "the anchor class ships with macOS 26's AppKit"))
     func privateClassKeepsItsDiscriminatorInTheSystemCache() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .AppKit), "the running system's cache has no AppKit")
         let classDescriptor = try #require(try Self.classDescriptor(named: Self.privateClassName, in: machOFile))
         let expectedDiscriminator = try #require(try Self.discriminatorFromObjCRuntimeName(in: machOFile))

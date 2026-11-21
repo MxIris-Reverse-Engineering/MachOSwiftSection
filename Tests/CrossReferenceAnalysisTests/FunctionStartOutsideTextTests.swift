@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import SwiftSectionFixtureSupport
 @testable import CrossReferenceAnalysis
 @_spi(Internals) import MachOCodeReferences
 @_spi(Internals) import ObjCCodeReferences
@@ -48,19 +49,18 @@ struct FunctionStartOutsideTextTests {
     /// call planted in the padding before `__text` stands for whatever the
     /// load commands happen to decode to.
     @Test func anIndexKeepsTheReferencesOfAFunctionBelowText() throws {
-        let (directory, executable) = try CompiledFixture.build(
-            libraryName: "Executable",
-            sources: ["Main.c": """
+        let executable = try FixtureCompiler.shared.executable(
+            named: "Executable",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "Main.c", contents: """
             __attribute__((noinline)) void target(void) { __asm__ volatile(""); }
             int main(void) {
                 target();
                 return 0;
             }
-            """],
-            compilerArguments: ["-O1"],
-            isExecutable: true
+            """)],
+            arguments: ["-arch", "arm64", "-O1"]
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
         let linked = try MachOFile(url: executable)
         let textSection = try #require(linked.sections64.first { $0.segmentName == "__TEXT" && $0.sectionName == "__text" })
         let loadCommandsEnd = MemoryLayout<mach_header_64>.size + Int(linked.header.sizeofcmds)
@@ -72,6 +72,11 @@ struct FunctionStartOutsideTextTests {
         var bytes = try Data(contentsOf: executable)
         let call = InstructionEncoding.branchWithLink(at: siteAddress, to: target.location.address)
         withUnsafeBytes(of: call.littleEndian) { bytes.replaceSubrange(siteOffset ..< siteOffset + 4, with: $0) }
+        // The compiled executable is shared by every test; the patched copy
+        // goes to a directory of its own.
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CrossReferenceAnalysisTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
         let patched = directory.appendingPathComponent("PatchedExecutable")
         try bytes.write(to: patched)
 

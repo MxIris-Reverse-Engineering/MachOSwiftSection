@@ -30,19 +30,15 @@ final class TypeContextWrapperTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func contextDescriptorWrapper() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.contextDescriptorWrapper.contextDescriptor.offset },
-            image: { wrappers.image.contextDescriptorWrapper.contextDescriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.contextDescriptorWrapper.contextDescriptor.offset }
         #expect(result == TypeContextWrapperBaseline.structTest.descriptorOffset)
     }
 
     @Test func typeContextDescriptorWrapper() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.typeContextDescriptorWrapper.contextDescriptor.offset },
-            image: { wrappers.image.typeContextDescriptorWrapper.contextDescriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { wrapper in
+            wrapper.typeContextDescriptorWrapper.contextDescriptor.offset
+        }
         #expect(result == TypeContextWrapperBaseline.structTest.descriptorOffset)
     }
 

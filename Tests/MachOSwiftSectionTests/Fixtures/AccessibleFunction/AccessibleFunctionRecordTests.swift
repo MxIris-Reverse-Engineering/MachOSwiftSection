@@ -42,10 +42,7 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func offset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.offset },
-                image: { carrier.image.offset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.offset }
             #expect(result == carrier.expected.offset, "\(carrier.label)")
         }
 
@@ -62,26 +59,19 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func layout() async throws {
         for carrier in try allCarriers() {
-            let flagsRaw = try acrossAllReaders(
-                file: { carrier.file.layout.flags.rawValue },
-                image: { carrier.image.layout.flags.rawValue }
-            )
+            let flagsRaw = try acrossAllReaders(carrier.file, carrier.image) { $0.layout.flags.rawValue }
             #expect(flagsRaw == carrier.expected.flagsRawValue, "\(carrier.label)")
         }
         // Four relative pointers plus a flag word, no padding.
         #expect(MemoryLayout<AccessibleFunctionRecord.Layout>.size == 20)
 
         for carrier in try allCarriers() {
-            let functionOffset = try acrossAllReaders(
-                file: { carrier.file.resolvedDirectOffset(from: \.function) },
-                image: { carrier.image.resolvedDirectOffset(from: \.function) }
-            )
+            let functionOffset = try acrossAllReaders(carrier.file, carrier.image) { $0.resolvedDirectOffset(from: \.function) }
             #expect(functionOffset == carrier.expected.functionOffset, "\(carrier.label)")
 
-            let genericEnvironmentOffset = try acrossAllReaders(
-                file: { carrier.file.resolvedDirectOffset(from: \.genericEnvironment) },
-                image: { carrier.image.resolvedDirectOffset(from: \.genericEnvironment) }
-            )
+            let genericEnvironmentOffset = try acrossAllReaders(carrier.file, carrier.image) { record in
+                record.resolvedDirectOffset(from: \.genericEnvironment)
+            }
             #expect(genericEnvironmentOffset == carrier.expected.genericEnvironmentOffset, "\(carrier.label)")
         }
         // The carriers are only worth having as a pair if they genuinely
@@ -91,10 +81,7 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func isDistributed() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.isDistributed },
-                image: { carrier.image.isDistributed }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.isDistributed }
             #expect(result == carrier.expected.isDistributed, "\(carrier.label)")
         }
     }
@@ -129,10 +116,9 @@ final class AccessibleFunctionRecordTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func genericEnvironment() async throws {
         for carrier in try allCarriers() {
-            let resolvedOffset = try acrossAllContexts(
-                file: { try carrier.file.genericEnvironment(in: fileContext)?.offset },
-                image: { try carrier.image.genericEnvironment(in: imageContext)?.offset }
-            )
+            let resolvedOffset = try acrossAllContexts(carrier.file, carrier.image) { record, context in
+                try record.genericEnvironment(in: context)?.offset
+            }
             #expect(resolvedOffset == carrier.expected.genericEnvironmentOffset, "\(carrier.label)")
         }
     }
