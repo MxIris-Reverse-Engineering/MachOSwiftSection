@@ -64,6 +64,17 @@ if outcome.hasBreakingChange == true {
 
 Options that exclude each other are one enum rather than several flags: an `ABIDiffRequest.Report` is a change list, a summary, JSON or an annotated interface, never two at once. Where the command line has a flag that implies another (`--emit-expanded-field-offsets` implies field offsets), the request has one value covering both (`FieldOffsetComments.expanded`).
 
+`DumpRequest` and `InterfaceRequest` take `multilineTypeFormatting: MultilineTypeFormatting?` (`--multiline-types` and `--maximum-line-width`). With it, a type that runs past the line width — a SwiftUI view's `Body` above all — is broken over several lines at its brackets before the product is handed over: the whole interface at once, the dump one declaration at a time. `MultilineTypeFormatting` lives in `SwiftDeclarationRendering`; import that module to make one. A host that prints declarations itself formats them the same way, by calling `format(_:)` on a finished print:
+
+```swift
+import SwiftDeclarationRendering
+
+let formatting = MultilineTypeFormatting(maximumLineWidth: 100)
+let interface = formatting.format(try await printer.printTypeDefinition(definition))
+```
+
+Formatting only adds line breaks and indentation; text, semantic types, identifiers and every visibility, definition and annotation region stay as printed, and a nested definition taken out of a formatted parent reads as that definition printed and formatted on its own.
+
 A binary is named by a `MachOSource` — a thin or fat file, an image inside a dyld shared cache file, or an image of the running system's cache. `refs` and `symbolicate` read machine code across many images, so they take a `CrossReferenceInput` instead: a set of files read together, a whole cache file, or the whole running system's cache, read from its files. Their results carry `CrossReferenceAnalysis` types (`CodeReference`, `AddressSymbolication`); import that module to inspect them. `snapshot`, `diff` and `evolution` take `SnapshotSource.path`, which may name a binary or a snapshot document; the file's first non-whitespace byte tells them apart, as on the command line.
 
 ## The output contract

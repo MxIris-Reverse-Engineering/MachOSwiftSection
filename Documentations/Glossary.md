@@ -252,6 +252,15 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 - **主要出现在**：`Sources/Output/SwiftInterface/EvolutionMarking.swift`、`EvolutionAnnotationIndex.swift`
 - **延伸阅读**：[提案 0013](Evolutions/0013-swift-evolution-interface-builder.md)、[提案 0060](Evolutions/0060-evolution-interface-available-annotations.md)（`@available` 属性）
 
+### long type（长类型）与 multiline type formatting（长类型拆行，`MultilineTypeFormatting`）
+
+**long type** 指一行里放不下的类型：一个不在其它泛型参数列表里面的泛型参数列表（类型的最外层 `<…>`），它的闭括号 `>` 落在第 `maximumLineWidth` 列之后。列号从这一行的缩进之后数起，所以同一个声明嵌得多深都算得一样。只有泛型参数列表会让一个类型成为 long type：行之所以长是因为参数多或行尾注释时，这一行不算。
+
+**multiline type formatting** 是把打印好的源码里每个 long type 按括号结构拆成多行的那一步：long type 内部，有两个及以上参数的泛型参数列表每个参数一行；任何列表（单参数泛型、元组、函数类型与声明的参数列表、`[…]`）在某个元素已是多行时才拆。它在打印完成之后、交出产物之前做一次，只加换行和缩进，打印器本身不知道它的存在。规则借自 TypeAliasFormatter，加了行宽这道闸门。
+
+- **主要出现在**：`Sources/Output/SwiftDeclarationRendering/MultilineTypeFormatting*.swift`；`InterfaceRequest` / `DumpRequest` 的 `multilineTypeFormatting`；CLI `--multiline-types` / `--maximum-line-width`
+- **延伸阅读**：[提案 multiline-type-formatting](Evolutions/draft-multiline-type-formatting.md)
+
 ### macro folding（宏展开的折叠，folded form / expanded form）
 
 interface 把一个 attached macro 生成的东西收回成源码里的写法：`@Observable` 展开的类印成 `@Observation.Observable` 加普通的 `var x: T`，这是**折叠形态**；`expandsMacros` 打开时照二进制原样印出 registrar、存储 `_x`、computed `x`、生成的方法与 conformance，这是**展开形态**。二进制不记宏本身，只记它生成的东西，所以「这个类用了宏」是从生成物推断出来的（`TypeDefinition.attachedMacros`）。折叠只发生在单版本 interface；模型、dump、diff、evolution 始终是展开形态，dump 另在类头上写出宏的名字。

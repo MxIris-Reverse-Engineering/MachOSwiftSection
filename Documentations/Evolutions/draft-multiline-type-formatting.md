@@ -385,8 +385,8 @@ extension MultilineTypeFormatting {
    - 行为：`usageMistakesAreValidationErrors`（只给宽度、宽度不是正数，两个子命令都是退出码 64）
    - 行为：`helpNamesTheDefaultWidth`
    - 行为：插件 skill 里出现的每个 flag 都存在于对应子命令的 `--help`（逐个核对过）；`claude plugin validate` 两项通过
-7. **文档** —— 改动地图第 14、15、16 行
-   - 行为：文档索引、账本、术语表、模块清单与代码一致
+7. **文档**（已完成） —— 改动地图第 14、15、16 行
+   - 行为：文档索引、账本、术语表、模块清单与代码一致；`SwiftSectionKit_zh.md` 与英文版同步
 
 验证：每步 `swift build` 通过、本步新测试通过；收尾跑 `swift test --skip IntegrationTests` 全量。打印器不改、默认关闭，渲染 A/B 不适用（照 `SystemFrameworkRenderingVerification.md` 的判据，它针对改动打印、索引或读取器的重构），但会对一份真实 SwiftUI interface 打开格式化，记录 `format` 的耗时与输出行数，作为性能与效果的留档。
 
@@ -409,3 +409,5 @@ extension MultilineTypeFormatting {
 | 2026-11-21 | 嵌套定义契约测试并入现有套件 | 改动地图原计划新建 `MultilineTypeFormattingNestedDefinitionTests.swift`；改为给 `NestedDefinitionRegionContractTests` 加一个格式化变体，直接复用它对文字、span、identifier 与三种 region 的整套比较。宽度取 30 列：fixture 的长泛型类型不多（主要是 `GenericFieldLayout` 各嵌套类型的字段），40 列下只有 4 个根类型有改动，30 列下新增约一百行。 |
 | 2026-11-21 | 调用方直接依赖 `SwiftDeclarationRendering` | `SwiftSectionKit` 不重新导出任何模块，它的公开字段类型 `MultilineTypeFormatting` 由调用方自己导入：`swift-section` 与 `SwiftSectionKitTests` 各加一条直接依赖，Tuist 的命令行工程同步加上。不为一个类型在 Kit 里开 `@_exported`，与 Kit 现有字段（`Transformer.SwiftConfiguration` 等）的做法一致。 |
 | 2026-11-21 | 尖括号里写着要求的是泛型签名 | 对系统 SwiftUI 跑 `dump --multiline-types` 时发现：dump 把受约束扩展的上下文印成 `_ConditionalContent< where A: P, B: Q>`，这个 `<…>` 跟在类型名后面，被当成两个泛型参数拆开了。规则补一条：`<…>` 里有一项在自己这一层写着 `where`、`A: P`（冒号后带空格）或 `==`，就是泛型签名，按泛型参数子句处理（只在元素已是多行时才拆）。模块选择器的 `::` 与 dump 的 `(extension in M):` 前缀冒号后都没有空格，不受影响。先写了变红的测试 `angleBracketsHoldingRequirementsAreAGenericSignature`、`genericSignatureIsNotBrokenForItsRequirements`，修复后通过；另加 `moduleSelectorsAndExtensionContextsLeaveAnArgumentList`、`moduleSelectorsStillBreakAsArguments` 守住不误判。 |
+| 2026-11-21 | 不跑全量，以定向测试交付 | 机器负载高，全量两次开跑都停掉了；`swift test` 没法把进程限制在指定核数（`SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH` 只限同时跑几个测试，测试内部建索引照样铺满全部核）。用户决定以定向测试交付：本提案涉及的八个套件都通过。功能默认关闭、打印器未改，关闭时的输出由构造保证不变。 |
+| 2026-11-21 | 实现完成，待用户看过后收尾 | 文档判断：不另写实现说明，规则与取舍都在本提案和 `MultilineTypeFormatting` 的文档注释里；新术语 long type / multiline type formatting 已登记进 `Documentations/Glossary.md`；`SwiftSectionKit.md`（中英）、`Modules/SwiftSectionKit.md`、agent 插件 skill、`AGENTS.md` 模块清单、演进账本同批更新。RuntimeViewer 的开关与调用是它自己的后续改动。 |

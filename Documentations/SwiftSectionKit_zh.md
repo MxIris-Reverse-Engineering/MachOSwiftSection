@@ -62,6 +62,17 @@ if outcome.hasBreakingChange == true {
 
 互斥的选项是一个 enum 而不是几个开关：`ABIDiffRequest.Report` 只能是 change list、summary、JSON、annotated interface 之一，不会同时是两个。命令行上一个 flag 隐含另一个的（`--emit-expanded-field-offsets` 隐含字段偏移），请求里是一个值同时表达两者（`FieldOffsetComments.expanded`）。
 
+`DumpRequest` 与 `InterfaceRequest` 收 `multilineTypeFormatting: MultilineTypeFormatting?`（命令行的 `--multiline-types` 与 `--maximum-line-width`）。给了它，超过行宽的类型——首先是 SwiftUI 视图的 `Body`——在交出产物之前按括号拆成多行：interface 整份做一次，dump 每个声明做一次。`MultilineTypeFormatting` 在 `SwiftDeclarationRendering` 里，构造它要导入这个模块。自己打印声明的宿主用同样的办法，对打印完成的结果调用 `format(_:)`：
+
+```swift
+import SwiftDeclarationRendering
+
+let formatting = MultilineTypeFormatting(maximumLineWidth: 100)
+let interface = formatting.format(try await printer.printTypeDefinition(definition))
+```
+
+格式化只加换行和缩进；文字、semantic type、identifier 以及各种 visibility / definition / annotation region 都和打印时一样，从格式化过的父定义里取出的嵌套定义，等于这个定义单独打印再格式化。
+
 二进制用 `MachOSource` 指明：瘦或胖的文件、dyld shared cache 文件里的一个镜像、或运行系统 cache 里的一个镜像。`snapshot`、`diff`、`evolution` 收 `SnapshotSource.path`，它可以指向二进制，也可以指向 snapshot 文档；和命令行一样，按文件第一个非空白字节区分。
 
 ## 输出端契约
