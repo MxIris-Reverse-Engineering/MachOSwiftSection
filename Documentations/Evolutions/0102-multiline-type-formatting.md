@@ -1,13 +1,13 @@
-# Draft - 长类型拆行：放不下的类型按括号结构拆成多行
+# 0102 - 长类型拆行：放不下的类型按括号结构拆成多行
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-21
 - **最后更新**: 2026-11-21
 - **所属愿景**: 无
-- **关联提案**: 无
-- **实现分支 / PR**: `feature/multiline-type-formatting`
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **关联提案**: RuntimeViewer 的提案 `multiline-type-formatting`（生成选项里的「Break Long Types」，见它的 [提案索引](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/README.md)）
+- **实现分支 / PR**: `feature/multiline-type-formatting`（已合进 `next`）
+- **配套文档**: 不另写——规则与保持性承诺在本提案与 `MultilineTypeFormatting` 的文档注释里；调用方用法在 [SwiftSectionKit.md](../SwiftSectionKit.md)
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -411,3 +411,4 @@ extension MultilineTypeFormatting {
 | 2026-11-21 | 尖括号里写着要求的是泛型签名 | 对系统 SwiftUI 跑 `dump --multiline-types` 时发现：dump 把受约束扩展的上下文印成 `_ConditionalContent< where A: P, B: Q>`，这个 `<…>` 跟在类型名后面，被当成两个泛型参数拆开了。规则补一条：`<…>` 里有一项在自己这一层写着 `where`、`A: P`（冒号后带空格）或 `==`，就是泛型签名，按泛型参数子句处理（只在元素已是多行时才拆）。模块选择器的 `::` 与 dump 的 `(extension in M):` 前缀冒号后都没有空格，不受影响。先写了变红的测试 `angleBracketsHoldingRequirementsAreAGenericSignature`、`genericSignatureIsNotBrokenForItsRequirements`，修复后通过；另加 `moduleSelectorsAndExtensionContextsLeaveAnArgumentList`、`moduleSelectorsStillBreakAsArguments` 守住不误判。 |
 | 2026-11-21 | 不跑全量，以定向测试交付 | 机器负载高，全量两次开跑都停掉了；`swift test` 没法把进程限制在指定核数（`SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH` 只限同时跑几个测试，测试内部建索引照样铺满全部核）。用户决定以定向测试交付：本提案涉及的八个套件都通过。功能默认关闭、打印器未改，关闭时的输出由构造保证不变。 |
 | 2026-11-21 | 实现完成，待用户看过后收尾 | 文档判断：不另写实现说明，规则与取舍都在本提案和 `MultilineTypeFormatting` 的文档注释里；新术语 long type / multiline type formatting 已登记进 `Documentations/Glossary.md`；`SwiftSectionKit.md`（中英）、`Modules/SwiftSectionKit.md`、agent 插件 skill、`AGENTS.md` 模块清单、演进账本同批更新。RuntimeViewer 的开关与调用是它自己的后续改动。 |
+| 2026-11-21 | Implemented | 用户决定正式收尾：落地为 0102，演进账本第 148 节；合进 `next` 并推送。RuntimeViewer 的接入另由它自己的提案落地。 |

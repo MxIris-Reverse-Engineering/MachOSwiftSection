@@ -117,4 +117,4 @@
 | [0099](0099-tuist-workspace.md) | Tuist 开发 workspace：第三方依赖走二进制缓存，上游库可切换为本地检出 | Implemented |
 | [0100](0100-fixture-suite-macro.md) | `@FixtureSuite` 宏：夹具测试套件开头的固定写法由宏生成 | Implemented |
 | [0101](0101-swift6-mode-and-upcoming-features.md) | MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature：MachOKit 切 Swift 6，六个包开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`（跨仓库唯一提案） | Implemented |
-| draft | [长类型拆行：放不下的类型按括号结构拆成多行](draft-multiline-type-formatting.md) | In Progress |
+| [0102](0102-multiline-type-formatting.md) | 长类型拆行：放不下的类型按括号结构拆成多行 | Implemented |

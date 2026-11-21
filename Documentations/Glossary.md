@@ -259,7 +259,7 @@ sweep 覆盖范围之外的名字走的旁路：demangle 后 intern 进 `Storage
 **multiline type formatting** 是把打印好的源码里每个 long type 按括号结构拆成多行的那一步：long type 内部，有两个及以上参数的泛型参数列表每个参数一行；任何列表（单参数泛型、元组、函数类型与声明的参数列表、`[…]`）在某个元素已是多行时才拆。它在打印完成之后、交出产物之前做一次，只加换行和缩进，打印器本身不知道它的存在。规则借自 TypeAliasFormatter，加了行宽这道闸门。
 
 - **主要出现在**：`Sources/Output/SwiftDeclarationRendering/MultilineTypeFormatting*.swift`；`InterfaceRequest` / `DumpRequest` 的 `multilineTypeFormatting`；CLI `--multiline-types` / `--maximum-line-width`
-- **延伸阅读**：[提案 multiline-type-formatting](Evolutions/draft-multiline-type-formatting.md)
+- **延伸阅读**：[提案 0102](Evolutions/0102-multiline-type-formatting.md)
 
 ### macro folding（宏展开的折叠，folded form / expanded form）
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - 长类型拆行：放不下的类型按括号结构拆成多行</title>
+<title>0102 - 长类型拆行：放不下的类型按括号结构拆成多行</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -159,13 +159,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> 长类型拆行：放不下的类型按括号结构拆成多行</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0102</span></p>
+  <h1><span class="proposal-number">0102</span> 长类型拆行：放不下的类型按括号结构拆成多行</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-21</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
-    <div><dt>原文</dt><dd><code>draft-multiline-type-formatting.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0102-multiline-type-formatting.md</code></dd></div>
   </dl>
 </header>
 
@@ -196,9 +196,9 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">已批准并实现</p>
+    <p class="callout-title">已落地</p>
     <ol>
-      <li>看过效果后收尾（编号、合进 <code>next</code>、推送）。</li>
+      <li>无待定事项；RuntimeViewer 的接入由它自己的提案落地。</li>
     </ol>
   </div>
   <div class="callout callout-note">
@@ -490,7 +490,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>10 条，最近一条：尖括号里写着要求的是泛型签名</summary>
+    <summary>13 条，最近一条：Implemented</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -506,6 +506,9 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-21</td><td>嵌套定义契约测试并入现有套件</td><td>给 <code>NestedDefinitionRegionContractTests</code> 加格式化变体，复用整套比较；宽度取 30 列，fixture 的长泛型类型不多。</td></tr>
           <tr><td class="numeric">2026-11-21</td><td>调用方直接依赖 <code>SwiftDeclarationRendering</code></td><td>Kit 不重新导出模块；<code>swift-section</code> 与 <code>SwiftSectionKitTests</code> 各加一条依赖，Tuist 命令行工程同步。</td></tr>
           <tr><td class="numeric">2026-11-21</td><td>尖括号里写着要求的是泛型签名</td><td>对系统 SwiftUI 跑 dump 时发现 <code>_ConditionalContent&lt; where A: P, B: Q&gt;</code> 被当成两个参数拆开；补规则并先写了变红的测试。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>不跑全量，以定向测试交付</td><td>机器负载高，全量两次开跑都停掉了，且没法把测试进程限制在指定核数；用户决定以本提案涉及的八个定向套件交付。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>实现完成</td><td>不另写实现说明；新术语 long type / multiline type formatting 登记进术语表；SwiftSectionKit 指南（中英）、模块参考、agent 插件 skill、模块清单、账本同批更新。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>Implemented</td><td>落地为 0102，演进账本第 148 节；合进 <code>next</code> 并推送。RuntimeViewer 的接入由它自己的提案落地。</td></tr>
         </tbody>
       </table>
       </div>
