@@ -3501,6 +3501,22 @@
   - 没跑全量，也没做渲染 A/B：只改了交叉引用索引存偏移的起点，不碰 demangle、打印、索引器与读取层。
 - **对应版本**：未发布（0.26.0 之后）。
 
+## 2026-11-21 测试支持的通用部分迁入 MachOKitExtensions（节号落地时定）
+
+- **时间段**：2026-11-20 至 2026-11-21，两个仓库同名分支 `feature/shared-macho-testing-support`；MachOKitExtensions 一侧随 3.2.0 发布。在 JHs-Mac-Studio-Ultra 上实现与测试。
+- **动机**：MachOKitExtensions 接过 Mach-O 层以后，两个包的测试各写一套辅助并在分叉（取本机 cache、选 slice、现编 dylib、归档 cache 路径、跨读取器写法、包装读取器）。按 0003 定下的归属，`MachO` 前缀的模块归 MachOKitExtensions。
+- **关键决策**：
+  - MachOKitExtensions 新增 `MachOFixtureSupport`（不依赖 Testing）与 `MachOTestingSupport`（依赖 Testing）两个 product；本包两个 support target 依赖并 re-export 它们，搬走的文件删除，SymbolTests 的名字、本包命名的 cache、按本包名字的 `ExclusiveImageAccess` 初始化作为 extension 留下。
+  - `MachOSwiftSectionFixtureTests` 改为 `MachOFixtureTests` 的子类；测试基类仍是「继承基类拿到镜像」的写法，`@MainActor` 照旧。
+  - 486 处跨读取器调用里 478 处改成成对传入、单个闭包的重载；41 处现编改用 `FixtureCompiler`，约 66 处选 slice 改用 `HostSlice`，27 处只读本机 cache 的地方改用 `FullDyldCache.cachedHost`。
+  - `.print()` 的静默开关改成运行时环境变量 `MACHO_TESTING_SILENT=1`（CI 与 Tuist 的测试 scheme 都设了）。
+  - Tuist：own-remote 的包也扫描 import Testing 的 target，给 MachOKitExtensions 的 `MachOTestingSupport` 补宏插件路径；清单末尾的适配段把依赖宏 target 的测试也拿掉（0100 带来的 `SwiftSectionTestingMacrosTests` 让 Tuist workspace 编不过）。
+  - 同一批里 MachOKitExtensions 还换掉了全部 `NSLock`（改用 FrameworkToolbox 的 `Mutex`，因此不再支持 Linux），并把 `Sources/` 按层分组（它的提案 0007）。
+- **落地模块**：`Package.swift`、`Sources/TestSupport/`、`Tests/` 下约 180 个测试文件、`TuistScript.sh`、`Workspace.swift`、`.github/workflows/macOS.yml`。
+- **文档**：提案 [draft-shared-macho-testing-support](../Evolutions/draft-shared-macho-testing-support.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)「测试支持的通用部分在 MachOKitExtensions」；[TuistDevelopment.md](TuistDevelopment.md)；`AGENTS.md` 的测试一节与 `Sources/` 一节。没有新术语。
+- **验证**：Ultra，Xcode 27.2。`swift test --skip IntegrationTests` 每一部分后都是 2,914 个通过、退出码 0（改动前 2,916：删 4 个随代码搬走的测试，加 2 个）；所有测试 target 与可执行文件都编过；`./TuistScript.sh test` 远程模式 `TEST SUCCEEDED`（2,953 个测试），编过 MachOKitExtensions 的 `MachOTestingSupport`；MachOKitExtensions 一侧全量测试与 TSTables、Espresso 普查通过。
+- **对应版本**：未发布（0.26.0 之后）；依赖 MachOKitExtensions 3.2.0。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

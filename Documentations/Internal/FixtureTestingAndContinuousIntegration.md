@@ -29,8 +29,10 @@ CI 上可复现性是唯一判据：
 ## 路径锚定——fixture 二进制怎么被找到（易踩坑）
 
 `MachOFileName.SymbolTestsCore` 存的是相对路径
-`../../Tests/Projects/SymbolTests/DerivedData/...`，**不是**对 CWD 解析，而是对
-`Sources/TestSupport/SwiftSectionFixtureSupport/Extensions.swift` 的 `#filePath` 解析——`../../` 爬回仓库根再下行。
+`../../../Tests/Projects/SymbolTests/DerivedData/...`，**不是**对 CWD 解析，而是对
+`Sources/TestSupport/SwiftSectionFixtureSupport/MachOFileName+SymbolTests.swift` 的 `#filePath` 解析——`../../../` 爬回仓库根再下行。
+`MachOFileName` 本身自 2026-11-21 起是 MachOKitExtensions 的类型（`MachOFixtureSupport`），它不知道别的包的源码在哪，
+所以锚点由本包在 extension 里传进去（`MachOFileName(path:relativeTo:)`）。
 而构建端 `xcodebuild -derivedDataPath Tests/Projects/SymbolTests/DerivedData` 是对
 `xcodebuild` 自己的 CWD 解析。两者对齐**当且仅当**构建从仓库根发起——任何从子目录跑
 `xcodebuild` 的 CI 步骤都会悄悄打破对齐。CI 还遇到过第三种形态：runner 上 `xcodebuild`
@@ -71,6 +73,17 @@ workflow 里的 "Normalize SymbolTestsCore fixture path" 步骤用符号链接�
 后续 2026-05-05 批又为 sentinel 消化加了 default-override table、resilient class、
 ObjC class wrapper、canonical specialized metadata、foreign types、value generics 等形态
 （见下文 ABI 覆盖层）。
+
+### 测试支持的通用部分在 MachOKitExtensions（2026-11-21）
+
+与 Swift 无关的测试支持搬到了 MachOKitExtensions 3.2.0 的两个 product，本包的 `SwiftSectionFixtureSupport` / `SwiftSectionTestingSupport` re-export 它们（提案 [draft-shared-macho-testing-support](../Evolutions/draft-shared-macho-testing-support.md)，契约见 MachOKitExtensions 的 `Documentations/Internal/TestingSupport.md`）：
+
+- **夹具基类**：`MachOSwiftSectionFixtureTests` 是 MachOKitExtensions `MachOFixtureTests` 的子类，只说明夹具是 SymbolTestsCore（`fixtureFileName` / `fixtureImageName`），读取器、上下文和跨读取器写法都来自基类；读不到夹具时仍抛带重编说明的 `FixtureLoadError`。
+- **跨读取器写法**：两边只差被测对象时用成对传入、单个闭包的重载（`acrossAllReaders(file, image) { … }`、`acrossAllContexts(file, image) { subject, context in … }`）；带 `inProcess:` 或两边确有不同时才写三个闭包。
+- **现场编译**：用 `FixtureCompiler`（同一份请求每个进程只编一次，产物放在进程退出时删掉的临时目录，install name 是 `@rpath/lib<名字>.dylib`），保留原来的源文件名——private 判别符由文件名哈希得出。产物是共享缓存，要改写（`CompiledFixture.load` 的 `rewrite`）就先复制一份。还有约 25 处要的能力它没有（模块名与产物名不同、`-emit-module` 等额外输出、编完再 strip），仍手写，列在提案的后续项里。
+- **选 slice**：`HostSlice` 按本进程的 CPU 挑，故意读别的架构的测试照旧手写。
+- **本机 cache**：只读的测试经 `FullDyldCache.cachedHost` 共用一份打开，要新实例的写明原因。
+- **静默输出**：`.print()` 改由运行时环境变量 `MACHO_TESTING_SILENT=1` 控制；CI 与 Tuist 的测试 scheme 都设了它，`SILENT_TEST` 编译条件仍留给本包自己的 target。
 
 ### 现场编译的 fixture 为什么都带一个 class（2026-08-26 至 2026-09-26）
 
