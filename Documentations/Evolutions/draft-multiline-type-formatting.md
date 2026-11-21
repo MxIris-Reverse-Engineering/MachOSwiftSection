@@ -122,6 +122,8 @@ func update(
 | `Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift` · `InterfaceRequest` | 修改 | 新字段 `multilineTypeFormatting`（init 参数默认 `nil`），`run` 里 `printRoot()` 之后、写文件或交给 output 之前调用 | interface 的唯一出口 | 5 |
 | `Sources/Commands/SwiftSectionKit/Swift/DumpRequest.swift` · `DumpRequest`、`DumpSession` | 修改 | 新字段 `multilineTypeFormatting`；`DumpSession.dump` 拿到 `dumpedDeclaration` 后调用 | dump 的唯一出口，一次一个顶层声明 | 5 |
 | `Tests/SwiftSectionKitTests/MultilineTypeFormattingRequestTests.swift` | 新增 | 两个请求打开与关闭字段时的输出 | 接入正确、关闭时不变 | 5 |
+| `Package.swift` · `swift-section`、`SwiftSectionKitTests` | 修改 | 两个 target 各加 `SwiftDeclarationRendering` 直接依赖 | SwiftSectionKit 不重新导出任何模块，调用方构造 `MultilineTypeFormatting` 要自己导入它 | 5 |
+| `Tuist/CommandLine/Project.swift` · `commandLineDependencies` | 修改 | 加 `.external(name: "SwiftDeclarationRendering")` | 项目规定 `swift-section` 的新依赖同步进 Tuist 工程；测试目标的依赖由 `Package.swift` 末尾的映射自动带上 | 5 |
 | `Sources/Executables/swift-section/Commands/InterfaceCommand.swift`、`DumpCommand.swift` | 修改 | `--multiline-types` flag、`--maximum-line-width <columns>` option；`validate()` 拒绝单独给宽度和非正数宽度；`makeRequest()` 映射 | CLI 是 SwiftSectionKit 的包装 | 6 |
 | `Tests/SwiftSectionCommandTests/MultilineTypesFlagTests.swift` | 新增 | flag 映射到请求、校验错误的退出码 64 | CLI 两侧都要有测试 | 6 |
 | `AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md` | 修改 | 写明两个新 flag 与默认宽度 | CLI 改动要同批更新这份 skill | 6 |
@@ -370,10 +372,10 @@ extension MultilineTypeFormatting {
    - 行为：`annotationAndVisibilityRegionsReadBackUnchanged`
    - 行为：`NestedDefinitionRegionContractTests` 的 `everyOptionFormattedAsMultilineTypes` 变体（进程内与文件两种读取器）
    - 行为：`formattedVariantBreaksTheFixtureTypes`
-5. **SwiftSectionKit 接入** —— 改动地图第 8、9、10 行
-   - 行为：`interfaceRequestFormatsLongTypesWhenAsked`
-   - 行为：`dumpRequestFormatsEachDeclarationWhenAsked`
-   - 行为：`requestsWithoutFormattingPrintAsBefore`
+5. **SwiftSectionKit 接入**（已完成） —— 改动地图第 8、9、10 行与依赖清单两行
+   - 行为：`requestsFormatNothingUnlessAsked`
+   - 行为：`interfaceRequestFormatsLongTypesWhenAsked`（产物等于把不格式化的产物整份格式化）
+   - 行为：`dumpRequestFormatsEachDeclarationWhenAsked`（每个声明等于把它不格式化的打印格式化）
    - 行为：`interfaceWrittenToFileIsFormattedToo`
 6. **CLI 与 agent 插件** —— 改动地图第 11、12、13 行
    - 行为：`multilineTypesFlagMapsOntoTheRequest`
@@ -403,3 +405,4 @@ extension MultilineTypeFormatting {
 | 2026-11-21 | 闭括号前的换行取闭括号的 identifier | 详细设计原写「取前一个括号或逗号的」；闭括号前面紧挨的是元素末尾，常是带类型引用 identifier 的类型名，换行不该算进那个引用的 span，所以改取闭括号自己的。 |
 | 2026-11-21 | 不保留元素边界 | `SemanticString` 的元素边界没有公开读取的接口，有一行被改时结果按 atom 一个元素重建；文档注释写明 `format` 用于打印完成的结果。没有行被改时返回输入本身，边界原样。 |
 | 2026-11-21 | 嵌套定义契约测试并入现有套件 | 改动地图原计划新建 `MultilineTypeFormattingNestedDefinitionTests.swift`；改为给 `NestedDefinitionRegionContractTests` 加一个格式化变体，直接复用它对文字、span、identifier 与三种 region 的整套比较。宽度取 30 列：fixture 的长泛型类型不多（主要是 `GenericFieldLayout` 各嵌套类型的字段），40 列下只有 4 个根类型有改动，30 列下新增约一百行。 |
+| 2026-11-21 | 调用方直接依赖 `SwiftDeclarationRendering` | `SwiftSectionKit` 不重新导出任何模块，它的公开字段类型 `MultilineTypeFormatting` 由调用方自己导入：`swift-section` 与 `SwiftSectionKitTests` 各加一条直接依赖，Tuist 的命令行工程同步加上。不为一个类型在 Kit 里开 `@_exported`，与 Kit 现有字段（`Transformer.SwiftConfiguration` 等）的做法一致。 |

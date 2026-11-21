@@ -88,6 +88,10 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// A leading header comment: generator, image path, UUID, architecture,
     /// library-evolution detection, unrecoverable-facts notes.
     public var emitsHeader: Bool
+    /// Lays a type that runs past the line width out over several lines, at
+    /// its brackets (evolution proposal `multiline-type-formatting`). `nil`
+    /// prints every type on one line.
+    public var multilineTypeFormatting: MultilineTypeFormatting?
     public var commentTransformers: Transformer.SwiftConfiguration?
     public var destination: ProductDestination
 
@@ -112,6 +116,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         expandsMacros: Bool = false,
         protocolRequirementPlacement: ProtocolRequirementPlacement = .protocolWhereClause,
         emitsHeader: Bool = false,
+        multilineTypeFormatting: MultilineTypeFormatting? = nil,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
         destination: ProductDestination = .output
     ) {
@@ -135,6 +140,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.expandsMacros = expandsMacros
         self.protocolRequirementPlacement = protocolRequirementPlacement
         self.emitsHeader = emitsHeader
+        self.multilineTypeFormatting = multilineTypeFormatting
         self.commentTransformers = commentTransformers
         self.destination = destination
     }
@@ -222,7 +228,8 @@ public struct InterfaceRequest: Sendable, Equatable {
 
         output.reportProgress("Building Swift interface...")
 
-        let interfaceString = try await builder.printRoot()
+        let printedInterface = try await builder.printRoot()
+        let interfaceString = multilineTypeFormatting?.format(printedInterface) ?? printedInterface
 
         output.reportProgress("Swift interface built successfully.")
 
