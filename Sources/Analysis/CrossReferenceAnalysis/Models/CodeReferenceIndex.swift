@@ -5,7 +5,9 @@ import Foundation
 /// One image's references, filed by what they reference and stored small
 /// enough for a host to keep for every image it has open: a name is stored
 /// once however many references carry it, and the referencing function and
-/// instruction as 32-bit offsets into the image's `__text`.
+/// instruction as 32-bit offsets from the image's lowest function start —
+/// the start of `__text`, or below it where the symbol table puts a function
+/// there, as a main executable's does with `__mh_execute_header`.
 ///
 /// It holds what a query for callers or for a type's references reads —
 /// calls and tail calls, sends, imported names, class, instance variable and
@@ -63,7 +65,8 @@ public struct CodeReferenceIndex: Sendable {
     /// names included.
     public let approximateByteCount: Int
 
-    /// Where the offsets count from: the start of the image's `__text`.
+    /// Where the offsets count from: the image's lowest function start, which
+    /// is the start of its `__text` unless a function lies below it.
     private let codeStart: UInt64
     /// Every group's entries, one group after another, each in scan order.
     private let entries: [Entry]
@@ -249,7 +252,7 @@ public struct CodeReferenceIndex: Sendable {
             }
             assert(
                 reference.function.address >= codeStart && reference.instructionAddress >= codeStart && reference.instructionAddress - codeStart <= UInt64(UInt32.max),
-                "a reference outside the image's __text"
+                "a reference below the image's lowest function start, or 4 GiB beyond it"
             )
             var classNamePosition: UInt32 = 0
             if let className {

@@ -3486,6 +3486,21 @@
   - 本库：与第 145 节合并后，Xcode 26.6 下 `swift test --skip IntegrationTests` 555 个 suite、2,915 个测试全过。渲染 A/B（三条腿，基线 `next`）84 对逐字节一致，是在合并宏之前做的；宏只改测试，没有重跑。Tuist 工作区 `warm` 与 `build` 成功。
 - **对应版本**：未发布（0.26.0 之后）；各仓库随下一次正常发版带出。
 
+## 147. 交叉引用索引存得下 `__text` 之前的函数
+
+- **时间段**：2026-11-20，`fix/reference-index-functions-below-text`，在 JHs-Mac-Studio-Ultra 上写与验证。
+- **动机**：RuntimeViewer 在 iOS 27 真机上给 `Preferences` 预建交叉引用索引，`CodeReferenceIndex.Builder.add` 的断言「a reference outside the image's __text」每次都触发。原因是主可执行文件的符号表把 `__mh_execute_header`（Mach header 本身，地址 0x100000000）记在 `__text` 下，函数表把它当成一个函数起点，扫描把 header 连同 load commands 当作 `__text` 之前的一个函数来读（这是有意的，见 `FunctionStartOutsideTextTests`）。索引的偏移却从 `__text` 起点算，这个函数里只要扫出一条引用就存不下：Debug 构建触发断言，Release 构建把 -0x3440 截断成 0xFFFFCBC0 存进去，查询时还原出的函数地址差 4 GiB。与 slide 无关，离线读同一个文件也一样。2026-11-19 拆分分层时修过同一个根因（读指令时下溢），但只覆盖了整表那条路；索引早一个月加进来，没跟着改。
+- **关键决策**：
+  - 偏移改从镜像最低的函数起点算（函数表的起点有序，取第一个；没有起点或它不低于 `__text` 时仍是 `__text` 起点），断言照留：这样一来它恒成立。
+  - header 被当作代码扫出的引用本身是假的，整表那条路也有。这次不改：要不要把 `__mh_execute_header` 排除出函数起点，是 MachOKitExtensions 的事，得先查清 macOS 缓存里另外那几个起点落在 `__text` 之外的镜像是怎么回事，用户决定以后再说。
+- **落地模块**：`CrossReferenceAnalyzer.referenceIndex(ofImageAt:reportingProgress:)`、`Models/CodeReferenceIndex.swift`（注释与断言文案）。
+- **文档**：[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md) 的 `CodeReferenceIndex` 一段与测试清单。没有新术语，`AGENTS.md` 不加条目。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上，Xcode 27.2。
+  - 新测试 `FunctionStartOutsideTextTests.anIndexKeepsTheReferencesOfAFunctionBelowText`：编一个可执行文件，在 `__text` 前的填充区写一条 `bl`。修复前触发同一条断言，进程 SIGTRAP 退出；修复后通过，索引与整表逐键相同。
+  - `CrossReferenceAnalysisTests` 整个目标 124 个测试，只有 3 个失败，原因是新 worktree 里没有 `SymbolTestsCore` 夹具；链上夹具后重跑这两个套件（5 个测试）通过。
+  - 没跑全量，也没做渲染 A/B：只改了交叉引用索引存偏移的起点，不碰 demangle、打印、索引器与读取层。
+- **对应版本**：未发布（0.26.0 之后）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

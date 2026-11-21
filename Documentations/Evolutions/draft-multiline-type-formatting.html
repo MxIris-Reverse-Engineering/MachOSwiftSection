@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - 长类型拆行：放不下的类型按括号结构拆成多行</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> 长类型拆行：放不下的类型按括号结构拆成多行</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-21</dd></div>
+    <div><dt>项目类型</dt><dd>库</dd></div>
+    <div><dt>原文</dt><dd><code>draft-multiline-type-formatting.md</code></dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#decide">要你定</a></li>
+    <li><a href="#proposal">方案</a></li>
+    <li><a href="#architecture">架构图</a></li>
+    <li><a href="#map">改动地图</a></li>
+    <li><a href="#design">详细设计</a></li>
+    <li><a href="#research">调研</a></li>
+    <li><a href="#alternatives">替代方案</a></li>
+    <li><a href="#impact">影响</a></li>
+    <li><a href="#steps">落地步骤</a></li>
+    <li><a href="#log">决策日志</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p>新增一个公开的格式化值类型 <code>MultilineTypeFormatting</code>（<code>SwiftDeclarationRendering</code>），把已经打印好的 Swift 源码（<code>SemanticString</code>）里放不下的类型按括号拆成多行：一个类型一行放得下就不动；放不下时，整个类型照 <a href="https://github.com/OpenSwiftUIProject/TypeAliasFormatter">TypeAliasFormatter</a> 的结构规则拆开——有两个及以上参数的泛型参数列表每个参数一行，单参数泛型、元组、函数类型与声明的参数列表、<code>[…]</code> 集合语法糖只在里面有拆开的部分时才拆。它只插入换行和缩进，文字、semantic type、identifier 和各种 region 原样保留。</p>
+  <p><code>swift-section dump</code> / <code>interface</code> 新增 <code>--multiline-types</code> 与 <code>--maximum-line-width</code>，<code>InterfaceRequest</code> / <code>DumpRequest</code> 新增同名字段；默认关闭，关闭时输出逐字节不变。RuntimeViewer 在拿到一个定义的完整打印之后调用一次即可，打印器本身一行不改。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+  <div class="callout">
+    <p class="callout-title">批准后开工</p>
+    <ol>
+      <li>批准这份提案、按落地步骤开始实现？</li>
+    </ol>
+  </div>
+  <div class="callout callout-note">
+    <p class="callout-title">没问你、自己定的（可推翻）</p>
+    <ul>
+      <li>默认宽度 100 列（swift-format 的默认值），行首缩进不计入。</li>
+      <li>CLI 参数名 <code>--multiline-types</code> 与 <code>--maximum-line-width</code>；只给宽度不给开关算用法错误。</li>
+      <li>diff、evolution、snapshot 与 ObjC 输出不接。</li>
+      <li>RuntimeViewer 的开关与调用留给它自己的后续改动。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="proposal">
+  <h2>方案</h2>
+  <ol>
+    <li><strong>一行的内容宽度不超过 <code>maximumLineWidth</code> 就原样保留。</strong>内容宽度是这一行的字符数减去行首缩进，所以拆不拆与嵌套深度无关，嵌套定义的契约自然成立。</li>
+    <li><strong>超宽的行解析成括号树。</strong>只在 <code>.standard</code> 类型的 atom 里找括号；字符串字面量、反引号标识符、<code>//</code> 之后的内容是文字；<code>-&gt;</code> 不是括号。括号不配对就整行原样保留。</li>
+    <li><strong>找出放不下的类型。</strong>不在其它泛型参数列表里面的泛型参数列表算作一个类型的最外层；它的 <code>&gt;</code> 落在第 <code>maximumLineWidth</code> 列之后，这个类型就算放不下。</li>
+    <li><strong>放不下的类型按结构规则拆。</strong>有两个及以上参数的泛型参数列表一律每个参数一行；单参数泛型、元组、函数类型的参数列表、<code>[…]</code> 只在某个元素已是多行时才拆。</li>
+    <li><strong>外层括号跟着拆。</strong>函数声明的参数列表、enum case payload、元组、泛型参数子句、attribute 参数，只在某个元素已是多行时才拆。</li>
+    <li><strong>拆开的列表这样排。</strong>开括号留在原行末尾；参数另起一行，缩进为行首缩进加 4 个空格乘以嵌套层数；<code>, </code> 变成 <code>,</code>；闭括号另起一行回到上一层。</li>
+  </ol>
+<pre><code><span class="token-keyword">extension</span> <span class="token-type">SettingsApp.SettingsNavigationSplitView</span>: <span class="token-type">SwiftUI.View</span> {
+    <span class="token-keyword">typealias</span> <span class="token-type">Body</span> = <span class="token-type">SwiftUI.ModifiedContent</span>&lt;
+        <span class="token-type">SwiftUI.ModifiedContent</span>&lt;
+            <span class="token-type">SwiftUI.SceneBridgeReader</span>&lt;
+                <span class="token-type">SwiftUI.SubscriptionView</span>&lt;
+                    <span class="token-type">Combine.PassthroughSubject</span>&lt;
+                        <span class="token-type">Any</span>,
+                        <span class="token-type">Swift.Never</span>
+                    &gt;,
+                    <span class="token-type">SwiftUI.NavigationSplitView</span>&lt;
+                        <span class="token-type">SwiftUI.ModifiedContent</span>&lt;
+                            <span class="token-type">SettingsApp.SettingsSidebarList</span>,
+                            <span class="token-type">SwiftUI.ToolbarRemovingModifier</span>
+                        &gt;,
+                        <span class="token-type">SettingsApp.SettingsSecondaryColumn</span>
+                    &gt;
+                &gt;
+            &gt;,
+            <span class="token-type">SwiftUI._EnvironmentKeyWritingModifier</span>&lt;<span class="token-type">Swift.Bool</span>&gt;
+        &gt;,
+        <span class="token-type">SwiftUI.OnTestViewModifier</span>
+    &gt;
+}
+
+<span class="token-comment">// fits: unchanged</span>
+<span class="token-keyword">var</span> result: <span class="token-type">Swift.Result</span>&lt;<span class="token-type">Swift.Int</span>, <span class="token-type">Swift.Error</span>&gt;</code></pre>
+  <div class="callout callout-warning">
+    <p class="callout-title">做不到的</p>
+    <p>SwiftUI 的 <code>ModifiedContent</code> 链向左嵌套，二十多层 modifier 拆开后第一个参数仍会缩进二十多层；压平这种链要按语义改写类型，不属于排版，本提案不做。</p>
+  </div>
+  <h3>非目标</h3>
+  <ul>
+    <li>不改打印器；默认关闭时所有输出逐字节不变，fixture baseline 与渲染 A/B 不受影响。</li>
+    <li>diff、evolution、snapshot 不接（按行标记增删、JSON）；ObjC 输出不接。</li>
+    <li>不单独按行宽拆长参数列表；参数列表只在某个参数的类型被拆开时随之拆开。</li>
+    <li>不做 TypeAliasFormatter 的单参数泛型展开、其它缩进宽度与图形视图。</li>
+    <li>RuntimeViewer 的设置界面与接入不在本提案里实现。</li>
+  </ul>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+    <li><i class="swatch swatch-kept"></i>不变</li>
+  </ul>
+  <div class="figure">
+  <svg viewBox="0 0 1000 345" role="img" aria-label="Where MultilineTypeFormatting sits">
+    <rect class="group" x="10" y="10" width="300" height="130" rx="10"/>
+    <text class="group-label" x="22" y="30">Printers (unchanged)</text>
+    <rect class="box-kept" x="25" y="42" width="260" height="34" rx="6"/><text x="35" y="64">SwiftDeclarationPrinter</text>
+    <rect class="box-kept" x="25" y="88" width="260" height="34" rx="6"/><text x="35" y="110">Dumpable.dump(using:in:)</text>
+
+    <rect class="group" x="10" y="170" width="300" height="90" rx="10"/>
+    <text class="group-label" x="22" y="190">RuntimeViewer (follow-up)</text>
+    <rect class="box-kept" x="25" y="202" width="260" height="44" rx="6"/><text x="35" y="220">RuntimeSwiftSection</text><text class="caption" x="35" y="237">calls format(_:) before caching</text>
+
+    <rect class="group" x="350" y="10" width="300" height="130" rx="10"/>
+    <text class="group-label" x="362" y="30">SwiftSectionKit</text>
+    <rect class="box-changed" x="365" y="42" width="260" height="34" rx="6"/><text x="375" y="64">InterfaceRequest</text>
+    <rect class="box-changed" x="365" y="88" width="260" height="34" rx="6"/><text x="375" y="110">DumpRequest / DumpSession</text>
+
+    <rect class="group" x="350" y="170" width="300" height="130" rx="10"/>
+    <text class="group-label" x="362" y="190">swift-section</text>
+    <rect class="box-changed" x="365" y="202" width="260" height="34" rx="6"/><text x="375" y="224">InterfaceCommand</text>
+    <rect class="box-changed" x="365" y="248" width="260" height="34" rx="6"/><text x="375" y="270">DumpCommand</text>
+
+    <rect class="group" x="690" y="10" width="300" height="230" rx="10"/>
+    <text class="group-label" x="702" y="30">SwiftDeclarationRendering</text>
+    <rect class="box-added" x="705" y="42" width="270" height="44" rx="6"/><text x="715" y="60">MultilineTypeFormatting</text><text class="caption" x="715" y="77">public struct · format(_:)</text>
+    <rect class="box-added" x="705" y="98" width="270" height="34" rx="6"/><text x="715" y="120">+Lines (width gate)</text>
+    <rect class="box-added" x="705" y="144" width="270" height="34" rx="6"/><text x="715" y="166">+BracketTree (parse a line)</text>
+    <rect class="box-added" x="705" y="190" width="270" height="34" rx="6"/><text x="715" y="212">+Layout (break, emit atoms)</text>
+
+    <path class="arrow" d="M 285 59 L 365 59"/>
+    <path class="arrow" d="M 285 105 L 365 105"/>
+    <path class="arrow" d="M 625 59 L 705 59"/>
+    <path class="arrow" d="M 625 105 L 665 105 L 665 70 L 705 70"/>
+    <path class="arrow" d="M 500 170 L 500 142"/>
+    <text class="caption" x="508" y="160">makeRequest()</text>
+    <path class="arrow arrow-weak" d="M 155 246 L 155 316 L 840 316 L 840 242"/>
+    <text class="caption" x="470" y="334">format(_:) — RuntimeViewer follow-up</text>
+  </svg>
+  </div>
+  <p class="figure-caption">打印器照旧输出一行一个声明；调用方在交出产物前调用一次 <code>format(_:)</code>。三个文件都是 <code>MultilineTypeFormatting</code> 的 internal 扩展。</p>
+<pre><code>format(source)
+└── for each line (atoms split at "\n" keep type + identifier)
+    ├── content width (minus leading indentation) &lt;= maximumLineWidth ──► copy unchanged
+    └── BracketTree(line)          (.standard atoms only; strings, backticks, "//", "-&gt;" are text)
+        ├── nil (unbalanced) ──► copy unchanged
+        └── Layout
+            ├── outermost generic argument list whose "&gt;" lies past the width ──► long type
+            ├── inside a long type: generic argument list with &gt;= 2 arguments ──► break
+            ├── any list with a multi-line element ──► break        (bottom-up)
+            └── emit "&lt;" "\n" indent(L + 4k) element "," "\n" … "\n" indent(L + 4(k - 1)) "&gt;"</code></pre>
+</section>
+
+<section id="map">
+  <h2>改动地图</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+    <tbody>
+      <tr><td><code>Sources/Output/SwiftDeclarationRendering/MultilineTypeFormatting.swift</code> · <code>MultilineTypeFormatting</code></td><td><span class="tag tag-added">新增</span></td><td>公开 struct：<code>maximumLineWidth</code>、<code>init(maximumLineWidth:)</code>、<code>format(_:)</code></td><td>dump 与 interface 共用的位置，RuntimeViewer 已依赖这个 product</td><td class="numeric">1</td></tr>
+      <tr><td><code>MultilineTypeFormatting+Lines.swift</code> · <code>Line</code>（internal）</td><td><span class="tag tag-added">新增</span></td><td>按 <code>\n</code> 切行（atom 保留 type 与 identifier）、算行首缩进与内容宽度、拼回</td><td>规则 1：宽度不超的行直接复制</td><td class="numeric">1</td></tr>
+      <tr><td><code>MultilineTypeFormatting+BracketTree.swift</code> · <code>BracketTree</code>（internal）</td><td><span class="tag tag-added">新增</span></td><td>只扫 <code>.standard</code> atom 解析括号树；字符串、反引号、<code>//</code>、<code>-&gt;</code> 当文字；不配对返回 <code>nil</code></td><td>规则 2</td><td class="numeric">2</td></tr>
+      <tr><td><code>MultilineTypeFormatting+Layout.swift</code> · <code>Layout</code>（internal）</td><td><span class="tag tag-added">新增</span></td><td>判定长类型、自下而上决定拆哪些列表、生成 atom（插入的 atom 沿用相邻括号或逗号的 identifier）</td><td>规则 3–6</td><td class="numeric">3</td></tr>
+      <tr><td><code>Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>行切分、解析、排版的单元测试</td><td>每步的行为清单</td><td class="numeric">1–3</td></tr>
+      <tr><td><code>Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingPreservationTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>type 与 identifier 不变、可还原原文、幂等、与缩进可交换、region 读回不变</td><td>「只加换行和缩进」的承诺</td><td class="numeric">4</td></tr>
+      <tr><td><code>Tests/SwiftInterfaceTests/MultilineTypeFormattingNestedDefinitionTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>格式化父定义后取出的子定义等于子定义单独打印再格式化</td><td>嵌套定义契约在格式化后仍成立</td><td class="numeric">4</td></tr>
+      <tr><td><code>Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新字段 <code>multilineTypeFormatting</code>，<code>printRoot()</code> 之后调用</td><td>interface 的唯一出口</td><td class="numeric">5</td></tr>
+      <tr><td><code>Sources/Commands/SwiftSectionKit/Swift/DumpRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新字段；<code>DumpSession.dump</code> 拿到声明后调用</td><td>dump 的唯一出口</td><td class="numeric">5</td></tr>
+      <tr><td><code>Tests/SwiftSectionKitTests/MultilineTypeFormattingRequestTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>两个请求打开与关闭时的输出</td><td>接入正确、关闭时不变</td><td class="numeric">5</td></tr>
+      <tr><td><code>Sources/Executables/swift-section/Commands/InterfaceCommand.swift</code>、<code>DumpCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--multiline-types</code>、<code>--maximum-line-width</code>，<code>validate()</code>、<code>makeRequest()</code></td><td>CLI 是 SwiftSectionKit 的包装</td><td class="numeric">6</td></tr>
+      <tr><td><code>Tests/SwiftSectionCommandTests/MultilineTypesFlagTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>映射与校验（退出码 64）</td><td>CLI 两侧都要有测试</td><td class="numeric">6</td></tr>
+      <tr><td><code>AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md</code></td><td><span class="tag tag-changed">修改</span></td><td>两个新 flag 与默认宽度</td><td>CLI 改动同批更新</td><td class="numeric">6</td></tr>
+      <tr><td><code>Documentations/SwiftSectionKit.md</code>、<code>Internal/Modules/SwiftSectionKit.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新字段</td><td>调用方指南与模块参考</td><td class="numeric">7</td></tr>
+      <tr><td><code>CLAUDE.md</code></td><td><span class="tag tag-changed">修改</span></td><td>SwiftDeclarationRendering 一条补一句</td><td>模块清单与代码同步</td><td class="numeric">7</td></tr>
+      <tr><td><code>ProjectEvolutionLog.md</code>、<code>Glossary.md</code>、两份 README</td><td><span class="tag tag-changed">修改</span></td><td>账本、术语、索引</td><td>文档纪律</td><td class="numeric">7</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details open>
+    <summary>公开 API</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">public struct</span> <span class="token-type">MultilineTypeFormatting</span>: <span class="token-type">Hashable</span>, <span class="token-type">Sendable</span> {
+    <span class="token-comment">/// The widest a line's content may be, in characters; indentation does not count.</span>
+    <span class="token-keyword">public var</span> maximumLineWidth: <span class="token-type">Int</span>
+
+    <span class="token-comment">/// - Precondition: `maximumLineWidth &gt; 0`.</span>
+    <span class="token-keyword">public init</span>(maximumLineWidth: <span class="token-type">Int</span> = <span class="token-number">100</span>)
+
+    <span class="token-comment">/// `source` with its long types laid out over several lines.</span>
+    <span class="token-keyword">public func</span> format(<span class="token-keyword">_</span> source: <span class="token-type">SemanticString</span>) -&gt; <span class="token-type">SemanticString</span>
+}
+
+<span class="token-keyword">extension</span> <span class="token-type">InterfaceRequest</span> {
+    <span class="token-keyword">public var</span> multilineTypeFormatting: <span class="token-type">MultilineTypeFormatting</span>?
+}
+
+<span class="token-keyword">extension</span> <span class="token-type">DumpRequest</span> {
+    <span class="token-keyword">public var</span> multilineTypeFormatting: <span class="token-type">MultilineTypeFormatting</span>?
+}</code></pre>
+<pre><code>--multiline-types              Break a type that runs past the line width over several lines, at its brackets.
+--maximum-line-width &lt;columns&gt; The widest a line may be, not counting its indentation, before
+                               --multiline-types breaks its types. (default: 100)</code></pre>
+    </div>
+  </details>
+  <details>
+    <summary>行与宽度</summary>
+    <div class="details-body">
+      <ul>
+        <li>先把 <code>source.components</code> 按 <code>\n</code> 切成行；含 <code>\n</code> 的 atom 在 <code>\n</code> 处切开，各段保留原 type 与 identifier。</li>
+        <li>行首缩进 <code>L</code> 是行首连续空格数（跨 atom 计）；内容宽度是这一行的 <code>Character</code> 数减去 <code>L</code>。</li>
+        <li>内容宽度不超的行原样复制，不解析。</li>
+        <li>行之间互不影响；括号跨行的输入每行单独看都不配对，因此原样保留——这就是幂等的原因。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>括号树</summary>
+    <div class="details-body">
+      <ul>
+        <li>只有 <code>.standard</code> atom 参与扫描；类型名、声明名（含 interface 里的运算符名）、注释等 atom 整体是文字。</li>
+        <li><code>"</code> 与反引号之间是文字；<code>//</code> 之后到行末是文字；<code>-&gt;</code> 是箭头；深度大于 0 时的 <code>,</code> 分隔元素。</li>
+        <li><code>&lt;</code> 前面（跳过空白）的 atom 是 <code>.type(_, .declaration)</code>、<code>.function(.declaration)</code> 或 <code>.member(.declaration)</code> 时，这个列表是泛型参数子句，否则是泛型参数列表。</li>
+        <li>括号不配对或未关闭返回 <code>nil</code>，整行原样保留；dump 里的 <code>static func &lt; infix(…)</code> 就走这条路。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>排版与生成</summary>
+    <div class="details-body">
+      <ul>
+        <li>不在任何泛型参数列表里面的泛型参数列表，<code>&gt;</code> 的内容列号大于 <code>maximumLineWidth</code> 时，标为长类型的根。</li>
+        <li>自下而上：长类型内部元素数不少于 2 的泛型参数列表拆；任何列表有元素是多行时拆；其余不拆。</li>
+        <li>拆开的列表：开括号后插入 <code>\n</code> 与 <code>L + 4k</code> 个空格；<code>, </code> 换成 <code>,</code> 再插入换行与缩进；闭括号前插入 <code>\n</code> 与 <code>L + 4(k − 1)</code> 个空格。</li>
+        <li>插入的 atom 都是 <code>.standard</code>，identifier 取前一个括号或逗号 atom 的 identifier，region 不会被切断。</li>
+        <li>空列表 <code>()</code> 从不拆。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>保持性承诺</summary>
+    <div class="details-body">
+      <ol>
+        <li>内容宽度不超的行逐 atom 不变。</li>
+        <li>去掉插入的换行与缩进、把 <code>,</code> 还原成 <code>, </code>，得到与输入相同的文字。</li>
+        <li>每个原有字符所在 atom 的 semantic type 与 identifier 不变；冻结后各种 region 分离结果不变。</li>
+        <li>幂等：<code>format(format(x)) == format(x)</code>。</li>
+        <li>与缩进可交换，由此嵌套定义的契约在格式化后仍成立。</li>
+      </ol>
+    </div>
+  </details>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <details>
+    <summary>七条查证过的事实</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>两套打印器。</strong>interface 走 <code>SwiftPrinting</code>（<code>BoundGenericNodePrintable.swift:66</code> 写 <code>&lt;</code>、<code>, </code>、<code>&gt;</code>），dump 走上游 swift-demangling 的 <code>NodePrinter</code>（经 <code>DemangleResolver.swift:31</code>）。两边的括号与逗号都是 <code>.standard</code> 的独立 atom。</li>
+        <li><strong><code>typealias Body</code> 一行。</strong><code>renderMergedAssociatedTypeRecords</code>（<code>SwiftDeclarationPrinter+Headers.swift:305</code>）把整个类型接在 <code>typealias X =</code> 后面同一行。</li>
+        <li><strong>region 编码在 identifier 上。</strong>插入不带编码的 atom 会把同一个 region 切成两个。</li>
+        <li><strong>嵌套定义契约。</strong><code>removingIndentation(levels:)</code> 按字节删每行开头 <code>levels * 4</code> 个空格；拆不拆不能取决于缩进深度。</li>
+        <li><strong>运算符。</strong>上游把 <code>infixOperator</code> 写成 <code>"&lt; infix"</code> 这种 <code>.standard</code> atom（<code>NodePrinter.swift:499</code>）。</li>
+        <li><strong>调用方的出口。</strong>RuntimeViewer 拼好 <code>newInterfaceString</code> 后缓存（<code>RuntimeSwiftSection.swift:364</code>），已依赖 <code>SwiftDeclarationRendering</code>；<code>InterfaceRequest.swift:225</code> 的 <code>printRoot()</code>；<code>DumpRequest.swift:513</code> 的 <code>DumpSession.dump</code>。</li>
+        <li><strong>TypeAliasFormatter 的规则。</strong>多参数 <code>&lt;</code> 一律展开；单参数、<code>(</code>、<code>[</code> 只在子元素多行时展开；<code>-&gt;</code> 不算括号。仓库没有 license 文件，只借用规则、不复制代码。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>六条被否的路径</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>纯按行宽逐层决定。</strong>同一个类型在不同深度排版不同；用户否掉。</li>
+        <li><strong>完全照 TypeAliasFormatter、不看行宽。</strong>每个 <code>Swift.Result&lt;Swift.Int, Swift.Error&gt;</code> 都被拆成四行；用户否掉。</li>
+        <li><strong>在打印器里写换行或断点标记。</strong>两套打印器要各改一遍，上游 <code>NodePrinterTarget</code> 要加要求并发版；memoize 的片段会带上依赖列号的决定。</li>
+        <li><strong>做成打印配置项、由每个公开入口格式化。</strong>二十来个公开入口互相调用，要么重复格式化要么拆分每个入口；dump 还要另接。</li>
+        <li><strong>在纯文本上格式化。</strong>丢掉 semantic type、identifier 与 region。</li>
+        <li><strong>扫描所有 atom 的所有字符。</strong>运算符名、私有类型名 <code>(Visitor in $…)</code> 也含括号。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+  <ul>
+    <li><strong>源码兼容性：</strong>纯新增；新字段与 init 参数默认 <code>nil</code>。</li>
+    <li><strong>ABI：</strong>不适用，SPM 源码分发。</li>
+    <li><strong>RuntimeViewer（后续）：</strong>设置里加开关，在 <code>RuntimeSwiftSection.swift:364</code> 缓存前调用 <code>format</code>，开关变化时清 <code>interfaceByObject</code> 缓存；不必改依赖。</li>
+    <li><strong>文档：</strong>agent 插件 skill、SwiftSectionKit 调用方指南与模块参考、<code>CLAUDE.md</code> 模块清单；发版时写 changelog。</li>
+    <li><strong>API 演进：</strong>以后的选项（单参数展开、缩进宽度）作为带默认值的属性加进 struct。</li>
+  </ul>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+  <ol>
+    <li><strong>骨架：类型、行切分与宽度闸门</strong> —— <code>emptySourceIsUnchanged</code>、<code>linesWithinWidthAreUnchangedAtomForAtom</code>、<code>contentWidthIgnoresLeadingIndentation</code>、<code>atomsContainingLineBreaksAreSplitKeepingTypeAndIdentifier</code>、<code>nonPositiveWidthIsAPreconditionFailure</code></li>
+    <li><strong>括号树</strong> —— <code>genericArgumentListsNestInsideParenthesesAndBrackets</code>、<code>angleBracketAfterDeclarationNameIsGenericParameterClause</code>、<code>arrowIsNotAClosingBracket</code>、<code>bracketsInsideStringLiteralsAreText</code>、<code>bracketsInsideBackticksAreText</code>、<code>bracketsAfterLineCommentAreText</code>、<code>bracketsInNonStandardAtomsAreText</code>、<code>unbalancedLineIsLeftUnchanged</code>、<code>operatorDeclarationFromDumpIsLeftUnchanged</code></li>
+    <li><strong>排版与生成</strong> —— <code>multiArgumentGenericBreaksOneArgumentPerLine</code>、<code>singleArgumentGenericStaysInlineUnlessItsArgumentBreaks</code>、<code>tupleBreaksOnlyWhenAnElementBreaks</code>、<code>functionTypeParametersBreakOnlyWhenAParameterBreaks</code>、<code>collectionSugarBreaksOnlyWhenAnElementBreaks</code>、<code>typeThatFitsStaysOnOneLineInAnOverlongLine</code>、<code>overlongLineWithoutLongTypeIsUnchanged</code>、<code>declarationParameterListBreaksWhenAParameterTypeBreaks</code>、<code>genericParameterClauseDoesNotBreakForHavingTwoParameters</code>、<code>continuationLinesIndentFromTheLineIndentation</code>、<code>separatorLosesItsSpaceWhenBroken</code>、<code>swiftUIBodyIsLaidOutByStructure</code></li>
+    <li><strong>保持性与嵌套定义契约</strong> —— <code>formattingKeepsSemanticTypesAndIdentifiers</code>、<code>removingInsertedBreaksRestoresTheOriginalText</code>、<code>formattingIsIdempotent</code>、<code>formattingCommutesWithIndentation</code>、<code>annotationAndVisibilityRegionsReadBackUnchanged</code>、<code>nestedDefinitionTakenOutOfFormattedParentEqualsFormattedChildPrint</code></li>
+    <li><strong>SwiftSectionKit 接入</strong> —— <code>interfaceRequestFormatsLongTypesWhenAsked</code>、<code>dumpRequestFormatsEachDeclarationWhenAsked</code>、<code>requestsWithoutFormattingPrintAsBefore</code>、<code>interfaceWrittenToFileIsFormattedToo</code></li>
+    <li><strong>CLI 与 agent 插件</strong> —— <code>multilineTypesFlagMapsOntoTheRequest</code>、<code>maximumLineWidthMapsOntoTheRequest</code>、<code>maximumLineWidthWithoutMultilineTypesIsAUsageError</code>、<code>nonPositiveMaximumLineWidthIsAUsageError</code>；插件 skill 的 flag 都存在于 <code>--help</code></li>
+    <li><strong>文档</strong> —— 索引、账本、术语表、模块清单与代码一致</li>
+  </ol>
+  <p>验证：每步构建通过、本步新测试通过；收尾跑 <code>swift test --skip IntegrationTests</code> 全量。打印器不改、默认关闭，渲染 A/B 不适用；另对一份真实 SwiftUI interface 打开格式化，留档耗时与效果。</p>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>4 条，最近一条：宽度不计缩进</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-21</td><td>Created as Draft</td><td>RuntimeViewer 里 SwiftUI 视图的 <code>typealias Body</code> 印成一行几千个字符，看不出泛型的层级，需要像展开括号一样按层拆行。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>规则选定</td><td>放得下的类型不动，放不下的类型整个按 TypeAliasFormatter 的结构规则拆；适用于所有类型位置；元组与函数类型的括号同样处理。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>接入方式</td><td>做成调用方在出口调用一次的纯格式化函数，不改打印器、不加打印配置项。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>宽度不计缩进</td><td>同一个声明在任何嵌套深度都拆得一样，<code>marksNestedDefinitions</code> 的契约不受影响。</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>
