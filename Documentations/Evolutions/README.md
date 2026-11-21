@@ -110,7 +110,6 @@
 | draft | [SwiftDeclaration 的目录分成公开模型与索引代码两块](draft-swift-declaration-model-indexing-layout.md) | In Progress |
 | draft | [SwiftDeclaration 的类型名按角色统一后缀](draft-swift-declaration-type-naming.md) | In Progress |
 | draft | [测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport](draft-shared-macho-testing-support.md) | Accepted |
-| draft | [跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化](draft-cross-reference-test-scan-load.md) | Accepted |
 | [0098](0098-move-cross-reference-layers.md) | 交叉引用的核心层与 ObjC 层迁出本库，进 MachOKitExtensions 与 MachOObjCSection（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Implemented |
 | [cross-repository MachOKitExtensions 0002](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0002-move-reading-and-resolving-modules.md) | 把 MachOReading 与 MachOResolving 迁入 MachOKitExtensions 2.0.0：由那边维护唯一提案；本库删掉这两个 target，同时删掉 0057 废弃的读取写法 | Implemented |
 | [cross-repository MachOKitExtensions 0003](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md) | 其余 MachO 基础模块迁入 MachOKitExtensions 2.0.0，`MachOSymbols` 拆出 C/C++ 符号索引：由那边维护唯一提案；本库的 Swift 符号索引改名 `SwiftSymbols` / `SwiftSymbolIndexStore` | Implemented |
@@ -119,3 +118,4 @@
 | [0100](0100-fixture-suite-macro.md) | `@FixtureSuite` 宏：夹具测试套件开头的固定写法由宏生成 | Implemented |
 | [0101](0101-swift6-mode-and-upcoming-features.md) | MachO 系列库统一 Swift 6 语言模式并开启三项 upcoming feature：MachOKit 切 Swift 6，六个包开启 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances`（跨仓库唯一提案） | Implemented |
 | [0102](0102-multiline-type-formatting.md) | 长类型拆行：放不下的类型按括号结构拆成多行 | Implemented |
+| [0103](0103-cross-reference-test-scan-load.md) | 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化 | Implemented |

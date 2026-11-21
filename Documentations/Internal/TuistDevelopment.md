@@ -115,4 +115,4 @@ Tuist 把按路径声明的包的测试 target 一起转换（`PackageSettings` 
 - **代价**：在 Tuist workspace 里对这两个模块打断点，看到的是优化后的代码，部分局部变量看不到。要调试它们时，从 `optimizedScanSettings` 的名单里临时拿掉再 `./TuistScript.sh generate`，调完放回去。本库自己的 `CrossReferenceAnalysis` 不在名单里，照常可调试。
 - **确认生效**：重新生成后，`<TUIST_SCRIPT_ROOT>/Dependencies/<checkout>/tuist-derived/Projects/MachOKitExtensions/MachOKitExtensions.xcodeproj` 里这两个 target 的 Debug 配置是 `SWIFT_OPTIMIZATION_LEVEL = "-O"`；构建日志里它们的编译命令带 `-O`。`base` 里的设置盖得过 Tuist 按配置写的 `-Onone`。
 
-测试一侧的限并发见 [FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md) 的「整份 cache 扫描共用一份并发名额」；设计来历见提案 [cross-reference-test-scan-load](../Evolutions/draft-cross-reference-test-scan-load.md)。
+测试一侧的限并发见 [FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md) 的「整份 cache 扫描共用一份并发名额」；设计来历见提案 [0103-cross-reference-test-scan-load](../Evolutions/0103-cross-reference-test-scan-load.md)。

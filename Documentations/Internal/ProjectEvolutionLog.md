@@ -3519,6 +3519,22 @@
   - `swift-section` 实跑：`--multiline-types --maximum-line-width 60` 拆开 fixture 的长字段；只给宽度时退出码 64。`claude plugin validate` 两项通过；Codex 的 `validate_plugin.py` 本机没有，未跑。
 - **对应版本**：未发布（0.26.0 之后）。RuntimeViewer 的开关与调用是它自己的后续改动。
 
+## 149. 跨引用测试的整份 cache 扫描限并发，Tuist 里扫描模块在 Debug 下开优化
+
+- **时间段**：2026-11-21，`feature/cross-reference-test-scan-load`，在 JHs-Mac-Studio-Ultra 上写与验证。
+- **动机**：在 Tuist workspace 里跑 Debug 测试，xctest 长时间占满 28 核：`CrossReferenceAnalysisTests` 的 124 个测试要 841 秒，xctest 累计 CPU 约 234 分钟。采样定位到两个原因：四个测试辅助函数用不设上限的 `DispatchQueue.concurrentPerform` 扫描整份 dyld cache；`-Onone` 下扫描热路径的区间循环走未特化的 `IndexingIterator.next()`，每条指令查一次元组类型元数据，28 个线程争元数据缓存的同一把锁。
+- **关键决策**：
+  - 测试 target 新增 `ImageScanConcurrency`：全进程共用一个 `DispatchSemaphore` 名额（`max(2, 核心数 / 2)`），每次调用最多开名额那么多个工作线程，靠共享游标取下标。名额必须全进程共用：Swift Testing 并行跑套件，按调用限宽会叠加回满核。不许嵌套调用。四处扫描改走它，`ParallelScanSourceTests` 禁止这个 target 里再直接调 `concurrentPerform`，`AGENTS.md` 加了对应条目。
+  - Debug 提速只改 Tuist 开发 workspace，不改 MachOKitExtensions 源码：`Tuist/Package.swift` 让 `MachOCodeReferences`、`ARM64InstructionDecoding` 在所有配置下用 `-O`。本包 `CrossReferenceAnalysis` 保持可调试；复测时它与 `ObjCCodeReferences` 已不占显著时间，不扩大名单。原生 workspace、`swift test` 与 CI 不变。
+  - 开头约 35 秒仍满核：那是 Swift Testing 自己按核心数并行跑二十多个测试，不是这四处扫描。用户决定不限制测试运行器的并行度。
+- **落地模块**：`Tests/CrossReferenceAnalysisTests`（`ImageScanConcurrency`、`ImageScanConcurrencyTests`、`ParallelScanSourceTests`，四处调用点）、`Tuist/Package.swift`。
+- **文档**：提案 [0103-cross-reference-test-scan-load](../Evolutions/0103-cross-reference-test-scan-load.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md) 新增「整份 cache 扫描共用一份并发名额」，[TuistDevelopment.md](TuistDevelopment.md) 新增「扫描模块在 Debug 下也开优化」；`AGENTS.md` 的测试规则。没有新术语，不另写实现说明。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上，Xcode 27.2，Tuist workspace 的 Debug 配置。
+  - `-only-testing:CrossReferenceAnalysisTests`：841 秒降到约 91–93 秒，xctest 累计 CPU 约 14 030 秒降到约 829–843 秒（约 17 倍）。
+  - `MachOSwiftSection Tests` 整个 scheme：3005 个通过、0 失败、7 个跳过，634 秒。`next` 上 `SwiftSectionTestingMacrosTests` 因 `Unable to resolve module dependency: 'SwiftSectionTestingMacros'` 编不过，测量与全量时临时套用了 `feature/shared-macho-testing-support` 里 `Package.swift` 的两行修复，没有提交。
+  - 不涉及打印与读取层，渲染 A/B 不适用。
+- **对应版本**：未发布（0.26.0 之后）；只改测试与开发 workspace，不影响库的发布内容。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

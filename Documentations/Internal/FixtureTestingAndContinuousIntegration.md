@@ -212,7 +212,7 @@ GitHub 的 `macos-26` runner 是 3 核、7 GB 内存。Swift Concurrency 的 coo
 - **不会卡住 cooperative thread**：名额只在扫一个镜像期间持有，扫描是同步的 CPU 工作、不等任何线程池，所以调用线程是 cooperative thread 也总能等到名额，不违反上一节的规则。**闭包里不能再调它**：嵌套调用在外层占着名额时再去等名额，名额全被这样占住就再也放不出来。
 - **`ParallelScanSourceTests` 拦下新的直接调用**：扫这个 target 的源码，名额之外出现 `DispatchQueue.concurrentPerform(` 就失败。例外只有 `ScanThroughputBenchmarkTests`：它要设 `CROSS_REFERENCE_BENCHMARK_OUTPUT` 才跑，量的就是全核吞吐。
 
-Debug 下扫描本身为什么慢、Tuist workspace 怎么处理，见 [TuistDevelopment.md](TuistDevelopment.md) 的「扫描模块在 Debug 下也开优化」一节；设计来历与测量数据见提案 [cross-reference-test-scan-load](../Evolutions/draft-cross-reference-test-scan-load.md)。
+Debug 下扫描本身为什么慢、Tuist workspace 怎么处理，见 [TuistDevelopment.md](TuistDevelopment.md) 的「扫描模块在 Debug 下也开优化」一节；设计来历与测量数据见提案 [0103-cross-reference-test-scan-load](../Evolutions/0103-cross-reference-test-scan-load.md)。
 
 ## 相关文档
 

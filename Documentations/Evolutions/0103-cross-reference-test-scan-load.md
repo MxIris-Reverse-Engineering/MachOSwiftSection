@@ -1,13 +1,13 @@
-# Draft - 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化
+# 0103 - 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-21
 - **最后更新**: 2026-11-21
 - **所属愿景**: 无
 - **关联提案**: [0099-tuist-workspace](0099-tuist-workspace.md)（本提案改的 Tuist 开发工作区）
 - **实现分支 / PR**: `feature/cross-reference-test-scan-load`（从 `next` 切出，worktree `.worktrees/MachOSwiftSection-CrossReferenceTestScanLoad`）
-- **配套文档**: 待定 —— 落地时判断；预计只更新既有文档（见「文档与示例」），不新写专题文章
+- **配套文档**: 不另写专题文章；设计来历在 [FixtureTestingAndContinuousIntegration.md](../Internal/FixtureTestingAndContinuousIntegration.md) 的「整份 cache 扫描共用一份并发名额」，Tuist 一侧在 [TuistDevelopment.md](../Internal/TuistDevelopment.md) 的「扫描模块在 Debug 下也开优化」
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -327,3 +327,4 @@ Settings.settings(configurations: [.debug(name: .debug, settings: ["SWIFT_OPTIMI
 | 2026-11-21 | 完整验证 | Tuist workspace 的 `MachOSwiftSection Tests` 整个 scheme（Debug，Ultra，带测量时同样临时套用的 `Package.swift` 两行）：3005 个通过、0 失败、7 个跳过，634 秒。 |
 | 2026-11-21 | 实现完成，待用户看过后收尾 | 功能分支已推送并在本地合进 `next` 的常驻检出（不推送）；测量时临时套用的 `Package.swift` 两行没有提交。 |
 | 2026-11-21 | 不限制测试运行器的并行度 | 用户决定保持现状：满核时间已从 14 分钟缩到开头约 35 秒，不再另写提案限制 Swift Testing 同时跑的测试数。 |
+| 2026-11-21 | Implemented | 合进 `next` 并推送，编号 0103。没有新术语；不另写专题文章（配套文档见头部）；演进账本记为第 149 节。`next` 上 `./TuistScript.sh test` 编不过的问题（`SwiftSectionTestingMacrosTests`）不归本提案，由 `feature/shared-macho-testing-support` 修。 |
