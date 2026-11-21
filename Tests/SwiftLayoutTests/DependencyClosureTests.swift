@@ -165,7 +165,7 @@ final class DependencyClosureTests: MachOSwiftSectionFixtureTests, @unchecked Se
     @MainActor
     @Test func sameImageReachedUnderTwoLoadNamesIsCollectedOnce() throws {
         let root = machOFile
-        let helperFile = try #require(File.loadFromFile(url: URL(fileURLWithPath: Self.symbolTestsHelperOnDiskPath)).machOFiles.first)
+        let helperFile = try HostSlice.machOFile(at: URL(fileURLWithPath: Self.symbolTestsHelperOnDiskPath))
         // Two of the root's direct load names, both answered by the same file.
         let locator = RecordingLocator(imagesByBareImageName: ["SymbolTestsHelper": helperFile, "libswiftCore": helperFile])
 
@@ -180,7 +180,7 @@ final class DependencyClosureTests: MachOSwiftSectionFixtureTests, @unchecked Se
     @MainActor
     @Test func customLocatorReceivesRawLoadNamesAndSuppliesTheImages() throws {
         let root = machOFile
-        let helperFile = try #require(File.loadFromFile(url: URL(fileURLWithPath: Self.symbolTestsHelperOnDiskPath)).machOFiles.first)
+        let helperFile = try HostSlice.machOFile(at: URL(fileURLWithPath: Self.symbolTestsHelperOnDiskPath))
         let locator = RecordingLocator(imagesByBareImageName: ["SymbolTestsHelper": helperFile])
 
         let closure = DependencyClosure(root: root, traversal: .direct, locator: locator)

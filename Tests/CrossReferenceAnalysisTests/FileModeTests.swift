@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import SwiftSectionFixtureSupport
 import MachOKitExtensions
 @_spi(Internals) import MachOCodeReferences
 @_spi(Internals) import ObjCCodeReferences
@@ -192,16 +193,16 @@ struct FileModeTests {
     /// slot binds by name, to itself. The bind leads to the function; a call
     /// into a library the analyzer does not cover stays an imported name.
     @Test func standaloneAppResolvesImportedAndSelfBoundSymbols() throws {
-        let (directory, library) = try CompiledFixture.build(
-            libraryName: "libSelfBound.dylib",
-            sources: ["SelfBound.c": """
+        let library = try FixtureCompiler.shared.dynamicLibrary(
+            named: "SelfBound",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "SelfBound.c", contents: """
             #include <stdio.h>
             __attribute__((noinline)) int selfBoundCallee(int value) { return value * 3; }
             int selfBoundCaller(int value) { puts("called"); return selfBoundCallee(value) + 1; }
-            """],
-            compilerArguments: ["-O1", "-Wl,-interposable"]
+            """)],
+            arguments: ["-arch", "arm64", "-O1", "-Wl,-interposable"]
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [MachOFile(url: library)])
         #expect(analyzer.imageCount == 1)
         #expect(analyzer.images.isEmpty)
@@ -220,19 +221,18 @@ struct FileModeTests {
     /// start, so the cleanup's calls are found: `_Unwind_Resume` is called
     /// nowhere else.
     @Test func fileModeScansExceptionCleanupCodeAfterReturn() throws {
-        let (directory, library) = try CompiledFixture.build(
-            libraryName: "libCleanup.dylib",
-            sources: ["Cleanup.cpp": """
+        let library = try FixtureCompiler.shared.dynamicLibrary(
+            named: "Cleanup",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "Cleanup.cpp", contents: """
             #include <stdexcept>
             extern "C" __attribute__((noinline)) void cleanupCallee(void) { asm volatile(""); }
             struct Guard { ~Guard() { cleanupCallee(); } };
             __attribute__((noinline)) void mayThrow(int value) { if (value > 3) throw std::runtime_error("too large"); }
             extern "C" int withCleanup(int value) { Guard guard; mayThrow(value); return value + 1; }
-            """],
-            compilerArguments: ["-O1", "-lc++"],
-            architecture: "arm64e"
+            """)],
+            arguments: ["-arch", "arm64e", "-O1", "-lc++"]
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [MachOFile(url: library)])
         let withCleanup = try #require(analyzer.functions(inImageAt: 0).first { $0.name == .symbol("_withCleanup") })
         let references = analyzer.references(madeBy: withCleanup)
@@ -294,9 +294,10 @@ struct FileModeTests {
     /// selector references of `__objc_stubs` then lead nowhere, and every
     /// send through one reads as an unrecognized call.
     @Test func standaloneExecutableResolvesRebasesAndObjectiveCStubs() throws {
-        let (directory, executable) = try CompiledFixture.build(
-            libraryName: "ObjectiveCExecutable",
-            sources: ["Main.m": """
+        let executable = try FixtureCompiler.shared.executable(
+            named: "ObjectiveCExecutable",
+            language: .c,
+            sourceFiles: [FixtureSourceFile(name: "Main.m", contents: """
             #import <Foundation/Foundation.h>
             __attribute__((noinline)) static void target(void) { asm volatile(""); }
             void (*volatile functionPointer)(void) = target;
@@ -308,11 +309,9 @@ struct FileModeTests {
                     return (int)[array count];
                 }
             }
-            """],
-            compilerArguments: ["-O1", "-fobjc-arc", "-framework", "Foundation"],
-            isExecutable: true
+            """)],
+            arguments: ["-arch", "arm64", "-O1", "-fobjc-arc", "-framework", "Foundation"]
         )
-        defer { try? FileManager.default.removeItem(at: directory) }
         let file = try MachOFile(url: executable)
         let analyzer = try CrossReferenceAnalyzer(machOFiles: [file])
         let main = try #require(analyzer.functions(inImageAt: 0).first { $0.name == .symbol("_main") })

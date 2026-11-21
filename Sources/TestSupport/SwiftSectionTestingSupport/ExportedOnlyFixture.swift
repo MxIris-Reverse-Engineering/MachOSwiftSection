@@ -143,62 +143,14 @@ package enum ExportedOnlyFixture {
     }
     """
 
-    package struct CompilationError: Swift.Error, CustomStringConvertible {
-        package let diagnostics: String
-        package var description: String { "\(moduleName) fixture compilation failed:\n\(diagnostics)" }
-    }
-
-    private enum WorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in WorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    /// Compiled once per process.
-    private static let compilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = WorkingDirectoryCleanup.registration
-            WorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("\(moduleName).swift")
-            let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName).dylib")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                "swiftc", "-emit-library", "-enable-library-evolution",
-                "-module-name", moduleName,
-                sourceURL.path, "-o", libraryURL.path,
-            ] + unexportedSymbolNames.flatMap { ["-Xlinker", "-unexported_symbol", "-Xlinker", $0] }
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw CompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
-    }()
-
+    /// Compiled once per process by the shared compiler.
     package static func machOFile() throws -> MachOFile {
-        switch try MachOKit.loadFromFile(url: try compilationResult.get()) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: moduleName,
+            language: .swift,
+            source: source,
+            arguments: ["-enable-library-evolution"] + unexportedSymbolNames.flatMap { ["-Xlinker", "-unexported_symbol", "-Xlinker", $0] }
+        )
+        return try HostSlice.machOFile(at: libraryURL)
     }
 }

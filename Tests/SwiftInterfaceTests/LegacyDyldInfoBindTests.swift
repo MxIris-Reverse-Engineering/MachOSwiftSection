@@ -5,6 +5,7 @@ import MachOKitExtensions
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
 import Semantic
+import SwiftSectionTestingSupport
 
 /// Regression tests for binaries carrying the legacy `LC_DYLD_INFO(_ONLY)`
 /// opcode-based fixups (deployment target < macOS 12 / iOS 16, e.g. every
@@ -23,64 +24,6 @@ import Semantic
 /// format as the iOS 15.5 simulator frameworks that surfaced the bug.
 @Suite(.serialized)
 struct LegacyDyldInfoBindTests {
-    /// The fixture's working directory must outlive every test in the
-    /// (serialized) suite, so it is removed at process exit rather than per
-    /// test. A crashed run still leaks one directory; the unique name keeps
-    /// that harmless and non-colliding across parallel test processes.
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("LegacyDyldInfoBindFixture-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("LegacyFixture.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("libLegacyFixture.dylib")
-            try Self.fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            // macOS 11 predates chained fixups, forcing LC_DYLD_INFO_ONLY output.
-            process.arguments = [
-                "swiftc", "-emit-library", "-module-name", "LegacyFixture",
-                "-target", "arm64-apple-macosx11.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain BEFORE waitUntilExit: diagnostics beyond the ~64 KB pipe
-            // buffer would otherwise deadlock compiler and parent (the child
-            // blocked writing, the parent parked waiting) — and because this
-            // is a static let under a serialized suite, that deadlock would
-            // hang the whole test run instead of reporting a failure.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                let diagnostics = String(decoding: diagnosticsData, as: UTF8.self)
-                throw LegacyFixtureCompilationError(diagnostics: diagnostics)
-            }
-            return libraryURL
-        }
-    }()
-
-    private struct LegacyFixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "Legacy fixture compilation failed:\n\(diagnostics)" }
-    }
-
     private static let fixtureSource = """
     import Foundation
 
@@ -108,15 +51,14 @@ struct LegacyDyldInfoBindTests {
     """
 
     private func loadFixtureMachOFile() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        let file = try MachOKit.loadFromFile(url: libraryURL)
-        switch file {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: "LegacyFixture",
+            language: .swift,
+            source: Self.fixtureSource,
+            // macOS 11 predates chained fixups, forcing LC_DYLD_INFO_ONLY output.
+            arguments: ["-target", "arm64-apple-macosx11.0"]
+        )
+        return try HostSlice.machOFile(at: libraryURL)
     }
 
     private func buildInterfaceOutput(of machOFile: MachOFile) async throws -> String {

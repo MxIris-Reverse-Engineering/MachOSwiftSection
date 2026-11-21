@@ -220,12 +220,6 @@ package enum ExtensionContextExportFixture {
     package static func machOFile(_ variant: Variant) throws -> MachOFile {
         let libraries = try compilationResult.get()
         let libraryURL = try #require(libraries[variant], "no library for variant \(variant.rawValue)")
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        return try HostSlice.machOFile(at: libraryURL)
     }
 }

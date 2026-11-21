@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftLayout
+import SwiftSectionFixtureSupport
 
 /// Where the simulator-runtime-gated suite below finds its runtime. A
 /// separate type on purpose: a `@Suite(.enabled(if:))` condition that reads a
@@ -21,13 +22,7 @@ enum IOS18SimulatorRuntimeFixtures {
     }()
 
     static func swiftUI(underRuntimeRoot runtimeRootPath: String) throws -> MachOFile {
-        let url = URL(fileURLWithPath: "\(runtimeRootPath)/System/Library/Frameworks/SwiftUI.framework/SwiftUI")
-        switch try MachOKit.loadFromFile(url: url) {
-        case .machO(let thinFile):
-            return thinFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }, "the runtime's SwiftUI has no arm64 slice")
-        }
+        try HostSlice.machOFile(at: URL(fileURLWithPath: "\(runtimeRootPath)/System/Library/Frameworks/SwiftUI.framework/SwiftUI"))
     }
 }
 

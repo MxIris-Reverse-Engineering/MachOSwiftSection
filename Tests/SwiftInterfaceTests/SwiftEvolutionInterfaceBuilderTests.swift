@@ -6,10 +6,11 @@ import SwiftDiffing
 import SwiftDeclaration
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import SwiftSectionFixtureSupport
 
 /// End-to-end tests for the annotated evolution interface over three
-/// on-the-fly-compiled versions of one fixture module (the
-/// `LegacyDyldInfoBindTests` compilation approach, minus the legacy target):
+/// on-the-fly-compiled versions of one fixture module (each built with
+/// `swiftc` at test time):
 ///
 /// - v1 → v2: `Alpha.bar(id:)` added, `Legacy` (whole class) removed.
 /// - v2 → v3: `Alpha.bar()` and the computed `Alpha.summary` removed,
@@ -105,7 +106,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
                 let standardErrorPipe = Pipe()
                 process.standardError = standardErrorPipe
                 try process.run()
-                // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
+                // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
                 let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
                 guard process.terminationStatus == 0 else {
@@ -125,14 +126,7 @@ struct SwiftEvolutionInterfaceBuilderTests {
 
     private func loadFixtureMachOFiles() throws -> [MachOFile] {
         try Self.fixtureCompilationResult.get().map { libraryURL in
-            let file = try MachOKit.loadFromFile(url: libraryURL)
-            switch file {
-            case .machO(let machOFile):
-                return machOFile
-            case .fat(let fatFile):
-                let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-                return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-            }
+            try HostSlice.machOFile(at: libraryURL)
         }
     }
 

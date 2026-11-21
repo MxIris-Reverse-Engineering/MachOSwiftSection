@@ -36,7 +36,7 @@ struct LinkerOptimizationHintTests {
     /// Both libraries, loaded before the analyzer that reads them is made.
     private static let fixtures = Result<Fixtures, any Error> {
         try CompiledFixture.load(
-            libraryName: "libCrossReferenceLinkerHints.dylib",
+            named: "CrossReferenceLinkerHints",
             sources: [
                 "Probe.m": """
                 #import <Foundation/Foundation.h>
@@ -75,7 +75,7 @@ struct LinkerOptimizationHintTests {
         // A stub is shared by every call to its function, so the stub fixture
         // imports nothing a send needs.
         try CompiledFixture.load(
-            libraryName: "libCrossReferenceRewrittenStub.dylib",
+            named: "CrossReferenceRewrittenStub",
             sources: ["Stub.c": "#include <stdio.h>\nvoid crossReferenceCallsThroughARewrittenStub(void) { puts(\"called\"); }\n"],
             compilerArguments: ["-O1", "-mmacosx-version-min=12.0"]
         ) { bytes, machO in

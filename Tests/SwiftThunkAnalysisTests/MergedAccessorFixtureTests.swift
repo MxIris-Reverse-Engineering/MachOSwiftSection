@@ -6,6 +6,7 @@ import MachOSwiftSection
 import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
+import SwiftSectionFixtureSupport
 @testable import SwiftThunkAnalysis
 
 /// A kind-9 field thunk that calls a **compiler-merged accessor** — the
@@ -27,20 +28,9 @@ import SwiftDeclarationRendering
 /// `accessor function at N`, with and without symbols.
 @Suite(.serialized)
 struct MergedAccessorFixtureTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
+    private struct StripError: Error, CustomStringConvertible {
         let diagnostics: String
-        var description: String { "MergedAccessorProbe fixture compilation failed:\n\(diagnostics)" }
+        var description: String { "stripping the MergedAccessorProbe fixture failed:\n\(diagnostics)" }
     }
 
     private struct CompiledFixture {
@@ -50,25 +40,27 @@ struct MergedAccessorFixtureTests {
 
     private static let fixtureCompilationResult: Result<CompiledFixture, any Error> = {
         Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("MergedAccessorProbeFixture-\(UUID().uuidString)")
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("MergedAccessorProbe.swift")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-            let libraryURL = workingDirectory.appendingPathComponent("libMergedAccessorProbe.dylib")
-            let strippedLibraryURL = workingDirectory.appendingPathComponent("libMergedAccessorProbeStripped.dylib")
-
             // `Synchronization.Mutex` needs macOS 15; optimized so the
             // accessors take the shapes a shipping binary carries and the
             // optimizer merges them.
-            try run(tool: "swiftc", arguments: [
-                "-O", "-emit-library", "-module-name", "MergedAccessorProbe",
-                "-target", "arm64-apple-macosx15.0",
-                "-Xfrontend", "-disable-concrete-type-metadata-mangled-name-accessors",
-                sourceURL.path, "-o", libraryURL.path,
-            ])
+            let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+                named: "MergedAccessorProbe",
+                language: .swift,
+                source: fixtureSource,
+                arguments: [
+                    "-O",
+                    "-target", "arm64-apple-macosx15.0",
+                    "-Xfrontend", "-disable-concrete-type-metadata-mangled-name-accessors",
+                ]
+            )
+            // The compiled library is shared with every other request for it,
+            // so the stripped variant is a copy in a directory of its own,
+            // under the compiler's products directory the process removes at
+            // exit.
+            let strippedDirectory = FixtureCompiler.shared.productsDirectory
+                .appendingPathComponent("MergedAccessorProbeStripped-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: strippedDirectory, withIntermediateDirectories: true)
+            let strippedLibraryURL = strippedDirectory.appendingPathComponent("libMergedAccessorProbeStripped.dylib")
             try FileManager.default.copyItem(at: libraryURL, to: strippedLibraryURL)
             // `-x` removes the local symbols — every `…MaTm` and specialized
             // accessor name — the way a shipping app is stripped.
@@ -88,7 +80,7 @@ struct MergedAccessorFixtureTests {
         let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
+            throw StripError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
         }
     }
 
@@ -123,12 +115,7 @@ struct MergedAccessorFixtureTests {
     """
 
     private func load(_ libraryURL: URL) throws -> MachOFile {
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: libraryURL)
     }
 
     /// Every kind-9 field of the fixture, keyed `Owner.field`, resolved

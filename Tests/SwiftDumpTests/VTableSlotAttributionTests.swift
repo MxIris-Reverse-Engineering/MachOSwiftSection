@@ -27,17 +27,6 @@ import Semantic
 /// premise of every test here rather than a soft check.
 @Suite(.serialized)
 struct VTableSlotAttributionTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
     /// `alpha` / `beta` / `gamma` have byte-identical (empty) bodies and fold
     /// onto one address. `Nested.nestedNoop` folds onto the SAME address and is
     /// the cross-type trap: its demangled tree's first class node is `Host`, so
@@ -60,54 +49,23 @@ struct VTableSlotAttributionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("VTableAttributionFixture-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
+    private struct FixtureLookupError: Swift.Error, CustomStringConvertible {
+        let diagnostics: String
+        var description: String { "vtable-attribution fixture lookup failed:\n\(diagnostics)" }
+    }
 
-            let sourceURL = workingDirectory.appendingPathComponent("VTableAttributionFixture.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("libVTableAttributionFixture.dylib")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                "swiftc", "-emit-library", "-module-name", "VTableAttributionFixture",
-                sourceURL.path, "-o", libraryURL.path,
+    private func loadFixtureMachOFile() throws -> MachOFile {
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: "VTableAttributionFixture",
+            language: .swift,
+            source: Self.fixtureSource,
+            arguments: [
                 // ld64's identical-code-folding switch: without it the empty
                 // bodies keep four distinct addresses and nothing is ambiguous.
                 "-Xlinker", "-deduplicate",
             ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
-    }()
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "vtable-attribution fixture compilation failed:\n\(diagnostics)" }
-    }
-
-    private func loadFixtureMachOFile() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        )
+        return try HostSlice.machOFile(at: libraryURL)
     }
 
     private func classDescriptor(named name: String, in machOFile: MachOFile) throws -> ClassDescriptor {
@@ -117,7 +75,7 @@ struct VTableSlotAttributionTests {
             return classDescriptor
         }
         Issue.record("fixture is missing the class \(name)")
-        throw FixtureCompilationError(diagnostics: "class \(name) not found")
+        throw FixtureLookupError(diagnostics: "class \(name) not found")
     }
 
     /// The vtable slot declarations of a dumped class, in slot order, as
@@ -292,13 +250,7 @@ enum SimulatorRuntimeSwiftUICore {
 struct GraphHostVTableAttributionTests {
     private func graphHostDump() async throws -> String {
         let url = try #require(SimulatorRuntimeSwiftUICore.url)
-        let machOFile: MachOFile
-        switch try MachOKit.loadFromFile(url: url) {
-        case .machO(let file):
-            machOFile = file
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let machOFile = try HostSlice.machOFile(at: url)
 
         for typeContextDescriptor in try machOFile.swift.typeContextDescriptors {
             guard case .class(let classDescriptor) = typeContextDescriptor,

@@ -1,38 +1,42 @@
 import Foundation
 import MachOKit
+import SwiftSectionFixtureSupport
 @_spi(Internals) import MachOCodeReferences
 @_spi(Internals) import ObjCCodeReferences
 
 /// A dynamic library compiled from source for one suite, rewritten after
-/// linking when the suite asks, and loaded into the test process.
+/// linking when the suite asks, and loaded into the test process. Suites that
+/// only read a compiled binary as a file call `FixtureCompiler` directly.
 enum CompiledFixture {
     struct Failure: Error, CustomStringConvertible {
         let description: String
     }
 
     /// Compiles `sources` — file names and their contents — into the arm64
-    /// library `libraryName`, hands the linked bytes to `rewrite` and signs
-    /// the result again when there is one, and loads it. The library stays
-    /// loaded after its directory is removed; the analyzers made from then on
-    /// see it under the path this returns.
+    /// library `lib<name>.dylib` through the shared compiler, copies it to a
+    /// directory of its own, hands the copied bytes to `rewrite` and signs the
+    /// result again when there is one, and loads the copy. The compiled
+    /// library is shared by every test, so it is never rewritten itself. The
+    /// copy stays loaded after its directory is removed; the analyzers made
+    /// from then on see it under the path this returns.
     @discardableResult
     static func load(
-        libraryName: String,
+        named name: String,
         sources: KeyValuePairs<String, String>,
         compilerArguments: [String],
         rewrite: ((inout Data, MachOFile) throws -> Void)? = nil
     ) throws -> String {
+        let compiledLibrary = try FixtureCompiler.shared.dynamicLibrary(
+            named: name,
+            language: .c,
+            sourceFiles: sources.map { FixtureSourceFile(name: $0.key, contents: $0.value) },
+            arguments: ["-arch", "arm64"] + compilerArguments
+        )
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CrossReferenceAnalysisTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        var sourcePaths: [String] = []
-        for (fileName, contents) in sources {
-            let sourceURL = directory.appendingPathComponent(fileName)
-            try contents.write(to: sourceURL, atomically: true, encoding: .utf8)
-            sourcePaths.append(sourceURL.path)
-        }
-        let library = directory.appendingPathComponent(libraryName)
-        try run("/usr/bin/xcrun", arguments: ["clang", "-dynamiclib", "-arch", "arm64"] + compilerArguments + ["-o", library.path] + sourcePaths)
+        let library = directory.appendingPathComponent(compiledLibrary.lastPathComponent)
+        try FileManager.default.copyItem(at: compiledLibrary, to: library)
         if let rewrite {
             var bytes = try Data(contentsOf: library)
             try rewrite(&bytes, try MachOFile(url: library))
@@ -41,44 +45,9 @@ enum CompiledFixture {
             try run("/usr/bin/codesign", arguments: ["--force", "--sign", "-", library.path])
         }
         guard dlopen(library.path, RTLD_NOW | RTLD_LOCAL) != nil else {
-            throw Failure(description: "could not load \(libraryName): \(dlerror().map { String(cString: $0) } ?? "")")
+            throw Failure(description: "could not load \(library.lastPathComponent): \(dlerror().map { String(cString: $0) } ?? "")")
         }
         return library.path
-    }
-
-    /// Compiles `sources` into the arm64 library `libraryName` and leaves it
-    /// on disk, unloaded, for a suite that reads it as a file. The caller
-    /// removes `directory`.
-    static func build(
-        libraryName: String,
-        sources: KeyValuePairs<String, String>,
-        compilerArguments: [String],
-        architecture: String = "arm64",
-        isExecutable: Bool = false
-    ) throws -> (directory: URL, library: URL) {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CrossReferenceAnalysisTests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        var sourcePaths: [String] = []
-        for (fileName, contents) in sources {
-            let sourceURL = directory.appendingPathComponent(fileName)
-            try contents.write(to: sourceURL, atomically: true, encoding: .utf8)
-            sourcePaths.append(sourceURL.path)
-        }
-        let library = directory.appendingPathComponent(libraryName)
-        try run("/usr/bin/xcrun", arguments: ["clang"] + (isExecutable ? [] : ["-dynamiclib"]) + ["-arch", architecture] + compilerArguments + ["-o", library.path] + sourcePaths)
-        return (directory, library)
-    }
-
-    /// Compiles one Swift source into the arm64 library `libraryName`,
-    /// optimized, and leaves it on disk. The caller removes `directory`.
-    static func buildSwift(libraryName: String, source: String) throws -> (directory: URL, library: URL) {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CrossReferenceAnalysisTests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let sourceURL = directory.appendingPathComponent("Fixture.swift")
-        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-        let library = directory.appendingPathComponent(libraryName)
-        try run("/usr/bin/xcrun", arguments: ["swiftc", "-O", "-emit-library", "-target", "arm64-apple-macos14", "-module-name", "Fixture", "-o", library.path, sourceURL.path])
-        return (directory, library)
     }
 
     private static func run(_ executablePath: String, arguments: [String]) throws {

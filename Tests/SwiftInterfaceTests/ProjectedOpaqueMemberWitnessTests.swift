@@ -8,6 +8,7 @@ import Demangling
 import SwiftDeclarationRendering
 @_spi(Support) @testable import SwiftInterface
 import Semantic
+import SwiftSectionFixtureSupport
 
 /// An associated-type witness that is a *member* of another module's opaque
 /// archetype — `(↻τ.Element)` in the generics book's notation, spelled
@@ -134,12 +135,7 @@ struct ProjectedOpaqueMemberWitnessTests {
 
     private func loadClient() throws -> (client: MachOFile, corePath: String) {
         let fixture = try Self.fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: fixture.clientLibraryURL) {
-        case .machO(let machOFile):
-            return (machOFile, fixture.coreLibraryURL.path)
-        case .fat(let fatFile):
-            return (try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }), fixture.coreLibraryURL.path)
-        }
+        return (try HostSlice.machOFile(at: fixture.clientLibraryURL), fixture.coreLibraryURL.path)
     }
 
     /// `typealias <name> = …` as the compiler's own interface spells it, keyed

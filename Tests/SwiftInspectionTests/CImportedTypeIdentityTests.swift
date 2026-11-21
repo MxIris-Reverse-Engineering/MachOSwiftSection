@@ -5,6 +5,7 @@ import MachOFoundation
 @_spi(Internals) import Demangling
 @testable import MachOSwiftSection
 @_spi(Internals) @testable import SwiftInspection
+import SwiftSectionFixtureSupport
 
 // Evolution proposal `type-import-info-identity`: a descriptor-derived
 // demangling of a C-imported type must spell the type the way the compiler
@@ -237,7 +238,7 @@ struct CImportedTypeIdentityFixtureTests {
             let standardErrorPipe = Pipe()
             process.standardError = standardErrorPipe
             try process.run()
-            // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
+            // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
             let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             guard process.terminationStatus == 0 else {
@@ -253,14 +254,7 @@ struct CImportedTypeIdentityFixtureTests {
     }
 
     private func loadFixtureMachOFile() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        try HostSlice.machOFile(at: try Self.fixtureCompilationResult.get())
     }
 
     private func holderFieldMangledTypeNames(in machOFile: MachOFile) throws -> [String: MangledName] {

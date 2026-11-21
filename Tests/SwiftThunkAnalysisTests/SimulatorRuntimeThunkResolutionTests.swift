@@ -45,12 +45,7 @@ struct SimulatorStandaloneSwiftUIThunkTests {
     }
 
     private func load(path: String) throws -> MachOFile {
-        switch try File.loadFromFile(url: URL(fileURLWithPath: path)) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: URL(fileURLWithPath: path))
     }
 
     private func resolvedFieldTexts(ofTypeNamed typeName: String, in machOFile: MachOFile) throws -> [String: String] {

@@ -4,6 +4,7 @@ import MachOKit
 import Semantic
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
+import SwiftSectionTestingSupport
 
 /// The diff path's member-indentation contract, unified with the evolution
 /// path: members render at printer level 0 — the accessor block's interior
@@ -90,7 +91,7 @@ struct DiffMemberIndentationTests {
                 let standardErrorPipe = Pipe()
                 process.standardError = standardErrorPipe
                 try process.run()
-                // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
+                // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
                 let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
                 guard process.terminationStatus == 0 else {
@@ -110,14 +111,7 @@ struct DiffMemberIndentationTests {
 
     private func loadFixtureMachOFiles() throws -> [MachOFile] {
         try Self.fixtureCompilationResult.get().map { libraryURL in
-            let file = try MachOKit.loadFromFile(url: libraryURL)
-            switch file {
-            case .machO(let machOFile):
-                return machOFile
-            case .fat(let fatFile):
-                let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-                return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-            }
+            try HostSlice.machOFile(at: libraryURL)
         }
     }
 

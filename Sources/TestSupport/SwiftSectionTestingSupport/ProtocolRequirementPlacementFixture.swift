@@ -124,11 +124,6 @@ package enum ProtocolRequirementPlacementFixture {
     }
     """
 
-    package struct CompilationError: Swift.Error, CustomStringConvertible {
-        package let diagnostics: String
-        package var description: String { "\(moduleName) fixture compilation failed:\n\(diagnostics)" }
-    }
-
     /// The fixture: `supportSource` and `protocolSource` in one library.
     package static func machOFile() throws -> MachOFile {
         try machOFile(compiling: protocolSource)
@@ -137,80 +132,18 @@ package enum ProtocolRequirementPlacementFixture {
     /// `supportSource` and `protocolDeclarations` compiled into one library
     /// named `moduleName`, as the fixture itself is, so every name a printed
     /// protocol mentions resolves to the same declaration again. Each
-    /// distinct source compiles once per process.
+    /// distinct source compiles once per process, by the shared compiler;
+    /// the source keeps the file name it always had, which private
+    /// discriminators hash.
     package static func machOFile(compiling protocolDeclarations: String) throws -> MachOFile {
-        let libraryURL = try CompiledLibraries.shared.libraryURL(for: supportSource + "\n\n" + protocolDeclarations)
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
-    }
-
-    private enum WorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in WorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private final class CompiledLibraries: @unchecked Sendable {
-        static let shared = CompiledLibraries()
-
-        private let lock = NSLock()
-
-        private var libraryURLsBySource: [String: URL] = [:]
-
-        /// Compiles under the lock: two tests asking for the same source wait
-        /// for one compiler run. The wait is on `swiftc`, never on a pool
-        /// thread.
-        func libraryURL(for source: String) throws -> URL {
-            lock.lock()
-            defer { lock.unlock() }
-            if let libraryURL = libraryURLsBySource[source] {
-                return libraryURL
-            }
-            let libraryURL = try Self.compile(source)
-            libraryURLsBySource[source] = libraryURL
-            return libraryURL
-        }
-
-        private static func compile(_ source: String) throws -> URL {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = WorkingDirectoryCleanup.registration
-            WorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let sourceURL = workingDirectory.appendingPathComponent("Fixture.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName).dylib")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                // The language mode pinned: CI's toolchain and a newer local
-                // one must compile the same source the same way.
-                "swiftc", "-swift-version", "5", "-emit-library",
-                "-module-name", moduleName,
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw CompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: moduleName,
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "Fixture.swift", contents: supportSource + "\n\n" + protocolDeclarations)],
+            // The language mode pinned: CI's toolchain and a newer local
+            // one must compile the same source the same way.
+            arguments: ["-swift-version", "5"]
+        )
+        return try HostSlice.machOFile(at: libraryURL)
     }
 }

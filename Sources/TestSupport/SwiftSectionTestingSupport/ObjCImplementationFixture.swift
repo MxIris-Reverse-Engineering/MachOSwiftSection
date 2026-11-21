@@ -440,7 +440,7 @@ package enum ObjCImplementationFixture {
         let standardErrorPipe = Pipe()
         process.standardError = standardErrorPipe
         try process.run()
-        // Drain BEFORE waitUntilExit — see LegacyDyldInfoBindTests.
+        // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
         let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
@@ -470,12 +470,6 @@ package enum ObjCImplementationFixture {
 
     package static func machOFile(_ variant: Variant) throws -> MachOFile {
         let libraryURL = try libraryURL(variant)
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        return try HostSlice.machOFile(at: libraryURL)
     }
 }

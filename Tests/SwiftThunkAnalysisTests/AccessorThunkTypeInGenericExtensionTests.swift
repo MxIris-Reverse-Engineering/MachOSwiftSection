@@ -6,6 +6,7 @@ import MachOSwiftSection
 import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
+import SwiftSectionFixtureSupport
 @testable import SwiftThunkAnalysis
 
 /// A kind-9 accessor thunk names the type it instantiates by the accessor it
@@ -20,22 +21,6 @@ import SwiftDeclarationRendering
 /// `offline-generic-specialization` is the reading side of the same shape.
 @Suite(.serialized)
 struct AccessorThunkTypeInGenericExtensionTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "accessor-thunk generic-extension fixture compilation failed:\n\(diagnostics)" }
-    }
-
     /// `Inner` is `~Copyable`, so a field of it is instantiated by a thunk
     /// that first asks whether the runtime supports noncopyable types — a
     /// kind-9 accessor function reference in the field record. The class is
@@ -69,46 +54,15 @@ struct AccessorThunkTypeInGenericExtensionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, any Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("AccessorThunkGenericExtensionFixture-\(UUID().uuidString)")
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("AccessorThunkGenericExtension.swift")
-            let libraryURL = workingDirectory.appendingPathComponent("libProbeThunkExtension.dylib")
-            try fixtureSource.write(to: sourceURL, atomically: true, encoding: .utf8)
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            // Optimized so the thunk takes the shape a shipping binary carries.
-            process.arguments = [
-                "swiftc", "-swift-version", "5", "-O", "-emit-library", "-module-name", "ProbeThunkExtension",
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain before waiting, or a long diagnostic deadlocks both sides.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
-    }()
-
     private func loadFixture() throws -> MachOFile {
-        let libraryURL = try Self.fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: "ProbeThunkExtension",
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "AccessorThunkGenericExtension.swift", contents: Self.fixtureSource)],
+            // Optimized so the thunk takes the shape a shipping binary carries.
+            arguments: ["-swift-version", "5", "-O", "-target", "arm64-apple-macosx15.0"]
+        )
+        return try HostSlice.machOFile(at: libraryURL)
     }
 
     /// The `inner` field's type of the holder named `holderName`, read

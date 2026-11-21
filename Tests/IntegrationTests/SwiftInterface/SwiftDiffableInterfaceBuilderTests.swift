@@ -88,21 +88,6 @@ extension SwiftDiffableInterfaceBuilderTests {
     }
 }
 
-/// Selects the preferred-architecture slice from a loaded `File`, mirroring the
-/// loading convention of `SwiftSectionTestingSupport`'s single-binary base classes.
-/// Shared by every cross-version base class below so the fat/thin handling lives
-/// in one place.
-private func selectMachOFile(from file: File, architecture: CPUType) throws -> MachOFile {
-    switch file {
-    case .fat(let fatFile):
-        return try required(fatFile.machOFiles().first(where: { $0.header.cpuType == architecture }) ?? fatFile.machOFiles().first)
-    case .machO(let machO):
-        return machO
-    @unknown default:
-        fatalError()
-    }
-}
-
 enum SwiftDiffableInterfaceBuilderTestSuite {
     /// Loads a fixed `(old, new)` pair of `MachOFile`s by name — the two-binary
     /// counterpart of `SwiftSectionTestingSupport.MachOFileTests`, which only loads one.
@@ -113,11 +98,10 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
 
         class var oldFileName: MachOFileName { .iOS_18_5_Simulator_SwiftUICore }
         class var newFileName: MachOFileName { .iOS_26_5_Simulator_SwiftUICore }
-        class var preferredArchitecture: CPUType { .arm64 }
 
         init() async throws {
-            self.oldMachOFile = try selectMachOFile(from: loadFromFile(named: Self.oldFileName), architecture: Self.preferredArchitecture)
-            self.newMachOFile = try selectMachOFile(from: loadFromFile(named: Self.newFileName), architecture: Self.preferredArchitecture)
+            self.oldMachOFile = try HostSlice.machOFile(in: loadFromFile(named: Self.oldFileName))
+            self.newMachOFile = try HostSlice.machOFile(in: loadFromFile(named: Self.newFileName))
         }
     }
 
@@ -158,7 +142,6 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
         class var oldXcodeApplicationPath: String { "/Applications/Xcode-26.3.0.app" }
         class var newXcodeApplicationPath: String { "/Applications/Xcode-26.4.0.app" }
         class var sharedFrameworkName: String { "DVTProductsUI" }
-        class var preferredArchitecture: CPUType { .arm64 }
 
         init() async throws {
             self.oldMachOFile = try Self.loadSharedFramework(inXcodeAt: Self.oldXcodeApplicationPath)
@@ -168,7 +151,7 @@ enum SwiftDiffableInterfaceBuilderTestSuite {
         private class func loadSharedFramework(inXcodeAt xcodeApplicationPath: String) throws -> MachOFile {
             let name = sharedFrameworkName
             let binaryPath = "\(xcodeApplicationPath)/Contents/SharedFrameworks/\(name).framework/Versions/A/\(name)"
-            return try selectMachOFile(from: File.loadFromFile(url: URL(fileURLWithPath: binaryPath)), architecture: preferredArchitecture)
+            return try HostSlice.machOFile(at: URL(fileURLWithPath: binaryPath))
         }
     }
 

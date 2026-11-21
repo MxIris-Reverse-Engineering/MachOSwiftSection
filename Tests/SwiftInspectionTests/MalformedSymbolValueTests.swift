@@ -8,6 +8,7 @@ import Demangling
 @testable @_spi(Internals) import SwiftObjCInterop
 import MachOKitExtensions
 import MachOResolving
+import SwiftSectionFixtureSupport
 
 /// A symbol's value is the binary's own claim about where something sits, and
 /// two indexes read the bytes there: `SymbolicManglingIndex` (the mangled name
@@ -99,13 +100,7 @@ struct MalformedSymbolValueTests {
     }
 
     private static func fixtureFile() throws -> MachOFile {
-        let libraryURL = try fixtureCompilationResult.get()
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        try HostSlice.machOFile(at: fixtureCompilationResult.get())
     }
 
     @Test("a symbolic-mangling symbol whose value is no offset is counted unpaired instead of read")

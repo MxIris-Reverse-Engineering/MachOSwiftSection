@@ -6,6 +6,7 @@ import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftLayout
 @_spi(Internals) import SwiftInspection
+import SwiftSectionFixtureSupport
 
 /// The fixture the two suites below share: a module with `@_rawLayout`
 /// enabled, compiled on the fly (it carries a class: a struct-only fixture
@@ -22,22 +23,6 @@ import Demangling
 /// under Swift 6.4 or newer; the whole-type suite reads nothing but the
 /// struct declarations and runs everywhere.
 enum RawLayoutBuiltinDescriptorFixture {
-    private enum WorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in WorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct CompilationError: Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "raw-layout layout fixture compilation failed:\n\(diagnostics)" }
-    }
-
     static let moduleName = "ProbeRawLayoutLayout"
 
     private static let source = """
@@ -62,29 +47,8 @@ enum RawLayoutBuiltinDescriptorFixture {
     }
     """
 
-    static let compilationResult: Result<URL, any Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("RawLayoutLayoutFixture-\(UUID().uuidString)")
-            _ = WorkingDirectoryCleanup.registration
-            WorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("RawLayouts.swift")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-            let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName).dylib")
-            let output = try run(swiftcArguments: [
-                "-O", "-emit-library", "-module-name", moduleName,
-                "-enable-experimental-feature", "RawLayout",
-                "-target", "arm64-apple-macos27.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ])
-            guard output.terminationStatus == 0 else { throw CompilationError(diagnostics: output.standardError) }
-            return libraryURL
-        }
-    }()
-
     /// `xcrun swiftc -version` reports a Swift 6.4 or newer toolchain — the
-    /// same toolchain `compilationResult` compiles the fixture with.
+    /// same toolchain `image()` compiles the fixture with.
     static let compilesWithSwift64OrNewer: Bool = {
         guard let output = try? run(swiftcArguments: ["-version"]), output.terminationStatus == 0 else { return false }
         let combined = output.standardOutput + output.standardError
@@ -110,14 +74,19 @@ enum RawLayoutBuiltinDescriptorFixture {
         return (process.terminationStatus, String(decoding: standardOutputData, as: UTF8.self), String(decoding: standardErrorData, as: UTF8.self))
     }
 
+    /// Compiled once per process by the shared compiler.
     static func image() throws -> MachOFile {
-        let libraryURL = try compilationResult.get()
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let libraryURL = try FixtureCompiler.shared.dynamicLibrary(
+            named: moduleName,
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "RawLayouts.swift", contents: source)],
+            arguments: [
+                "-O",
+                "-enable-experimental-feature", "RawLayout",
+                "-target", "arm64-apple-macos27.0",
+            ]
+        )
+        return try HostSlice.machOFile(at: libraryURL)
     }
 }
 

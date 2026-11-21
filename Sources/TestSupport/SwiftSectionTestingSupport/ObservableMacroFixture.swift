@@ -278,13 +278,7 @@ package enum ObservableMacroFixture {
 
     package static func machOFile(_ variant: Variant) async throws -> MachOFile {
         let libraryURL = try await libraryURL(variant)
-        switch try MachOKit.loadFromFile(url: libraryURL) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        return try HostSlice.machOFile(at: libraryURL)
     }
 
     /// The `.release` variant loaded into the test process — only that one:

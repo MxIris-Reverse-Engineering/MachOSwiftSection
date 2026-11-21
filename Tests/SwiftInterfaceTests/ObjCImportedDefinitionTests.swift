@@ -254,13 +254,7 @@ struct ObjCImportedDefinitionTests {
     /// separately shipped dylib: a category on a class of another image
     /// stays a category.
     @Test func aCategoryOnAClassOfAnotherImage() async throws {
-        let categoriesLibrary: MachOFile
-        switch try MachOKit.loadFromFile(url: ObjCImplementationFixture.categoriesLibraryURL()) {
-        case .machO(let machOFile):
-            categoriesLibrary = machOFile
-        case .fat(let fatFile):
-            categoriesLibrary = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let categoriesLibrary = try HostSlice.machOFile(at: ObjCImplementationFixture.categoriesLibraryURL())
         let builder = try await builder(of: categoriesLibrary)
         #expect(builder.indexer.objcImportedCategoryUniqueNames == ["NSObject(SeparatelyShipped)"])
         let definition = try #require(builder.indexer.objcImportedCategoryDefinition(uniqueName: "NSObject(SeparatelyShipped)"))

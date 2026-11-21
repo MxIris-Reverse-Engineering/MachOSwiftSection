@@ -55,79 +55,30 @@ enum ExecutableImageFixture {
     print(host.alpha() + host.beta(), OffsetHost.sharedNames.count)
     """
 
-    struct CompilationError: Swift.Error, CustomStringConvertible {
-        let step: String
-        let diagnostics: String
-        var description: String { "\(ExecutableImageFixture.moduleName) fixture \(step) failed:\n\(diagnostics)" }
-    }
-
-    private enum WorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in WorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    /// Compiled once per process.
-    private static let compilationResult: Result<[Variant: URL], any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(moduleName)-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            _ = WorkingDirectoryCleanup.registration
-            WorkingDirectoryCleanup.directories.append(workingDirectory)
-
-            let librarySourceURL = workingDirectory.appendingPathComponent("OffsetHost.swift")
-            let mainSourceURL = workingDirectory.appendingPathComponent("main.swift")
-            try librarySource.write(to: librarySourceURL, atomically: true, encoding: .utf8)
-            try mainSource.write(to: mainSourceURL, atomically: true, encoding: .utf8)
-            let executableURL = workingDirectory.appendingPathComponent(moduleName)
-            let libraryURL = workingDirectory.appendingPathComponent("lib\(moduleName).dylib")
-            // The language mode pinned so CI's toolchain and a newer local one
-            // compile the same source the same way; `-g` leaves the debug map
-            // in the symbol table.
-            let commonArguments = ["swiftc", "-swift-version", "5", "-Onone", "-g", "-module-name", moduleName]
-            try run(step: "swiftc (executable)", commonArguments + [librarySourceURL.path, mainSourceURL.path, "-o", executableURL.path])
-            try run(step: "swiftc (library)", commonArguments + ["-emit-library", librarySourceURL.path, "-o", libraryURL.path])
-            return [.executable: executableURL, .library: libraryURL]
-        }
-    }()
-
-    private static func run(step: String, _ arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = arguments
-        let standardErrorPipe = Pipe()
-        process.standardError = standardErrorPipe
-        try process.run()
-        // Drain BEFORE waitUntilExit, or a long diagnostic deadlocks both sides.
-        let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw CompilationError(step: step, diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-        }
-    }
-
+    /// The executable links `OffsetHost.swift` and `main.swift`; the library
+    /// is `OffsetHost.swift` alone. The shared compiler builds each once per
+    /// process.
     static func url(_ variant: Variant) throws -> URL {
-        let products = try compilationResult.get()
-        guard let url = products[variant] else {
-            throw CompilationError(step: "lookup", diagnostics: "no product for variant \(variant.rawValue)")
+        let librarySourceFile = FixtureSourceFile(name: "OffsetHost.swift", contents: librarySource)
+        // The language mode pinned so CI's toolchain and a newer local one
+        // compile the same source the same way; `-g` leaves the debug map
+        // in the symbol table.
+        let arguments = ["-swift-version", "5", "-Onone", "-g"]
+        switch variant {
+        case .executable:
+            return try FixtureCompiler.shared.executable(
+                named: moduleName,
+                language: .swift,
+                sourceFiles: [librarySourceFile, FixtureSourceFile(name: "main.swift", contents: mainSource)],
+                arguments: arguments
+            )
+        case .library:
+            return try FixtureCompiler.shared.dynamicLibrary(named: moduleName, language: .swift, sourceFiles: [librarySourceFile], arguments: arguments)
         }
-        return url
     }
 
     static func machOFile(_ variant: Variant) throws -> MachOFile {
-        switch try MachOKit.loadFromFile(url: try url(variant)) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFile = try fatFile.machOFiles().first { $0.header.cpuType == .arm64 }
-            return try #require(machOFile, "fixture unexpectedly missing an arm64 slice")
-        }
+        try HostSlice.machOFile(at: url(variant))
     }
 
     /// The library loaded into the test process. The executable cannot be:

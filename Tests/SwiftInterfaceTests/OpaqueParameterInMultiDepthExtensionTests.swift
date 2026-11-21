@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
 import Semantic
+import SwiftSectionFixtureSupport
 
 /// `SwiftInterfaceBuilderOpaqueTypeProvider` finds an opaque result's
 /// constraint at the depth of the opaque parameters, which it counts from the
@@ -20,22 +21,6 @@ import Semantic
 /// An exit test, because the defect traps.
 @Suite(.serialized)
 struct OpaqueParameterInMultiDepthExtensionTests {
-    private enum FixtureWorkingDirectoryCleanup {
-        nonisolated(unsafe) static var directories: [URL] = []
-        static let registration: Void = {
-            atexit {
-                for directory in FixtureWorkingDirectoryCleanup.directories {
-                    try? FileManager.default.removeItem(at: directory)
-                }
-            }
-        }()
-    }
-
-    private struct FixtureCompilationError: Swift.Error, CustomStringConvertible {
-        let diagnostics: String
-        var description: String { "opaque-parameter extension-depth fixture compilation failed:\n\(diagnostics)" }
-    }
-
     private struct MissingConstraint: Swift.Error, CustomStringConvertible {
         let interface: String
         var description: String { "the opaque result did not print its constraint:\n\(interface)" }
@@ -61,48 +46,20 @@ struct OpaqueParameterInMultiDepthExtensionTests {
     }
     """
 
-    private static let fixtureCompilationResult: Result<URL, any Swift.Error> = {
-        Result {
-            let workingDirectory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("OpaqueParameterExtensionDepthFixture-\(UUID().uuidString)")
-            _ = FixtureWorkingDirectoryCleanup.registration
-            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
-            let sourceURL = workingDirectory.appendingPathComponent("OpaqueParameterExtensionDepth.swift")
-            try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-            let libraryURL = workingDirectory.appendingPathComponent("libProbeOpaqueExtensionDepth.dylib")
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = [
-                "swiftc", "-swift-version", "5", "-O", "-emit-library", "-module-name", "ProbeOpaqueExtensionDepth",
-                "-target", "arm64-apple-macosx15.0",
-                sourceURL.path, "-o", libraryURL.path,
-            ]
-            let standardErrorPipe = Pipe()
-            process.standardError = standardErrorPipe
-            try process.run()
-            // Drain before waiting, or a long diagnostic deadlocks both sides.
-            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw FixtureCompilationError(diagnostics: String(decoding: diagnosticsData, as: UTF8.self))
-            }
-            return libraryURL
-        }
-    }()
+    private static func libraryURL() throws -> URL {
+        try FixtureCompiler.shared.dynamicLibrary(
+            named: "ProbeOpaqueExtensionDepth",
+            language: .swift,
+            sourceFiles: [FixtureSourceFile(name: "OpaqueParameterExtensionDepth.swift", contents: source)],
+            arguments: ["-swift-version", "5", "-O", "-target", "arm64-apple-macosx15.0"]
+        )
+    }
 
     /// The fixture's interface with the opaque type provider attached, as
     /// `interface --parse-opaque-return-type` and RuntimeViewer print it; it
     /// throws unless the opaque result names its constraint.
     static func printInterfaceNamingTheOpaqueConstraint() async throws {
-        let libraryURL = try fixtureCompilationResult.get()
-        let machOFile: MachOFile
-        switch try File.loadFromFile(url: libraryURL) {
-        case .machO(let file):
-            machOFile = file
-        case .fat(let fatFile):
-            machOFile = try #require(try fatFile.machOFiles().first { $0.header.cpuType == .arm64 })
-        }
+        let machOFile = try HostSlice.machOFile(at: libraryURL())
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machOFile)
         builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machOFile))
         try await builder.prepare()
