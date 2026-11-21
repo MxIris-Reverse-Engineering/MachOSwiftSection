@@ -53,6 +53,13 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
         /// proposal `comment-structure`): the marks of a nested definition's
         /// comments must not depend on where it prints.
         case everyOptionMarkingCommentStructure
+        /// The marked print with every option, its long types laid out over
+        /// several lines (evolution proposal `multiline-type-formatting`) —
+        /// the parent's print and the definition's own each formatted. The
+        /// width is narrow so that the fixture's long generic types break; it
+        /// does not count indentation, so a definition must break the same
+        /// way at every depth.
+        case everyOptionFormattedAsMultilineTypes
 
         var description: String {
             switch self {
@@ -61,7 +68,18 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
             case .everyOptionWithTransformers: "every option with transformers"
             case .privateDeclarationSourceFiles: "private declaration source files"
             case .everyOptionMarkingCommentStructure: "every option marking comment structure"
+            case .everyOptionFormattedAsMultilineTypes: "every option formatted as multiline types"
             }
+        }
+
+        /// How a print of this variant is formatted before it is compared;
+        /// `nil` leaves it as printed.
+        var multilineTypeFormatting: MultilineTypeFormatting? {
+            self == .everyOptionFormattedAsMultilineTypes ? MultilineTypeFormatting(maximumLineWidth: 30) : nil
+        }
+
+        func finished(_ printed: SemanticString) -> SemanticString {
+            multilineTypeFormatting?.format(printed) ?? printed
         }
 
         var configuration: SwiftDeclarationPrintConfiguration {
@@ -88,7 +106,8 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
                 transformers.swiftTypeLayout.isEnabled = true
                 transformers.swiftEnumLayout.isEnabled = true
                 configuration.applyTransformers(transformers)
-            case .everyOptionMarkingCommentStructure:
+            case .everyOptionMarkingCommentStructure,
+                 .everyOptionFormattedAsMultilineTypes:
                 configuration.printFieldOffset = true
                 configuration.printExpandedFieldOffsets = true
                 configuration.printMemberAddress = true
@@ -252,7 +271,7 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
         var exceptionRegionCount = 0
         var mismatches: [String] = []
         for parent in parents {
-            let printed = try await parent.print(printer).frozen()
+            let printed = try await variant.finished(parent.print(printer)).frozen()
             let regions = printed.separatingDefinitionRegions().definitions.regions
             if regions.count != parent.nestedDefinitionCount {
                 mismatches.append("\(parent.label): \(regions.count) regions for \(parent.nestedDefinitionCount) nested definitions")
@@ -264,7 +283,7 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
                     mismatches.append("\(label): no definition has this identity")
                     continue
                 }
-                let ownPrint = try await ownPrinting(printer).frozen()
+                let ownPrint = try await variant.finished(ownPrinting(printer)).frozen()
                 let regionContent = printed.content(ofDefinitionRegion: region)
                 guard let takenOut = regionContent.removingIndentation(levels: region.depth + 1) else {
                     mismatches.append("\(label): the indentation could not be removed\n\(regionContent.string)")
@@ -303,6 +322,24 @@ final class NestedDefinitionRegionContractTests: MachOSwiftSectionFixtureTests, 
         let result = try await Self.mismatches(in: machOFile, variant: variant)
         #expect(result.checkedRegionCount > 100)
         #expect(result.mismatches.isEmpty, "\(result.mismatches.joined(separator: "\n\n"))")
+    }
+
+    /// The formatted variant proves something only if the fixture's prints
+    /// actually break at its width. The fixture has few long generic types —
+    /// most of them fields of `GenericFieldLayout`'s nested types — and at 30
+    /// columns they insert about a hundred lines.
+    @Test func formattedVariantBreaksTheFixtureTypes() async throws {
+        let indexer = SwiftDeclarationIndexer(in: machOFile)
+        try await indexer.prepare()
+        let variant = Variant.everyOptionFormattedAsMultilineTypes
+        let printer = SwiftDeclarationPrinter(configuration: variant.configuration, in: machOFile)
+        var insertedLineCount = 0
+        for typeDefinition in indexer.rootTypeDefinitions.values {
+            let printed = try await printer.printTypeDefinition(typeDefinition)
+            let formatted = variant.finished(printed)
+            insertedLineCount += formatted.string.count { $0 == "\n" } - printed.string.count { $0 == "\n" }
+        }
+        #expect(insertedLineCount > 50)
     }
 
     /// The exception on `ExportedOnlyFixture`, whose `UnexportedParent` the

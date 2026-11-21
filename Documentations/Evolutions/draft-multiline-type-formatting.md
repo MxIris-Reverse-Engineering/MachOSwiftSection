@@ -118,7 +118,7 @@ func update(
 | `Sources/Output/SwiftDeclarationRendering/MultilineTypeFormatting+Layout.swift` · `MultilineTypeFormatting.Layout`（internal） | 新增 | 判定放不下的类型、自下而上决定哪些列表拆开、按规则 6 生成 atom（插入的换行与缩进沿用相邻括号或逗号 atom 的 identifier） | 规则 3–6 | 3 |
 | `Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingTests.swift` | 新增 | 行切分、解析、排版的单元测试，输入用手工拼的 `SemanticString`，形状与两套打印器的输出一致 | 每步的行为清单 | 1–3 |
 | `Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingPreservationTests.swift` | 新增 | 保持性测试：semantic type 与 identifier 不变、去掉插入的换行能还原原文、幂等、与缩进可交换、region 读回不变 | 规则 6 的「只加换行和缩进」承诺 | 4 |
-| `Tests/SwiftInterfaceTests/MultilineTypeFormattingNestedDefinitionTests.swift` | 新增 | 打开 `marksNestedDefinitions` 打印 SymbolTestsCore 里带嵌套类型的定义，格式化父定义后取出的子定义等于子定义单独打印后格式化 | 嵌套定义契约在格式化后仍成立 | 4 |
+| `Tests/SwiftInterfaceTests/NestedDefinitionRegionContractTests.swift` | 修改 | 新变体 `everyOptionFormattedAsMultilineTypes`：父定义的打印与子定义自己的打印都按 30 列格式化后再比较；另加 `formattedVariantBreaksTheFixtureTypes`，确认 fixture 在这个宽度下真的有类型被拆开 | 嵌套定义契约在格式化后仍成立；复用这个套件的整套比较（文字、span、identifier、三种 region） | 4 |
 | `Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift` · `InterfaceRequest` | 修改 | 新字段 `multilineTypeFormatting`（init 参数默认 `nil`），`run` 里 `printRoot()` 之后、写文件或交给 output 之前调用 | interface 的唯一出口 | 5 |
 | `Sources/Commands/SwiftSectionKit/Swift/DumpRequest.swift` · `DumpRequest`、`DumpSession` | 修改 | 新字段 `multilineTypeFormatting`；`DumpSession.dump` 拿到 `dumpedDeclaration` 后调用 | dump 的唯一出口，一次一个顶层声明 | 5 |
 | `Tests/SwiftSectionKitTests/MultilineTypeFormattingRequestTests.swift` | 新增 | 两个请求打开与关闭字段时的输出 | 接入正确、关闭时不变 | 5 |
@@ -277,7 +277,8 @@ extension MultilineTypeFormatting {
   - 每个元素去掉首尾空白后输出；
   - 元素之间的分隔：原来的 `, `（或 `,`）atom 换成只含 `,` 的 atom（type 与 identifier 不变），后面插入 `\n` 与缩进；
   - 闭括号前插入 `\n` 与 `L + 4(k − 1)` 个空格；
-  - 插入的 atom 都是 `.standard`，`identifier` 取它前面那个括号或逗号 atom 的 `identifier`。括号若和别的字符在同一个 atom 里，就在括号处切开，各段保留原 type 与 identifier。
+  - 插入的 atom 都是 `.standard`。开括号与逗号之后的换行和缩进取那个开括号或逗号 atom 的 `identifier`；闭括号之前的换行和缩进取闭括号 atom 的 `identifier`——不取它前面那个元素的，因为元素的最后一个 atom 往往是带着类型引用 identifier 的类型名，换行不该算进那个引用。括号若和别的字符在同一个 atom 里，就在括号处切开，各段保留原 type 与 identifier。
+  - 有任何一行被改时，结果按 atom 一个元素重建（`SemanticString(components:)`），不保留输入的元素边界——公开 API 读不到元素边界；所以 `format` 用在打印完成的结果上，不用在还要拼进容器的半成品上。没有任何一行被改时直接返回输入本身。
 - 一个列表为空（`()`）时从不拆。
 
 ### 保持性
@@ -359,13 +360,16 @@ extension MultilineTypeFormatting {
    - 行为：`continuationLinesIndentFromTheLineIndentation`
    - 行为：`separatorLosesItsSpaceWhenBroken`
    - 行为：`swiftUIBodyIsLaidOutByStructure`（本提案「提议方案」一节的例子）
-4. **保持性与嵌套定义契约** —— 改动地图第 6、7 行
+4. **保持性与嵌套定义契约**（已完成） —— 改动地图第 6、7 行
    - 行为：`formattingKeepsSemanticTypesAndIdentifiers`
+   - 行为：`insertedLineBreaksCarryTheIdentifierOfTheirBracketOrComma`
+   - 行为：`unchangedLinesAroundAChangedLineKeepTheirComponents`
    - 行为：`removingInsertedBreaksRestoresTheOriginalText`
    - 行为：`formattingIsIdempotent`
    - 行为：`formattingCommutesWithIndentation`
    - 行为：`annotationAndVisibilityRegionsReadBackUnchanged`
-   - 行为：`nestedDefinitionTakenOutOfFormattedParentEqualsFormattedChildPrint`
+   - 行为：`NestedDefinitionRegionContractTests` 的 `everyOptionFormattedAsMultilineTypes` 变体（进程内与文件两种读取器）
+   - 行为：`formattedVariantBreaksTheFixtureTypes`
 5. **SwiftSectionKit 接入** —— 改动地图第 8、9、10 行
    - 行为：`interfaceRequestFormatsLongTypesWhenAsked`
    - 行为：`dumpRequestFormatsEachDeclarationWhenAsked`
@@ -396,3 +400,6 @@ extension MultilineTypeFormatting {
 | 2026-11-21 | 接入方式 | 做成调用方在出口调用一次的纯格式化函数，不改打印器、不加打印配置项：两套打印器、互相调用的公开入口与嵌套定义契约都让「在打印器里拆」代价过高。 |
 | 2026-11-21 | 宽度不计缩进 | 内容宽度减去行首缩进，使同一个声明在任何嵌套深度都拆得一样，`marksNestedDefinitions` 的契约不受影响。 |
 | 2026-11-21 | Accepted | 用户批准，开始实现。功能分支 `feature/multiline-type-formatting`，从 `next` 切出。 |
+| 2026-11-21 | 闭括号前的换行取闭括号的 identifier | 详细设计原写「取前一个括号或逗号的」；闭括号前面紧挨的是元素末尾，常是带类型引用 identifier 的类型名，换行不该算进那个引用的 span，所以改取闭括号自己的。 |
+| 2026-11-21 | 不保留元素边界 | `SemanticString` 的元素边界没有公开读取的接口，有一行被改时结果按 atom 一个元素重建；文档注释写明 `format` 用于打印完成的结果。没有行被改时返回输入本身，边界原样。 |
+| 2026-11-21 | 嵌套定义契约测试并入现有套件 | 改动地图原计划新建 `MultilineTypeFormattingNestedDefinitionTests.swift`；改为给 `NestedDefinitionRegionContractTests` 加一个格式化变体，直接复用它对文字、span、identifier 与三种 region 的整套比较。宽度取 30 列：fixture 的长泛型类型不多（主要是 `GenericFieldLayout` 各嵌套类型的字段），40 列下只有 4 个根类型有改动，30 列下新增约一百行。 |
