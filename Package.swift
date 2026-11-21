@@ -955,13 +955,15 @@ extension Target {
             .target(.SwiftSectionKit),
             // What the wrapper names itself while mapping its flags onto the
             // library's requests: `DependencySearchPath`, `DemangleOptions`,
-            // `Transformer.SwiftConfiguration`, `ConsoleEventHandler`, the
-            // ObjC generation options and C type presets.
+            // `Transformer.SwiftConfiguration`, `ConsoleEventHandler`,
+            // `MultilineTypeFormatting`, the ObjC generation options and C
+            // type presets.
             .product(.MachOFoundation),
             .target(.SwiftSymbols),
             .target(.SwiftDump),
             .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
+            .target(.SwiftDeclarationRendering),
             .target(.SwiftIndexing),
             .product(.Semantic),
             .product(.OutputTransformer),
@@ -1378,6 +1380,9 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftDiffing),
             .target(.SwiftOutputTransformer),
+            // `MultilineTypeFormatting`, which the `dump` and `interface`
+            // requests take.
+            .target(.SwiftDeclarationRendering),
             // What `refs` and `symbolicate` return.
             .target(.CrossReferenceAnalysis),
             .product(.Semantic),

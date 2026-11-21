@@ -16,6 +16,7 @@ let commandLineDependencies: [TargetDependency] = [
     .external(name: "SwiftDump"),
     .external(name: "SwiftOutputTransformer"),
     .external(name: "SwiftDeclaration"),
+    .external(name: "SwiftDeclarationRendering"),
     .external(name: "SwiftIndexing"),
     .external(name: "Semantic"),
     .external(name: "OutputTransformer"),

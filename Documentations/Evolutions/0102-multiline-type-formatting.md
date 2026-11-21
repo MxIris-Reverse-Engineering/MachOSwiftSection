@@ -1,13 +1,13 @@
-# Draft - 长类型拆行：放不下的类型按括号结构拆成多行
+# 0102 - 长类型拆行：放不下的类型按括号结构拆成多行
 
-- **状态**: Accepted
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-21
 - **最后更新**: 2026-11-21
 - **所属愿景**: 无
-- **关联提案**: 无
-- **实现分支 / PR**: `feature/multiline-type-formatting`
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **关联提案**: RuntimeViewer 的提案 `multiline-type-formatting`（生成选项里的「Break Long Types」，见它的 [提案索引](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/README.md)）
+- **实现分支 / PR**: `feature/multiline-type-formatting`（已合进 `next`）
+- **配套文档**: 不另写——规则与保持性承诺在本提案与 `MultilineTypeFormatting` 的文档注释里；调用方用法在 [SwiftSectionKit.md](../SwiftSectionKit.md)
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -46,7 +46,7 @@ let formatted = formatting.format(printedDefinition)
 2. **超宽的行解析成括号树。** 只在 `.standard` 类型的 atom 里找括号；类型名、模块名、关键字、声明名、注释等其它 atom 整体当作文字。字符串字面量、反引号标识符、`//` 之后的内容是文字；`->` 不是括号。括号不配对（例如 dump 里的运算符声明）就整行原样保留。
 3. **找出放不下的类型。** 不在其它泛型参数列表里面的泛型参数列表，算作一个类型的最外层；它的 `>` 落在第 `maximumLineWidth` 列之后，这个类型就算放不下。只有泛型参数列表会触发拆行；行之所以超宽是因为别的东西（一长串参数、行尾注释），这一行不动。
 4. **放不下的类型按结构规则拆。** 在这个类型内部：有两个及以上参数的泛型参数列表一律每个参数一行；单参数的泛型参数列表、元组、函数类型的参数列表、`[…]` 集合语法糖，只在某个元素已是多行时才拆。
-5. **外层括号跟着拆。** 类型之外的括号——函数声明的参数列表、enum case 的 payload、元组、泛型参数子句（紧跟在声明名后面的 `<…>`）、attribute 的参数——只在某个元素已是多行时才拆，否则保持一行。泛型参数子句因此不会仅仅因为有两个参数就被拆开。
+5. **外层括号跟着拆。** 类型之外的括号——函数声明的参数列表、enum case 的 payload、元组、泛型签名（紧跟在声明名后面的 `<…>`，以及里面写着 `where`、`A: P` 或 `==` 的 `<…>`）、attribute 的参数——只在某个元素已是多行时才拆，否则保持一行。泛型签名因此不会仅仅因为有两项就被拆开。
 6. **拆开的列表这样排。** 开括号留在原行末尾；每个参数另起一行，缩进为这一行的行首缩进加 4 个空格乘以嵌套层数；参数之间的 `, ` 变成 `,`；闭括号另起一行，缩进回到上一层。
 
 截图里那个 `Body` 的开头一段，按默认宽度格式化后是这样：
@@ -118,11 +118,14 @@ func update(
 | `Sources/Output/SwiftDeclarationRendering/MultilineTypeFormatting+Layout.swift` · `MultilineTypeFormatting.Layout`（internal） | 新增 | 判定放不下的类型、自下而上决定哪些列表拆开、按规则 6 生成 atom（插入的换行与缩进沿用相邻括号或逗号 atom 的 identifier） | 规则 3–6 | 3 |
 | `Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingTests.swift` | 新增 | 行切分、解析、排版的单元测试，输入用手工拼的 `SemanticString`，形状与两套打印器的输出一致 | 每步的行为清单 | 1–3 |
 | `Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingPreservationTests.swift` | 新增 | 保持性测试：semantic type 与 identifier 不变、去掉插入的换行能还原原文、幂等、与缩进可交换、region 读回不变 | 规则 6 的「只加换行和缩进」承诺 | 4 |
-| `Tests/SwiftInterfaceTests/MultilineTypeFormattingNestedDefinitionTests.swift` | 新增 | 打开 `marksNestedDefinitions` 打印 SymbolTestsCore 里带嵌套类型的定义，格式化父定义后取出的子定义等于子定义单独打印后格式化 | 嵌套定义契约在格式化后仍成立 | 4 |
+| `Tests/SwiftInterfaceTests/NestedDefinitionRegionContractTests.swift` | 修改 | 新变体 `everyOptionFormattedAsMultilineTypes`：父定义的打印与子定义自己的打印都按 30 列格式化后再比较；另加 `formattedVariantBreaksTheFixtureTypes`，确认 fixture 在这个宽度下真的有类型被拆开 | 嵌套定义契约在格式化后仍成立；复用这个套件的整套比较（文字、span、identifier、三种 region） | 4 |
 | `Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift` · `InterfaceRequest` | 修改 | 新字段 `multilineTypeFormatting`（init 参数默认 `nil`），`run` 里 `printRoot()` 之后、写文件或交给 output 之前调用 | interface 的唯一出口 | 5 |
 | `Sources/Commands/SwiftSectionKit/Swift/DumpRequest.swift` · `DumpRequest`、`DumpSession` | 修改 | 新字段 `multilineTypeFormatting`；`DumpSession.dump` 拿到 `dumpedDeclaration` 后调用 | dump 的唯一出口，一次一个顶层声明 | 5 |
 | `Tests/SwiftSectionKitTests/MultilineTypeFormattingRequestTests.swift` | 新增 | 两个请求打开与关闭字段时的输出 | 接入正确、关闭时不变 | 5 |
-| `Sources/Executables/swift-section/Commands/InterfaceCommand.swift`、`DumpCommand.swift` | 修改 | `--multiline-types` flag、`--maximum-line-width <columns>` option；`validate()` 拒绝单独给宽度和非正数宽度；`makeRequest()` 映射 | CLI 是 SwiftSectionKit 的包装 | 6 |
+| `Package.swift` · `swift-section`、`SwiftSectionKitTests` | 修改 | 两个 target 各加 `SwiftDeclarationRendering` 直接依赖 | SwiftSectionKit 不重新导出任何模块，调用方构造 `MultilineTypeFormatting` 要自己导入它 | 5 |
+| `Tuist/CommandLine/Project.swift` · `commandLineDependencies` | 修改 | 加 `.external(name: "SwiftDeclarationRendering")` | 项目规定 `swift-section` 的新依赖同步进 Tuist 工程；测试目标的依赖由 `Package.swift` 末尾的映射自动带上 | 5 |
+| `Sources/Executables/swift-section/Models/MultilineTypeOptionGroup.swift` · `MultilineTypeOptionGroup` | 新增 | `--multiline-types` flag、`--maximum-line-width <columns>` option；`validate()` 拒绝单独给宽度和非正数宽度；`multilineTypeFormatting` 把两者换成请求要的值；帮助里的默认宽度取自 `MultilineTypeFormatting()` | 两个子命令共用一组参数，照 `ObjCMemberOptionGroup` 的做法放进 option group | 6 |
+| `Sources/Executables/swift-section/Commands/InterfaceCommand.swift`、`DumpCommand.swift` | 修改 | `@OptionGroup(title: "Long Types")` 引入上面那组参数，`makeRequest()` 映射到 `multilineTypeFormatting` | CLI 是 SwiftSectionKit 的包装 | 6 |
 | `Tests/SwiftSectionCommandTests/MultilineTypesFlagTests.swift` | 新增 | flag 映射到请求、校验错误的退出码 64 | CLI 两侧都要有测试 | 6 |
 | `AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md` | 修改 | 写明两个新 flag 与默认宽度 | CLI 改动要同批更新这份 skill | 6 |
 | `Documentations/SwiftSectionKit.md`、`Documentations/Internal/Modules/SwiftSectionKit.md` | 修改 | 两个请求的新字段 | 调用方指南与模块参考 | 7 |
@@ -262,7 +265,7 @@ extension MultilineTypeFormatting {
 
 - 只有 `.standard` atom 参与扫描；其它 semantic type 的 atom 整体是一个 `text`。这样类型名、声明名（包括 interface 里的运算符名）、注释里的括号都不会被当成结构。
 - 在 `.standard` atom 里：`"` 开始一个字符串字面量，到未转义的 `"` 结束；反引号同理；`//` 之后到行末都是文字；`-` 紧跟 `>` 是箭头，不关闭任何列表；`<`、`(`、`[` 开列表，`>`、`)`、`]` 必须关闭同种列表；深度大于 0 时的 `,` 分隔元素。
-- `<` 前面（跳过空白）的 atom 的 semantic type 是 `.type(_, .declaration)`、`.function(.declaration)` 或 `.member(.declaration)` 时，这个列表是 `genericParameters`；否则是 `genericArguments`。
+- `<` 前面（跳过空白）的 atom 的 semantic type 是 `.type(_, .declaration)`、`.function(.declaration)` 或 `.member(.declaration)` 时，这个列表是 `genericParameters`；否则是 `genericArguments`。闭括号读到时再看一次：有一项在自己这一层（不算嵌在里面的列表）写着 `where` 这个词、`: `（冒号后带空格）或 `==`，这是 dump 写在类型名后面的泛型签名（`_ConditionalContent< where A: P, B: Q>`、`make<A, B where A == B.Element>`），也改为 `genericParameters`。类型参数里不会出现这三种：模块选择器的 `::` 与 dump 的 `(extension in M):` 前缀冒号后没有空格，元组的标签在它自己的列表里。
 - 关闭括号与种类不符、或行末仍有未关闭的列表，返回 `nil`，整行原样保留。dump 里的 `static func < infix(…)` 就走这条路。
 
 ### 排版
@@ -277,7 +280,8 @@ extension MultilineTypeFormatting {
   - 每个元素去掉首尾空白后输出；
   - 元素之间的分隔：原来的 `, `（或 `,`）atom 换成只含 `,` 的 atom（type 与 identifier 不变），后面插入 `\n` 与缩进；
   - 闭括号前插入 `\n` 与 `L + 4(k − 1)` 个空格；
-  - 插入的 atom 都是 `.standard`，`identifier` 取它前面那个括号或逗号 atom 的 `identifier`。括号若和别的字符在同一个 atom 里，就在括号处切开，各段保留原 type 与 identifier。
+  - 插入的 atom 都是 `.standard`。开括号与逗号之后的换行和缩进取那个开括号或逗号 atom 的 `identifier`；闭括号之前的换行和缩进取闭括号 atom 的 `identifier`——不取它前面那个元素的，因为元素的最后一个 atom 往往是带着类型引用 identifier 的类型名，换行不该算进那个引用。括号若和别的字符在同一个 atom 里，就在括号处切开，各段保留原 type 与 identifier。
+  - 有任何一行被改时，结果按 atom 一个元素重建（`SemanticString(components:)`），不保留输入的元素边界——公开 API 读不到元素边界；所以 `format` 用在打印完成的结果上，不用在还要拼进容器的半成品上。没有任何一行被改时直接返回输入本身。
 - 一个列表为空（`()`）时从不拆。
 
 ### 保持性
@@ -330,13 +334,13 @@ extension MultilineTypeFormatting {
 
 ## 落地步骤
 
-1. **骨架：类型、行切分与宽度闸门** —— 改动地图第 1、2、5 行
+1. **骨架：类型、行切分与宽度闸门**（已完成） —— 改动地图第 1、2、5 行
    - 行为：`emptySourceIsUnchanged`
    - 行为：`linesWithinWidthAreUnchangedAtomForAtom`
    - 行为：`contentWidthIgnoresLeadingIndentation`
    - 行为：`atomsContainingLineBreaksAreSplitKeepingTypeAndIdentifier`
    - 行为：`nonPositiveWidthIsAPreconditionFailure`（exit test）
-2. **括号树** —— 改动地图第 3、5 行
+2. **括号树**（已完成） —— 改动地图第 3、5 行
    - 行为：`genericArgumentListsNestInsideParenthesesAndBrackets`
    - 行为：`angleBracketAfterDeclarationNameIsGenericParameterClause`
    - 行为：`arrowIsNotAClosingBracket`
@@ -346,7 +350,7 @@ extension MultilineTypeFormatting {
    - 行为：`bracketsInNonStandardAtomsAreText`（类型名、声明名、注释 atom）
    - 行为：`unbalancedLineIsLeftUnchanged`
    - 行为：`operatorDeclarationFromDumpIsLeftUnchanged`（`static func < infix(…)`）
-3. **排版与生成** —— 改动地图第 4、5 行
+3. **排版与生成**（已完成） —— 改动地图第 4、5 行
    - 行为：`multiArgumentGenericBreaksOneArgumentPerLine`
    - 行为：`singleArgumentGenericStaysInlineUnlessItsArgumentBreaks`
    - 行为：`tupleBreaksOnlyWhenAnElementBreaks`
@@ -359,26 +363,30 @@ extension MultilineTypeFormatting {
    - 行为：`continuationLinesIndentFromTheLineIndentation`
    - 行为：`separatorLosesItsSpaceWhenBroken`
    - 行为：`swiftUIBodyIsLaidOutByStructure`（本提案「提议方案」一节的例子）
-4. **保持性与嵌套定义契约** —— 改动地图第 6、7 行
+4. **保持性与嵌套定义契约**（已完成） —— 改动地图第 6、7 行
    - 行为：`formattingKeepsSemanticTypesAndIdentifiers`
+   - 行为：`insertedLineBreaksCarryTheIdentifierOfTheirBracketOrComma`
+   - 行为：`unchangedLinesAroundAChangedLineKeepTheirComponents`
    - 行为：`removingInsertedBreaksRestoresTheOriginalText`
    - 行为：`formattingIsIdempotent`
    - 行为：`formattingCommutesWithIndentation`
    - 行为：`annotationAndVisibilityRegionsReadBackUnchanged`
-   - 行为：`nestedDefinitionTakenOutOfFormattedParentEqualsFormattedChildPrint`
-5. **SwiftSectionKit 接入** —— 改动地图第 8、9、10 行
-   - 行为：`interfaceRequestFormatsLongTypesWhenAsked`
-   - 行为：`dumpRequestFormatsEachDeclarationWhenAsked`
-   - 行为：`requestsWithoutFormattingPrintAsBefore`
+   - 行为：`NestedDefinitionRegionContractTests` 的 `everyOptionFormattedAsMultilineTypes` 变体（进程内与文件两种读取器）
+   - 行为：`formattedVariantBreaksTheFixtureTypes`
+5. **SwiftSectionKit 接入**（已完成） —— 改动地图第 8、9、10 行与依赖清单两行
+   - 行为：`requestsFormatNothingUnlessAsked`
+   - 行为：`interfaceRequestFormatsLongTypesWhenAsked`（产物等于把不格式化的产物整份格式化）
+   - 行为：`dumpRequestFormatsEachDeclarationWhenAsked`（每个声明等于把它不格式化的打印格式化）
    - 行为：`interfaceWrittenToFileIsFormattedToo`
-6. **CLI 与 agent 插件** —— 改动地图第 11、12、13 行
+6. **CLI 与 agent 插件**（已完成） —— 改动地图第 11、12、13 行与 `MultilineTypeOptionGroup` 一行
+   - 行为：`formattingIsOffByDefault`
    - 行为：`multilineTypesFlagMapsOntoTheRequest`
    - 行为：`maximumLineWidthMapsOntoTheRequest`
-   - 行为：`maximumLineWidthWithoutMultilineTypesIsAUsageError`
-   - 行为：`nonPositiveMaximumLineWidthIsAUsageError`
-   - 行为：插件 skill 里出现的每个 flag 都存在于对应子命令的 `--help`
-7. **文档** —— 改动地图第 14、15、16 行
-   - 行为：文档索引、账本、术语表、模块清单与代码一致
+   - 行为：`usageMistakesAreValidationErrors`（只给宽度、宽度不是正数，两个子命令都是退出码 64）
+   - 行为：`helpNamesTheDefaultWidth`
+   - 行为：插件 skill 里出现的每个 flag 都存在于对应子命令的 `--help`（逐个核对过）；`claude plugin validate` 两项通过
+7. **文档**（已完成） —— 改动地图第 14、15、16 行
+   - 行为：文档索引、账本、术语表、模块清单与代码一致；`SwiftSectionKit_zh.md` 与英文版同步
 
 验证：每步 `swift build` 通过、本步新测试通过；收尾跑 `swift test --skip IntegrationTests` 全量。打印器不改、默认关闭，渲染 A/B 不适用（照 `SystemFrameworkRenderingVerification.md` 的判据，它针对改动打印、索引或读取器的重构），但会对一份真实 SwiftUI interface 打开格式化，记录 `format` 的耗时与输出行数，作为性能与效果的留档。
 
@@ -396,3 +404,11 @@ extension MultilineTypeFormatting {
 | 2026-11-21 | 接入方式 | 做成调用方在出口调用一次的纯格式化函数，不改打印器、不加打印配置项：两套打印器、互相调用的公开入口与嵌套定义契约都让「在打印器里拆」代价过高。 |
 | 2026-11-21 | 宽度不计缩进 | 内容宽度减去行首缩进，使同一个声明在任何嵌套深度都拆得一样，`marksNestedDefinitions` 的契约不受影响。 |
 | 2026-11-21 | Accepted | 用户批准，开始实现。功能分支 `feature/multiline-type-formatting`，从 `next` 切出。 |
+| 2026-11-21 | 闭括号前的换行取闭括号的 identifier | 详细设计原写「取前一个括号或逗号的」；闭括号前面紧挨的是元素末尾，常是带类型引用 identifier 的类型名，换行不该算进那个引用的 span，所以改取闭括号自己的。 |
+| 2026-11-21 | 不保留元素边界 | `SemanticString` 的元素边界没有公开读取的接口，有一行被改时结果按 atom 一个元素重建；文档注释写明 `format` 用于打印完成的结果。没有行被改时返回输入本身，边界原样。 |
+| 2026-11-21 | 嵌套定义契约测试并入现有套件 | 改动地图原计划新建 `MultilineTypeFormattingNestedDefinitionTests.swift`；改为给 `NestedDefinitionRegionContractTests` 加一个格式化变体，直接复用它对文字、span、identifier 与三种 region 的整套比较。宽度取 30 列：fixture 的长泛型类型不多（主要是 `GenericFieldLayout` 各嵌套类型的字段），40 列下只有 4 个根类型有改动，30 列下新增约一百行。 |
+| 2026-11-21 | 调用方直接依赖 `SwiftDeclarationRendering` | `SwiftSectionKit` 不重新导出任何模块，它的公开字段类型 `MultilineTypeFormatting` 由调用方自己导入：`swift-section` 与 `SwiftSectionKitTests` 各加一条直接依赖，Tuist 的命令行工程同步加上。不为一个类型在 Kit 里开 `@_exported`，与 Kit 现有字段（`Transformer.SwiftConfiguration` 等）的做法一致。 |
+| 2026-11-21 | 尖括号里写着要求的是泛型签名 | 对系统 SwiftUI 跑 `dump --multiline-types` 时发现：dump 把受约束扩展的上下文印成 `_ConditionalContent< where A: P, B: Q>`，这个 `<…>` 跟在类型名后面，被当成两个泛型参数拆开了。规则补一条：`<…>` 里有一项在自己这一层写着 `where`、`A: P`（冒号后带空格）或 `==`，就是泛型签名，按泛型参数子句处理（只在元素已是多行时才拆）。模块选择器的 `::` 与 dump 的 `(extension in M):` 前缀冒号后都没有空格，不受影响。先写了变红的测试 `angleBracketsHoldingRequirementsAreAGenericSignature`、`genericSignatureIsNotBrokenForItsRequirements`，修复后通过；另加 `moduleSelectorsAndExtensionContextsLeaveAnArgumentList`、`moduleSelectorsStillBreakAsArguments` 守住不误判。 |
+| 2026-11-21 | 不跑全量，以定向测试交付 | 机器负载高，全量两次开跑都停掉了；`swift test` 没法把进程限制在指定核数（`SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH` 只限同时跑几个测试，测试内部建索引照样铺满全部核）。用户决定以定向测试交付：本提案涉及的八个套件都通过。功能默认关闭、打印器未改，关闭时的输出由构造保证不变。 |
+| 2026-11-21 | 实现完成，待用户看过后收尾 | 文档判断：不另写实现说明，规则与取舍都在本提案和 `MultilineTypeFormatting` 的文档注释里；新术语 long type / multiline type formatting 已登记进 `Documentations/Glossary.md`；`SwiftSectionKit.md`（中英）、`Modules/SwiftSectionKit.md`、agent 插件 skill、`AGENTS.md` 模块清单、演进账本同批更新。RuntimeViewer 的开关与调用是它自己的后续改动。 |
+| 2026-11-21 | Implemented | 用户决定正式收尾：落地为 0102，演进账本第 148 节；合进 `next` 并推送。RuntimeViewer 的接入另由它自己的提案落地。 |

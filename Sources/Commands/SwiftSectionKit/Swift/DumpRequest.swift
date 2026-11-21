@@ -97,6 +97,10 @@ public struct DumpRequest: Sendable, Equatable {
     /// A leading header comment: generator, image path, UUID, architecture,
     /// library-evolution detection, unrecoverable-facts notes.
     public var emitsHeader: Bool
+    /// Lays a type that runs past the line width out over several lines, at
+    /// its brackets, in each declaration (evolution proposal
+    /// `multiline-type-formatting`). `nil` prints every type on one line.
+    public var multilineTypeFormatting: MultilineTypeFormatting?
     /// The comment templates. `nil` keeps the built-in rendering; a module the
     /// configuration enables also turns its comment kind on.
     public var commentTransformers: Transformer.SwiftConfiguration?
@@ -117,6 +121,7 @@ public struct DumpRequest: Sendable, Equatable {
         emitsExportStatus: Bool = false,
         emitsPrivateDeclarationSourceFiles: Bool = false,
         emitsHeader: Bool = false,
+        multilineTypeFormatting: MultilineTypeFormatting? = nil,
         commentTransformers: Transformer.SwiftConfiguration? = nil,
         destination: ProductDestination = .output
     ) {
@@ -134,6 +139,7 @@ public struct DumpRequest: Sendable, Equatable {
         self.emitsExportStatus = emitsExportStatus
         self.emitsPrivateDeclarationSourceFiles = emitsPrivateDeclarationSourceFiles
         self.emitsHeader = emitsHeader
+        self.multilineTypeFormatting = multilineTypeFormatting
         self.commentTransformers = commentTransformers
         self.destination = destination
     }
@@ -144,7 +150,7 @@ public struct DumpRequest: Sendable, Equatable {
     public func run(output: some SwiftSectionOutput, environment: SwiftSectionEnvironment) async throws {
         try await withAccessorThunkResolver(searchPaths: dependencySearchPaths) {
             let machOFile = try source.load()
-            let session = DumpSession(output: output, destination: destination)
+            let session = DumpSession(output: output, destination: destination, multilineTypeFormatting: multilineTypeFormatting)
             try await dump(machOFile, into: session, environment: environment)
             try session.finish()
         }
@@ -500,11 +506,13 @@ private enum DumpTopLevelContext {
 private final class DumpSession<Output: SwiftSectionOutput> {
     let output: Output
     let destination: ProductDestination
+    let multilineTypeFormatting: MultilineTypeFormatting?
     private var dumpedText = ""
 
-    init(output: Output, destination: ProductDestination) {
+    init(output: Output, destination: ProductDestination, multilineTypeFormatting: MultilineTypeFormatting?) {
         self.output = output
         self.destination = destination
+        self.multilineTypeFormatting = multilineTypeFormatting
     }
 
     /// Dumps one top-level declaration and hands it to the output with what it
@@ -513,7 +521,8 @@ private final class DumpSession<Output: SwiftSectionOutput> {
     func dump(_ topLevelContext: DumpTopLevelContext, using configuration: DumperConfiguration, in machOFile: MachOFile) async throws {
         let dumpedDeclaration: SemanticString
         do {
-            dumpedDeclaration = try await topLevelContext.dump(using: configuration, in: machOFile)
+            let printedDeclaration = try await topLevelContext.dump(using: configuration, in: machOFile)
+            dumpedDeclaration = multilineTypeFormatting?.format(printedDeclaration) ?? printedDeclaration
         } catch {
             reportError(error)
             return
