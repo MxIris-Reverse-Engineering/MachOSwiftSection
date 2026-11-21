@@ -212,10 +212,19 @@ public struct FixtureCompiler: Sendable {           // macOS only
     public enum Language: Sendable { case c, cPlusPlus, swift }
     public static let shared: FixtureCompiler
     /// Compiles `source` into `lib<name>.dylib` (install name `@rpath/lib<name>.dylib`) once per
-    /// process for the same name, language, source and arguments; the directory goes away when
-    /// the process exits.
+    /// process for the same name, language, kind, sources and arguments; the directory goes away
+    /// when the process exits. Architecture, optimization and target come in `arguments`.
     public func dynamicLibrary(named name: String, language: Language, source: String, arguments: [String] = []) throws -> URL
+    public func dynamicLibrary(named name: String, language: Language, sourceFiles: [FixtureSourceFile], arguments: [String] = []) throws -> URL
+    /// The main executable `name`.
+    public func executable(named name: String, language: Language, source: String, arguments: [String] = []) throws -> URL
+    public func executable(named name: String, language: Language, sourceFiles: [FixtureSourceFile], arguments: [String] = []) throws -> URL
     public var productsDirectory: URL { get }
+}
+
+/// A file of a build, written under `name`; its extension tells the driver how to read it.
+public struct FixtureSourceFile: Hashable, Sendable {
+    public init(name: String, contents: String)
 }
 
 public struct ForwardingReader<Base: MachORepresentableWithCache, Declaration: ForwardingReaderDeclaration>: MachORepresentableWithCache
@@ -325,7 +334,7 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 3. **MKE 的测试改用共享版本**（完成）—— 动机一节的表，以及 `Tests/CPlusPlusSymbolsTests/`
    - 行为：MKE 全部测试照常通过，跨读取器的约 25 个测试改写为 `acrossAllReaders` 后断言不变
    - 行为：仓库里不再有 `Process` 调用 `xcrun` 的测试辅助、写死 Cryptexes 路径的常量、手写的选 slice
-4. **MKE 文档与发版**（文档完成，发版待确认）—— `Internal/TestingSupport.md`、README、索引；发 3.2.0
+4. **MKE 文档与发版**（完成，3.2.0）—— `Internal/TestingSupport.md`、README、索引；发 3.2.0
 
 本包（MKE 3.2.0 发布后，从 `next` 切出）：
 
@@ -372,3 +381,4 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 | 2026-11-20 | MKE 的 `Sources/` 按层分组，两个测试支持 target 在 `Sources/TestSupport/` 下 | 用户要求照本包 0055 分组，MKE 另写了提案 0007-group-sources-by-layer，同一分支、随 3.2.0。本提案改动地图里 MKE 的源码路径随之更新。 |
 | 2026-11-21 | MKE 部分合入 MachOKitExtensions `main` 并推送，未发版 | 用户看过后收尾：测试支持的两个 product、MKE 测试改用它们、全部 `NSLock` 换成 `Mutex`、撤掉 Linux 与 `Sources/` 分组（MKE 0007）一起进了 `main`，最终代码上 MKE 全量测试通过。3.2.0 还没发；本包第 5、6 步等它发布后在本分支继续。 |
 | 2026-11-21 | 第 5 步的已知缺口：`FixtureCompiler` 还不能完全替代本包的 `CompiledFixture` | 本包 `Tests/CrossReferenceAnalysisTests/CompiledFixture.swift` 的 `build(libraryName:sources:compilerArguments:isExecutable:)` 能编可执行文件（`FileModeTests`、`FunctionStartOutsideTextTests` 两处用 `isExecutable: true`）、一次编多个源文件、按参数指定架构；MKE 3.1.0 之后的 `FixtureCompiler` 只把单个源字符串编成动态库。要么在发 3.2.0 之前给 `FixtureCompiler` 补可执行文件与多源文件，要么这几处在本包保留自己的辅助，待用户定。另：next 上新进的 `FunctionStartOutsideTextTests.anIndexKeepsTheReferencesOfAFunctionBelowText` 用到 `CompiledFixture.build(…isExecutable:)` 与 `InstructionEncoding.branchWithLink(at:to:)`，第 5 步若搬走或改名它们，这条测试一起改，本分支合 next 时会遇到它。 |
+| 2026-11-21 | `FixtureCompiler` 补上可执行文件与多源文件，MKE 3.2.0 发布 | 用户选择发版前先补：新增 `executable(named:language:source:arguments:)`、两个收 `sourceFiles: [FixtureSourceFile]` 的重载，单段源码的写法不变；本包 `CompiledFixture.build` 的可执行文件、多源文件与指定架构（经参数 `-arch`）都能用它替代。`CompiledFixture.load` 的链接后改写、重新签名、再加载留在本包，在复制出的产物上做（共享编译器的产物是缓存，不能原地改）。MKE 全量测试通过，原始退出码 0；随后在 `main` 上打 3.2.0（附注 tag，同以往不建 Release 页面）。本包第 5、6 步可以开始。 |
