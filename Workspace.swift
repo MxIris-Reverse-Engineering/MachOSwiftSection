@@ -17,6 +17,13 @@ let packageTestTargets: [(directory: String, targets: [String])] = Environment.p
         return (parts[0], parts[1].split(separator: ",").map(String.init))
     }
 
+// MACHO_SWIFT_SECTION_SILENT_TEST=1, which TuistScript.sh passes on as TUIST_SILENT_TEST, also quiets
+// `.print()` of MachOKitExtensions' MachOFixtureSupport. That one reads MACHO_TESTING_SILENT in the test
+// process at run time rather than a compilation condition, so the test action sets it, as CI does.
+let testArguments: Arguments? = Environment.silentTest.getBoolean(default: false)
+    ? .arguments(environmentVariables: ["MACHO_TESTING_SILENT": "1"])
+    : nil
+
 func packageName(ofDirectory directory: String) -> String {
     directory == "." ? "MachOSwiftSection" : String(directory.split(separator: "/").last ?? Substring(directory))
 }
@@ -45,6 +52,7 @@ let workspace = Workspace(
             name: "\(packageName(ofDirectory: entry.directory)) Tests",
             testAction: .targets(
                 testableTargets,
+                arguments: testArguments,
                 // The test process as `swift test` runs it. The Thread Performance Checker inserts
                 // libRPAC.dylib, which rebinds calls in the loaded images: the cross-reference tests that
                 // compare a cache image read in process with the same image read from its file then

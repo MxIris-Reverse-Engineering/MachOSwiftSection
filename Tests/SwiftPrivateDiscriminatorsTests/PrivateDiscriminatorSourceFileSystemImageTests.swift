@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import MachOKitExtensions
 import SwiftSectionFixtureSupport
 @_spi(Support) import SwiftIndexing
 import SwiftInspection
@@ -19,7 +20,7 @@ import SwiftDeclaration
 struct PrivateDiscriminatorSourceFileSystemImageTests {
     /// A private class's discriminator, found through the class's own name.
     @Test func systemFoundationRecoversJSONEncoder() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let foundation = try #require(cache.machOFile(named: .Foundation))
         let indexer = SwiftDeclarationIndexer(configuration: .init(), eventHandlers: [], in: foundation)
         try await indexer.prepare()
@@ -36,7 +37,7 @@ struct PrivateDiscriminatorSourceFileSystemImageTests {
     /// from the image's file name recovers them. No known file names, so the
     /// file name too comes from the image's names (`EnabledKey`).
     @Test func systemSwiftUICoreHashesItsOwnModuleName() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let swiftUICore = try #require(cache.machOFile(named: .SwiftUICore))
         let indexer = SwiftDeclarationIndexer(configuration: .init(), eventHandlers: [], in: swiftUICore)
         try await indexer.prepare()

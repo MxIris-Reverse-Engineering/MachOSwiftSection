@@ -109,7 +109,7 @@ struct RenderingVerificationTests {
     }
 
     private static func cacheFile(named framework: String) -> MachOFile? {
-        guard let cache = try? FullDyldCache(path: .current) else { return nil }
+        guard let cache = FullDyldCache.cachedHost else { return nil }
         return cache.machOFile(by: .name(framework))
     }
 

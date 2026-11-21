@@ -182,7 +182,7 @@ struct SystemFrameworkCustomObjCClassNameTests {
     }
 
     private static func appKitFileInSystemCache() throws -> MachOFile {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         return try #require(cache.machOFile(named: .AppKit), "the running system's cache has no AppKit")
     }
 

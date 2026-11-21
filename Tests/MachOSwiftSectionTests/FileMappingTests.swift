@@ -62,6 +62,7 @@ struct FileMappingTests {
         guard setrlimit(RLIMIT_NOFILE, &limit) == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EINVAL)
         }
+        // A fresh instance, not `FullDyldCache.cachedHost`: its files have to be opened under the lowered descriptor limit.
         let cache = try FullDyldCache(url: URL(fileURLWithPath: DyldSharedCachePath.current.path))
         let swiftImages = Array(
             cache.machOFiles()

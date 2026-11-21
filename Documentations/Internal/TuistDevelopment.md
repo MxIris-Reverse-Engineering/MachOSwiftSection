@@ -2,7 +2,7 @@
 
 - **面向**: 在本仓库做日常开发、想让第三方依赖走二进制缓存的人；同时改本库和上游那几个库的人；改 `Package.swift` 的 target、依赖或测试的人（同步规则）
 - **对应提案**: [0099-tuist-workspace](../Evolutions/0099-tuist-workspace.md)
-- **最后更新**: 2026-11-20
+- **最后更新**: 2026-11-21
 
 `MachOSwiftSection-Tuist.xcworkspace` 是原生 `MachOSwiftSection.xcworkspace` 之外的第二条路，只供日常开发。它由 `./TuistScript.sh` 用 Tuist 生成：本库照常从源码编，可以跳转、可以编辑；原生 workspace 里放的五个上游库（MachOKit、MachOKitExtensions、MachOObjCSection、swift-demangling、swift-semantic-string）也从源码编；其余 27 个第三方包（swift-dependencies 一族、swift-collections、Capstone、swift-crypto、Yams……）预编进本机的 Tuist 二进制缓存，只编一次。
 
@@ -38,6 +38,8 @@ open MachOSwiftSection-Tuist.xcworkspace
 **别直接跑 `tuist generate` / `tuist install`。** 清单读的环境变量（哪些 target 留作源码、哪些测试进 scheme、要不要映射测试、本地模式的目录）都由脚本算好再传进去；直接跑 Tuist 拿不到它们，也没有下文的占用保护。
 
 **生成出的工程只链接一套配置的缓存。** 默认按 Debug 生成；要在 Xcode 里编 Release，先 `./TuistScript.sh generate --configuration Release`，编完不带参数再 `generate` 回到 Debug。缓存也按配置分开预热（`warm --configuration Release`）。
+
+**让测试少打输出**：同 CI 一样，在命令前加 `MACHO_SWIFT_SECTION_SILENT_TEST=1`（例如 `MACHO_SWIFT_SECTION_SILENT_TEST=1 ./TuistScript.sh test`）。它有两处效果：`Package.swift` 照旧给本库的测试 target 加编译条件 `SILENT_TEST`（手写的 `SwiftSectionCommandTests` 经脚本转成的 `TUIST_SILENT_TEST` 加）；生成的每个测试 scheme 在 TestAction 的环境里设 `MACHO_TESTING_SILENT=1`（`Workspace.swift`），MachOKitExtensions 的 `MachOFixtureSupport` 在测试进程里读它，让测试里的 `.print()` 不出声——这个开关是运行时的环境变量，编译条件到不了 MachOKitExtensions 的模块。变量改了要重新 `generate`（`test`、`build` 每次都会先生成）；在 Xcode 里直接跑这些 scheme 时，也是生成时的设置说了算。
 
 ## 用本地检出的上游库
 
@@ -99,7 +101,7 @@ Tuist 把按路径声明的包的测试 target 一起转换（`PackageSettings` 
 - **测试 target 的部署版本抬到 macOS 14.0**（`Tuist/Package.swift` 的 `testTargetSettings`）：SwiftPM 给测试 target 的部署版本不低于 XCTest 与 Swift Testing 的要求（Xcode 26、27 都是 14.0），包声明的更低也一样；Tuist 照搬包声明的 10.15，`TypeIndexingTests` 于是找不到它测的 macOS 13 API。脚本把所有转换进来的测试 target（含 `IntegrationTests`，免得编整个 workspace 时它编不过）传进 `TUIST_TEST_TARGET_NAMES`。
 - **测试 target 与 `swift-section` 链接时带 `-ObjC`**（`Tuist/Package.swift` 的 `testTargetSettings`，`Tuist/CommandLine/Project.swift` 的 `linkFlags`）：SwiftPM 把每个包 target 的目标文件整块链进去；Tuist 编的是静态 framework，链接器只拉被符号引用到的归档成员。没人点名的 protocol conformance 于是丢了，`as?` 静默失败：包装 `MachOImage` / `MachOFile` 的读取器（`MachOReaderWrapper`）两样都不像，`WrappedReaderSymbolTests` 与 `WrappedReaderDemanglingTests` 红了 4 条。Xcode 27 的链接器下 `-ObjC` 会拉进所有定义了 ObjC 类或分类、Swift 类型或 extension 的成员，与 RuntimeViewer 的 Tuist workspace 同一个做法。
 - **有加载期 constructor 的 target 被整个 `-force_load`**：`SwiftSymbolsRegistration` 的 constructor 把 Swift 注册成符号语言。它原先是那个 C 文件唯一的内容，又是 `static`，文件里没有全局符号，`-ObjC` 也拉不进来；不加的话 Swift 语言没注册，`SwiftSymbolsTests` 红 281 处，Tuist 编的 `swift-section` 也会把 Swift 符号当成 C。如今这个文件导出了锚点 `swift_symbols_registration_anchor`，`SymbolLanguage+Swift.swift` 调用它，带 `-ObjC` 的链接已经能把它拉进来（MachOObjCSection 的 `MachOObjCSectionC` 同样处理）。脚本仍然保留这条通用规则，作为保险：读清单时找出源码里有 `__attribute__((constructor))` 的 target，沿包内依赖算出哪些测试 target 与可执行 target 会链到它，传进 `TUIST_FORCE_LOADS`，这些链接对那个归档加 `-force_load`。
-- **导入了 Testing 的库 target 加上 TestingMacros 插件路径**（`Tuist/Package.swift` 的 `testingSupportSettings`）：`SwiftSectionTestingSupport` 是普通的库 target，却用了 Swift Testing 的 `#require`。SwiftPM 给每个 target 都带上工具链的 TestingMacros 插件，Xcode 只给测试 target 带，于是报 `plugin for module 'TestingMacros' not found`。脚本读清单时找出源码里 `import Testing` 的库 target（本地模式下还有上游库的，比如 swift-demangling 的 `DemanglingTestingSupport`），传进 `TUIST_TESTING_SUPPORT_TARGET_NAMES`。
+- **导入了 Testing 的库 target 加上 TestingMacros 插件路径**（`Tuist/Package.swift` 的 `testingSupportSettings`）：`SwiftSectionTestingSupport` 是普通的库 target，却用了 Swift Testing 的 `#require`。SwiftPM 给每个 target 都带上工具链的 TestingMacros 插件，Xcode 只给测试 target 带，于是报 `plugin for module 'TestingMacros' not found`。脚本读清单时找出源码里 `import Testing` 的库 target，传进 `TUIST_TESTING_SUPPORT_TARGET_NAMES`。上游库的也算，两种模式都扫：本地模式下扫它们的本地检出（比如 swift-demangling 的 `DemanglingTestingSupport`），远程模式下扫 Tuist 的依赖 checkout（记在 `Work/<checkout>/Manifests/packages.tsv`，角色 `own-remote`）——MachOKitExtensions 的 `MachOTestingSupport` 用了 `#expect`、`#require`，远程模式下它照样从源码编，只给本地检出补插件路径的话就编不过。
 - **手写的 target 设了 `SWIFT_PACKAGE_NAME = MachOSwiftSection`**（`Tuist/CommandLine/Project.swift`）：`SwiftSectionCommandTests` 调用 SwiftSectionKit 的 `package` 方法，只有同一个包的模块看得见；Tuist 给它转换的 target 都设了这个值，手写的也要设。
 - **`CAPSTONE_HAS_AARCH64` 手动补上**：Tuist 丢掉只以 trait 为条件的设置；本库开了 swift-capstone 的 `AARCH64` trait，不补的话 Swift 包装编不过，C 库能编过但没有任何架构可用。
 - **警告还给按路径声明的包**：Tuist 对所有包都关掉警告，Xcode 只关远程包的；本库（本地模式下还有五个上游库）的 target 经 `TUIST_WARNING_TARGET_NAMES` 把警告要回来。

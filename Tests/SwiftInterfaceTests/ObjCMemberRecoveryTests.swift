@@ -925,7 +925,7 @@ struct AppKitObjCMemberTests {
     }
 
     @Test(.enabled(if: runsOnMacOS26OrLater, "NSGlassEffectView ships with macOS 26")) func glassEffectViewOverridesResolveAgainstNSView() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .AppKit), "the running system's cache has no AppKit")
         let table = try #require(ObjCMembers.table(forObjCClassNamed: "NSGlassEffectView", in: machOFile))
         // The chain crosses into libobjc inside the cache and reaches the root.
@@ -977,7 +977,7 @@ struct AppKitObjCMemberTests {
     /// `@objc(drawInRect:angle:)` — an explicit selector, provable because
     /// the chain and the protocols resolve inside the cache.
     @Test(.enabled(if: runsOnMacOS26OrLater, "NSGradient's Swift implementation ships with macOS 26")) func gradientHeaderSelectorsAreExplicit() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .AppKit), "the running system's cache has no AppKit")
         let table = try #require(ObjCMembers.table(forObjCClassNamed: "NSGradient", in: machOFile))
         #expect(table.hierarchy.isAncestorChainComplete)

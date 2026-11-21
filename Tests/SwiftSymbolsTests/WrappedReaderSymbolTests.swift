@@ -52,7 +52,7 @@ struct WrappedReaderSymbolTests {
     }
 
     private static func combineInSystemCache() throws -> MachOFile {
-        let fullCache = try FullDyldCache(path: .current)
+        let fullCache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache")
         return try #require(fullCache.machOFile(named: .Combine))
     }
 }

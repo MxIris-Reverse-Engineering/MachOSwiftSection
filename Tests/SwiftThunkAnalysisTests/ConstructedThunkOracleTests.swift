@@ -37,7 +37,7 @@ struct ConstructedThunkOracleTests {
     }
 
     @Test func offlineMatchesTheRuntimeForEveryNonGenericConformer() async throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         let machOFile = try #require(cache.machOFile(named: .SwiftUI))
         guard dlopen("/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI", RTLD_LAZY) != nil,
               let machOImage = MachOImage(name: "SwiftUI")

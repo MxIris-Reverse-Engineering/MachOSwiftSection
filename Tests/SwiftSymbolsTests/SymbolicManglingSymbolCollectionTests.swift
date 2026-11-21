@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import MachOKitExtensions
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
@@ -127,7 +128,7 @@ struct SymbolicManglingSymbolCollectionTests {
     /// has no default associated type witness, SwiftUICore does.
     @Test(.enabled(if: runsOnMacOS26OrLater, "AppKit's symbolic-mangling symbols are pinned on macOS 26"))
     func censusOfSystemCacheImages() throws {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         var censusLines: [String] = []
         for imageName in [MachOImageName.AppKit, .SwiftUICore] {
             let machOFile = try #require(cache.machOFile(named: imageName), "the running system's cache has no \(imageName)")
@@ -184,7 +185,7 @@ struct SymbolicManglingSymbolCollectionTests {
     }
 
     private static func appKitFileInSystemCache() throws -> MachOFile {
-        let cache = try DyldCache(path: .current)
+        let cache = try #require(FullDyldCache.cachedHost, "no host dyld shared cache").mainCache
         return try #require(cache.machOFile(named: .AppKit), "the running system's cache has no AppKit")
     }
 }
