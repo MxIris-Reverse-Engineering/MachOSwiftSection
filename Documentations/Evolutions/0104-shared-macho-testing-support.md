@@ -1,9 +1,9 @@
-# Draft - 测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport
+# 0104 - 测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-20
-- **最后更新**: 2026-11-20
+- **最后更新**: 2026-11-21
 - **所属愿景**: 无
 - **关联提案**: [0003（MachOKitExtensions）move-macho-infrastructure-modules](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0003-move-macho-infrastructure-modules.md)（`MachO` 前缀的模块归 MachOKitExtensions，本包的测试支持因此改名 `SwiftSection…`）；[0098 move-cross-reference-layers](0098-move-cross-reference-layers.md)（跨仓库迁移、由本包维护唯一提案的先例）；MachOKitExtensions 的 [0006-cplusplus-class-hierarchy](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Evolutions/0006-cplusplus-class-hierarchy.md)（它新加的测试辅助是本提案要合并的重复代码之一，已随 3.1.0 发布）；[0100-fixture-suite-macro](0100-fixture-suite-macro.md)（同一次讨论拆出的本包宏）；[0101-swift6-mode-and-upcoming-features](0101-swift6-mode-and-upcoming-features.md)（两个包开启的三项 upcoming feature，新代码照它们写）
 - **实现分支 / PR**: 两个仓库同名 `feature/shared-macho-testing-support`。MachOKitExtensions 从 `main` 切出（3.1.0 与 Swift 6 迁移之后），worktree 在 `.worktrees/MachOKitExtensions-SharedMachOTestingSupport`；本包从 `next` 切出（0100、0101 之后），worktree 在 `.worktrees/MachOSwiftSection-SharedMachOTestingSupport`，第 5、6 步等 MachOKitExtensions 3.2.0 发布后在这里做
@@ -390,3 +390,4 @@ MKE（3.2.0，从 C++ 类恢复收尾后的 `main` 切出）：
 | 2026-11-21 | 修好 Tuist workspace 的宏测试，补跑远程模式 | 用户选择在本分支一起修：清单末尾的 Tuist 适配段把依赖宏 target 的测试也拿掉（与依赖可执行 target 的测试同样处理），宏的展开测试只在 `swift test` 里跑。三个上游库清单末尾的同一段代码按约定该一起改，它们没有宏 target，这次没同步，`TuistDevelopment.md` 记了这一点。`./TuistScript.sh test` 远程模式退出码 0（`TEST SUCCEEDED`，约 26 分钟，2,953 个测试），编过了 MKE 的 `MachOTestingSupport`。 |
 | 2026-11-21 | 实现完成，待用户看过后收尾 | 第 5、6 步都已完成。文档：`AGENTS.md`（`Sources/` 一节的锚点、测试一节的测试支持来源与本机 cache、`ExclusiveImageAccess` 的 key、静默变量、新增套件时的写法）、`FixtureTestingAndContinuousIntegration.md`（路径锚定与新的一节）、`Modules/README.md`、`TuistDevelopment.md`、`ProjectEvolutionLog.md`（节号落地时定）。不另写实现说明（契约在 MachOKitExtensions 的 `TestingSupport.md`），没有新术语。后续项：`FixtureCompiler` 还替代不了的约 25 处现编（见上）。 |
 | 2026-11-21 | Tuist 适配段的「宏 target」一条同步到三个上游库 | 用户选择保持四份一致：MachOKitExtensions `main`、MachOObjCSection `next`、swift-demangling `next` 各一个提交并推送；三者都没有宏 target，设与不设 `TUIST_MAPS_LOCAL_PACKAGE_TESTS` 时清单解析结果与改前相同。不发版。 |
+| 2026-11-21 | 状态 → Implemented，取号 0104 | 用户看过后收尾，合进 `next` 并推送。`next` 上先落地了 0103（跨引用测试的整份 cache 扫描限并发），所以本提案取号 0104、演进账本记为第 150 节。合并前把最新 `next` 合进本分支：只有 `Documentations/README.md` 与演进账本冲突，两边都保留；0103 新规则（`CrossReferenceAnalysisTests` 里不直接调 `DispatchQueue.concurrentPerform`，由 `ParallelScanSourceTests` 检查）合并后仍满足。合并结果上在 Ultra（Xcode 27.2）重跑：`swift test --skip IntegrationTests` 2,971 个通过，退出码 0；`./TuistScript.sh test` 远程模式 3,003 个通过、0 失败、7 个跳过，退出码 0。`next` 上 `./TuistScript.sh test` 因 `SwiftSectionTestingMacrosTests` 编不过的问题随本提案修好。文档判断：不另写实现说明或使用指南（两个 product 的契约在 MachOKitExtensions 的 `TestingSupport.md`），没有新术语；MachOKitExtensions 里指向本提案的链接一并改成 0104。后续项照旧：`FixtureCompiler` 还替代不了的约 25 处现编。 |

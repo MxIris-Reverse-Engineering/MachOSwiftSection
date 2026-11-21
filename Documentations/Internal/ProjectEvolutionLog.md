@@ -3547,8 +3547,8 @@
   - Tuist：own-remote 的包也扫描 import Testing 的 target，给 MachOKitExtensions 的 `MachOTestingSupport` 补宏插件路径；清单末尾的适配段把依赖宏 target 的测试也拿掉（0100 带来的 `SwiftSectionTestingMacrosTests` 让 Tuist workspace 编不过）。
   - 同一批里 MachOKitExtensions 还换掉了全部 `NSLock`（改用 FrameworkToolbox 的 `Mutex`，因此不再支持 Linux），并把 `Sources/` 按层分组（它的提案 0007）。
 - **落地模块**：`Package.swift`、`Sources/TestSupport/`、`Tests/` 下约 180 个测试文件、`TuistScript.sh`、`Workspace.swift`、`.github/workflows/macOS.yml`。
-- **文档**：提案 [draft-shared-macho-testing-support](../Evolutions/draft-shared-macho-testing-support.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)「测试支持的通用部分在 MachOKitExtensions」；[TuistDevelopment.md](TuistDevelopment.md)；`AGENTS.md` 的测试一节与 `Sources/` 一节。没有新术语。
-- **验证**：Ultra，Xcode 27.2。`swift test --skip IntegrationTests` 每一部分后都是 2,914 个通过、退出码 0（改动前 2,916：删 4 个随代码搬走的测试，加 2 个）；所有测试 target 与可执行文件都编过；`./TuistScript.sh test` 远程模式 `TEST SUCCEEDED`（2,953 个测试），编过 MachOKitExtensions 的 `MachOTestingSupport`；MachOKitExtensions 一侧全量测试与 TSTables、Espresso 普查通过。
+- **文档**：提案 [0104-shared-macho-testing-support](../Evolutions/0104-shared-macho-testing-support.md)；[FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md)「测试支持的通用部分在 MachOKitExtensions」；[TuistDevelopment.md](TuistDevelopment.md)；`AGENTS.md` 的测试一节与 `Sources/` 一节。没有新术语。
+- **验证**：Ultra，Xcode 27.2。`swift test --skip IntegrationTests` 每一部分后都是 2,914 个通过、退出码 0（改动前 2,916：删 4 个随代码搬走的测试，加 2 个）；所有测试 target 与可执行文件都编过；`./TuistScript.sh test` 远程模式 `TEST SUCCEEDED`（2,953 个测试），编过 MachOKitExtensions 的 `MachOTestingSupport`；MachOKitExtensions 一侧全量测试与 TSTables、Espresso 普查通过。合进 `next` 前在合并了第 149 节的结果上重跑：`swift test --skip IntegrationTests` 2,971 个通过，`./TuistScript.sh test` 远程模式 3,003 个通过、0 失败、7 个跳过，退出码都是 0。
 - **对应版本**：未发布（0.26.0 之后）；依赖 MachOKitExtensions 3.2.0。
 
 ## 维护约定

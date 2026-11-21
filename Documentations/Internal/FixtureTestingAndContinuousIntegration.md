@@ -76,7 +76,7 @@ ObjC class wrapper、canonical specialized metadata、foreign types、value gene
 
 ### 测试支持的通用部分在 MachOKitExtensions（2026-11-21）
 
-与 Swift 无关的测试支持搬到了 MachOKitExtensions 3.2.0 的两个 product，本包的 `SwiftSectionFixtureSupport` / `SwiftSectionTestingSupport` re-export 它们（提案 [draft-shared-macho-testing-support](../Evolutions/draft-shared-macho-testing-support.md)，契约见 MachOKitExtensions 的 `Documentations/Internal/TestingSupport.md`）：
+与 Swift 无关的测试支持搬到了 MachOKitExtensions 3.2.0 的两个 product，本包的 `SwiftSectionFixtureSupport` / `SwiftSectionTestingSupport` re-export 它们（提案 [0104-shared-macho-testing-support](../Evolutions/0104-shared-macho-testing-support.md)，契约见 MachOKitExtensions 的 `Documentations/Internal/TestingSupport.md`）：
 
 - **夹具基类**：`MachOSwiftSectionFixtureTests` 是 MachOKitExtensions `MachOFixtureTests` 的子类，只说明夹具是 SymbolTestsCore（`fixtureFileName` / `fixtureImageName`），读取器、上下文和跨读取器写法都来自基类；读不到夹具时仍抛带重编说明的 `FixtureLoadError`。
 - **跨读取器写法**：两边只差被测对象时用成对传入、单个闭包的重载（`acrossAllReaders(file, image) { … }`、`acrossAllContexts(file, image) { subject, context in … }`）；带 `inProcess:` 或两边确有不同时才写三个闭包。
