@@ -219,6 +219,21 @@ struct MultilineTypeFormattingTests {
         #expect(try bracketStructure(of: line) == "static func < (lhs: (Visitor in $1234)| rhs: Box) // Box<A, (")
     }
 
+    /// The dump spells a constrained extension's context with its generic
+    /// signature in angle brackets — `_ConditionalContent< where A: P, B: Q>`
+    /// — and a function's as `<A, B where A == B.Element>`: requirements, not
+    /// arguments, whatever name they follow.
+    @Test func angleBracketsHoldingRequirementsAreAGenericSignature() throws {
+        let extensionContext = "(extension in SwiftUI):SwiftUI._ConditionalContent< where A: SwiftUI.TableColumnContent, B: SwiftUI.TableColumnContent>.(Provider in _ABC)"
+        #expect(try bracketStructure(of: PrinterShapedSource.make(extensionContext)) == "(extension in SwiftUI):SwiftUI._ConditionalContent‹ where A: SwiftUI.TableColumnContent| B: SwiftUI.TableColumnContent›.(Provider in _ABC)")
+        #expect(try bracketStructure(of: PrinterShapedSource.make("Holder.make<A, B where A == B.Element>()")) == "Holder.make‹A| B where A == B.Element›()")
+    }
+
+    @Test func moduleSelectorsAndExtensionContextsLeaveAnArgumentList() throws {
+        #expect(try bracketStructure(of: PrinterShapedSource.make("var value: Swift::Dictionary<Swift::String, Swift::Int>")) == "var value: Swift::Dictionary<Swift::String| Swift::Int>")
+        #expect(try bracketStructure(of: PrinterShapedSource.make("var value: Pair<(extension in SwiftUI):SwiftUI.Box, Swift.Int>")) == "var value: Pair<(extension in SwiftUI):SwiftUI.Box| Swift.Int>")
+    }
+
     @Test func commaOutsideBracketsIsText() throws {
         #expect(try bracketStructure(of: PrinterShapedSource.make("case first, second")) == "case first, second")
     }
@@ -376,6 +391,25 @@ struct MultilineTypeFormattingTests {
                 Swift.String
             >
         )
+        """)
+    }
+
+    @Test func genericSignatureIsNotBrokenForItsRequirements() {
+        let line = "(extension in SwiftUI):SwiftUI._ConditionalContent< where A: SwiftUI.TableColumnContent, B: SwiftUI.TableColumnContent>.(Provider in _ABC).init() -> SwiftUI._ConditionalContent<A, B>< where A: SwiftUI.TableColumnContent, B: SwiftUI.TableColumnContent>.(Provider in _ABC)"
+        #expect(formatted(line, maximumLineWidth: 100) == """
+        (extension in SwiftUI):SwiftUI._ConditionalContent< where A: SwiftUI.TableColumnContent, B: SwiftUI.TableColumnContent>.(Provider in _ABC).init() -> SwiftUI._ConditionalContent<
+            A,
+            B
+        >< where A: SwiftUI.TableColumnContent, B: SwiftUI.TableColumnContent>.(Provider in _ABC)
+        """)
+    }
+
+    @Test func moduleSelectorsStillBreakAsArguments() {
+        #expect(formatted("var value: Swift::Dictionary<Swift::String, Swift::Int>", maximumLineWidth: 20) == """
+        var value: Swift::Dictionary<
+            Swift::String,
+            Swift::Int
+        >
         """)
     }
 

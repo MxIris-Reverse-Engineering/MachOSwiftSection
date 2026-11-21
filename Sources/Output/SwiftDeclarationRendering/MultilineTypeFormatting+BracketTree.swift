@@ -1,3 +1,4 @@
+import Foundation
 import Semantic
 
 extension MultilineTypeFormatting {
@@ -254,8 +255,9 @@ private struct BracketTreeParser {
     private mutating func close(_ bracket: Character, at fragment: SourceFragment) -> Bool {
         guard var list = openLists.popLast(), list.kind.closingCharacter == bracket else { return false }
         list.elements.append(list.currentElement)
+        let kind: BracketKind = list.kind == .genericArguments && Self.holdsRequirements(list.elements) ? .genericParameters : list.kind
         let closedList = BracketList(
-            kind: list.kind,
+            kind: kind,
             opening: list.opening,
             closing: fragment,
             separators: list.separators,
@@ -280,6 +282,24 @@ private struct BracketTreeParser {
             rootNodes.append(node)
         } else {
             openLists[openLists.count - 1].currentElement.append(node)
+        }
+    }
+
+    /// Whether a `<…>` list holds requirements rather than types — a generic
+    /// signature, which the dump writes after a type name too
+    /// (`_ConditionalContent< where A: P, B: Q>`, `make<A, B where A == B.Element>`).
+    /// One element says `where`, `A: P` or `A == B` at its own level, outside
+    /// any list nested in it. A type argument never does: a module selector's
+    /// `::` and the dump's `(extension in M):` prefix have no space after the
+    /// colon, and a tuple's labels sit in a list of their own.
+    private static func holdsRequirements(_ elements: [[BracketTreeNode]]) -> Bool {
+        elements.contains { element in
+            let topLevelText = element.map { node in
+                if case .text(let fragment) = node { String(fragment.text) } else { " " }
+            }.joined()
+            return topLevelText.split(whereSeparator: \.isWhitespace).contains("where")
+                || topLevelText.contains(": ")
+                || topLevelText.contains("==")
         }
     }
 

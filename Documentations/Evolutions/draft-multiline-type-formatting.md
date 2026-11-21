@@ -46,7 +46,7 @@ let formatted = formatting.format(printedDefinition)
 2. **超宽的行解析成括号树。** 只在 `.standard` 类型的 atom 里找括号；类型名、模块名、关键字、声明名、注释等其它 atom 整体当作文字。字符串字面量、反引号标识符、`//` 之后的内容是文字；`->` 不是括号。括号不配对（例如 dump 里的运算符声明）就整行原样保留。
 3. **找出放不下的类型。** 不在其它泛型参数列表里面的泛型参数列表，算作一个类型的最外层；它的 `>` 落在第 `maximumLineWidth` 列之后，这个类型就算放不下。只有泛型参数列表会触发拆行；行之所以超宽是因为别的东西（一长串参数、行尾注释），这一行不动。
 4. **放不下的类型按结构规则拆。** 在这个类型内部：有两个及以上参数的泛型参数列表一律每个参数一行；单参数的泛型参数列表、元组、函数类型的参数列表、`[…]` 集合语法糖，只在某个元素已是多行时才拆。
-5. **外层括号跟着拆。** 类型之外的括号——函数声明的参数列表、enum case 的 payload、元组、泛型参数子句（紧跟在声明名后面的 `<…>`）、attribute 的参数——只在某个元素已是多行时才拆，否则保持一行。泛型参数子句因此不会仅仅因为有两个参数就被拆开。
+5. **外层括号跟着拆。** 类型之外的括号——函数声明的参数列表、enum case 的 payload、元组、泛型签名（紧跟在声明名后面的 `<…>`，以及里面写着 `where`、`A: P` 或 `==` 的 `<…>`）、attribute 的参数——只在某个元素已是多行时才拆，否则保持一行。泛型签名因此不会仅仅因为有两项就被拆开。
 6. **拆开的列表这样排。** 开括号留在原行末尾；每个参数另起一行，缩进为这一行的行首缩进加 4 个空格乘以嵌套层数；参数之间的 `, ` 变成 `,`；闭括号另起一行，缩进回到上一层。
 
 截图里那个 `Body` 的开头一段，按默认宽度格式化后是这样：
@@ -265,7 +265,7 @@ extension MultilineTypeFormatting {
 
 - 只有 `.standard` atom 参与扫描；其它 semantic type 的 atom 整体是一个 `text`。这样类型名、声明名（包括 interface 里的运算符名）、注释里的括号都不会被当成结构。
 - 在 `.standard` atom 里：`"` 开始一个字符串字面量，到未转义的 `"` 结束；反引号同理；`//` 之后到行末都是文字；`-` 紧跟 `>` 是箭头，不关闭任何列表；`<`、`(`、`[` 开列表，`>`、`)`、`]` 必须关闭同种列表；深度大于 0 时的 `,` 分隔元素。
-- `<` 前面（跳过空白）的 atom 的 semantic type 是 `.type(_, .declaration)`、`.function(.declaration)` 或 `.member(.declaration)` 时，这个列表是 `genericParameters`；否则是 `genericArguments`。
+- `<` 前面（跳过空白）的 atom 的 semantic type 是 `.type(_, .declaration)`、`.function(.declaration)` 或 `.member(.declaration)` 时，这个列表是 `genericParameters`；否则是 `genericArguments`。闭括号读到时再看一次：有一项在自己这一层（不算嵌在里面的列表）写着 `where` 这个词、`: `（冒号后带空格）或 `==`，这是 dump 写在类型名后面的泛型签名（`_ConditionalContent< where A: P, B: Q>`、`make<A, B where A == B.Element>`），也改为 `genericParameters`。类型参数里不会出现这三种：模块选择器的 `::` 与 dump 的 `(extension in M):` 前缀冒号后没有空格，元组的标签在它自己的列表里。
 - 关闭括号与种类不符、或行末仍有未关闭的列表，返回 `nil`，整行原样保留。dump 里的 `static func < infix(…)` 就走这条路。
 
 ### 排版
@@ -408,3 +408,4 @@ extension MultilineTypeFormatting {
 | 2026-11-21 | 不保留元素边界 | `SemanticString` 的元素边界没有公开读取的接口，有一行被改时结果按 atom 一个元素重建；文档注释写明 `format` 用于打印完成的结果。没有行被改时返回输入本身，边界原样。 |
 | 2026-11-21 | 嵌套定义契约测试并入现有套件 | 改动地图原计划新建 `MultilineTypeFormattingNestedDefinitionTests.swift`；改为给 `NestedDefinitionRegionContractTests` 加一个格式化变体，直接复用它对文字、span、identifier 与三种 region 的整套比较。宽度取 30 列：fixture 的长泛型类型不多（主要是 `GenericFieldLayout` 各嵌套类型的字段），40 列下只有 4 个根类型有改动，30 列下新增约一百行。 |
 | 2026-11-21 | 调用方直接依赖 `SwiftDeclarationRendering` | `SwiftSectionKit` 不重新导出任何模块，它的公开字段类型 `MultilineTypeFormatting` 由调用方自己导入：`swift-section` 与 `SwiftSectionKitTests` 各加一条直接依赖，Tuist 的命令行工程同步加上。不为一个类型在 Kit 里开 `@_exported`，与 Kit 现有字段（`Transformer.SwiftConfiguration` 等）的做法一致。 |
+| 2026-11-21 | 尖括号里写着要求的是泛型签名 | 对系统 SwiftUI 跑 `dump --multiline-types` 时发现：dump 把受约束扩展的上下文印成 `_ConditionalContent< where A: P, B: Q>`，这个 `<…>` 跟在类型名后面，被当成两个泛型参数拆开了。规则补一条：`<…>` 里有一项在自己这一层写着 `where`、`A: P`（冒号后带空格）或 `==`，就是泛型签名，按泛型参数子句处理（只在元素已是多行时才拆）。模块选择器的 `::` 与 dump 的 `(extension in M):` 前缀冒号后都没有空格，不受影响。先写了变红的测试 `angleBracketsHoldingRequirementsAreAGenericSignature`、`genericSignatureIsNotBrokenForItsRequirements`，修复后通过；另加 `moduleSelectorsAndExtensionContextsLeaveAnArgumentList`、`moduleSelectorsStillBreakAsArguments` 守住不误判。 |
