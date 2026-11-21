@@ -1,6 +1,6 @@
 # Draft - 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-21
 - **最后更新**: 2026-11-21
@@ -44,7 +44,7 @@
 - **开 `-O` 不会丢掉检查**：`MachOCodeReferences`、`ARM64InstructionDecoding` 里没有 `assert` / `assertionFailure`（`-O` 会去掉它们），`MachOCodeReferences` 的两处 `precondition` 在 `-O` 下保留。本包的 `CrossReferenceAnalysis` 有一处 `assert`，这也是它不进名单的原因之一。
 - **Tuist 工作区里这两个模块从源码编**：TuistDevelopment.md 写明原生 workspace 里的五个上游库（含 MachOKitExtensions）在两种依赖模式下都从源码编、不进二进制缓存，`PackageSettings.targetSettings` 按 target 名对它们生效（已有先例：`restatedTraitDefinitions` 给远程包 Capstone 加设置）。
 - **Tuist 生成的工程把优化级别写在每个配置里**：现有生成结果 `…/Dependencies/<checkout>/tuist-derived/Projects/MachOKitExtensions/MachOKitExtensions.xcodeproj/project.pbxproj` 中，每个 target 的 Debug 配置写 `SWIFT_OPTIMIZATION_LEVEL = "-Onone"`、Release 写 `"-O"`。**未验证**：`targetSettings` 的 `base` 是否覆盖这个按配置写的值。落地第 4 步先验证，不行就改用按配置的设置（见「详细设计」）。
-- **预期收益是推测**：「Debug 下这两个模块开 `-O` 后，扫描接近 Release 的速度」没有实测。落地第 1 步与第 5 步各量一次，结论写回本提案。
+- **实测收益**（落地第 1、5 步，同一台 Ultra、同样条件）：`CrossReferenceAnalysisTests` 从约 14 分钟降到约 1.5 分钟，xctest 累计 CPU 时间从约 234 分钟降到约 14 分钟（约 17 倍）。开头约 35 秒仍会用满核心，那是 Swift Testing 同时跑着二十多个测试，不是这四处扫描（见决策日志）。
 
 ## 提议方案
 
@@ -283,24 +283,24 @@ Settings.settings(configurations: [.debug(name: .debug, settings: ["SWIFT_OPTIMI
 
 ## 落地步骤
 
-1. **量基线** —— 不改代码
+1. **量基线** —— 不改代码（已完成，数字见决策日志）
    - 行为：`baselineWallTimeCpuTimeAndPeakAreRecordedInTheProposal`（按「怎么量」在 `next` 上量一次，数字写进决策日志）
-2. **加名额与它的测试** —— 改动地图第 1、2 行
+2. **加名额与它的测试** —— 改动地图第 1、2 行（已完成）
    - 行为：`everyIterationRunsExactlyOnce`（1000 次迭代，每个下标恰好执行一次）
    - 行为：`noMoreThanTheBudgetRunAtOnce`（闭包里记录同时在跑的数目，最大值不超过 `maximumConcurrentScans`）
    - 行为：`twoCallsAtOnceShareTheBudget`（两个线程同时调用，合计同时在跑的数目不超过名额）
    - 行为：`zeroIterationsReturnWithoutRunning`
    - 实现时临时把入口换成裸 `DispatchQueue.concurrentPerform`，确认后三条里与上限有关的两条会失败（证明测试抓得住），再换回来；这一步不提交。
-3. **四处调用点改走名额，加源码扫描测试** —— 改动地图第 3–7 行
+3. **四处调用点改走名额，加源码扫描测试** —— 改动地图第 3–7 行（已完成；四个套件原有的测试在第 5 步的整批复测里一起验证）
    - 行为：`everyParallelScanGoesThroughTheSharedBudget`
    - 行为：`theScanDiscriminates`
    - 行为：四个套件原有的测试照旧全部通过
-4. **Tuist 里两个扫描模块开 `-O`** —— 改动地图第 8 行
+4. **Tuist 里两个扫描模块开 `-O`** —— 改动地图第 8 行（已完成）
    - 行为：`debugConfigurationCompilesTheScanModulesOptimized`（重新生成后，生成的 `MachOKitExtensions.xcodeproj` 里 `MachOCodeReferences`、`ARM64InstructionDecoding` 的 Debug 配置是 `-O`，构建日志里它们的编译命令带 `-O`）
    - 行为：`crossReferenceAnalysisStaysUnoptimizedInDebug`
    - 验证不通过就启用「详细设计」里的后备写法，再验证一次
-5. **复测并更新文档** —— 改动地图第 9–11 行
-   - 行为：`cpuPeakStaysWithinTheBudget`（xctest 的 `%cpu` 峰值不超过 `maximumConcurrentScans × 100%` 加少量余量）
+5. **复测并更新文档** —— 改动地图第 9–11 行（已完成）
+   - 行为：`wholeCacheScansStayWithinTheBudget`（采样里，四处扫描同时占用的线程不超过名额）。原先写的「xctest 的 `%cpu` 峰值不超过名额」没有成立：开头约 35 秒是 Swift Testing 自身的并行，见决策日志
    - 行为：`wallTimeAndCpuTimeAreRecordedAgainstTheBaseline`
    - 复测时再采样一次；`CrossReferenceAnalysis` 或 `ObjCCodeReferences` 的帧占比明显时，把结论记进决策日志，再决定要不要扩大 `-O` 名单
 
@@ -315,3 +315,14 @@ Settings.settings(configurations: [.debug(name: .debug, settings: ["SWIFT_OPTIMI
 |------|------|------|
 | 2026-11-21 | Created as Draft | Ultra 上跑 Debug 测试时 xctest 长时间占满 28 核。采样定位到两个原因：四处不限并发的整份 cache 扫描，以及 Debug 下扫描循环每条指令都查一次运行时元数据。用户决定两项都改：测试限并发；Debug 提速走 Tuist 配置，不改 MachOKitExtensions 源码。按轻量档写提案。 |
 | 2026-11-21 | Accepted | 用户批准，开始实现。 |
+| 2026-11-21 | 测量时临时套用另一分支的修复 | `next` 上 `./TuistScript.sh test` 编不过：`SwiftSectionTestingMacrosTests` 报 `Unable to resolve module dependency: 'SwiftSectionTestingMacros'`。`feature/shared-macho-testing-support` 已经修了（Tuist 映射测试时把依赖宏 target 的测试也拿掉，改 `Package.swift` 两行），还没合进 `next`。本分支只在工作区里临时套用这两行来测量，不提交；改前改后在同样条件下量。 |
+| 2026-11-21 | 基线 | Ultra，`next` 的代码，Tuist Debug，`-only-testing:CrossReferenceAnalysisTests`：124 个测试用时 841 秒（Swift Testing 的报告）；xctest 累计 CPU 时间约 234 分钟（约 14 030 秒，平均约 17 个核心）；`ps` 读到的 `%cpu` 峰值 2356%。同机另有一个会话的 `swift test` 占着约 4 个核心。3 个失败是新 worktree 缺 `SymbolTestsCore` 夹具，按 AGENTS.md 链接主检出的 `DerivedData` 后解决，与本提案无关。 |
+| 2026-11-21 | 第 2 步验证 | 入口临时换成裸 `concurrentPerform` 时，两条上限测试失败；只按调用限宽、不共用名额时，只有 `twoCallsAtOnceShareTheBudget` 失败，证明这条测试抓得住「名额必须全进程共用」。正式实现四条全过。 |
+| 2026-11-21 | 第 3 步验证 | 把一处调用点临时改回 `DispatchQueue.concurrentPerform` 时 `everyParallelScanGoesThroughTheSharedBudget` 失败，恢复后通过。四个重型套件单独复测一次要十几分钟，与第 4 步之后的整批复测合并进行。 |
+| 2026-11-21 | 第 4 步验证 | `base` 里的 `SWIFT_OPTIMIZATION_LEVEL` 盖过了 Tuist 按配置写的值，后备写法不需要：重新生成后，`MachOKitExtensions.xcodeproj` 里 `MachOCodeReferences`、`ARM64InstructionDecoding` 的 Debug 配置是 `-O`，同工程没进名单的 `MachOAddressResolution` 仍是 `-Onone`；本包 `MachOSwiftSection.xcodeproj` 里 `CrossReferenceAnalysis` 的 Debug 仍是 `-Onone`。 |
+| 2026-11-21 | 第 5 步复测 | 同一台 Ultra，同样条件（机器上没有别的测试在跑）：127 个测试全部通过（3 个跳过）；xctest 存活约 91 秒，累计 CPU 时间约 829 秒（基线约 14 030 秒，约 17 倍）；第二次复测 93 秒、843 秒，结果一致。构建日志里 `MachOCodeReferences` 的编译命令带 `-O`。 |
+| 2026-11-21 | 偏离：开头约 35 秒仍满核 | `ps` 读到的 `%cpu` 在头 35 秒达到约 2500%，之后降到 300% 以下。在第 6 秒与第 20 秒各采样 3 秒：占着线程的是二十多个不同的测试（`FileModeTests` 建文件模式分析器、各种预筛测试、`LargeStackThreadPool` 的工作线程），每个测试一个线程，是 Swift Testing 按核心数并行跑测试，不是四处扫描。限制测试运行器自身的并行度超出本提案范围，原定的「峰值不超过名额」改为「四处扫描不超过名额」，后续要不要限由用户决定。 |
+| 2026-11-21 | 不扩大 `-O` 名单 | 复测时在第 61 秒采样：只剩三个 `FileModeTests` 在跑，时间花在 ICU 正则与字符串查找上，运行时元数据查找已不显著，`CrossReferenceAnalysis`、`ObjCCodeReferences` 开 `-O` 收益不大，维持原名单。 |
+| 2026-11-21 | 收尾判断 | 不需要专题文章：设计来历写进 FixtureTestingAndContinuousIntegration.md 的新小节，Tuist 差异写进 TuistDevelopment.md 的新小节，规则写进 AGENTS.md。没有引入新术语。 |
+| 2026-11-21 | 完整验证 | Tuist workspace 的 `MachOSwiftSection Tests` 整个 scheme（Debug，Ultra，带测量时同样临时套用的 `Package.swift` 两行）：3005 个通过、0 失败、7 个跳过，634 秒。 |
+| 2026-11-21 | 实现完成，待用户看过后收尾 | 功能分支已推送并在本地合进 `next` 的常驻检出（不推送）；测量时临时套用的 `Package.swift` 两行没有提交。 |

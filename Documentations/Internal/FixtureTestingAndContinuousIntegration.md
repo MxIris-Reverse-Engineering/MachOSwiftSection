@@ -201,6 +201,19 @@ GitHub 的 `macos-26` runner 是 3 核、7 GB 内存。Swift Concurrency 的 coo
 
 **排查这类卡住的办法**：`swift test` 的控制台输出是分块缓冲后才进日志的，只看日志分不清是哪个测试卡住。当时用的诊断 workflow 在 PR #128 的提交 `e473b89d` 里，可以照搬：测试放后台跑并打开 `--event-stream-output-path`（每个事件单独写一行），超过 12 分钟就列出「已开始但没结束」的测试、内存状态，并对 `swiftpm-testing-helper` 做 `sample`（它带 `get-task-allow`，不需要 sudo）。
 
+## 整份 cache 扫描共用一份并发名额（2026-11-21）
+
+`CrossReferenceAnalysisTests` 里有几处测试要把整份 dyld shared cache 的上千个镜像各扫一遍：调用者、Swift 类型、ObjC 类三种预筛的抽样复查，以及找 `__text` 之外的函数起点。它们原先各自用 `DispatchQueue.concurrentPerform` 按镜像数开满并发。Debug 构建下扫一遍要好几分钟，测试期间整台机器被占满：2026-11-21 在 28 核的 Ultra 上，xctest 持续占 2300% 以上的 CPU，这一个 target 跑了 14 分钟。
+
+**规则**：这个 target 里并行扫描很多镜像，一律走 `ImageScanConcurrency.concurrentPerform(iterations:execute:)`，不直接调 `DispatchQueue.concurrentPerform`。
+
+- **名额是 `max(2, 核心数 / 2)`，全进程共用**：Swift Testing 会并行跑几个套件，每次调用各自限宽的话加起来又是满核。`ImageScanConcurrencyTests.twoCallsAtOnceShareTheBudget` 钉住这一点：只按调用限宽、不共用名额的实现会让它失败。
+- **每次调用最多起「名额」个工作者**，各自从共享游标领下一个下标、扫之前取一个名额。只靠信号量的话，`concurrentPerform` 仍按核心数起线程，多出来的线程全阻塞在等名额上。
+- **不会卡住 cooperative thread**：名额只在扫一个镜像期间持有，扫描是同步的 CPU 工作、不等任何线程池，所以调用线程是 cooperative thread 也总能等到名额，不违反上一节的规则。**闭包里不能再调它**：嵌套调用在外层占着名额时再去等名额，名额全被这样占住就再也放不出来。
+- **`ParallelScanSourceTests` 拦下新的直接调用**：扫这个 target 的源码，名额之外出现 `DispatchQueue.concurrentPerform(` 就失败。例外只有 `ScanThroughputBenchmarkTests`：它要设 `CROSS_REFERENCE_BENCHMARK_OUTPUT` 才跑，量的就是全核吞吐。
+
+Debug 下扫描本身为什么慢、Tuist workspace 怎么处理，见 [TuistDevelopment.md](TuistDevelopment.md) 的「扫描模块在 Debug 下也开优化」一节；设计来历与测量数据见提案 [cross-reference-test-scan-load](../Evolutions/draft-cross-reference-test-scan-load.md)。
+
 ## 相关文档
 
 - [AGENTS.md](../../AGENTS.md) —— 覆盖体系的现行操作规程（invariants、regen-baselines、环境漂移排查）

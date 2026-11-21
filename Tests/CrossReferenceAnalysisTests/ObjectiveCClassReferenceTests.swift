@@ -193,7 +193,7 @@ struct ObjectiveCClassReferenceTests {
     private func imagesReferencing(_ className: String, at location: CodeLocation, among imageIndices: [Int]) -> Set<Int> {
         let found = ImageIndexCollector()
         let analyzer = analyzer
-        DispatchQueue.concurrentPerform(iterations: imageIndices.count) { position in
+        ImageScanConcurrency.concurrentPerform(iterations: imageIndices.count) { position in
             let imageIndex = imageIndices[position]
             let references = analyzer.references(to: [.objectiveCClass(className)], inImageAt: imageIndex)
             if references.contains(where: { $0.target == .objectiveCClass(name: className, location: location) }) { found.insert(imageIndex) }

@@ -163,7 +163,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
   <h1><span class="proposal-number">Draft</span> 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-21</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
     <div><dt>原文</dt><dd><code>draft-cross-reference-test-scan-load.md</code></dd></div>
@@ -200,15 +200,18 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">轻量档：看过简报点头即可开工</p>
+    <p class="callout-title">已批准并实现；剩一个后续问题</p>
     <ol>
-      <li>名额取半数核心（Ultra 上 14 个）、至少 2 个，可以吗？</li>
-      <li><code>-O</code> 只给采样里出现的两个模块，本包自己的 <code>CrossReferenceAnalysis</code> 保持可调试，可以吗？</li>
+      <li>开头约 35 秒仍会用满核心，那是 Swift Testing 同时跑着二十多个测试，不在本提案范围。要不要另外限制测试运行器的并行度？</li>
     </ol>
   </div>
-  <div class="callout callout-warning">
-    <p class="callout-title">未实测</p>
-    <p>「开 <code>-O</code> 后接近 Release 的速度」是推测；Tuist 的 <code>base</code> 设置能否覆盖按配置写的 <code>-Onone</code> 也未验证。落地第 1、4、5 步分别量基线、验证设置、复测。</p>
+  <div class="callout callout-note">
+    <p class="callout-title">实测结果（Ultra，Debug，<code>-only-testing:CrossReferenceAnalysisTests</code>）</p>
+    <ul>
+      <li>耗时：约 14 分钟 → 约 1.5 分钟；xctest 累计 CPU 时间：约 234 分钟 → 约 14 分钟（约 17 倍）。</li>
+      <li>四处扫描同时占用的线程不超过名额（采样最多 8 个，名额 14）；开头约 35 秒的满核来自 Swift Testing 自身的并行。</li>
+      <li>Tuist 的 <code>base</code> 设置盖得过按配置写的 <code>-Onone</code>，后备写法没用上。</li>
+    </ul>
   </div>
 </section>
 
@@ -430,7 +433,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <li><strong>加名额与测试</strong> —— <code>everyIterationRunsExactlyOnce</code>、<code>noMoreThanTheBudgetRunAtOnce</code>、<code>twoCallsAtOnceShareTheBudget</code>、<code>zeroIterationsReturnWithoutRunning</code>；临时换回裸 <code>concurrentPerform</code> 确认上限相关的两条会失败</li>
     <li><strong>四处调用点改走名额，加源码扫描测试</strong> —— <code>everyParallelScanGoesThroughTheSharedBudget</code>、<code>theScanDiscriminates</code>，原有测试全部通过</li>
     <li><strong>Tuist 里两个模块开 <code>-O</code></strong> —— <code>debugConfigurationCompilesTheScanModulesOptimized</code>、<code>crossReferenceAnalysisStaysUnoptimizedInDebug</code>；不通过就启用后备写法</li>
-    <li><strong>复测并更新文档</strong> —— <code>cpuPeakStaysWithinTheBudget</code>、<code>wallTimeAndCpuTimeAreRecordedAgainstTheBaseline</code>；再采样决定要不要扩大 <code>-O</code> 名单</li>
+    <li><strong>复测并更新文档</strong> —— <code>wholeCacheScansStayWithinTheBudget</code>、<code>wallTimeAndCpuTimeAreRecordedAgainstTheBaseline</code>；原定的「xctest 峰值不超过名额」没有成立（开头约 35 秒是 Swift Testing 自身的并行）；复测采样后决定不扩大 <code>-O</code> 名单</li>
   </ol>
   <p>收尾判断：预计不需要专题文章（设计来历进 FixtureTestingAndContinuousIntegration.md，Tuist 差异进 TuistDevelopment.md），不引入新术语。</p>
 </section>
@@ -438,14 +441,25 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>2 条，最近一条：Accepted</summary>
+    <summary>13 条，最近一条：实现完成，待用户看过后收尾</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
         <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
         <tbody>
-          <tr><td class="numeric">2026-11-21</td><td>Created as Draft</td><td>Ultra 上跑 Debug 测试时 xctest 长时间占满 28 核。采样定位到四处不限并发的整份 cache 扫描，以及 Debug 下扫描循环每条指令都查一次运行时元数据。用户决定两项都改：测试限并发；Debug 提速走 Tuist 配置，不改 MachOKitExtensions 源码。按轻量档写提案。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>Created as Draft</td><td>Ultra 上跑 Debug 测试时 xctest 长时间占满 28 核。采样定位到两个原因：四处不限并发的整份 cache 扫描，以及 Debug 下扫描循环每条指令都查一次运行时元数据。用户决定两项都改：测试限并发；Debug 提速走 Tuist 配置，不改 MachOKitExtensions 源码。按轻量档写提案。</td></tr>
           <tr><td class="numeric">2026-11-21</td><td>Accepted</td><td>用户批准，开始实现。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>测量时临时套用另一分支的修复</td><td><code>next</code> 上 <code>./TuistScript.sh test</code> 编不过：<code>SwiftSectionTestingMacrosTests</code> 报 <code>Unable to resolve module dependency: 'SwiftSectionTestingMacros'</code>。<code>feature/shared-macho-testing-support</code> 已经修了（Tuist 映射测试时把依赖宏 target 的测试也拿掉，改 <code>Package.swift</code> 两行），还没合进 <code>next</code>。本分支只在工作区里临时套用这两行来测量，不提交；改前改后在同样条件下量。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>基线</td><td>Ultra，<code>next</code> 的代码，Tuist Debug，<code>-only-testing:CrossReferenceAnalysisTests</code>：124 个测试用时 841 秒（Swift Testing 的报告）；xctest 累计 CPU 时间约 234 分钟（约 14 030 秒，平均约 17 个核心）；<code>ps</code> 读到的 <code>%cpu</code> 峰值 2356%。同机另有一个会话的 <code>swift test</code> 占着约 4 个核心。3 个失败是新 worktree 缺 <code>SymbolTestsCore</code> 夹具，按 AGENTS.md 链接主检出的 <code>DerivedData</code> 后解决，与本提案无关。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>第 2 步验证</td><td>入口临时换成裸 <code>concurrentPerform</code> 时，两条上限测试失败；只按调用限宽、不共用名额时，只有 <code>twoCallsAtOnceShareTheBudget</code> 失败，证明这条测试抓得住「名额必须全进程共用」。正式实现四条全过。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>第 3 步验证</td><td>把一处调用点临时改回 <code>DispatchQueue.concurrentPerform</code> 时 <code>everyParallelScanGoesThroughTheSharedBudget</code> 失败，恢复后通过。四个重型套件单独复测一次要十几分钟，与第 4 步之后的整批复测合并进行。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>第 4 步验证</td><td><code>base</code> 里的 <code>SWIFT_OPTIMIZATION_LEVEL</code> 盖过了 Tuist 按配置写的值，后备写法不需要：重新生成后，<code>MachOKitExtensions.xcodeproj</code> 里 <code>MachOCodeReferences</code>、<code>ARM64InstructionDecoding</code> 的 Debug 配置是 <code>-O</code>，同工程没进名单的 <code>MachOAddressResolution</code> 仍是 <code>-Onone</code>；本包 <code>MachOSwiftSection.xcodeproj</code> 里 <code>CrossReferenceAnalysis</code> 的 Debug 仍是 <code>-Onone</code>。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>第 5 步复测</td><td>同一台 Ultra，同样条件（机器上没有别的测试在跑）：127 个测试全部通过（3 个跳过）；xctest 存活约 91 秒，累计 CPU 时间约 829 秒（基线约 14 030 秒，约 17 倍）；第二次复测 93 秒、843 秒，结果一致。构建日志里 <code>MachOCodeReferences</code> 的编译命令带 <code>-O</code>。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>偏离：开头约 35 秒仍满核</td><td><code>ps</code> 读到的 <code>%cpu</code> 在头 35 秒达到约 2500%，之后降到 300% 以下。在第 6 秒与第 20 秒各采样 3 秒：占着线程的是二十多个不同的测试（<code>FileModeTests</code> 建文件模式分析器、各种预筛测试、<code>LargeStackThreadPool</code> 的工作线程），每个测试一个线程，是 Swift Testing 按核心数并行跑测试，不是四处扫描。限制测试运行器自身的并行度超出本提案范围，原定的「峰值不超过名额」改为「四处扫描不超过名额」，后续要不要限由用户决定。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>不扩大 <code>-O</code> 名单</td><td>复测时在第 61 秒采样：只剩三个 <code>FileModeTests</code> 在跑，时间花在 ICU 正则与字符串查找上，运行时元数据查找已不显著，<code>CrossReferenceAnalysis</code>、<code>ObjCCodeReferences</code> 开 <code>-O</code> 收益不大，维持原名单。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>收尾判断</td><td>不需要专题文章：设计来历写进 FixtureTestingAndContinuousIntegration.md 的新小节，Tuist 差异写进 TuistDevelopment.md 的新小节，规则写进 AGENTS.md。没有引入新术语。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>完整验证</td><td>Tuist workspace 的 <code>MachOSwiftSection Tests</code> 整个 scheme（Debug，Ultra，带测量时同样临时套用的 <code>Package.swift</code> 两行）：3005 个通过、0 失败、7 个跳过，634 秒。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>实现完成，待用户看过后收尾</td><td>功能分支已推送并在本地合进 <code>next</code> 的常驻检出（不推送）；测量时临时套用的 <code>Package.swift</code> 两行没有提交。</td></tr>
         </tbody>
       </table>
       </div>

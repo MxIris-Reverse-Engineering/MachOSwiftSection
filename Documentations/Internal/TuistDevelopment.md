@@ -105,3 +105,14 @@ Tuist 把按路径声明的包的测试 target 一起转换（`PackageSettings` 
 - **警告还给按路径声明的包**：Tuist 对所有包都关掉警告，Xcode 只关远程包的；本库（本地模式下还有五个上游库）的 target 经 `TUIST_WARNING_TARGET_NAMES` 把警告要回来。
 - **预热要带 `--cache-profile development`**（脚本已经带上）：`tuist cache warm` 不读 `Tuist.swift` 里的默认配置，不传就连本库与上游库也一起缓存。缓存例外按 target 名字匹配所有包，脚本读完清单会警告名字撞上的第三方 target。
 - **Tuist 会往 `PrecompiledLibraries/swift-syntax/` 里写 `swift-syntax.xcodeproj`、`Derived/` 与 `.build/`**：它也是按路径声明的包。都已忽略。
+
+## 扫描模块在 Debug 下也开优化
+
+`Tuist/Package.swift` 的 `optimizedScanSettings` 让 MachOKitExtensions 的 `MachOCodeReferences` 与 `ARM64InstructionDecoding` 在 Debug 配置下也用 `-O` 编译。这是 Tuist workspace 与原生 workspace、`swift test` 之间一处有意的差异，后两者不受影响。
+
+- **为什么**：这两个模块是交叉引用扫描的热路径。`-Onone` 下，扫描里逐条指令、逐个寄存器的区间循环走 libswiftCore 里未特化的 `IndexingIterator.next()`，每走一步都要查一次元组类型元数据，几十个线程争同一把锁；2026-11-21 在 Ultra 上采样，工作线程近一半的时间花在这上面。
+- **效果**（同一台 Ultra，Debug，`-only-testing:CrossReferenceAnalysisTests`，连同测试里的扫描限并发一起改）：这个 target 从 14 分钟降到约 1.5 分钟，xctest 累计 CPU 时间从约 234 分钟降到约 14 分钟。
+- **代价**：在 Tuist workspace 里对这两个模块打断点，看到的是优化后的代码，部分局部变量看不到。要调试它们时，从 `optimizedScanSettings` 的名单里临时拿掉再 `./TuistScript.sh generate`，调完放回去。本库自己的 `CrossReferenceAnalysis` 不在名单里，照常可调试。
+- **确认生效**：重新生成后，`<TUIST_SCRIPT_ROOT>/Dependencies/<checkout>/tuist-derived/Projects/MachOKitExtensions/MachOKitExtensions.xcodeproj` 里这两个 target 的 Debug 配置是 `SWIFT_OPTIMIZATION_LEVEL = "-O"`；构建日志里它们的编译命令带 `-O`。`base` 里的设置盖得过 Tuist 按配置写的 `-Onone`。
+
+测试一侧的限并发见 [FixtureTestingAndContinuousIntegration.md](FixtureTestingAndContinuousIntegration.md) 的「整份 cache 扫描共用一份并发名额」；设计来历见提案 [cross-reference-test-scan-load](../Evolutions/draft-cross-reference-test-scan-load.md)。
