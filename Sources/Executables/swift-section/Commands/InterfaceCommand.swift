@@ -18,6 +18,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @OptionGroup(title: "Comment Templates")
     var transformerOptions: TransformerOptionGroup
 
+    @OptionGroup(title: "Long Types")
+    var multilineTypeOptions: MultilineTypeOptionGroup
+
     @Option(name: .shortAndLong, help: "The output path for the dump. If not specified, the output will be printed to the console.", completion: .file())
     var outputPath: String?
 
@@ -104,6 +107,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             expandsMacros: expandMacros,
             protocolRequirementPlacement: requirementsOnAssociatedTypes ? .associatedTypes : .protocolWhereClause,
             emitsHeader: emitHeader,
+            multilineTypeFormatting: multilineTypeOptions.multilineTypeFormatting,
             commentTransformers: try transformerOptions.buildTransformerConfiguration(),
             destination: outputPath.map { .file(path: $0) } ?? .output
         )

@@ -50,7 +50,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 `interface --requirements-on-associated-types` and `--emit-private-source-files`, and from
 0.25.0 `objc evolution --interface` / `--emit-available` / `--platform`,
 `objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`,
-`interface --expand-macros` and the `refs` and `symbolicate` subcommands.
+`interface --expand-macros` and the `refs` and `symbolicate` subcommands, and after 0.26.0
+`--multiline-types` / `--maximum-line-width` on `dump` and `interface`.
 When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
@@ -152,7 +153,20 @@ The single most common mistake. Same underlying comment, different name:
 Spelled the same on both: `--emit-type-layout`, `--emit-enum-layout`, `--emit-member-addresses`,
 `--emit-vtable-offsets`, `--emit-expanded-field-offsets` (implies the field-offset flag),
 `--emit-header`, `--emit-export-status`, `--emit-private-source-files`, `--color-scheme`,
-`--output-path`, `--dependency-search-path` (§2).
+`--output-path`, `--dependency-search-path` (§2), `--multiline-types`, `--maximum-line-width`.
+
+`--multiline-types` breaks a long type over several lines at its brackets — a SwiftUI view's
+`typealias Body = SwiftUI.ModifiedContent<…>` otherwise prints as one line thousands of
+characters long. A type whose closing `>` lies past `--maximum-line-width` (default 100; a
+line's indentation does not count) puts each argument of every generic with two or more
+arguments on a line of its own; a single-argument generic, a tuple, a parameter list or
+`[…]` sugar breaks only when something inside it breaks, so a signature's parameter list opens
+up around a broken parameter type. A type that fits stays on one line, and so does a line that
+is long for any other reason (many parameters, a trailing comment). Off by default. With it on,
+a declaration no longer sits on one line: grep for a short name, not a whole one-line type
+spelling, and do not feed the output to anything that expects one declaration per line.
+`--maximum-line-width` without `--multiline-types` is a usage error. `diff`, `evolution` and
+`snapshot` do not take these flags.
 
 `--emit-private-source-files` puts a comment above each declaration whose name carries a
 private discriminator, naming the source file the discriminator was derived from:

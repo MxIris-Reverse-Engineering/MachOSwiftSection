@@ -124,7 +124,8 @@ func update(
 | `Tests/SwiftSectionKitTests/MultilineTypeFormattingRequestTests.swift` | 新增 | 两个请求打开与关闭字段时的输出 | 接入正确、关闭时不变 | 5 |
 | `Package.swift` · `swift-section`、`SwiftSectionKitTests` | 修改 | 两个 target 各加 `SwiftDeclarationRendering` 直接依赖 | SwiftSectionKit 不重新导出任何模块，调用方构造 `MultilineTypeFormatting` 要自己导入它 | 5 |
 | `Tuist/CommandLine/Project.swift` · `commandLineDependencies` | 修改 | 加 `.external(name: "SwiftDeclarationRendering")` | 项目规定 `swift-section` 的新依赖同步进 Tuist 工程；测试目标的依赖由 `Package.swift` 末尾的映射自动带上 | 5 |
-| `Sources/Executables/swift-section/Commands/InterfaceCommand.swift`、`DumpCommand.swift` | 修改 | `--multiline-types` flag、`--maximum-line-width <columns>` option；`validate()` 拒绝单独给宽度和非正数宽度；`makeRequest()` 映射 | CLI 是 SwiftSectionKit 的包装 | 6 |
+| `Sources/Executables/swift-section/Models/MultilineTypeOptionGroup.swift` · `MultilineTypeOptionGroup` | 新增 | `--multiline-types` flag、`--maximum-line-width <columns>` option；`validate()` 拒绝单独给宽度和非正数宽度；`multilineTypeFormatting` 把两者换成请求要的值；帮助里的默认宽度取自 `MultilineTypeFormatting()` | 两个子命令共用一组参数，照 `ObjCMemberOptionGroup` 的做法放进 option group | 6 |
+| `Sources/Executables/swift-section/Commands/InterfaceCommand.swift`、`DumpCommand.swift` | 修改 | `@OptionGroup(title: "Long Types")` 引入上面那组参数，`makeRequest()` 映射到 `multilineTypeFormatting` | CLI 是 SwiftSectionKit 的包装 | 6 |
 | `Tests/SwiftSectionCommandTests/MultilineTypesFlagTests.swift` | 新增 | flag 映射到请求、校验错误的退出码 64 | CLI 两侧都要有测试 | 6 |
 | `AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md` | 修改 | 写明两个新 flag 与默认宽度 | CLI 改动要同批更新这份 skill | 6 |
 | `Documentations/SwiftSectionKit.md`、`Documentations/Internal/Modules/SwiftSectionKit.md` | 修改 | 两个请求的新字段 | 调用方指南与模块参考 | 7 |
@@ -377,12 +378,13 @@ extension MultilineTypeFormatting {
    - 行为：`interfaceRequestFormatsLongTypesWhenAsked`（产物等于把不格式化的产物整份格式化）
    - 行为：`dumpRequestFormatsEachDeclarationWhenAsked`（每个声明等于把它不格式化的打印格式化）
    - 行为：`interfaceWrittenToFileIsFormattedToo`
-6. **CLI 与 agent 插件** —— 改动地图第 11、12、13 行
+6. **CLI 与 agent 插件**（已完成） —— 改动地图第 11、12、13 行与 `MultilineTypeOptionGroup` 一行
+   - 行为：`formattingIsOffByDefault`
    - 行为：`multilineTypesFlagMapsOntoTheRequest`
    - 行为：`maximumLineWidthMapsOntoTheRequest`
-   - 行为：`maximumLineWidthWithoutMultilineTypesIsAUsageError`
-   - 行为：`nonPositiveMaximumLineWidthIsAUsageError`
-   - 行为：插件 skill 里出现的每个 flag 都存在于对应子命令的 `--help`
+   - 行为：`usageMistakesAreValidationErrors`（只给宽度、宽度不是正数，两个子命令都是退出码 64）
+   - 行为：`helpNamesTheDefaultWidth`
+   - 行为：插件 skill 里出现的每个 flag 都存在于对应子命令的 `--help`（逐个核对过）；`claude plugin validate` 两项通过
 7. **文档** —— 改动地图第 14、15、16 行
    - 行为：文档索引、账本、术语表、模块清单与代码一致
 
