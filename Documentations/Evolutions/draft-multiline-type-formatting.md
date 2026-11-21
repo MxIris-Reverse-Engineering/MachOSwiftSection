@@ -336,7 +336,7 @@ extension MultilineTypeFormatting {
    - 行为：`contentWidthIgnoresLeadingIndentation`
    - 行为：`atomsContainingLineBreaksAreSplitKeepingTypeAndIdentifier`
    - 行为：`nonPositiveWidthIsAPreconditionFailure`（exit test）
-2. **括号树** —— 改动地图第 3、5 行
+2. **括号树**（已完成） —— 改动地图第 3、5 行
    - 行为：`genericArgumentListsNestInsideParenthesesAndBrackets`
    - 行为：`angleBracketAfterDeclarationNameIsGenericParameterClause`
    - 行为：`arrowIsNotAClosingBracket`
