@@ -30,28 +30,25 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @
 
     @Test func fieldDescriptor() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try? fileSubject.fieldDescriptor(in: fileContext)) != nil },
-            image: { (try? imageSubject.fieldDescriptor(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            (try? descriptor.fieldDescriptor(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasFieldDescriptor)
     }
 
     @Test func genericContext() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try fileSubject.genericContext(in: fileContext)) != nil },
-            image: { (try imageSubject.genericContext(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            (try descriptor.genericContext(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasGenericContext)
     }
 
     @Test func typeGenericContext() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try fileSubject.typeGenericContext(in: fileContext)) != nil },
-            image: { (try imageSubject.typeGenericContext(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            (try descriptor.typeGenericContext(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorProtocolBaseline.structTest.hasTypeGenericContext)
     }
 
@@ -70,28 +67,19 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @
 
     @Test func hasSingletonMetadataInitialization() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasSingletonMetadataInitialization },
-            image: { imageSubject.hasSingletonMetadataInitialization }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasSingletonMetadataInitialization }
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasSingletonMetadataInitialization)
     }
 
     @Test func hasForeignMetadataInitialization() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasForeignMetadataInitialization },
-            image: { imageSubject.hasForeignMetadataInitialization }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasForeignMetadataInitialization }
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasForeignMetadataInitialization)
     }
 
     @Test func hasImportInfo() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasImportInfo },
-            image: { imageSubject.hasImportInfo }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasImportInfo }
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasImportInfo)
     }
 
@@ -100,19 +88,17 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @
     /// C-typedef namespace, identically through every reader.
     @Test func typeImportInfo() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let swiftResult = try acrossAllContexts(
-            file: { try fileSubject.typeImportInfo(in: fileContext) },
-            image: { try imageSubject.typeImportInfo(in: imageContext) }
-        )
+        let swiftResult = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            try descriptor.typeImportInfo(in: context)
+        }
         #expect(swiftResult == nil)
         #expect(TypeContextDescriptorProtocolBaseline.structTest.typeImportInfoABIName == nil)
 
         let foreignFile = try BaselineFixturePicker.struct_ForeignDecimal(in: machOFile)
         let foreignImage = try BaselineFixturePicker.struct_ForeignDecimal(in: machOImage)
-        let foreignResult = try acrossAllContexts(
-            file: { try foreignFile.typeImportInfo(in: fileContext) },
-            image: { try foreignImage.typeImportInfo(in: imageContext) }
-        )
+        let foreignResult = try acrossAllContexts(foreignFile, foreignImage) { descriptor, context in
+            try descriptor.typeImportInfo(in: context)
+        }
         let expected = TypeContextDescriptorProtocolBaseline.foreignDecimal
         #expect(foreignResult?.abiName == expected.typeImportInfoABIName)
         #expect(foreignResult?.symbolNamespace == expected.typeImportInfoSymbolNamespace)
@@ -123,37 +109,27 @@ final class TypeContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, @
 
     @Test func hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer },
-            image: { imageSubject.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { descriptor in
+            descriptor.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
+        }
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer)
     }
 
     @Test func hasLayoutString() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasLayoutString },
-            image: { imageSubject.hasLayoutString }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasLayoutString }
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasLayoutString)
     }
 
     @Test func hasCanonicalMetadataPrespecializations() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasCanonicalMetadataPrespecializations },
-            image: { imageSubject.hasCanonicalMetadataPrespecializations }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasCanonicalMetadataPrespecializations }
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasCanonicalMetadataPrespecializations)
     }
 
     @Test func hasSingletonMetadataPointer() async throws {
         let (fileSubject, imageSubject) = try loadStructTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasSingletonMetadataPointer },
-            image: { imageSubject.hasSingletonMetadataPointer }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasSingletonMetadataPointer }
         #expect(result == TypeContextDescriptorProtocolBaseline.structTest.hasSingletonMetadataPointer)
     }
 }

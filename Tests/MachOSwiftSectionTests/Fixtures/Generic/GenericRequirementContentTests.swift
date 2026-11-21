@@ -47,19 +47,13 @@ final class GenericRequirementContentTests: MachOSwiftSectionFixtureTests, @unch
 
     @Test func genericParamIndex() async throws {
         let payloads = try loadInvertedProtocols()
-        let result = try acrossAllReaders(
-            file: { payloads.file.genericParamIndex },
-            image: { payloads.image.genericParamIndex }
-        )
+        let result = try acrossAllReaders(payloads.file, payloads.image) { $0.genericParamIndex }
         #expect(result == GenericRequirementContentBaseline.invertibleProtocolRequirement.genericParamIndex)
     }
 
     @Test func protocols() async throws {
         let payloads = try loadInvertedProtocols()
-        let result = try acrossAllReaders(
-            file: { payloads.file.protocols.rawValue },
-            image: { payloads.image.protocols.rawValue }
-        )
+        let result = try acrossAllReaders(payloads.file, payloads.image) { $0.protocols.rawValue }
         #expect(result == GenericRequirementContentBaseline.invertibleProtocolRequirement.protocolsRawValue)
     }
 }

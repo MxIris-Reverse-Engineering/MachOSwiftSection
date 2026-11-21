@@ -22,10 +22,9 @@ final class NamedContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, 
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let result = try acrossAllContexts(
-            file: { try fileDescriptor.name(in: fileContext) },
-            image: { try imageDescriptor.name(in: imageContext) }
-        )
+        let result = try acrossAllContexts(fileDescriptor, imageDescriptor) { descriptor, context in
+            try descriptor.name(in: context)
+        }
         #expect(result == NamedContextDescriptorProtocolBaseline.structTest.name)
     }
 

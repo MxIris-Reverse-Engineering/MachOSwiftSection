@@ -24,37 +24,31 @@ final class GenericMetadataPartialPatternTests: MachOSwiftSectionFixtureTests, @
 
     @Test func offset() async throws {
         let partialPatterns = try loadPartialPatterns()
-        let result = try acrossAllReaders(
-            file: { partialPatterns.file.offset },
-            image: { partialPatterns.image.offset }
-        )
+        let result = try acrossAllReaders(partialPatterns.file, partialPatterns.image) { $0.offset }
         #expect(result == GenericMetadataPartialPatternBaseline.offset)
     }
 
     @Test func layout() async throws {
         let partialPatterns = try loadPartialPatterns()
-        let relativeOffset = try acrossAllReaders(
-            file: { partialPatterns.file.layout.pattern.relativeOffset },
-            image: { partialPatterns.image.layout.pattern.relativeOffset }
-        )
+        let relativeOffset = try acrossAllReaders(partialPatterns.file, partialPatterns.image) { partialPattern in
+            partialPattern.layout.pattern.relativeOffset
+        }
         #expect(relativeOffset != 0)
         // One relative pointer plus two half-words; the pattern's own size
         // arithmetic depends on it.
         #expect(MemoryLayout<GenericMetadataPartialPattern.Layout>.size == 8)
 
-        let patternOffset = try acrossAllReaders(
-            file: { partialPatterns.file.resolvedDirectOffset(from: \.pattern) },
-            image: { partialPatterns.image.resolvedDirectOffset(from: \.pattern) }
-        )
+        let patternOffset = try acrossAllReaders(partialPatterns.file, partialPatterns.image) { partialPattern in
+            partialPattern.resolvedDirectOffset(from: \.pattern)
+        }
         #expect(patternOffset == GenericMetadataPartialPatternBaseline.patternOffset)
 
         // Both quantities are counted in WORDS, not bytes — reading them as
         // bytes would place the block eight times too close to the metadata's
         // start.
-        let wordCounts = try acrossAllReaders(
-            file: { [partialPatterns.file.layout.offsetInWords, partialPatterns.file.layout.sizeInWords] },
-            image: { [partialPatterns.image.layout.offsetInWords, partialPatterns.image.layout.sizeInWords] }
-        )
+        let wordCounts = try acrossAllReaders(partialPatterns.file, partialPatterns.image) { partialPattern in
+            [partialPattern.layout.offsetInWords, partialPattern.layout.sizeInWords]
+        }
         #expect(wordCounts.map(Int.init) == [
             GenericMetadataPartialPatternBaseline.offsetInWords,
             GenericMetadataPartialPatternBaseline.sizeInWords,

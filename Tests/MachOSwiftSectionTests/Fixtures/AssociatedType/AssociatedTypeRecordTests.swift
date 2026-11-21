@@ -35,10 +35,7 @@ final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, @unchecked
 
     @Test func offset() async throws {
         let records = try loadFirstRecord()
-        let result = try acrossAllReaders(
-            file: { records.file.offset },
-            image: { records.image.offset }
-        )
+        let result = try acrossAllReaders(records.file, records.image) { $0.offset }
         #expect(result == AssociatedTypeRecordBaseline.firstRecord.offset)
     }
 
@@ -49,10 +46,9 @@ final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, @unchecked
         // structural-presence anchor — it just verifies the layout
         // accessor is available and consistent across readers.
         let records = try loadFirstRecord()
-        let nameStringMatches = try acrossAllContexts(
-            file: { try records.file.name(in: fileContext) },
-            image: { try records.image.name(in: imageContext) }
-        )
+        let nameStringMatches = try acrossAllContexts(records.file, records.image) { record, context in
+            try record.name(in: context)
+        }
         #expect(nameStringMatches == AssociatedTypeRecordBaseline.firstRecord.name)
     }
 
@@ -60,19 +56,15 @@ final class AssociatedTypeRecordTests: MachOSwiftSectionFixtureTests, @unchecked
 
     @Test func name() async throws {
         let records = try loadFirstRecord()
-        let result = try acrossAllContexts(
-            file: { try records.file.name(in: fileContext) },
-            image: { try records.image.name(in: imageContext) }
-        )
+        let result = try acrossAllContexts(records.file, records.image) { record, context in try record.name(in: context) }
         #expect(result == AssociatedTypeRecordBaseline.firstRecord.name)
     }
 
     @Test func substitutedTypeName() async throws {
         let records = try loadFirstRecord()
-        let presence = try acrossAllContexts(
-            file: { (try? records.file.substitutedTypeName(in: fileContext)) != nil },
-            image: { (try? records.image.substitutedTypeName(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(records.file, records.image) { record, context in
+            (try? record.substitutedTypeName(in: context)) != nil
+        }
         #expect(presence == AssociatedTypeRecordBaseline.firstRecord.hasSubstitutedTypeName)
     }
 }

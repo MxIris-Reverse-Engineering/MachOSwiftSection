@@ -31,19 +31,13 @@ final class GenericValueHeaderTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func offset() async throws {
         let headers = try loadValueHeaders()
-        let result = try acrossAllReaders(
-            file: { headers.file.offset },
-            image: { headers.image.offset }
-        )
+        let result = try acrossAllReaders(headers.file, headers.image) { $0.offset }
         #expect(result == GenericValueHeaderBaseline.fixedSizeArrayHeader.offset)
     }
 
     @Test func layout() async throws {
         let headers = try loadValueHeaders()
-        let numValues = try acrossAllReaders(
-            file: { headers.file.layout.numValues },
-            image: { headers.image.layout.numValues }
-        )
+        let numValues = try acrossAllReaders(headers.file, headers.image) { $0.layout.numValues }
         #expect(numValues == GenericValueHeaderBaseline.fixedSizeArrayHeader.layoutNumValues)
     }
 }

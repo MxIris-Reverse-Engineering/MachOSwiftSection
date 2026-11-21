@@ -31,28 +31,19 @@ final class GenericValueDescriptorTests: MachOSwiftSectionFixtureTests, @uncheck
 
     @Test func offset() async throws {
         let values = try loadFirstValue()
-        let result = try acrossAllReaders(
-            file: { values.file.offset },
-            image: { values.image.offset }
-        )
+        let result = try acrossAllReaders(values.file, values.image) { $0.offset }
         #expect(result == GenericValueDescriptorBaseline.fixedSizeArrayFirstValue.offset)
     }
 
     @Test func layout() async throws {
         let values = try loadFirstValue()
-        let layoutType = try acrossAllReaders(
-            file: { values.file.layout.type },
-            image: { values.image.layout.type }
-        )
+        let layoutType = try acrossAllReaders(values.file, values.image) { $0.layout.type }
         #expect(layoutType == GenericValueDescriptorBaseline.fixedSizeArrayFirstValue.layoutType)
     }
 
     @Test func type() async throws {
         let values = try loadFirstValue()
-        let typeRaw = try acrossAllReaders(
-            file: { values.file.type.rawValue },
-            image: { values.image.type.rawValue }
-        )
+        let typeRaw = try acrossAllReaders(values.file, values.image) { $0.type.rawValue }
         #expect(typeRaw == GenericValueDescriptorBaseline.fixedSizeArrayFirstValue.typeRawValue)
     }
 }

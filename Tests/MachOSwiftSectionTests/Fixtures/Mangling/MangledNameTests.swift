@@ -25,19 +25,13 @@ final class MangledNameTests: MachOSwiftSectionFixtureTests, @unchecked Sendable
 
     @Test func isEmpty() async throws {
         let names = try loadMangledNames()
-        let result = try acrossAllReaders(
-            file: { names.file.isEmpty },
-            image: { names.image.isEmpty }
-        )
+        let result = try acrossAllReaders(names.file, names.image) { $0.isEmpty }
         #expect(result == MangledNameBaseline.multiPayloadEnumName.isEmpty)
     }
 
     @Test func rawString() async throws {
         let names = try loadMangledNames()
-        let result = try acrossAllReaders(
-            file: { names.file.rawString },
-            image: { names.image.rawString }
-        )
+        let result = try acrossAllReaders(names.file, names.image) { $0.rawString }
         #expect(result == MangledNameBaseline.multiPayloadEnumName.rawString)
     }
 
@@ -45,20 +39,14 @@ final class MangledNameTests: MachOSwiftSectionFixtureTests, @unchecked Sendable
         let names = try loadMangledNames()
         // symbolString applies prefix-insertion if the raw string isn't
         // already a Swift symbol; the result is reader-independent.
-        let result = try acrossAllReaders(
-            file: { names.file.symbolString },
-            image: { names.image.symbolString }
-        )
+        let result = try acrossAllReaders(names.file, names.image) { $0.symbolString }
         #expect(!result.isEmpty)
     }
 
     @Test func typeString() async throws {
         let names = try loadMangledNames()
         // typeString strips the prefix if present; reader-independent.
-        let result = try acrossAllReaders(
-            file: { names.file.typeString },
-            image: { names.image.typeString }
-        )
+        let result = try acrossAllReaders(names.file, names.image) { $0.typeString }
         #expect(!result.isEmpty)
     }
 

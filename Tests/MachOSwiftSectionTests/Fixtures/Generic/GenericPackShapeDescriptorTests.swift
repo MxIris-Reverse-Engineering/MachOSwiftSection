@@ -25,29 +25,17 @@ final class GenericPackShapeDescriptorTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func offset() async throws {
         let packs = try loadFirstPack()
-        let result = try acrossAllReaders(file: { packs.file.offset }, image: { packs.image.offset })
+        let result = try acrossAllReaders(packs.file, packs.image) { $0.offset }
         #expect(result == GenericPackShapeDescriptorBaseline.parameterPackFirstShape.offset)
     }
 
     @Test func layout() async throws {
         let packs = try loadFirstPack()
 
-        let kindRaw = try acrossAllReaders(
-            file: { packs.file.layout.kind },
-            image: { packs.image.layout.kind }
-        )
-        let index = try acrossAllReaders(
-            file: { packs.file.layout.index },
-            image: { packs.image.layout.index }
-        )
-        let shapeClass = try acrossAllReaders(
-            file: { packs.file.layout.shapeClass },
-            image: { packs.image.layout.shapeClass }
-        )
-        let unused = try acrossAllReaders(
-            file: { packs.file.layout.unused },
-            image: { packs.image.layout.unused }
-        )
+        let kindRaw = try acrossAllReaders(packs.file, packs.image) { $0.layout.kind }
+        let index = try acrossAllReaders(packs.file, packs.image) { $0.layout.index }
+        let shapeClass = try acrossAllReaders(packs.file, packs.image) { $0.layout.shapeClass }
+        let unused = try acrossAllReaders(packs.file, packs.image) { $0.layout.unused }
 
         #expect(kindRaw == GenericPackShapeDescriptorBaseline.parameterPackFirstShape.layoutKind)
         #expect(index == GenericPackShapeDescriptorBaseline.parameterPackFirstShape.layoutIndex)
@@ -57,10 +45,7 @@ final class GenericPackShapeDescriptorTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func kind() async throws {
         let packs = try loadFirstPack()
-        let result = try acrossAllReaders(
-            file: { packs.file.kind.rawValue },
-            image: { packs.image.kind.rawValue }
-        )
+        let result = try acrossAllReaders(packs.file, packs.image) { $0.kind.rawValue }
         #expect(result == GenericPackShapeDescriptorBaseline.parameterPackFirstShape.kindRawValue)
     }
 }

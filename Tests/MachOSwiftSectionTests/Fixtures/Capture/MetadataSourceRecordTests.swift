@@ -39,20 +39,16 @@ final class MetadataSourceRecordTests: MachOSwiftSectionFixtureTests, @unchecked
 
     @Test func offset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.offset },
-                image: { carrier.image.offset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.offset }
             #expect(result == carrier.expected.offset, "record \(carrier.index)")
         }
     }
 
     @Test func layout() async throws {
         for carrier in try allCarriers() {
-            let relativeOffsets = try acrossAllReaders(
-                file: { [carrier.file.layout.mangledTypeName.relativeOffset, carrier.file.layout.mangledMetadataSource.relativeOffset] },
-                image: { [carrier.image.layout.mangledTypeName.relativeOffset, carrier.image.layout.mangledMetadataSource.relativeOffset] }
-            )
+            let relativeOffsets = try acrossAllReaders(carrier.file, carrier.image) { record in
+                [record.layout.mangledTypeName.relativeOffset, record.layout.mangledMetadataSource.relativeOffset]
+            }
             #expect(relativeOffsets.allSatisfy { $0 != 0 }, "record \(carrier.index)")
         }
         #expect(MemoryLayout<MetadataSourceRecord.Layout>.size == 8)

@@ -55,82 +55,55 @@ final class EnumTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
 
     @Test func descriptor() async throws {
         let enums = try loadNoPayloadEnums()
-        let descriptorOffsets = try acrossAllReaders(
-            file: { enums.file.descriptor.offset },
-            image: { enums.image.descriptor.offset }
-        )
+        let descriptorOffsets = try acrossAllReaders(enums.file, enums.image) { $0.descriptor.offset }
         #expect(descriptorOffsets == EnumBaseline.noPayloadEnumTest.descriptorOffset)
     }
 
     @Test func genericContext() async throws {
         let enums = try loadNoPayloadEnums()
-        let presence = try acrossAllReaders(
-            file: { enums.file.genericContext != nil },
-            image: { enums.image.genericContext != nil }
-        )
+        let presence = try acrossAllReaders(enums.file, enums.image) { $0.genericContext != nil }
         #expect(presence == EnumBaseline.noPayloadEnumTest.hasGenericContext)
     }
 
     @Test func foreignMetadataInitialization() async throws {
         let enums = try loadNoPayloadEnums()
-        let presence = try acrossAllReaders(
-            file: { enums.file.foreignMetadataInitialization != nil },
-            image: { enums.image.foreignMetadataInitialization != nil }
-        )
+        let presence = try acrossAllReaders(enums.file, enums.image) { $0.foreignMetadataInitialization != nil }
         #expect(presence == EnumBaseline.noPayloadEnumTest.hasForeignMetadataInitialization)
     }
 
     @Test func singletonMetadataInitialization() async throws {
         let enums = try loadNoPayloadEnums()
-        let presence = try acrossAllReaders(
-            file: { enums.file.singletonMetadataInitialization != nil },
-            image: { enums.image.singletonMetadataInitialization != nil }
-        )
+        let presence = try acrossAllReaders(enums.file, enums.image) { $0.singletonMetadataInitialization != nil }
         #expect(presence == EnumBaseline.noPayloadEnumTest.hasSingletonMetadataInitialization)
     }
 
     @Test func canonicalSpecializedMetadatas() async throws {
         let enums = try loadNoPayloadEnums()
-        let count = try acrossAllReaders(
-            file: { enums.file.canonicalSpecializedMetadatas.count },
-            image: { enums.image.canonicalSpecializedMetadatas.count }
-        )
+        let count = try acrossAllReaders(enums.file, enums.image) { $0.canonicalSpecializedMetadatas.count }
         #expect(count == EnumBaseline.noPayloadEnumTest.canonicalSpecializedMetadatasCount)
     }
 
     @Test func canonicalSpecializedMetadatasListCount() async throws {
         let enums = try loadNoPayloadEnums()
-        let presence = try acrossAllReaders(
-            file: { enums.file.canonicalSpecializedMetadatasListCount != nil },
-            image: { enums.image.canonicalSpecializedMetadatasListCount != nil }
-        )
+        let presence = try acrossAllReaders(enums.file, enums.image) { $0.canonicalSpecializedMetadatasListCount != nil }
         #expect(presence == EnumBaseline.noPayloadEnumTest.hasCanonicalSpecializedMetadatasListCount)
     }
 
     @Test func canonicalSpecializedMetadatasCachingOnceToken() async throws {
         let enums = try loadNoPayloadEnums()
-        let presence = try acrossAllReaders(
-            file: { enums.file.canonicalSpecializedMetadatasCachingOnceToken != nil },
-            image: { enums.image.canonicalSpecializedMetadatasCachingOnceToken != nil }
-        )
+        let presence = try acrossAllReaders(enums.file, enums.image) { $0.canonicalSpecializedMetadatasCachingOnceToken != nil }
         #expect(presence == EnumBaseline.noPayloadEnumTest.hasCanonicalSpecializedMetadatasCachingOnceToken)
     }
 
     @Test func invertibleProtocolSet() async throws {
         let enums = try loadNoPayloadEnums()
-        let presence = try acrossAllReaders(
-            file: { enums.file.invertibleProtocolSet != nil },
-            image: { enums.image.invertibleProtocolSet != nil }
-        )
+        let presence = try acrossAllReaders(enums.file, enums.image) { $0.invertibleProtocolSet != nil }
         #expect(presence == EnumBaseline.noPayloadEnumTest.hasInvertibleProtocolSet)
     }
 
     @Test func singletonMetadataPointer() async throws {
         let enums = try loadNoPayloadEnums()
-        let presence = try acrossAllReaders(
-            file: { enums.file.singletonMetadataPointer != nil },
-            image: { enums.image.singletonMetadataPointer != nil }
-        )
+        let presence = try acrossAllReaders(enums.file, enums.image) { $0.singletonMetadataPointer != nil }
         #expect(presence == EnumBaseline.noPayloadEnumTest.hasSingletonMetadataPointer)
     }
 }

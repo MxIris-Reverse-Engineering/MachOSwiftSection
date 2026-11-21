@@ -32,26 +32,17 @@ final class AssociatedTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func offset() async throws {
         let descriptors = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.offset },
-            image: { descriptors.image.offset }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.offset }
         #expect(result == AssociatedTypeDescriptorBaseline.concreteWitnessTest.offset)
     }
 
     @Test func layout() async throws {
         // Cross-reader equality on the per-descriptor layout values.
         let descriptors = try loadDescriptors()
-        let numAssociatedTypes = try acrossAllReaders(
-            file: { descriptors.file.layout.numAssociatedTypes },
-            image: { descriptors.image.layout.numAssociatedTypes }
-        )
+        let numAssociatedTypes = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.numAssociatedTypes }
         #expect(numAssociatedTypes == AssociatedTypeDescriptorBaseline.concreteWitnessTest.layoutNumAssociatedTypes)
 
-        let recordSize = try acrossAllReaders(
-            file: { descriptors.file.layout.associatedTypeRecordSize },
-            image: { descriptors.image.layout.associatedTypeRecordSize }
-        )
+        let recordSize = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.associatedTypeRecordSize }
         #expect(recordSize == AssociatedTypeDescriptorBaseline.concreteWitnessTest.layoutAssociatedTypeRecordSize)
     }
 
@@ -59,10 +50,7 @@ final class AssociatedTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func actualSize() async throws {
         let descriptors = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.actualSize },
-            image: { descriptors.image.actualSize }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.actualSize }
         #expect(result == AssociatedTypeDescriptorBaseline.concreteWitnessTest.actualSize)
     }
 
@@ -70,28 +58,25 @@ final class AssociatedTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unche
 
     @Test func conformingTypeName() async throws {
         let descriptors = try loadDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try? descriptors.file.conformingTypeName(in: fileContext)) != nil },
-            image: { (try? descriptors.image.conformingTypeName(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(descriptors.file, descriptors.image) { descriptor, context in
+            (try? descriptor.conformingTypeName(in: context)) != nil
+        }
         #expect(presence == AssociatedTypeDescriptorBaseline.concreteWitnessTest.hasConformingTypeName)
     }
 
     @Test func protocolTypeName() async throws {
         let descriptors = try loadDescriptors()
-        let presence = try acrossAllContexts(
-            file: { (try? descriptors.file.protocolTypeName(in: fileContext)) != nil },
-            image: { (try? descriptors.image.protocolTypeName(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(descriptors.file, descriptors.image) { descriptor, context in
+            (try? descriptor.protocolTypeName(in: context)) != nil
+        }
         #expect(presence == AssociatedTypeDescriptorBaseline.concreteWitnessTest.hasProtocolTypeName)
     }
 
     @Test func associatedTypeRecords() async throws {
         let descriptors = try loadDescriptors()
-        let count = try acrossAllContexts(
-            file: { try descriptors.file.associatedTypeRecords(in: fileContext).count },
-            image: { try descriptors.image.associatedTypeRecords(in: imageContext).count }
-        )
+        let count = try acrossAllContexts(descriptors.file, descriptors.image) { descriptor, context in
+            try descriptor.associatedTypeRecords(in: context).count
+        }
         #expect(count == AssociatedTypeDescriptorBaseline.concreteWitnessTest.recordsCount)
     }
 }

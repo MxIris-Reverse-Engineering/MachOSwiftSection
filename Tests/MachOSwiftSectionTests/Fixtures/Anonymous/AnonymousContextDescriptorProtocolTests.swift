@@ -20,10 +20,7 @@ final class AnonymousContextDescriptorProtocolTests: MachOSwiftSectionFixtureTes
 
         // `hasMangledName` is a pure-derivation getter on the protocol;
         // every reader must agree.
-        let result = try acrossAllReaders(
-            file: { fileDescriptor.hasMangledName },
-            image: { imageDescriptor.hasMangledName }
-        )
+        let result = try acrossAllReaders(fileDescriptor, imageDescriptor) { $0.hasMangledName }
         // The presence flag's value is recorded against the same picker
         // (`anonymous_first`) on this Suite's own baseline.
         #expect(result == AnonymousContextDescriptorProtocolBaseline.firstAnonymous.hasMangledName)

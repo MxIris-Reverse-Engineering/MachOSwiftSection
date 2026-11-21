@@ -24,10 +24,7 @@ final class ProtocolContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, 
 
     @Test func rawValue() async throws {
         let flags = try loadProtocolTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.rawValue },
-            image: { flags.image.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.rawValue }
         #expect(result == ProtocolContextDescriptorFlagsBaseline.protocolTest.rawValue)
     }
 
@@ -45,28 +42,19 @@ final class ProtocolContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, 
 
     @Test func isResilient() async throws {
         let flags = try loadProtocolTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isResilient },
-            image: { flags.image.isResilient }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isResilient }
         #expect(result == ProtocolContextDescriptorFlagsBaseline.protocolTest.isResilient)
     }
 
     @Test func classConstraint() async throws {
         let flags = try loadProtocolTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classConstraint.rawValue },
-            image: { flags.image.classConstraint.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classConstraint.rawValue }
         #expect(result == ProtocolContextDescriptorFlagsBaseline.protocolTest.classConstraintRawValue)
     }
 
     @Test func specialProtocolKind() async throws {
         let flags = try loadProtocolTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.specialProtocolKind?.rawValue },
-            image: { flags.image.specialProtocolKind?.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.specialProtocolKind?.rawValue }
         #expect(result == ProtocolContextDescriptorFlagsBaseline.protocolTest.specialProtocolKindRawValue)
     }
 }

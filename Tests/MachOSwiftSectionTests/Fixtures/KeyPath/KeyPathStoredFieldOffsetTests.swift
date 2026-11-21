@@ -59,11 +59,7 @@ final class KeyPathStoredFieldOffsetTests: MachOSwiftSectionFixtureTests, @unche
         sourceLocation: SourceLocation = #_sourceLocation
     ) throws {
         for shape in try liveShapes() {
-            let result = try acrossAllReaders(
-                file: { accessor(shape.file) },
-                image: { accessor(shape.image) },
-                sourceLocation: sourceLocation
-            )
+            let result = try acrossAllReaders(shape.file, shape.image, sourceLocation: sourceLocation) { accessor($0) }
             #expect(result == expectation(shape.expected), "\(shape.label)", sourceLocation: sourceLocation)
         }
         for shape in synthesizedShapes() {

@@ -21,10 +21,7 @@ final class ProtocolRecordTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func offset() async throws {
         let (file, image) = try loadFirstRecords()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == ProtocolRecordBaseline.firstRecord.offset)
     }
 

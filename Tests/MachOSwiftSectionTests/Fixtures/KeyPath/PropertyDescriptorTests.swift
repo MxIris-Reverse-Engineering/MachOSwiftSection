@@ -56,30 +56,21 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func offset() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.offset },
-                image: { shape.image.offset }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.offset }
             #expect(result == shape.expected.offset, "\(shape.label)")
         }
     }
 
     @Test func layout() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.layout.header.rawValue },
-                image: { shape.image.layout.header.rawValue }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.layout.header.rawValue }
             #expect(result == shape.expected.headerRawValue, "\(shape.label)")
         }
     }
 
     @Test func header() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.header.rawValue },
-                image: { shape.image.header.rawValue }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.header.rawValue }
             #expect(result == shape.expected.headerRawValue, "\(shape.label)")
             #expect(shape.file.header == shape.file.layout.header, "\(shape.label)")
         }
@@ -87,10 +78,7 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func isTrivial() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.isTrivial },
-                image: { shape.image.isTrivial }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.isTrivial }
             #expect(result == shape.expected.isTrivial, "\(shape.label)")
         }
         // Exactly one of the four carriers is the shared trivial descriptor;
@@ -102,20 +90,14 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func bodySize() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.bodySize },
-                image: { shape.image.bodySize }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.bodySize }
             #expect(result == shape.expected.bodySize, "\(shape.label)")
         }
     }
 
     @Test func size() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.size },
-                image: { shape.image.size }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.size }
             #expect(result == shape.expected.size, "\(shape.label)")
             #expect(result == MemoryLayout<PropertyDescriptor.Layout>.size + shape.expected.bodySize, "\(shape.label)")
         }
@@ -123,10 +105,7 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func bodyOffset() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.bodyOffset },
-                image: { shape.image.bodyOffset }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.bodyOffset }
             #expect(result == shape.expected.bodyOffset, "\(shape.label)")
             #expect(result == shape.expected.offset + MemoryLayout<PropertyDescriptor.Layout>.size, "\(shape.label)")
         }
@@ -134,10 +113,7 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func inlineStoredFieldOffset() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllReaders(
-                file: { shape.file.inlineStoredFieldOffset?.rawValue },
-                image: { shape.image.inlineStoredFieldOffset?.rawValue }
-            )
+            let result = try acrossAllReaders(shape.file, shape.image) { $0.inlineStoredFieldOffset?.rawValue }
             #expect(result == shape.expected.inlineStoredFieldOffsetRawValue, "\(shape.label)")
         }
     }
@@ -160,10 +136,9 @@ final class PropertyDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked S
     /// so it is identical across readers and pinned as a literal.
     @Test func computedPropertyBody() async throws {
         for shape in try allShapes() {
-            let result = try acrossAllContexts(
-                file: { try shape.file.computedPropertyBody(in: fileContext)?.getterOffset },
-                image: { try shape.image.computedPropertyBody(in: imageContext)?.getterOffset }
-            )
+            let result = try acrossAllContexts(shape.file, shape.image) { descriptor, context in
+                try descriptor.computedPropertyBody(in: context)?.getterOffset
+            }
             #expect(result == shape.expected.computedGetterOffset, "\(shape.label)")
 
             // The in-process leg reads through a pointer, so its offsets are

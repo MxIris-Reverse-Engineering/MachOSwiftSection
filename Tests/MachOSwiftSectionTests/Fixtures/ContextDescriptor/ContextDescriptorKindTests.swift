@@ -26,19 +26,13 @@ final class ContextDescriptorKindTests: MachOSwiftSectionFixtureTests, @unchecke
 
     @Test func description() async throws {
         let kinds = try loadStructTestKinds()
-        let result = try acrossAllReaders(
-            file: { kinds.file.description },
-            image: { kinds.image.description }
-        )
+        let result = try acrossAllReaders(kinds.file, kinds.image) { $0.description }
         #expect(result == ContextDescriptorKindBaseline.structTest.description)
     }
 
     @Test func mangledType() async throws {
         let kinds = try loadStructTestKinds()
-        let result = try acrossAllReaders(
-            file: { kinds.file.mangledType },
-            image: { kinds.image.mangledType }
-        )
+        let result = try acrossAllReaders(kinds.file, kinds.image) { $0.mangledType }
         #expect(result == ContextDescriptorKindBaseline.structTest.mangledType)
     }
 }

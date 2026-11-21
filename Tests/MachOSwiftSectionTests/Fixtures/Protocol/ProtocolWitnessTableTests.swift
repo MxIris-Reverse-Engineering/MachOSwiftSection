@@ -29,10 +29,7 @@ final class ProtocolWitnessTableTests: MachOSwiftSectionFixtureTests, @unchecked
 
     @Test func offset() async throws {
         let (file, image) = try loadFirstWitnessTables()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == ProtocolWitnessTableBaseline.firstWitnessTable.offset)
     }
 

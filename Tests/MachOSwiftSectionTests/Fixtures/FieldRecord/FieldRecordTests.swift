@@ -43,10 +43,7 @@ final class FieldRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable
 
     @Test func offset() async throws {
         let records = try loadFirstRecord()
-        let result = try acrossAllReaders(
-            file: { records.file.offset },
-            image: { records.image.offset }
-        )
+        let result = try acrossAllReaders(records.file, records.image) { $0.offset }
         #expect(result == FieldRecordBaseline.firstRecord.offset)
     }
 
@@ -55,10 +52,7 @@ final class FieldRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable
         // records all carry flags == 0x2 — `isVariadic` is set on stored
         // properties).
         let records = try loadFirstRecord()
-        let flagsRaw = try acrossAllReaders(
-            file: { records.file.layout.flags.rawValue },
-            image: { records.image.layout.flags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(records.file, records.image) { $0.layout.flags.rawValue }
         #expect(flagsRaw == FieldRecordBaseline.firstRecord.layoutFlagsRawValue)
     }
 
@@ -67,29 +61,24 @@ final class FieldRecordTests: MachOSwiftSectionFixtureTests, @unchecked Sendable
     @Test func fieldName() async throws {
         // First record: field1.
         let firstRecords = try loadFirstRecord()
-        let firstName = try acrossAllContexts(
-            file: { try firstRecords.file.fieldName(in: fileContext) },
-            image: { try firstRecords.image.fieldName(in: imageContext) }
-        )
+        let firstName = try acrossAllContexts(firstRecords.file, firstRecords.image) { record, context in
+            try record.fieldName(in: context)
+        }
         #expect(firstName == FieldRecordBaseline.firstRecord.fieldName)
 
         // Second record: field2.
         let allRecords = try loadRecords()
         let fileSecond = try required(allRecords.file.dropFirst().first)
         let imageSecond = try required(allRecords.image.dropFirst().first)
-        let secondName = try acrossAllContexts(
-            file: { try fileSecond.fieldName(in: fileContext) },
-            image: { try imageSecond.fieldName(in: imageContext) }
-        )
+        let secondName = try acrossAllContexts(fileSecond, imageSecond) { record, context in try record.fieldName(in: context) }
         #expect(secondName == FieldRecordBaseline.secondRecord.fieldName)
     }
 
     @Test func mangledTypeName() async throws {
         let records = try loadFirstRecord()
-        let presence = try acrossAllContexts(
-            file: { (try? records.file.mangledTypeName(in: fileContext)) != nil },
-            image: { (try? records.image.mangledTypeName(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(records.file, records.image) { record, context in
+            (try? record.mangledTypeName(in: context)) != nil
+        }
         #expect(presence == FieldRecordBaseline.firstRecord.hasMangledTypeName)
     }
 }

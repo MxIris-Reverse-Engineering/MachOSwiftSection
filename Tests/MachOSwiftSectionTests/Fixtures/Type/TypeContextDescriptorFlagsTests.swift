@@ -35,10 +35,7 @@ final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func rawValue() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.rawValue },
-            image: { flags.image.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.rawValue }
         #expect(result == TypeContextDescriptorFlagsBaseline.structTest.rawValue)
     }
 
@@ -59,28 +56,19 @@ final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func noMetadataInitialization() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.noMetadataInitialization },
-            image: { flags.image.noMetadataInitialization }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.noMetadataInitialization }
         #expect(result == TypeContextDescriptorFlagsBaseline.structTest.noMetadataInitialization)
     }
 
     @Test func hasSingletonMetadataInitialization() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.hasSingletonMetadataInitialization },
-            image: { flags.image.hasSingletonMetadataInitialization }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.hasSingletonMetadataInitialization }
         #expect(result == TypeContextDescriptorFlagsBaseline.structTest.hasSingletonMetadataInitialization)
     }
 
     @Test func hasForeignMetadataInitialization() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.hasForeignMetadataInitialization },
-            image: { flags.image.hasForeignMetadataInitialization }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.hasForeignMetadataInitialization }
         #expect(result == TypeContextDescriptorFlagsBaseline.structTest.hasForeignMetadataInitialization)
     }
 
@@ -88,28 +76,21 @@ final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func hasImportInfo() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.hasImportInfo },
-            image: { flags.image.hasImportInfo }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.hasImportInfo }
         #expect(result == TypeContextDescriptorFlagsBaseline.structTest.hasImportInfo)
     }
 
     @Test func hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer },
-            image: { flags.image.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { descriptorFlags in
+            descriptorFlags.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
+        }
         #expect(result == TypeContextDescriptorFlagsBaseline.structTest.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer)
     }
 
     @Test func hasLayoutString() async throws {
         let flags = try loadStructTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.hasLayoutString },
-            image: { flags.image.hasLayoutString }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.hasLayoutString }
         #expect(result == TypeContextDescriptorFlagsBaseline.structTest.hasLayoutString)
     }
 
@@ -117,64 +98,43 @@ final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unc
 
     @Test func classHasDefaultOverrideTable() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classHasDefaultOverrideTable },
-            image: { flags.image.classHasDefaultOverrideTable }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classHasDefaultOverrideTable }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classHasDefaultOverrideTable)
     }
 
     @Test func classIsActor() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classIsActor },
-            image: { flags.image.classIsActor }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classIsActor }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classIsActor)
     }
 
     @Test func classIsDefaultActor() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classIsDefaultActor },
-            image: { flags.image.classIsDefaultActor }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classIsDefaultActor }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classIsDefaultActor)
     }
 
     @Test func classResilientSuperclassReferenceKind() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classResilientSuperclassReferenceKind?.rawValue },
-            image: { flags.image.classResilientSuperclassReferenceKind?.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classResilientSuperclassReferenceKind?.rawValue }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classResilientSuperclassReferenceKindRawValue)
     }
 
     @Test func classAreImmdiateMembersNegative() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classAreImmdiateMembersNegative },
-            image: { flags.image.classAreImmdiateMembersNegative }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classAreImmdiateMembersNegative }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classAreImmdiateMembersNegative)
     }
 
     @Test func classHasResilientSuperclass() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classHasResilientSuperclass },
-            image: { flags.image.classHasResilientSuperclass }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classHasResilientSuperclass }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classHasResilientSuperclass)
     }
 
     @Test func classHasOverrideTable() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classHasOverrideTable },
-            image: { flags.image.classHasOverrideTable }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classHasOverrideTable }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classHasOverrideTable)
     }
 
@@ -182,10 +142,7 @@ final class TypeContextDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unc
     /// specific flags carry the high bit (`classHasVTable: true`).
     @Test func classHasVTable() async throws {
         let flags = try loadClassTestFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.classHasVTable },
-            image: { flags.image.classHasVTable }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.classHasVTable }
         #expect(result == TypeContextDescriptorFlagsBaseline.classTest.classHasVTable)
     }
 }

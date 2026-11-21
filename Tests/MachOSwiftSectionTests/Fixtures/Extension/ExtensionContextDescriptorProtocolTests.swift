@@ -23,10 +23,9 @@ final class ExtensionContextDescriptorProtocolTests: MachOSwiftSectionFixtureTes
         // mangled name. The MangledName tree itself is Hashable but we
         // record presence-only in the baseline for parity with the
         // wrapper Suite.
-        let presence = try acrossAllContexts(
-            file: { (try fileSubject.extendedContext(in: fileContext)) != nil },
-            image: { (try imageSubject.extendedContext(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(fileSubject, imageSubject) { descriptor, context in
+            (try descriptor.extendedContext(in: context)) != nil
+        }
         #expect(presence == ExtensionContextDescriptorProtocolBaseline.firstExtension.hasExtendedContext)
     }
 }

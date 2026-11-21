@@ -19,10 +19,7 @@ final class AnonymousContextDescriptorTests: MachOSwiftSectionFixtureTests, @unc
         let fileSubject = try BaselineFixturePicker.anonymous_first(in: machOFile)
         let imageSubject = try BaselineFixturePicker.anonymous_first(in: machOImage)
 
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == AnonymousContextDescriptorBaseline.firstAnonymous.offset)
     }
 
@@ -33,10 +30,7 @@ final class AnonymousContextDescriptorTests: MachOSwiftSectionFixtureTests, @unc
         // Cross-reader equality on the only stable scalar field
         // (`flags.rawValue`); `parent` is a relative pointer whose value
         // varies by reader.
-        let flagsRaw = try acrossAllReaders(
-            file: { fileSubject.layout.flags.rawValue },
-            image: { imageSubject.layout.flags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.flags.rawValue }
         #expect(flagsRaw == AnonymousContextDescriptorBaseline.firstAnonymous.layoutFlagsRawValue)
     }
 }

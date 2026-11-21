@@ -27,32 +27,17 @@ final class GenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTests, 
 
     @Test func offset() async throws {
         let headers = try loadFirstExtensionGenericHeaders()
-        let result = try acrossAllReaders(
-            file: { headers.file.offset },
-            image: { headers.image.offset }
-        )
+        let result = try acrossAllReaders(headers.file, headers.image) { $0.offset }
         #expect(result == GenericContextDescriptorHeaderBaseline.firstExtensionGenericHeader.offset)
     }
 
     @Test func layout() async throws {
         let headers = try loadFirstExtensionGenericHeaders()
 
-        let numParams = try acrossAllReaders(
-            file: { headers.file.layout.numParams },
-            image: { headers.image.layout.numParams }
-        )
-        let numRequirements = try acrossAllReaders(
-            file: { headers.file.layout.numRequirements },
-            image: { headers.image.layout.numRequirements }
-        )
-        let numKeyArguments = try acrossAllReaders(
-            file: { headers.file.layout.numKeyArguments },
-            image: { headers.image.layout.numKeyArguments }
-        )
-        let flagsRawValue = try acrossAllReaders(
-            file: { headers.file.layout.flags.rawValue },
-            image: { headers.image.layout.flags.rawValue }
-        )
+        let numParams = try acrossAllReaders(headers.file, headers.image) { $0.layout.numParams }
+        let numRequirements = try acrossAllReaders(headers.file, headers.image) { $0.layout.numRequirements }
+        let numKeyArguments = try acrossAllReaders(headers.file, headers.image) { $0.layout.numKeyArguments }
+        let flagsRawValue = try acrossAllReaders(headers.file, headers.image) { $0.layout.flags.rawValue }
 
         #expect(numParams == GenericContextDescriptorHeaderBaseline.firstExtensionGenericHeader.layoutNumParams)
         #expect(numRequirements == GenericContextDescriptorHeaderBaseline.firstExtensionGenericHeader.layoutNumRequirements)

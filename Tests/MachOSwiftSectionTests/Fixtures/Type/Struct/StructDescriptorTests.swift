@@ -24,10 +24,7 @@ final class StructDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sen
         let fileSubject = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageSubject = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
 
         #expect(result == StructDescriptorBaseline.structTest.offset)
     }
@@ -42,18 +39,9 @@ final class StructDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Sen
         let imageSubject = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
         // Cross-reader equality on the metadata-relevant scalar fields.
-        let numFields = try acrossAllReaders(
-            file: { fileSubject.layout.numFields },
-            image: { imageSubject.layout.numFields }
-        )
-        let fieldOffsetVector = try acrossAllReaders(
-            file: { fileSubject.layout.fieldOffsetVector },
-            image: { imageSubject.layout.fieldOffsetVector }
-        )
-        let flagsRaw = try acrossAllReaders(
-            file: { fileSubject.layout.flags.rawValue },
-            image: { imageSubject.layout.flags.rawValue }
-        )
+        let numFields = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.numFields }
+        let fieldOffsetVector = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.fieldOffsetVector }
+        let flagsRaw = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.flags.rawValue }
 
         // Baseline literal equality.
         #expect(Int(numFields) == StructDescriptorBaseline.structTest.layoutNumFields)

@@ -19,10 +19,7 @@ final class ModuleContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchec
         let fileSubject = try BaselineFixturePicker.module_SymbolTestsCore(in: machOFile)
         let imageSubject = try BaselineFixturePicker.module_SymbolTestsCore(in: machOImage)
 
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == ModuleContextDescriptorBaseline.symbolTestsCore.offset)
     }
 
@@ -30,10 +27,7 @@ final class ModuleContextDescriptorTests: MachOSwiftSectionFixtureTests, @unchec
         let fileSubject = try BaselineFixturePicker.module_SymbolTestsCore(in: machOFile)
         let imageSubject = try BaselineFixturePicker.module_SymbolTestsCore(in: machOImage)
 
-        let flagsRaw = try acrossAllReaders(
-            file: { fileSubject.layout.flags.rawValue },
-            image: { imageSubject.layout.flags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.flags.rawValue }
         #expect(flagsRaw == ModuleContextDescriptorBaseline.symbolTestsCore.layoutFlagsRawValue)
     }
 }

@@ -33,10 +33,7 @@ final class ContextWrapperTests: MachOSwiftSectionFixtureTests, @unchecked Senda
         let wrappers = try loadStructTestWrappers()
         // `context` projects to `any ContextProtocol`; the descriptor's
         // `offset` is the cross-reader-stable scalar.
-        let result = try acrossAllReaders(
-            file: { wrappers.file.context.descriptor.offset },
-            image: { wrappers.image.context.descriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.context.descriptor.offset }
         #expect(result == ContextWrapperBaseline.structTest.descriptorOffset)
     }
 
@@ -57,10 +54,9 @@ final class ContextWrapperTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func parent() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllContexts(
-            file: { (try wrappers.file.parent(in: fileContext)) != nil },
-            image: { (try wrappers.image.parent(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(wrappers.file, wrappers.image) { wrapper, context in
+            (try wrapper.parent(in: context)) != nil
+        }
         #expect(presence == ContextWrapperBaseline.structTest.hasParent)
     }
 }

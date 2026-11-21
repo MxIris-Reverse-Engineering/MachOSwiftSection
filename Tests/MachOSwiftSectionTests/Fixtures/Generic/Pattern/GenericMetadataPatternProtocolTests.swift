@@ -40,10 +40,7 @@ final class GenericMetadataPatternProtocolTests: MachOSwiftSectionFixtureTests, 
 
     @Test func hasExtraDataPattern() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.hasExtraDataPattern },
-                image: { carrier.image.hasExtraDataPattern }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.hasExtraDataPattern }
             #expect(result == carrier.expected.hasExtraDataPattern, "\(carrier.label)")
         }
         // The two carriers differ here, which is what makes the trailing
@@ -53,40 +50,30 @@ final class GenericMetadataPatternProtocolTests: MachOSwiftSectionFixtureTests, 
 
     @Test func hasTrailingFlags() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.hasTrailingFlags },
-                image: { carrier.image.hasTrailingFlags }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.hasTrailingFlags }
             #expect(result == carrier.expected.hasTrailingFlags, "\(carrier.label)")
         }
     }
 
     @Test func partialPatternsOffset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.partialPatternsOffset },
-                image: { carrier.image.partialPatternsOffset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.partialPatternsOffset }
             #expect(result == carrier.expected.partialPatternsOffset, "\(carrier.label)")
         }
     }
 
     @Test func size() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.size },
-                image: { carrier.image.size }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.size }
             #expect(result == carrier.expected.size, "\(carrier.label)")
         }
     }
 
     @Test func partialPatterns() async throws {
         for carrier in try allCarriers() {
-            let offsets = try acrossAllContexts(
-                file: { try carrier.file.partialPatterns(in: fileContext).map(\.offset) },
-                image: { try carrier.image.partialPatterns(in: imageContext).map(\.offset) }
-            )
+            let offsets = try acrossAllContexts(carrier.file, carrier.image) { pattern, context in
+                try pattern.partialPatterns(in: context).map(\.offset)
+            }
             #expect(offsets.count == carrier.expected.partialPatternCount, "\(carrier.label)")
             #expect(offsets.first == (carrier.expected.partialPatternCount > 0 ? carrier.expected.partialPatternsOffset : nil), "\(carrier.label)")
         }
@@ -94,10 +81,9 @@ final class GenericMetadataPatternProtocolTests: MachOSwiftSectionFixtureTests, 
 
     @Test func extraDataPattern() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllContexts(
-                file: { try carrier.file.extraDataPattern(in: fileContext)?.offset },
-                image: { try carrier.image.extraDataPattern(in: imageContext)?.offset }
-            )
+            let result = try acrossAllContexts(carrier.file, carrier.image) { pattern, context in
+                try pattern.extraDataPattern(in: context)?.offset
+            }
             let expected = carrier.expected.hasExtraDataPattern ? carrier.expected.partialPatternsOffset : nil
             #expect(result == expected, "\(carrier.label)")
         }

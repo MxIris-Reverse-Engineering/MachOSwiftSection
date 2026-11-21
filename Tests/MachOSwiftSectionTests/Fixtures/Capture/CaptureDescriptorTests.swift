@@ -48,20 +48,16 @@ final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Se
 
     @Test func offset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.offset },
-                image: { carrier.image.offset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.offset }
             #expect(result == carrier.expected.offset, "\(carrier.label)")
         }
     }
 
     @Test func layout() async throws {
         for carrier in try allCarriers() {
-            let counts = try acrossAllReaders(
-                file: { [carrier.file.layout.numberOfCaptureTypes, carrier.file.layout.numberOfMetadataSources, carrier.file.layout.numberOfBindings] },
-                image: { [carrier.image.layout.numberOfCaptureTypes, carrier.image.layout.numberOfMetadataSources, carrier.image.layout.numberOfBindings] }
-            )
+            let counts = try acrossAllReaders(carrier.file, carrier.image) { descriptor in
+                [descriptor.layout.numberOfCaptureTypes, descriptor.layout.numberOfMetadataSources, descriptor.layout.numberOfBindings]
+            }
             #expect(counts.map(Int.init) == [carrier.expected.numberOfCaptureTypes, carrier.expected.numberOfMetadataSources, carrier.expected.numberOfBindings], "\(carrier.label)")
         }
         #expect(MemoryLayout<CaptureDescriptor.Layout>.size == 12)
@@ -76,10 +72,7 @@ final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Se
     /// whole section is the real assertion here.
     @Test func actualSize() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.actualSize },
-                image: { carrier.image.actualSize }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.actualSize }
             #expect(result == carrier.expected.actualSize, "\(carrier.label)")
             #expect(
                 result == MemoryLayout<CaptureDescriptor.Layout>.size
@@ -98,30 +91,23 @@ final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Se
 
     @Test func captureTypeRecordsOffset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.captureTypeRecordsOffset },
-                image: { carrier.image.captureTypeRecordsOffset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.captureTypeRecordsOffset }
             #expect(result == carrier.expected.captureTypeRecordsOffset, "\(carrier.label)")
         }
     }
 
     @Test func metadataSourceRecordsOffset() async throws {
         for carrier in try allCarriers() {
-            let result = try acrossAllReaders(
-                file: { carrier.file.metadataSourceRecordsOffset },
-                image: { carrier.image.metadataSourceRecordsOffset }
-            )
+            let result = try acrossAllReaders(carrier.file, carrier.image) { $0.metadataSourceRecordsOffset }
             #expect(result == carrier.expected.metadataSourceRecordsOffset, "\(carrier.label)")
         }
     }
 
     @Test func captureTypeRecords() async throws {
         for carrier in try allCarriers() {
-            let offsets = try acrossAllContexts(
-                file: { try carrier.file.captureTypeRecords(in: fileContext).map(\.offset) },
-                image: { try carrier.image.captureTypeRecords(in: imageContext).map(\.offset) }
-            )
+            let offsets = try acrossAllContexts(carrier.file, carrier.image) { descriptor, context in
+                try descriptor.captureTypeRecords(in: context).map(\.offset)
+            }
             #expect(offsets.count == carrier.expected.numberOfCaptureTypes, "\(carrier.label)")
             #expect(offsets.first == carrier.expected.captureTypeRecordsOffset, "\(carrier.label)")
 
@@ -134,10 +120,9 @@ final class CaptureDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Se
 
     @Test func metadataSourceRecords() async throws {
         for carrier in try allCarriers() {
-            let sources = try acrossAllContexts(
-                file: { try carrier.file.metadataSourceRecords(in: fileContext).map { try $0.mangledMetadataSource(in: fileContext).rawString } },
-                image: { try carrier.image.metadataSourceRecords(in: imageContext).map { try $0.mangledMetadataSource(in: imageContext).rawString } }
-            )
+            let sources = try acrossAllContexts(carrier.file, carrier.image) { descriptor, context in
+                try descriptor.metadataSourceRecords(in: context).map { try $0.mangledMetadataSource(in: context).rawString }
+            }
             #expect(sources == carrier.expected.mangledMetadataSources, "\(carrier.label)")
 
             let inProcess = try carrier.image.asPointerWrapper(in: machOImage).metadataSourceRecords(in: inProcessContext)

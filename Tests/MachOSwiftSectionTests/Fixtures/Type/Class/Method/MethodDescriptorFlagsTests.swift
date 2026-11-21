@@ -28,10 +28,7 @@ final class MethodDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecke
 
     @Test func rawValue() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.rawValue },
-            image: { flags.image.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.rawValue }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.rawValue)
     }
 
@@ -47,82 +44,55 @@ final class MethodDescriptorFlagsTests: MachOSwiftSectionFixtureTests, @unchecke
 
     @Test func kind() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.kind?.rawValue },
-            image: { flags.image.kind?.rawValue }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.kind?.rawValue }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.kindRawValue)
     }
 
     @Test func isDynamic() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isDynamic },
-            image: { flags.image.isDynamic }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isDynamic }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.isDynamic)
     }
 
     @Test func isInstance() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isInstance },
-            image: { flags.image.isInstance }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isInstance }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.isInstance)
     }
 
     @Test func _hasAsyncBitSet() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file._hasAsyncBitSet },
-            image: { flags.image._hasAsyncBitSet }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0._hasAsyncBitSet }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.hasAsyncBitSet)
     }
 
     @Test func isAsync() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isAsync },
-            image: { flags.image.isAsync }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isAsync }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.isAsync)
     }
 
     @Test func isCoroutine() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isCoroutine },
-            image: { flags.image.isCoroutine }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isCoroutine }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.isCoroutine)
     }
 
     @Test func isCalleeAllocatedCoroutine() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isCalleeAllocatedCoroutine },
-            image: { flags.image.isCalleeAllocatedCoroutine }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isCalleeAllocatedCoroutine }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.isCalleeAllocatedCoroutine)
     }
 
     @Test func isData() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.isData },
-            image: { flags.image.isData }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.isData }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.isData)
     }
 
     @Test func extraDiscriminator() async throws {
         let flags = try loadFirstFlags()
-        let result = try acrossAllReaders(
-            file: { flags.file.extraDiscriminator },
-            image: { flags.image.extraDiscriminator }
-        )
+        let result = try acrossAllReaders(flags.file, flags.image) { $0.extraDiscriminator }
         #expect(result == MethodDescriptorFlagsBaseline.firstClassTestMethod.extraDiscriminator)
     }
 }

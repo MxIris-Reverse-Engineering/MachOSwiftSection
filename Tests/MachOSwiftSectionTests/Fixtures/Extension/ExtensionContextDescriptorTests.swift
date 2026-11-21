@@ -20,10 +20,7 @@ final class ExtensionContextDescriptorTests: MachOSwiftSectionFixtureTests, @unc
         let fileSubject = try BaselineFixturePicker.extension_first(in: machOFile)
         let imageSubject = try BaselineFixturePicker.extension_first(in: machOImage)
 
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == ExtensionContextDescriptorBaseline.firstExtension.offset)
     }
 
@@ -31,10 +28,7 @@ final class ExtensionContextDescriptorTests: MachOSwiftSectionFixtureTests, @unc
         let fileSubject = try BaselineFixturePicker.extension_first(in: machOFile)
         let imageSubject = try BaselineFixturePicker.extension_first(in: machOImage)
 
-        let flagsRaw = try acrossAllReaders(
-            file: { fileSubject.layout.flags.rawValue },
-            image: { imageSubject.layout.flags.rawValue }
-        )
+        let flagsRaw = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.flags.rawValue }
         #expect(flagsRaw == ExtensionContextDescriptorBaseline.firstExtension.layoutFlagsRawValue)
     }
 }

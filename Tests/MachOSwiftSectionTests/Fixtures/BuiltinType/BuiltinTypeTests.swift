@@ -46,19 +46,13 @@ final class BuiltinTypeTests: MachOSwiftSectionFixtureTests, @unchecked Sendable
 
     @Test func descriptor() async throws {
         let builtins = try loadBuiltins()
-        let result = try acrossAllReaders(
-            file: { builtins.file.descriptor.offset },
-            image: { builtins.image.descriptor.offset }
-        )
+        let result = try acrossAllReaders(builtins.file, builtins.image) { $0.descriptor.offset }
         #expect(result == BuiltinTypeBaseline.firstBuiltin.descriptorOffset)
     }
 
     @Test func typeName() async throws {
         let builtins = try loadBuiltins()
-        let presence = try acrossAllReaders(
-            file: { builtins.file.typeName != nil },
-            image: { builtins.image.typeName != nil }
-        )
+        let presence = try acrossAllReaders(builtins.file, builtins.image) { $0.typeName != nil }
         #expect(presence == BuiltinTypeBaseline.firstBuiltin.hasTypeName)
     }
 }

@@ -32,19 +32,13 @@ final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, @
 
     @Test func offset() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.offset)
     }
 
     @Test func layout() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
-        let flagsRawValue = try acrossAllReaders(
-            file: { file.layout.flags.rawValue },
-            image: { image.layout.flags.rawValue }
-        )
+        let flagsRawValue = try acrossAllReaders(file, image) { $0.layout.flags.rawValue }
         #expect(flagsRawValue == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.layoutFlagsRawValue)
     }
 
@@ -52,10 +46,7 @@ final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, @
     /// `layout.flags.typeReferenceKind` + `layout.typeReference`.
     @Test func typeReference() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
-        let kindRawValue = try acrossAllReaders(
-            file: { file.layout.flags.typeReferenceKind?.rawValue },
-            image: { image.layout.flags.typeReferenceKind?.rawValue }
-        )
+        let kindRawValue = try acrossAllReaders(file, image) { $0.layout.flags.typeReferenceKind?.rawValue }
         #expect(kindRawValue == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.typeReferenceKindRawValue)
 
         // The TypeReference enum case must match the kind.
@@ -73,10 +64,9 @@ final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, @
     /// here.
     @Test func protocolDescriptor() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
-        let result = try acrossAllContexts(
-            file: { (try file.protocolDescriptor(in: fileContext)) != nil },
-            image: { (try image.protocolDescriptor(in: imageContext)) != nil }
-        )
+        let result = try acrossAllContexts(file, image) { descriptor, context in
+            (try descriptor.protocolDescriptor(in: context)) != nil
+        }
         #expect(result == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.hasProtocolDescriptor)
     }
 
@@ -106,10 +96,9 @@ final class ProtocolConformanceDescriptorTests: MachOSwiftSectionFixtureTests, @
     /// here.
     @Test func witnessTablePattern() async throws {
         let (file, image) = try loadStructTestProtocolTestDescriptors()
-        let result = try acrossAllContexts(
-            file: { (try file.witnessTablePattern(in: fileContext)) != nil },
-            image: { (try image.witnessTablePattern(in: imageContext)) != nil }
-        )
+        let result = try acrossAllContexts(file, image) { descriptor, context in
+            (try descriptor.witnessTablePattern(in: context)) != nil
+        }
         #expect(result == ProtocolConformanceDescriptorBaseline.structTestProtocolTest.hasWitnessTablePattern)
     }
 }

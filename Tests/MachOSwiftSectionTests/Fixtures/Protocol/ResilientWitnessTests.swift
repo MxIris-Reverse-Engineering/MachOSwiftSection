@@ -28,10 +28,7 @@ final class ResilientWitnessTests: MachOSwiftSectionFixtureTests, @unchecked Sen
 
     @Test func offset() async throws {
         let (file, image) = try loadFirstWitnesses()
-        let result = try acrossAllReaders(
-            file: { file.offset },
-            image: { image.offset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.offset }
         #expect(result == ResilientWitnessBaseline.firstWitness.offset)
     }
 
@@ -46,19 +43,13 @@ final class ResilientWitnessTests: MachOSwiftSectionFixtureTests, @unchecked Sen
 
     @Test func requirement() async throws {
         let (file, image) = try loadFirstWitnesses()
-        let result = try acrossAllContexts(
-            file: { (try file.requirement(in: fileContext)) != nil },
-            image: { (try image.requirement(in: imageContext)) != nil }
-        )
+        let result = try acrossAllContexts(file, image) { witness, context in (try witness.requirement(in: context)) != nil }
         #expect(result == ResilientWitnessBaseline.firstWitness.hasRequirement)
     }
 
     @Test func implementationOffset() async throws {
         let (file, image) = try loadFirstWitnesses()
-        let result = try acrossAllReaders(
-            file: { file.implementationOffset },
-            image: { image.implementationOffset }
-        )
+        let result = try acrossAllReaders(file, image) { $0.implementationOffset }
         #expect(result == ResilientWitnessBaseline.firstWitness.implementationOffset)
     }
 

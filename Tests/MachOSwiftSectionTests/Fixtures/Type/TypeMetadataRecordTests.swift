@@ -90,10 +90,7 @@ final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, @unchecked S
 
     @Test func offset() async throws {
         let (fileRecord, imageRecord) = try loadStructTestRecords()
-        let result = try acrossAllReaders(
-            file: { fileRecord.offset },
-            image: { imageRecord.offset }
-        )
+        let result = try acrossAllReaders(fileRecord, imageRecord) { $0.offset }
         #expect(result == TypeMetadataRecordBaseline.structTestRecord.offset)
     }
 
@@ -101,19 +98,13 @@ final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, @unchecked S
         let (fileRecord, imageRecord) = try loadStructTestRecords()
         // The `relativeOffset` field is stable across readers (it's a raw
         // value stored in the record).
-        let result = try acrossAllReaders(
-            file: { fileRecord.layout.nominalTypeDescriptor.relativeOffset },
-            image: { imageRecord.layout.nominalTypeDescriptor.relativeOffset }
-        )
+        let result = try acrossAllReaders(fileRecord, imageRecord) { $0.layout.nominalTypeDescriptor.relativeOffset }
         #expect(result == TypeMetadataRecordBaseline.structTestRecord.layoutRelativeOffset)
     }
 
     @Test func typeKind() async throws {
         let (fileRecord, imageRecord) = try loadStructTestRecords()
-        let result = try acrossAllReaders(
-            file: { fileRecord.typeKind.rawValue },
-            image: { imageRecord.typeKind.rawValue }
-        )
+        let result = try acrossAllReaders(fileRecord, imageRecord) { $0.typeKind.rawValue }
         #expect(result == TypeMetadataRecordBaseline.structTestRecord.typeKindRawValue)
     }
 
@@ -121,10 +112,9 @@ final class TypeMetadataRecordTests: MachOSwiftSectionFixtureTests, @unchecked S
         let (fileRecord, imageRecord) = try loadStructTestRecords()
         // `contextDescriptor(in:)` resolves to the wrapped descriptor; cross-
         // reader equality on the resolved descriptor's offset.
-        let result = try acrossAllContexts(
-            file: { try required(fileRecord.contextDescriptor(in: fileContext)).contextDescriptor.offset },
-            image: { try required(imageRecord.contextDescriptor(in: imageContext)).contextDescriptor.offset }
-        )
+        let result = try acrossAllContexts(fileRecord, imageRecord) { record, context in
+            try required(record.contextDescriptor(in: context)).contextDescriptor.offset
+        }
         #expect(result == TypeMetadataRecordBaseline.structTestRecord.contextDescriptorOffset)
     }
 }

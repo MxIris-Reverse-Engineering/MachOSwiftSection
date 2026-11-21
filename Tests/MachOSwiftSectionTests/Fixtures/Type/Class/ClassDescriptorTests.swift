@@ -35,32 +35,17 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
     @Test func offset() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
 
-        let result = try acrossAllReaders(
-            file: { fileSubject.offset },
-            image: { imageSubject.offset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.offset }
         #expect(result == ClassDescriptorBaseline.classTest.offset)
     }
 
     @Test func layout() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
 
-        let numFields = try acrossAllReaders(
-            file: { fileSubject.layout.numFields },
-            image: { imageSubject.layout.numFields }
-        )
-        let fieldOffsetVectorOffset = try acrossAllReaders(
-            file: { fileSubject.layout.fieldOffsetVectorOffset },
-            image: { imageSubject.layout.fieldOffsetVectorOffset }
-        )
-        let numImmediateMembers = try acrossAllReaders(
-            file: { fileSubject.layout.numImmediateMembers },
-            image: { imageSubject.layout.numImmediateMembers }
-        )
-        let flagsRaw = try acrossAllReaders(
-            file: { fileSubject.layout.flags.rawValue },
-            image: { imageSubject.layout.flags.rawValue }
-        )
+        let numFields = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.numFields }
+        let fieldOffsetVectorOffset = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.fieldOffsetVectorOffset }
+        let numImmediateMembers = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.numImmediateMembers }
+        let flagsRaw = try acrossAllReaders(fileSubject, imageSubject) { $0.layout.flags.rawValue }
 
         #expect(Int(numFields) == ClassDescriptorBaseline.classTest.layoutNumFields)
         #expect(Int(fieldOffsetVectorOffset) == ClassDescriptorBaseline.classTest.layoutFieldOffsetVectorOffset)
@@ -72,83 +57,56 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
 
     @Test func hasFieldOffsetVector() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasFieldOffsetVector },
-            image: { imageSubject.hasFieldOffsetVector }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasFieldOffsetVector }
         #expect(result == ClassDescriptorBaseline.classTest.hasFieldOffsetVector)
     }
 
     @Test func hasDefaultOverrideTable() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasDefaultOverrideTable },
-            image: { imageSubject.hasDefaultOverrideTable }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasDefaultOverrideTable }
         #expect(result == ClassDescriptorBaseline.classTest.hasDefaultOverrideTable)
     }
 
     @Test func isActor() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.isActor },
-            image: { imageSubject.isActor }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.isActor }
         #expect(result == ClassDescriptorBaseline.classTest.isActor)
     }
 
     @Test func isDefaultActor() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.isDefaultActor },
-            image: { imageSubject.isDefaultActor }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.isDefaultActor }
         #expect(result == ClassDescriptorBaseline.classTest.isDefaultActor)
     }
 
     @Test func hasVTable() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasVTable },
-            image: { imageSubject.hasVTable }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasVTable }
         #expect(result == ClassDescriptorBaseline.classTest.hasVTable)
     }
 
     @Test func hasOverrideTable() async throws {
         // Use SubclassTest here — the override table is exclusive to subclasses.
         let (fileSubject, imageSubject) = try loadSubclassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasOverrideTable },
-            image: { imageSubject.hasOverrideTable }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasOverrideTable }
         #expect(result == ClassDescriptorBaseline.subclassTest.hasOverrideTable)
     }
 
     @Test func hasResilientSuperclass() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasResilientSuperclass },
-            image: { imageSubject.hasResilientSuperclass }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasResilientSuperclass }
         #expect(result == ClassDescriptorBaseline.classTest.hasResilientSuperclass)
     }
 
     @Test func areImmediateMembersNegative() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.areImmediateMembersNegative },
-            image: { imageSubject.areImmediateMembersNegative }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.areImmediateMembersNegative }
         #expect(result == ClassDescriptorBaseline.classTest.areImmediateMembersNegative)
     }
 
     @Test func hasObjCResilientClassStub() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.hasObjCResilientClassStub },
-            image: { imageSubject.hasObjCResilientClassStub }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.hasObjCResilientClassStub }
         #expect(result == ClassDescriptorBaseline.classTest.hasObjCResilientClassStub)
     }
 
@@ -156,19 +114,13 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
 
     @Test func immediateMemberSize() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.immediateMemberSize },
-            image: { imageSubject.immediateMemberSize }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.immediateMemberSize }
         #expect(UInt(result) == ClassDescriptorBaseline.classTest.immediateMemberSize)
     }
 
     @Test func nonResilientImmediateMembersOffset() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.nonResilientImmediateMembersOffset },
-            image: { imageSubject.nonResilientImmediateMembersOffset }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { $0.nonResilientImmediateMembersOffset }
         #expect(result == ClassDescriptorBaseline.classTest.nonResilientImmediateMembersOffset)
     }
 
@@ -182,10 +134,9 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
     /// cross-reader equality on the rawValue.
     @Test func resilientSuperclassReferenceKind() async throws {
         let (fileSubject, imageSubject) = try loadClassTestDescriptors()
-        let result = try acrossAllReaders(
-            file: { fileSubject.resilientSuperclassReferenceKind?.rawValue ?? UInt8.max },
-            image: { imageSubject.resilientSuperclassReferenceKind?.rawValue ?? UInt8.max }
-        )
+        let result = try acrossAllReaders(fileSubject, imageSubject) { descriptor in
+            descriptor.resilientSuperclassReferenceKind?.rawValue ?? UInt8.max
+        }
         // The chain always resolves for class kind; the value should be
         // a valid TypeReferenceKind raw byte.
         #expect(result != UInt8.max)
@@ -207,17 +158,15 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, @unchecked Send
     /// non-nil mangled name for `SubclassTest`.
     @Test func superclassTypeMangledName() async throws {
         let (classTestFile, classTestImage) = try loadClassTestDescriptors()
-        let classTestPresence = try acrossAllContexts(
-            file: { (try classTestFile.superclassTypeMangledName(in: fileContext)) != nil },
-            image: { (try classTestImage.superclassTypeMangledName(in: imageContext)) != nil }
-        )
+        let classTestPresence = try acrossAllContexts(classTestFile, classTestImage) { descriptor, context in
+            (try descriptor.superclassTypeMangledName(in: context)) != nil
+        }
         #expect(classTestPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
 
         let (subclassFile, subclassImage) = try loadSubclassTestDescriptors()
-        let subclassPresence = try acrossAllContexts(
-            file: { (try subclassFile.superclassTypeMangledName(in: fileContext)) != nil },
-            image: { (try subclassImage.superclassTypeMangledName(in: imageContext)) != nil }
-        )
+        let subclassPresence = try acrossAllContexts(subclassFile, subclassImage) { descriptor, context in
+            (try descriptor.superclassTypeMangledName(in: context)) != nil
+        }
         #expect(subclassPresence == ClassDescriptorBaseline.subclassTest.hasSuperclassTypeMangledName)
     }
 }

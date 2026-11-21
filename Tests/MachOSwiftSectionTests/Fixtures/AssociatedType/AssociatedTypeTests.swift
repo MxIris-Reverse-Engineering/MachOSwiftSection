@@ -60,37 +60,27 @@ final class AssociatedTypeTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func descriptor() async throws {
         let associatedTypes = try loadAssociatedTypes()
-        let result = try acrossAllReaders(
-            file: { associatedTypes.file.descriptor.offset },
-            image: { associatedTypes.image.descriptor.offset }
-        )
+        let result = try acrossAllReaders(associatedTypes.file, associatedTypes.image) { $0.descriptor.offset }
         #expect(result == AssociatedTypeBaseline.concreteWitnessTest.descriptorOffset)
     }
 
     @Test func conformingTypeName() async throws {
         let associatedTypes = try loadAssociatedTypes()
-        let presence = try acrossAllReaders(
-            file: { !associatedTypes.file.conformingTypeName.elements.isEmpty },
-            image: { !associatedTypes.image.conformingTypeName.elements.isEmpty }
-        )
+        let presence = try acrossAllReaders(associatedTypes.file, associatedTypes.image) { associatedType in
+            !associatedType.conformingTypeName.elements.isEmpty
+        }
         #expect(presence == AssociatedTypeBaseline.concreteWitnessTest.hasConformingTypeName)
     }
 
     @Test func protocolTypeName() async throws {
         let associatedTypes = try loadAssociatedTypes()
-        let presence = try acrossAllReaders(
-            file: { !associatedTypes.file.protocolTypeName.elements.isEmpty },
-            image: { !associatedTypes.image.protocolTypeName.elements.isEmpty }
-        )
+        let presence = try acrossAllReaders(associatedTypes.file, associatedTypes.image) { !$0.protocolTypeName.elements.isEmpty }
         #expect(presence == AssociatedTypeBaseline.concreteWitnessTest.hasProtocolTypeName)
     }
 
     @Test func records() async throws {
         let associatedTypes = try loadAssociatedTypes()
-        let count = try acrossAllReaders(
-            file: { associatedTypes.file.records.count },
-            image: { associatedTypes.image.records.count }
-        )
+        let count = try acrossAllReaders(associatedTypes.file, associatedTypes.image) { $0.records.count }
         #expect(count == AssociatedTypeBaseline.concreteWitnessTest.recordsCount)
     }
 }

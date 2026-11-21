@@ -31,28 +31,19 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @u
 
     @Test func contextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.contextDescriptor.offset },
-            image: { wrappers.image.contextDescriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.contextDescriptor.offset }
         #expect(result == TypeContextDescriptorWrapperBaseline.structTest.descriptorOffset)
     }
 
     @Test func namedContextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.namedContextDescriptor.offset },
-            image: { wrappers.image.namedContextDescriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.namedContextDescriptor.offset }
         #expect(result == TypeContextDescriptorWrapperBaseline.structTest.descriptorOffset)
     }
 
     @Test func typeContextDescriptor() async throws {
         let wrappers = try loadStructTestWrappers()
-        let result = try acrossAllReaders(
-            file: { wrappers.file.typeContextDescriptor.offset },
-            image: { wrappers.image.typeContextDescriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { $0.typeContextDescriptor.offset }
         #expect(result == TypeContextDescriptorWrapperBaseline.structTest.descriptorOffset)
     }
 
@@ -60,10 +51,9 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @u
         let wrappers = try loadStructTestWrappers()
         // `asContextDescriptorWrapper` lifts to the broader sum type
         // `ContextDescriptorWrapper`. Verify the descriptor offset round-trips.
-        let result = try acrossAllReaders(
-            file: { wrappers.file.asContextDescriptorWrapper.contextDescriptor.offset },
-            image: { wrappers.image.asContextDescriptorWrapper.contextDescriptor.offset }
-        )
+        let result = try acrossAllReaders(wrappers.file, wrappers.image) { wrapper in
+            wrapper.asContextDescriptorWrapper.contextDescriptor.offset
+        }
         #expect(result == TypeContextDescriptorWrapperBaseline.structTest.descriptorOffset)
     }
 
@@ -79,28 +69,25 @@ final class TypeContextDescriptorWrapperTests: MachOSwiftSectionFixtureTests, @u
 
     @Test func parent() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllContexts(
-            file: { (try wrappers.file.parent(in: fileContext)) != nil },
-            image: { (try wrappers.image.parent(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(wrappers.file, wrappers.image) { wrapper, context in
+            (try wrapper.parent(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasParent)
     }
 
     @Test func genericContext() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllContexts(
-            file: { (try wrappers.file.genericContext(in: fileContext)) != nil },
-            image: { (try wrappers.image.genericContext(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(wrappers.file, wrappers.image) { wrapper, context in
+            (try wrapper.genericContext(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasGenericContext)
     }
 
     @Test func typeGenericContext() async throws {
         let wrappers = try loadStructTestWrappers()
-        let presence = try acrossAllContexts(
-            file: { (try wrappers.file.typeGenericContext(in: fileContext)) != nil },
-            image: { (try wrappers.image.typeGenericContext(in: imageContext)) != nil }
-        )
+        let presence = try acrossAllContexts(wrappers.file, wrappers.image) { wrapper, context in
+            (try wrapper.typeGenericContext(in: context)) != nil
+        }
         #expect(presence == TypeContextDescriptorWrapperBaseline.structTest.hasTypeGenericContext)
     }
 

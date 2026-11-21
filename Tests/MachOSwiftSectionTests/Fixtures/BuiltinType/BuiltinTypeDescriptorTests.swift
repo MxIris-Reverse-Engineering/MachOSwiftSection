@@ -25,31 +25,16 @@ final class BuiltinTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unchecke
 
     @Test func offset() async throws {
         let descriptors = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.offset },
-            image: { descriptors.image.offset }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.offset }
         #expect(result == BuiltinTypeDescriptorBaseline.firstBuiltin.descriptorOffset)
     }
 
     @Test func layout() async throws {
         let descriptors = try loadDescriptors()
-        let size = try acrossAllReaders(
-            file: { descriptors.file.layout.size },
-            image: { descriptors.image.layout.size }
-        )
-        let stride = try acrossAllReaders(
-            file: { descriptors.file.layout.stride },
-            image: { descriptors.image.layout.stride }
-        )
-        let alignmentAndFlags = try acrossAllReaders(
-            file: { descriptors.file.layout.alignmentAndFlags },
-            image: { descriptors.image.layout.alignmentAndFlags }
-        )
-        let numExtraInhabitants = try acrossAllReaders(
-            file: { descriptors.file.layout.numExtraInhabitants },
-            image: { descriptors.image.layout.numExtraInhabitants }
-        )
+        let size = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.size }
+        let stride = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.stride }
+        let alignmentAndFlags = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.alignmentAndFlags }
+        let numExtraInhabitants = try acrossAllReaders(descriptors.file, descriptors.image) { $0.layout.numExtraInhabitants }
 
         #expect(size == BuiltinTypeDescriptorBaseline.firstBuiltin.size)
         #expect(stride == BuiltinTypeDescriptorBaseline.firstBuiltin.stride)
@@ -59,28 +44,19 @@ final class BuiltinTypeDescriptorTests: MachOSwiftSectionFixtureTests, @unchecke
 
     @Test func alignment() async throws {
         let descriptors = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.alignment },
-            image: { descriptors.image.alignment }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.alignment }
         #expect(result == BuiltinTypeDescriptorBaseline.firstBuiltin.alignment)
     }
 
     @Test func isBitwiseTakable() async throws {
         let descriptors = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.isBitwiseTakable },
-            image: { descriptors.image.isBitwiseTakable }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.isBitwiseTakable }
         #expect(result == BuiltinTypeDescriptorBaseline.firstBuiltin.isBitwiseTakable)
     }
 
     @Test func hasMangledName() async throws {
         let descriptors = try loadDescriptors()
-        let result = try acrossAllReaders(
-            file: { descriptors.file.hasMangledName },
-            image: { descriptors.image.hasMangledName }
-        )
+        let result = try acrossAllReaders(descriptors.file, descriptors.image) { $0.hasMangledName }
         #expect(result == BuiltinTypeDescriptorBaseline.firstBuiltin.hasMangledName)
     }
 

@@ -65,164 +65,112 @@ final class ClassTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {
 
     @Test func descriptor() async throws {
         let classes = try loadClassTestClasses()
-        let descriptorOffsets = try acrossAllReaders(
-            file: { classes.file.descriptor.offset },
-            image: { classes.image.descriptor.offset }
-        )
+        let descriptorOffsets = try acrossAllReaders(classes.file, classes.image) { $0.descriptor.offset }
         #expect(descriptorOffsets == ClassBaseline.classTest.descriptorOffset)
     }
 
     @Test func genericContext() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.genericContext != nil },
-            image: { classes.image.genericContext != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.genericContext != nil }
         #expect(presence == ClassBaseline.classTest.hasGenericContext)
     }
 
     @Test func resilientSuperclass() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.resilientSuperclass != nil },
-            image: { classes.image.resilientSuperclass != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.resilientSuperclass != nil }
         #expect(presence == ClassBaseline.classTest.hasResilientSuperclass)
     }
 
     @Test func foreignMetadataInitialization() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.foreignMetadataInitialization != nil },
-            image: { classes.image.foreignMetadataInitialization != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.foreignMetadataInitialization != nil }
         #expect(presence == ClassBaseline.classTest.hasForeignMetadataInitialization)
     }
 
     @Test func singletonMetadataInitialization() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.singletonMetadataInitialization != nil },
-            image: { classes.image.singletonMetadataInitialization != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.singletonMetadataInitialization != nil }
         #expect(presence == ClassBaseline.classTest.hasSingletonMetadataInitialization)
     }
 
     @Test func vTableDescriptorHeader() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.vTableDescriptorHeader != nil },
-            image: { classes.image.vTableDescriptorHeader != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.vTableDescriptorHeader != nil }
         #expect(presence == ClassBaseline.classTest.hasVTableDescriptorHeader)
     }
 
     @Test func methodDescriptors() async throws {
         let classes = try loadClassTestClasses()
-        let count = try acrossAllReaders(
-            file: { classes.file.methodDescriptors.count },
-            image: { classes.image.methodDescriptors.count }
-        )
+        let count = try acrossAllReaders(classes.file, classes.image) { $0.methodDescriptors.count }
         #expect(count == ClassBaseline.classTest.methodDescriptorsCount)
     }
 
     @Test func overrideTableHeader() async throws {
         // SubclassTest is the path that exercises this ivar.
         let classes = try loadSubclassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.overrideTableHeader != nil },
-            image: { classes.image.overrideTableHeader != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.overrideTableHeader != nil }
         #expect(presence == ClassBaseline.subclassTest.hasOverrideTableHeader)
     }
 
     @Test func methodOverrideDescriptors() async throws {
         let classes = try loadSubclassTestClasses()
-        let count = try acrossAllReaders(
-            file: { classes.file.methodOverrideDescriptors.count },
-            image: { classes.image.methodOverrideDescriptors.count }
-        )
+        let count = try acrossAllReaders(classes.file, classes.image) { $0.methodOverrideDescriptors.count }
         #expect(count == ClassBaseline.subclassTest.methodOverrideDescriptorsCount)
     }
 
     @Test func objcResilientClassStubInfo() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.objcResilientClassStubInfo != nil },
-            image: { classes.image.objcResilientClassStubInfo != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.objcResilientClassStubInfo != nil }
         #expect(presence == ClassBaseline.classTest.hasObjCResilientClassStubInfo)
     }
 
     @Test func canonicalSpecializedMetadatasListCount() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.canonicalSpecializedMetadatasListCount != nil },
-            image: { classes.image.canonicalSpecializedMetadatasListCount != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.canonicalSpecializedMetadatasListCount != nil }
         #expect(presence == ClassBaseline.classTest.hasCanonicalSpecializedMetadatasListCount)
     }
 
     @Test func canonicalSpecializedMetadatas() async throws {
         let classes = try loadClassTestClasses()
-        let count = try acrossAllReaders(
-            file: { classes.file.canonicalSpecializedMetadatas.count },
-            image: { classes.image.canonicalSpecializedMetadatas.count }
-        )
+        let count = try acrossAllReaders(classes.file, classes.image) { $0.canonicalSpecializedMetadatas.count }
         #expect(count == ClassBaseline.classTest.canonicalSpecializedMetadatasCount)
     }
 
     @Test func canonicalSpecializedMetadataAccessors() async throws {
         let classes = try loadClassTestClasses()
-        let count = try acrossAllReaders(
-            file: { classes.file.canonicalSpecializedMetadataAccessors.count },
-            image: { classes.image.canonicalSpecializedMetadataAccessors.count }
-        )
+        let count = try acrossAllReaders(classes.file, classes.image) { $0.canonicalSpecializedMetadataAccessors.count }
         #expect(count == ClassBaseline.classTest.canonicalSpecializedMetadataAccessorsCount)
     }
 
     @Test func canonicalSpecializedMetadatasCachingOnceToken() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.canonicalSpecializedMetadatasCachingOnceToken != nil },
-            image: { classes.image.canonicalSpecializedMetadatasCachingOnceToken != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { swiftClass in
+            swiftClass.canonicalSpecializedMetadatasCachingOnceToken != nil
+        }
         #expect(presence == ClassBaseline.classTest.hasCanonicalSpecializedMetadatasCachingOnceToken)
     }
 
     @Test func invertibleProtocolSet() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.invertibleProtocolSet != nil },
-            image: { classes.image.invertibleProtocolSet != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.invertibleProtocolSet != nil }
         #expect(presence == ClassBaseline.classTest.hasInvertibleProtocolSet)
     }
 
     @Test func singletonMetadataPointer() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.singletonMetadataPointer != nil },
-            image: { classes.image.singletonMetadataPointer != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.singletonMetadataPointer != nil }
         #expect(presence == ClassBaseline.classTest.hasSingletonMetadataPointer)
     }
 
     @Test func methodDefaultOverrideTableHeader() async throws {
         let classes = try loadClassTestClasses()
-        let presence = try acrossAllReaders(
-            file: { classes.file.methodDefaultOverrideTableHeader != nil },
-            image: { classes.image.methodDefaultOverrideTableHeader != nil }
-        )
+        let presence = try acrossAllReaders(classes.file, classes.image) { $0.methodDefaultOverrideTableHeader != nil }
         #expect(presence == ClassBaseline.classTest.hasMethodDefaultOverrideTableHeader)
     }
 
     @Test func methodDefaultOverrideDescriptors() async throws {
         let classes = try loadClassTestClasses()
-        let count = try acrossAllReaders(
-            file: { classes.file.methodDefaultOverrideDescriptors.count },
-            image: { classes.image.methodDefaultOverrideDescriptors.count }
-        )
+        let count = try acrossAllReaders(classes.file, classes.image) { $0.methodDefaultOverrideDescriptors.count }
         #expect(count == ClassBaseline.classTest.methodDefaultOverrideDescriptorsCount)
     }
 }

@@ -30,32 +30,17 @@ final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTes
 
     @Test func offset() async throws {
         let headers = try loadGenericStructLayoutRequirementHeaders()
-        let result = try acrossAllReaders(
-            file: { headers.file.offset },
-            image: { headers.image.offset }
-        )
+        let result = try acrossAllReaders(headers.file, headers.image) { $0.offset }
         #expect(result == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.offset)
     }
 
     @Test func layout() async throws {
         let headers = try loadGenericStructLayoutRequirementHeaders()
 
-        let numParams = try acrossAllReaders(
-            file: { headers.file.layout.numParams },
-            image: { headers.image.layout.numParams }
-        )
-        let numRequirements = try acrossAllReaders(
-            file: { headers.file.layout.numRequirements },
-            image: { headers.image.layout.numRequirements }
-        )
-        let numKeyArguments = try acrossAllReaders(
-            file: { headers.file.layout.numKeyArguments },
-            image: { headers.image.layout.numKeyArguments }
-        )
-        let flagsRawValue = try acrossAllReaders(
-            file: { headers.file.layout.flags.rawValue },
-            image: { headers.image.layout.flags.rawValue }
-        )
+        let numParams = try acrossAllReaders(headers.file, headers.image) { $0.layout.numParams }
+        let numRequirements = try acrossAllReaders(headers.file, headers.image) { $0.layout.numRequirements }
+        let numKeyArguments = try acrossAllReaders(headers.file, headers.image) { $0.layout.numKeyArguments }
+        let flagsRawValue = try acrossAllReaders(headers.file, headers.image) { $0.layout.flags.rawValue }
 
         #expect(numParams == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutNumParams)
         #expect(numRequirements == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.layoutNumRequirements)
@@ -64,19 +49,17 @@ final class TypeGenericContextDescriptorHeaderTests: MachOSwiftSectionFixtureTes
 
         // The instantiation cache is mutable runtime state and reads as zero
         // in the file; only where it sits is a static fact.
-        let instantiationCacheOffset = try acrossAllReaders(
-            file: { headers.file.resolvedDirectOffset(from: \.instantiationCache) },
-            image: { headers.image.resolvedDirectOffset(from: \.instantiationCache) }
-        )
+        let instantiationCacheOffset = try acrossAllReaders(headers.file, headers.image) { header in
+            header.resolvedDirectOffset(from: \.instantiationCache)
+        }
         #expect(instantiationCacheOffset == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.instantiationCacheOffset)
 
         // The entry point to the whole generic-pattern family. The pattern
         // Suites reach their carriers through exactly this field, so a wrong
         // answer here would surface there too.
-        let patternOffset = try acrossAllReaders(
-            file: { headers.file.resolvedDirectOffset(from: \.defaultInstantiationPattern) },
-            image: { headers.image.resolvedDirectOffset(from: \.defaultInstantiationPattern) }
-        )
+        let patternOffset = try acrossAllReaders(headers.file, headers.image) { header in
+            header.resolvedDirectOffset(from: \.defaultInstantiationPattern)
+        }
         #expect(patternOffset == TypeGenericContextDescriptorHeaderBaseline.genericStructLayoutRequirement.defaultInstantiationPatternOffset)
 
         // Resolving what it points at must produce a struct pattern, since

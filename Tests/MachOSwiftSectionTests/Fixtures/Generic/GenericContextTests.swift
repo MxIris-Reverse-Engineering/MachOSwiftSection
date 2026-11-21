@@ -102,28 +102,19 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func offset() async throws {
         let contexts = try layoutRequirementContexts()
-        let result = try acrossAllReaders(
-            file: { contexts.file.offset },
-            image: { contexts.image.offset }
-        )
+        let result = try acrossAllReaders(contexts.file, contexts.image) { $0.offset }
         #expect(result == GenericContextBaseline.layoutRequirement.offset)
     }
 
     @Test func size() async throws {
         let contexts = try layoutRequirementContexts()
-        let result = try acrossAllReaders(
-            file: { contexts.file.size },
-            image: { contexts.image.size }
-        )
+        let result = try acrossAllReaders(contexts.file, contexts.image) { $0.size }
         #expect(result == GenericContextBaseline.layoutRequirement.size)
     }
 
     @Test func depth() async throws {
         let contexts = try layoutRequirementContexts()
-        let result = try acrossAllReaders(
-            file: { contexts.file.depth },
-            image: { contexts.image.depth }
-        )
+        let result = try acrossAllReaders(contexts.file, contexts.image) { $0.depth }
         #expect(result == GenericContextBaseline.layoutRequirement.depth)
     }
 
@@ -132,10 +123,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
         // (i.e. the start of the generic-context payload). Cross-reader
         // equality is captured indirectly via the header's `numParams` ivar.
         let contexts = try layoutRequirementContexts()
-        let numParams = try acrossAllReaders(
-            file: { contexts.file.header.layout.numParams },
-            image: { contexts.image.header.layout.numParams }
-        )
+        let numParams = try acrossAllReaders(contexts.file, contexts.image) { $0.header.layout.numParams }
         #expect(Int(numParams) == GenericContextBaseline.layoutRequirement.parametersCount)
     }
 
@@ -143,45 +131,30 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func parameters() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.parameters.count },
-            image: { contexts.image.parameters.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.parameters.count }
         #expect(count == GenericContextBaseline.layoutRequirement.parametersCount)
     }
 
     @Test func requirements() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.requirements.count },
-            image: { contexts.image.requirements.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.requirements.count }
         #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
     }
 
     @Test func typePackHeader() async throws {
         // No type packs on layoutRequirement; presence true on parameterPack.
         let contexts = try layoutRequirementContexts()
-        let layoutPresence = try acrossAllReaders(
-            file: { contexts.file.typePackHeader != nil },
-            image: { contexts.image.typePackHeader != nil }
-        )
+        let layoutPresence = try acrossAllReaders(contexts.file, contexts.image) { $0.typePackHeader != nil }
         #expect(layoutPresence == GenericContextBaseline.layoutRequirement.hasTypePackHeader)
 
         let packContexts = try parameterPackContexts()
-        let packPresence = try acrossAllReaders(
-            file: { packContexts.file.typePackHeader != nil },
-            image: { packContexts.image.typePackHeader != nil }
-        )
+        let packPresence = try acrossAllReaders(packContexts.file, packContexts.image) { $0.typePackHeader != nil }
         #expect(packPresence == GenericContextBaseline.parameterPack.hasTypePackHeader)
     }
 
     @Test func typePacks() async throws {
         let packContexts = try parameterPackContexts()
-        let count = try acrossAllReaders(
-            file: { packContexts.file.typePacks.count },
-            image: { packContexts.image.typePacks.count }
-        )
+        let count = try acrossAllReaders(packContexts.file, packContexts.image) { $0.typePacks.count }
         #expect(count == GenericContextBaseline.parameterPack.typePacksCount)
     }
 
@@ -190,19 +163,13 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
         // parameters, so valueHeader is always nil. Check on the layout
         // fixture (a representative case).
         let contexts = try layoutRequirementContexts()
-        let presence = try acrossAllReaders(
-            file: { contexts.file.valueHeader != nil },
-            image: { contexts.image.valueHeader != nil }
-        )
+        let presence = try acrossAllReaders(contexts.file, contexts.image) { $0.valueHeader != nil }
         #expect(presence == GenericContextBaseline.layoutRequirement.hasValueHeader)
     }
 
     @Test func values() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.values.count },
-            image: { contexts.image.values.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.values.count }
         #expect(count == GenericContextBaseline.layoutRequirement.valuesCount)
     }
 
@@ -210,37 +177,25 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func parentParameters() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.parentParameters.count },
-            image: { contexts.image.parentParameters.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.parentParameters.count }
         #expect(count == GenericContextBaseline.layoutRequirement.parentParametersCount)
     }
 
     @Test func parentRequirements() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.parentRequirements.count },
-            image: { contexts.image.parentRequirements.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.parentRequirements.count }
         #expect(count == GenericContextBaseline.layoutRequirement.parentRequirementsCount)
     }
 
     @Test func parentTypePacks() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.parentTypePacks.count },
-            image: { contexts.image.parentTypePacks.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.parentTypePacks.count }
         #expect(count == GenericContextBaseline.layoutRequirement.parentTypePacksCount)
     }
 
     @Test func parentValues() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.parentValues.count },
-            image: { contexts.image.parentValues.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.parentValues.count }
         #expect(count == GenericContextBaseline.layoutRequirement.parentValuesCount)
     }
 
@@ -254,28 +209,23 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
         // requirement instead), so we check both fixtures register the
         // baseline-recorded presence.
         let invertible = try invertibleProtocolContexts()
-        let presence = try acrossAllReaders(
-            file: { invertible.file.conditionalInvertibleProtocolSet != nil },
-            image: { invertible.image.conditionalInvertibleProtocolSet != nil }
-        )
+        let presence = try acrossAllReaders(invertible.file, invertible.image) { $0.conditionalInvertibleProtocolSet != nil }
         #expect(presence == GenericContextBaseline.invertibleProtocol.hasConditionalInvertibleProtocolSet)
     }
 
     @Test func conditionalInvertibleProtocolsRequirementsCount() async throws {
         let invertible = try invertibleProtocolContexts()
-        let presence = try acrossAllReaders(
-            file: { invertible.file.conditionalInvertibleProtocolsRequirementsCount != nil },
-            image: { invertible.image.conditionalInvertibleProtocolsRequirementsCount != nil }
-        )
+        let presence = try acrossAllReaders(invertible.file, invertible.image) { genericContext in
+            genericContext.conditionalInvertibleProtocolsRequirementsCount != nil
+        }
         #expect(presence == GenericContextBaseline.invertibleProtocol.hasConditionalInvertibleProtocolsRequirementsCount)
     }
 
     @Test func conditionalInvertibleProtocolsRequirements() async throws {
         let invertible = try invertibleProtocolContexts()
-        let count = try acrossAllReaders(
-            file: { invertible.file.conditionalInvertibleProtocolsRequirements.count },
-            image: { invertible.image.conditionalInvertibleProtocolsRequirements.count }
-        )
+        let count = try acrossAllReaders(invertible.file, invertible.image) { genericContext in
+            genericContext.conditionalInvertibleProtocolsRequirements.count
+        }
         #expect(count == GenericContextBaseline.invertibleProtocol.conditionalInvertibleProtocolsRequirementsCount)
     }
 
@@ -283,73 +233,49 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
 
     @Test func currentParameters() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.currentParameters.count },
-            image: { contexts.image.currentParameters.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.currentParameters.count }
         #expect(count == GenericContextBaseline.layoutRequirement.currentParametersCount)
     }
 
     @Test func currentRequirements() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.currentRequirements.count },
-            image: { contexts.image.currentRequirements.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.currentRequirements.count }
         #expect(count == GenericContextBaseline.layoutRequirement.currentRequirementsCount)
     }
 
     @Test func currentTypePacks() async throws {
         let packContexts = try parameterPackContexts()
-        let count = try acrossAllReaders(
-            file: { packContexts.file.currentTypePacks.count },
-            image: { packContexts.image.currentTypePacks.count }
-        )
+        let count = try acrossAllReaders(packContexts.file, packContexts.image) { $0.currentTypePacks.count }
         #expect(count == GenericContextBaseline.parameterPack.currentTypePacksCount)
     }
 
     @Test func currentValues() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.currentValues.count },
-            image: { contexts.image.currentValues.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.currentValues.count }
         #expect(count == GenericContextBaseline.layoutRequirement.currentValuesCount)
     }
 
     @Test func allParameters() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.allParameters.count },
-            image: { contexts.image.allParameters.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.allParameters.count }
         #expect(count == GenericContextBaseline.layoutRequirement.allParametersCount)
     }
 
     @Test func allRequirements() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.allRequirements.count },
-            image: { contexts.image.allRequirements.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.allRequirements.count }
         #expect(count == GenericContextBaseline.layoutRequirement.allRequirementsCount)
     }
 
     @Test func allTypePacks() async throws {
         let packContexts = try parameterPackContexts()
-        let count = try acrossAllReaders(
-            file: { packContexts.file.allTypePacks.count },
-            image: { packContexts.image.allTypePacks.count }
-        )
+        let count = try acrossAllReaders(packContexts.file, packContexts.image) { $0.allTypePacks.count }
         #expect(count == GenericContextBaseline.parameterPack.allTypePacksCount)
     }
 
     @Test func allValues() async throws {
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.allValues.count },
-            image: { contexts.image.allValues.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.allValues.count }
         #expect(count == GenericContextBaseline.layoutRequirement.allValuesCount)
     }
 
@@ -359,10 +285,9 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
         // Top-level type with no parent generic context: every requirement
         // is unique. Cross-reader equality on the count.
         let contexts = try layoutRequirementContexts()
-        let count = try acrossAllContexts(
-            file: { contexts.file.uniqueCurrentRequirements(in: fileContext).count },
-            image: { contexts.image.uniqueCurrentRequirements(in: imageContext).count }
-        )
+        let count = try acrossAllContexts(contexts.file, contexts.image) { genericContext, context in
+            genericContext.uniqueCurrentRequirements(in: context).count
+        }
         #expect(count == GenericContextBaseline.layoutRequirement.requirementsCount)
     }
 
@@ -394,10 +319,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("parameters is cumulative across the parent chain (3-level fixture)")
     func nestedThreeLevelParametersIsCumulative() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.parameters.count },
-            image: { contexts.image.parameters.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.parameters.count }
         // Outer<Outer> + Middle<Middle> + InnerMost<InnerMost> cumulative = 3.
         // numParams in the binary header matches.
         #expect(count == 3)
@@ -407,10 +329,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("requirements is cumulative across the parent chain (3-level fixture)")
     func nestedThreeLevelRequirementsIsCumulative() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.requirements.count },
-            image: { contexts.image.requirements.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.requirements.count }
         // One protocol constraint per level: Outer:Hashable, Middle:Equatable,
         // InnerMost:Comparable.
         #expect(count == 3)
@@ -419,10 +338,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("parentParameters stores cumulative counts per level — counter-example to a per-level-new interpretation")
     func nestedThreeLevelParentParametersAreCumulative() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let parentCounts = try acrossAllReaders(
-            file: { contexts.file.parentParameters.map(\.count) },
-            image: { contexts.image.parentParameters.map(\.count) }
-        )
+        let parentCounts = try acrossAllReaders(contexts.file, contexts.image) { $0.parentParameters.map(\.count) }
         // Outer scope cumulative = [Outer]; Middle scope cumulative = [Outer, Middle].
         // If parentParameters was per-level-new, this would be [1, 1] instead.
         #expect(parentCounts == [1, 2])
@@ -431,10 +347,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("parentRequirements stores cumulative counts per level — counter-example to a per-level-new interpretation")
     func nestedThreeLevelParentRequirementsAreCumulative() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let parentCounts = try acrossAllReaders(
-            file: { contexts.file.parentRequirements.map(\.count) },
-            image: { contexts.image.parentRequirements.map(\.count) }
-        )
+        let parentCounts = try acrossAllReaders(contexts.file, contexts.image) { $0.parentRequirements.map(\.count) }
         // Outer scope cumulative requirements = [Outer:Hashable];
         // Middle scope cumulative requirements = [Outer:Hashable, Middle:Equatable].
         // Per-level-new would be [1, 1] — the assertion below distinguishes
@@ -445,10 +358,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("currentParameters drops only the immediate-parent's cumulative count")
     func nestedThreeLevelCurrentParametersHardcoded() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.currentParameters.count },
-            image: { contexts.image.currentParameters.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.currentParameters.count }
         // InnerMost adds exactly one new parameter (`InnerMost`).
         #expect(count == 1)
     }
@@ -456,10 +366,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("currentRequirements must drop only the immediate-parent's count, not parentRequirements.flatMap.count")
     func nestedThreeLevelCurrentRequirementsHardcoded() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.currentRequirements.count },
-            image: { contexts.image.currentRequirements.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.currentRequirements.count }
         // InnerMost adds exactly one new requirement (`InnerMost: Comparable`).
         // A regression that uses `parentRequirements.flatMap{$0}.count`
         // (= 1 + 2 = 3) instead of `parentRequirements.last?.count` (= 2)
@@ -473,14 +380,10 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("flatMap-over-parents and last-of-parents diverge at depth ≥ 2 — invariant guarding the currentRequirements formula")
     func nestedThreeLevelFlatMapVsLastDivergence() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let flatMapCount = try acrossAllReaders(
-            file: { contexts.file.parentRequirements.flatMap { $0 }.count },
-            image: { contexts.image.parentRequirements.flatMap { $0 }.count }
-        )
-        let lastCount = try acrossAllReaders(
-            file: { contexts.file.parentRequirements.last?.count ?? 0 },
-            image: { contexts.image.parentRequirements.last?.count ?? 0 }
-        )
+        let flatMapCount = try acrossAllReaders(contexts.file, contexts.image) { genericContext in
+            genericContext.parentRequirements.flatMap { $0 }.count
+        }
+        let lastCount = try acrossAllReaders(contexts.file, contexts.image) { $0.parentRequirements.last?.count ?? 0 }
         // 1 (Outer) + 2 (Middle cumulative) = 3; immediate parent's
         // cumulative count alone = 2. The two values must differ for a
         // 3-level-nested fixture; if they ever stop differing, this
@@ -494,10 +397,9 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("uniqueCurrentRequirements deduplicates by content even when parents are cumulative")
     func nestedThreeLevelUniqueCurrentRequirements() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllContexts(
-            file: { contexts.file.uniqueCurrentRequirements(in: fileContext).count },
-            image: { contexts.image.uniqueCurrentRequirements(in: imageContext).count }
-        )
+        let count = try acrossAllContexts(contexts.file, contexts.image) { genericContext, context in
+            genericContext.uniqueCurrentRequirements(in: context).count
+        }
         // InnerMost adds one requirement. uniqueCurrentRequirements walks
         // `parentRequirements.flatMap { $0 }` and uses `isContentEqual` to
         // skip inherited entries, so cumulative duplicates do not break it.
@@ -507,10 +409,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("allParameters has one entry per nesting level (parents + own)")
     func nestedThreeLevelAllParametersLevelCount() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.allParameters.count },
-            image: { contexts.image.allParameters.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.allParameters.count }
         // Two parent generic contexts (Outer, Middle) + the current scope.
         #expect(count == 3)
     }
@@ -518,10 +417,7 @@ final class GenericContextTests: MachOSwiftSectionFixtureTests, @unchecked Senda
     @Test("allRequirements has one entry per nesting level (parents + own)")
     func nestedThreeLevelAllRequirementsLevelCount() async throws {
         let contexts = try nestedThreeLevelContexts()
-        let count = try acrossAllReaders(
-            file: { contexts.file.allRequirements.count },
-            image: { contexts.image.allRequirements.count }
-        )
+        let count = try acrossAllReaders(contexts.file, contexts.image) { $0.allRequirements.count }
         // Same shape as allParameters: 2 parent levels + current. If
         // currentRequirements regresses to empty, allRequirements collapses
         // back to `parentRequirements` (count 2) — this assertion catches
