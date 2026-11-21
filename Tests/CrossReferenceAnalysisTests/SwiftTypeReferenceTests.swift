@@ -321,7 +321,7 @@ struct SwiftTypeReferenceTests {
     private func imagesReferencing(_ identity: SwiftTypeIdentity, among imageIndices: [Int]) -> Set<Int> {
         let found = ImageIndexCollector()
         let analyzer = analyzer
-        DispatchQueue.concurrentPerform(iterations: imageIndices.count) { position in
+        ImageScanConcurrency.concurrentPerform(iterations: imageIndices.count) { position in
             if !analyzer.references(toSwiftType: identity, inImageAt: imageIndices[position]).isEmpty { found.insert(imageIndices[position]) }
         }
         return found.indices

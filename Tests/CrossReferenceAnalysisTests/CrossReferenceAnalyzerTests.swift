@@ -256,7 +256,7 @@ struct CrossReferenceAnalyzerTests {
     private func imagesReferencing(_ keys: Set<CodeReferenceTable.Key>, among imageIndices: [Int]) -> Set<Int> {
         let found = ImageIndexCollector()
         let analyzer = analyzer
-        DispatchQueue.concurrentPerform(iterations: imageIndices.count) { position in
+        ImageScanConcurrency.concurrentPerform(iterations: imageIndices.count) { position in
             let imageIndex = imageIndices[position]
             if !analyzer.references(to: keys, inImageAt: imageIndex).isEmpty { found.insert(imageIndex) }
         }
