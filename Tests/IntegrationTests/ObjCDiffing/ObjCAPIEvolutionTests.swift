@@ -116,7 +116,7 @@ extension ObjCAPIEvolutionDumpTests {
                 var imageSnapshots: [ObjCAPIImageSnapshot] = []
                 for image in version.images {
                     let document = try await snapshotDocument(of: image.machO, label: version.label)
-                    imageSnapshots.append(ObjCAPIImageSnapshot(imageName: image.imageName.rawValue, snapshot: document.snapshot))
+                    imageSnapshots.append(ObjCAPIImageSnapshot(imageName: image.imageName.name, snapshot: document.snapshot))
                 }
                 imageGroups.append(imageSnapshots)
             }
@@ -323,7 +323,7 @@ extension ObjCEvolutionInterfaceDumpTests {
                 var images: [ObjCEvolutionInterfaceImage<MachOFile>] = []
                 for image in version.images {
                     let indexer = try await preparedObjCIndexer(of: image.machO)
-                    images.append(ObjCEvolutionInterfaceImage(imageName: image.imageName.rawValue, indexer: indexer, machO: image.machO))
+                    images.append(ObjCEvolutionInterfaceImage(imageName: image.imageName.name, indexer: indexer, machO: image.machO))
                 }
                 builder.addVersion(images: images, version: ObjCAPIVersionDescriptor(label: version.label))
             }

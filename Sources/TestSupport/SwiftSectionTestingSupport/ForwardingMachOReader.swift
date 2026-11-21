@@ -3,17 +3,14 @@ import MachOKit
 import MachOKitExtensions
 import MachOReading
 import MachOSwiftSection
+import SwiftSectionFixtureSupport
 
-/// Whether a ``ForwardingMachOReader`` tells the library what it wraps.
-package protocol ForwardingMachOReaderDeclaration: Sendable {}
-
-/// The reader declares the reader it forwards to — a host's wrapper that
-/// adopted `MachOReaderWrapper`.
-package enum DeclaredWrapper: ForwardingMachOReaderDeclaration {}
-
-/// The reader forwards every read and says nothing about it — a host's
-/// wrapper written before `MachOReaderWrapper` existed.
-package enum UndeclaredWrapper: ForwardingMachOReaderDeclaration {}
+// Whether a ``ForwardingMachOReader`` tells the library what it wraps is said
+// with MachOKitExtensions' markers for its own `ForwardingReader`:
+// `DeclaredWrapper` — a host's wrapper that adopted `MachOReaderWrapper` —
+// and `UndeclaredWrapper` — one written before `MachOReaderWrapper` existed.
+// The reader itself stays here: it forwards this package's reading protocol,
+// `MachOSwiftSectionRepresentableWithCache`, which `ForwardingReader` does not.
 
 /// A reader that forwards every requirement to `base` and adds nothing.
 ///
@@ -24,7 +21,7 @@ package enum UndeclaredWrapper: ForwardingMachOReaderDeclaration {}
 /// requirement is forwarded, the defaulted ones too, so nothing a default
 /// implementation computes differently from `base`'s own can tell the two
 /// apart.
-package struct ForwardingMachOReader<Base: MachOSwiftSectionRepresentableWithCache, Declaration: ForwardingMachOReaderDeclaration>: MachOSwiftSectionRepresentableWithCache {
+package struct ForwardingMachOReader<Base: MachOSwiftSectionRepresentableWithCache, Declaration: ForwardingReaderDeclaration>: MachOSwiftSectionRepresentableWithCache {
     package let base: Base
 
     package init(_ base: Base) {

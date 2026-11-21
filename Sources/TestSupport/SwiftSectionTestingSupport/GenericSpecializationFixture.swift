@@ -307,7 +307,7 @@ package enum GenericSpecializationFixture {
     /// the offline indexer's sub-indexer for the standard library's
     /// protocols and conformances.
     package static func systemStandardLibraryFile() throws -> MachOFile {
-        let cache = try DyldCache(url: URL(fileURLWithPath: DyldSharedCachePath.current.rawValue))
+        let cache = try DyldCache(url: URL(fileURLWithPath: DyldSharedCachePath.current.path))
         return try #require(cache.machOFile(by: .name("libswiftCore")), "libswiftCore not found in the running system's dyld shared cache")
     }
 }

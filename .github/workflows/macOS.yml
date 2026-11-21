@@ -26,6 +26,9 @@ jobs:
         configuration: [debug, release]
     env:
       MACHO_SWIFT_SECTION_SILENT_TEST: 1
+      # Quiets `.print()` of MachOKitExtensions' MachOFixtureSupport, which
+      # reads it at run time.
+      MACHO_TESTING_SILENT: 1
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4

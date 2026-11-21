@@ -222,33 +222,14 @@ extension InProcessMetadataPicker {
 
     /// Idempotently dlopens `SymbolTestsCore.framework` so that subsequent
     /// `dlsym(RTLD_NOW, ...)` calls can locate fixture-binary symbols.
-    /// Resolves the framework path relative to this source file, mirroring
-    /// `MachOSwiftSectionFixtureTests.dlopenOnce` so the test process and
-    /// the standalone `baseline-generator` process behave identically.
+    /// Loads the file `MachOFileName.SymbolTestsCore` names, the one
+    /// `MachOSwiftSectionFixtureTests` loads, so the test process and the
+    /// standalone `baseline-generator` process behave identically.
     private static func ensureFixtureLoaded() throws {
         _ = dlopenOnce
     }
 
     private static let dlopenOnce: Void = {
-        let absolute = resolveFixturePath(MachOImageName.SymbolTestsCore.rawValue)
-        _ = absolute.withCString { dlopen($0, RTLD_LAZY) }
+        _ = MachOFileName.SymbolTestsCore.path.withCString { dlopen($0, RTLD_LAZY) }
     }()
-
-    /// Resolve a relative `MachOImageName` path (rooted at the package-relative
-    /// `../../../Tests/...` convention used by `loadFromFile`) to an absolute path.
-    ///
-    /// Caveat: `MachOImageName.SymbolTestsCore.rawValue` is rooted as if the
-    /// caller lives in `Sources/<Group>/<Target>/Foo.swift`, i.e. exactly three
-    /// `../` hops to reach the package root. This file lives one level deeper
-    /// in `Sources/TestSupport/SwiftSectionFixtureSupport/InProcess/`, so we anchor
-    /// against `Sources/TestSupport/SwiftSectionFixtureSupport/` (one path component up
-    /// from `#filePath`'s parent) to make the existing `../../../...` rawValue
-    /// resolve correctly.
-    private static func resolveFixturePath(_ relativePath: String) -> String {
-        if relativePath.hasPrefix("/") { return relativePath }
-        let parentOfThisFile = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        let oneLevelUp = parentOfThisFile.deletingLastPathComponent()
-        let url = URL(fileURLWithPath: relativePath, relativeTo: oneLevelUp)
-        return url.standardizedFileURL.path
-    }
 }

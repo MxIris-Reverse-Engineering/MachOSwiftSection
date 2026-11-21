@@ -22,7 +22,7 @@ import Semantic
 /// evidence gate is what this suite pins.
 ///
 /// Environment-gated: skipped on machines without Xcode's SourceEditor.
-@Suite(.serialized, .enabled(if: FileManager.default.fileExists(atPath: MachOFileName.SourceEditorFromXcode.rawValue)))
+@Suite(.serialized, .enabled(if: FileManager.default.fileExists(atPath: MachOFileName.SourceEditorFromXcode.path)))
 final class FinalKeywordICFRegressionTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SourceEditorFromXcode }
 

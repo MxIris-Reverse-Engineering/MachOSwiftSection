@@ -18,14 +18,14 @@ import Semantic
 /// reads a static of the suite it decorates is a circular macro reference.
 enum SimulatorRuntimeThunkFixtures {
     /// iOS 26.5: the last runtime that ships SwiftUI as a standalone file.
-    static let standaloneSwiftUIPath = MachOFileName.iOS_26_5_Simulator_SwiftUI.rawValue
-    static let standaloneSwiftUICorePath = MachOFileName.iOS_26_5_Simulator_SwiftUICore.rawValue
+    static let standaloneSwiftUIPath = MachOFileName.iOS_26_5_Simulator_SwiftUI.path
+    static let standaloneSwiftUICorePath = MachOFileName.iOS_26_5_Simulator_SwiftUICore.path
     static var hasStandaloneSwiftUI: Bool {
         FileManager.default.fileExists(atPath: standaloneSwiftUIPath) && FileManager.default.fileExists(atPath: standaloneSwiftUICorePath)
     }
 
     /// iOS 27.0: SwiftUI lives in the runtime's own dyld cache.
-    static let simulatorCachePath = DyldSharedCachePath.iOS_27_0_Simulator.rawValue
+    static let simulatorCachePath = DyldSharedCachePath.iOS_27_0_Simulator.path
     static var hasSimulatorCache: Bool { FileManager.default.fileExists(atPath: simulatorCachePath) }
 }
 

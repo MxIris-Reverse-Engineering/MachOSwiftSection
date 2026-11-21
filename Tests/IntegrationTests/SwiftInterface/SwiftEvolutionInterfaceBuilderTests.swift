@@ -100,7 +100,7 @@ extension SwiftEvolutionInterfaceDumpTests {
         let builder = try AnySwiftEvolutionInterfaceBuilder(
             configuration: indexConfiguration,
             imageGroups: imageGroupVersions.map { version in
-                version.images.map { SwiftEvolutionInterfaceImage(imageName: $0.imageName.rawValue, machO: $0.machO) }
+                version.images.map { SwiftEvolutionInterfaceImage(imageName: $0.imageName.name, machO: $0.machO) }
             },
             labels: imageGroupVersions.map(\.label),
             availabilityAnnotationPlatform: availabilityAnnotationPlatform
@@ -261,7 +261,7 @@ enum SwiftEvolutionInterfaceBuilderTestSuite {
             cacheVersions.map { cacheVersion in
                 let cachePath = DyldSharedCachePath.macOS(cacheVersion)
                 guard let versionLabel = versionLabelsByCacheVersion[cacheVersion] else { return cachePath }
-                return DyldSharedCachePath(rawValue: cachePath.rawValue, versionLabel: versionLabel)
+                return DyldSharedCachePath(path: cachePath.path, versionLabel: versionLabel)
             }
         }
         

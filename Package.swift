@@ -175,7 +175,9 @@ extension Package.Dependency {
             // 3.0.0 leaves Swift symbol names to this package: `SwiftSymbols`
             // defines `SymbolLanguage.swift` and registers it when the image
             // loads (proposal split-symbol-language).
-            from: "3.0.0",
+            // 3.2.0 ships the test support this package builds on: the
+            // `MachOFixtureSupport` and `MachOTestingSupport` products.
+            from: "3.2.0",
         ),
     )
 
@@ -359,6 +361,19 @@ extension Target.Dependency {
     )
     static let MachOFoundation = Target.Dependency.product(
         name: "MachOFoundation",
+        package: "MachOKitExtensions",
+    )
+    // The Swift-free half of the test support, shared with
+    // MachOKitExtensions' own tests since its 3.2.0: fixture names, opening
+    // caches and images, slice picking, the fixture compiler
+    // (`MachOFixtureSupport`, no Testing), and the trait and base classes on
+    // top of it (`MachOTestingSupport`).
+    static let MachOFixtureSupport = Target.Dependency.product(
+        name: "MachOFixtureSupport",
+        package: "MachOKitExtensions",
+    )
+    static let MachOTestingSupport = Target.Dependency.product(
+        name: "MachOTestingSupport",
         package: "MachOKitExtensions",
     )
     static let MachOKitMain = Target.Dependency.product(
@@ -1042,11 +1057,14 @@ extension Target {
     /// Fixture-loading helpers, baseline generators, coverage scanners, and
     /// non-Testing-dependent code. Importable from non-test targets (e.g.
     /// `baseline-generator`) without dragging in `Testing.framework`.
+    /// Re-exports MachOKitExtensions' `MachOFixtureSupport`, which it adds
+    /// this package's fixture names and named caches to.
     static let SwiftSectionFixtureSupport = Target.target(
         name: "SwiftSectionFixtureSupport",
         dependencies: [
             .product(.MachOKit),
             .product(.MachOFoundation),
+            .product(.MachOFixtureSupport),
             .target(.SwiftSymbols),
             .product(.MachOReading),
             .product(.MachOResolving),
@@ -1066,8 +1084,11 @@ extension Target {
         swiftSettings: testSettings,
     )
 
-    /// `swift-testing` base classes (`MachOFileTests`, `MachOImageTests`,
-    /// `DyldCacheTests`, `XcodeMachOFileTests`, `MachOSwiftSectionFixtureTests`).
+    /// `swift-testing` support: `MachOSwiftSectionFixtureTests` and the Swift
+    /// fixtures, on top of MachOKitExtensions' `MachOTestingSupport` (the
+    /// `MachOFileTests`, `MachOImageTests`, `DyldCacheTests`,
+    /// `XcodeMachOFileTests` and `MachOFixtureTests` base classes and
+    /// `ExclusiveImageAccess`), which it re-exports.
     /// Splitting this out from `SwiftSectionFixtureSupport` keeps `Testing.framework`
     /// out of the link line for non-test targets.
     static let SwiftSectionTestingSupport = Target.target(
@@ -1080,6 +1101,7 @@ extension Target {
             .product(.MachOReading),
             .product(.MachOResolving),
             .target(.SwiftSectionFixtureSupport),
+            .product(.MachOTestingSupport),
             .target(.MachOSwiftSection),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),

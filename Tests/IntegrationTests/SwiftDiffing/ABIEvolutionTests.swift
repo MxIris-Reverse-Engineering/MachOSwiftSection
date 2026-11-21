@@ -114,7 +114,7 @@ extension ABIEvolutionDumpTests {
                         snapshot: builder.snapshot()
                     )
                     imageSnapshots.append(ABIImageSnapshot(
-                        imageName: image.imageName.rawValue,
+                        imageName: image.imageName.name,
                         snapshot: try ABISnapshotDocument.decode(from: document.encoded()).snapshot
                     ))
                 }

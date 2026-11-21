@@ -26,7 +26,7 @@ import SwiftSectionFixtureSupport
 @Suite
 struct FileMappingTests {
     private static var isHostDyldCacheAvailable: Bool {
-        FileManager.default.fileExists(atPath: DyldSharedCachePath.current.rawValue)
+        FileManager.default.fileExists(atPath: DyldSharedCachePath.current.path)
     }
 
     /// More Swift images than an XPC service may hold descriptors: mapped per
@@ -62,7 +62,7 @@ struct FileMappingTests {
         guard setrlimit(RLIMIT_NOFILE, &limit) == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EINVAL)
         }
-        let cache = try FullDyldCache(url: URL(fileURLWithPath: DyldSharedCachePath.current.rawValue))
+        let cache = try FullDyldCache(url: URL(fileURLWithPath: DyldSharedCachePath.current.path))
         let swiftImages = Array(
             cache.machOFiles()
                 .lazy

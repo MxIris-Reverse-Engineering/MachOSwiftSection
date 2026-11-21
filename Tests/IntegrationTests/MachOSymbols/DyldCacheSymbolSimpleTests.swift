@@ -35,7 +35,7 @@ final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests, @unchecked Sendabl
         let directoryURL = URL.documentsDirectory.appending(component: "SwiftSymbolExpanded")
         try directoryURL.createDirectoryIfNeeded()
 
-        try string.write(to: directoryURL.appending(components: "\(imageName.rawValue).txt"), atomically: true, encoding: .utf8)
+        try string.write(to: directoryURL.appending(components: "\(imageName.name).txt"), atomically: true, encoding: .utf8)
     }
 
     @Test func demangle() async throws {

@@ -1,4 +1,5 @@
 import MachOKitExtensions
+import SwiftSectionFixtureSupport
 import SwiftDeclarationRendering
 
 /// A wrapper that declares what it wraps can say so to the library: the

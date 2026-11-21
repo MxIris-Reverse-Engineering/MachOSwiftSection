@@ -17,7 +17,7 @@ import SwiftSectionFixtureSupport
 ///
 /// Combine is an image no other suite reads, so the symbol index this suite
 /// builds for it is built through the wrapper.
-@Suite(ExclusiveImageAccess(MachOImageName.Combine.rawValue))
+@Suite(ExclusiveImageAccess(MachOImageName.Combine.name))
 struct WrappedReaderSymbolTests {
     @Test("a wrapper of a cache file files its Swift symbols where the file does")
     func cacheFileWrapperFilesSwiftSymbolsLikeTheFile() throws {
