@@ -3501,6 +3501,24 @@
   - 没跑全量，也没做渲染 A/B：只改了交叉引用索引存偏移的起点，不碰 demangle、打印、索引器与读取层。
 - **对应版本**：未发布（0.26.0 之后）。
 
+## 2026-11-21 · 长类型按括号拆成多行（`MultilineTypeFormatting`）
+
+- **时间段**：2026-11-21，`feature/multiline-type-formatting`，在 JHs-Mac-Studio-Ultra 上写与验证。
+- **动机**：RuntimeViewer 里 SwiftUI 视图的 `typealias Body = SwiftUI.ModifiedContent<…>` 印成一行几千个字符，看不出泛型的层级；dump、interface 的长成员签名同样如此。社区工具 TypeAliasFormatter 能按括号排版，但只吃纯文本，丢掉着色、链接与 region。
+- **关键决策**：
+  - 规则由用户在澄清提问里选定：一行放得下的类型不动；放不下的类型（最外层泛型参数列表的 `>` 落在行宽之后）整个照 TypeAliasFormatter 的结构规则拆——多参数泛型每个参数一行，单参数泛型、元组、函数类型与参数列表、`[…]` 只在里面有拆开的部分时才拆。适用于所有类型位置。
+  - 做成调用方在出口调用一次的纯格式化函数，不改打印器、不加打印配置：类型来自两套打印器，公开打印入口互相调用，嵌套定义契约只允许缩进随层级变化。
+  - 行宽不计行首缩进，同一个声明在任何嵌套深度拆得一样，`marksNestedDefinitions` 的契约格式化后仍成立；插入的换行与缩进沿用相邻括号或逗号的 identifier，region 不会被切断。
+  - 括号只在 `.standard` 组件里认，字符串、反引号、行注释、`->` 不算；括号不配对的行（dump 的 `< infix` 运算符）原样保留。`<…>` 里写着 `where`、`A: P` 或 `==` 的是泛型签名，不按参数拆——这条是对系统 SwiftUI 实测时发现后补的。
+- **落地模块**：`SwiftDeclarationRendering`（`MultilineTypeFormatting` 与三个 internal 扩展）、`SwiftSectionKit`（`InterfaceRequest` / `DumpRequest` 的 `multilineTypeFormatting`）、`swift-section`（`MultilineTypeOptionGroup`：`--multiline-types`、`--maximum-line-width`）、`Package.swift` 与 Tuist 命令行工程的依赖。
+- **文档**：提案 [multiline-type-formatting](../Evolutions/draft-multiline-type-formatting.md)；术语表新增 long type / multiline type formatting；`SwiftSectionKit.md`（中英两份）、[Modules/SwiftSectionKit.md](Modules/SwiftSectionKit.md)、agent 插件的 swift-section skill、`AGENTS.md` 的模块清单。不另写实现说明：规则与取舍都在提案和类型的文档注释里。
+- **验证**：都在 JHs-Mac-Studio-Ultra 上，Xcode 26.6。
+  - 定向测试全过：`MultilineTypeFormattingTests`、`MultilineTypeFormattingPreservationTests`、`NestedDefinitionRegionContractTests`（含新变体，进程内与文件两种读取器）、`MultilineTypeFormattingRequestTests`、`DumpAndInterfaceRequestTests`、`MultilineTypesFlagTests`、`CommandRequestMappingTests`、`CommandLineStreamWriteScanTests`。
+  - 没跑全量：机器负载高，两次开跑都停掉了，用户决定以定向测试交付。`swift test` 没法把进程限制在指定核数——`SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH` 只限同时跑几个测试，测试内部建索引照样铺满全部核。功能默认关闭、打印器未改，关闭时的输出由构造保证不变；渲染 A/B 不适用。
+  - 对系统 SwiftUI 实测（debug 构建的 CLI）：`dump --sections types` 23.0 秒对 23.3 秒，65,207 行变 77,333 行；`interface` 124,716 行变 145,625 行，CPU 时间多约 4 秒（这一组与别的测试同时跑，墙钟不作数）。实测时发现并修掉了 dump 泛型签名被误拆的问题。
+  - `swift-section` 实跑：`--multiline-types --maximum-line-width 60` 拆开 fixture 的长字段；只给宽度时退出码 64。`claude plugin validate` 两项通过；Codex 的 `validate_plugin.py` 本机没有，未跑。
+- **对应版本**：未发布（0.26.0 之后）。RuntimeViewer 的开关与调用是它自己的后续改动。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

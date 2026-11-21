@@ -162,7 +162,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
   <h1><span class="proposal-number">Draft</span> 长类型拆行：放不下的类型按括号结构拆成多行</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-21</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
     <div><dt>原文</dt><dd><code>draft-multiline-type-formatting.md</code></dd></div>
@@ -196,9 +196,9 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">批准后开工</p>
+    <p class="callout-title">已批准并实现</p>
     <ol>
-      <li>批准这份提案、按落地步骤开始实现？</li>
+      <li>看过效果后收尾（编号、合进 <code>next</code>、推送）。</li>
     </ol>
   </div>
   <div class="callout callout-note">
@@ -219,7 +219,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <li><strong>超宽的行解析成括号树。</strong>只在 <code>.standard</code> 类型的 atom 里找括号；字符串字面量、反引号标识符、<code>//</code> 之后的内容是文字；<code>-&gt;</code> 不是括号。括号不配对就整行原样保留。</li>
     <li><strong>找出放不下的类型。</strong>不在其它泛型参数列表里面的泛型参数列表算作一个类型的最外层；它的 <code>&gt;</code> 落在第 <code>maximumLineWidth</code> 列之后，这个类型就算放不下。</li>
     <li><strong>放不下的类型按结构规则拆。</strong>有两个及以上参数的泛型参数列表一律每个参数一行；单参数泛型、元组、函数类型的参数列表、<code>[…]</code> 只在某个元素已是多行时才拆。</li>
-    <li><strong>外层括号跟着拆。</strong>函数声明的参数列表、enum case payload、元组、泛型参数子句、attribute 参数，只在某个元素已是多行时才拆。</li>
+    <li><strong>外层括号跟着拆。</strong>函数声明的参数列表、enum case payload、元组、泛型签名（紧跟在声明名后面的 <code>&lt;…&gt;</code>，以及里面写着 <code>where</code>、<code>A: P</code> 或 <code>==</code> 的 <code>&lt;…&gt;</code>）、attribute 参数，只在某个元素已是多行时才拆。</li>
     <li><strong>拆开的列表这样排。</strong>开括号留在原行末尾；参数另起一行，缩进为行首缩进加 4 个空格乘以嵌套层数；<code>, </code> 变成 <code>,</code>；闭括号另起一行回到上一层。</li>
   </ol>
 <pre><code><span class="token-keyword">extension</span> <span class="token-type">SettingsApp.SettingsNavigationSplitView</span>: <span class="token-type">SwiftUI.View</span> {
@@ -332,11 +332,14 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       <tr><td><code>MultilineTypeFormatting+Layout.swift</code> · <code>Layout</code>（internal）</td><td><span class="tag tag-added">新增</span></td><td>判定长类型、自下而上决定拆哪些列表、生成 atom（插入的 atom 沿用相邻括号或逗号的 identifier）</td><td>规则 3–6</td><td class="numeric">3</td></tr>
       <tr><td><code>Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>行切分、解析、排版的单元测试</td><td>每步的行为清单</td><td class="numeric">1–3</td></tr>
       <tr><td><code>Tests/SwiftDeclarationRenderingTests/MultilineTypeFormattingPreservationTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>type 与 identifier 不变、可还原原文、幂等、与缩进可交换、region 读回不变</td><td>「只加换行和缩进」的承诺</td><td class="numeric">4</td></tr>
-      <tr><td><code>Tests/SwiftInterfaceTests/MultilineTypeFormattingNestedDefinitionTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>格式化父定义后取出的子定义等于子定义单独打印再格式化</td><td>嵌套定义契约在格式化后仍成立</td><td class="numeric">4</td></tr>
+      <tr><td><code>Tests/SwiftInterfaceTests/NestedDefinitionRegionContractTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新变体 <code>everyOptionFormattedAsMultilineTypes</code>：两份打印都按 30 列格式化后再比较；另加 <code>formattedVariantBreaksTheFixtureTypes</code></td><td>嵌套定义契约在格式化后仍成立；复用这个套件的整套比较</td><td class="numeric">4</td></tr>
       <tr><td><code>Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新字段 <code>multilineTypeFormatting</code>，<code>printRoot()</code> 之后调用</td><td>interface 的唯一出口</td><td class="numeric">5</td></tr>
       <tr><td><code>Sources/Commands/SwiftSectionKit/Swift/DumpRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新字段；<code>DumpSession.dump</code> 拿到声明后调用</td><td>dump 的唯一出口</td><td class="numeric">5</td></tr>
       <tr><td><code>Tests/SwiftSectionKitTests/MultilineTypeFormattingRequestTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>两个请求打开与关闭时的输出</td><td>接入正确、关闭时不变</td><td class="numeric">5</td></tr>
-      <tr><td><code>Sources/Executables/swift-section/Commands/InterfaceCommand.swift</code>、<code>DumpCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--multiline-types</code>、<code>--maximum-line-width</code>，<code>validate()</code>、<code>makeRequest()</code></td><td>CLI 是 SwiftSectionKit 的包装</td><td class="numeric">6</td></tr>
+      <tr><td><code>Package.swift</code> · <code>swift-section</code>、<code>SwiftSectionKitTests</code></td><td><span class="tag tag-changed">修改</span></td><td>各加 <code>SwiftDeclarationRendering</code> 直接依赖</td><td>Kit 不重新导出模块，调用方自己导入</td><td class="numeric">5</td></tr>
+      <tr><td><code>Tuist/CommandLine/Project.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>命令行依赖加 <code>SwiftDeclarationRendering</code></td><td>Tuist 工程与清单同步</td><td class="numeric">5</td></tr>
+      <tr><td><code>Sources/Executables/swift-section/Models/MultilineTypeOptionGroup.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>--multiline-types</code>、<code>--maximum-line-width</code>，<code>validate()</code>，换成请求要的值</td><td>两个子命令共用一组参数</td><td class="numeric">6</td></tr>
+      <tr><td><code>Sources/Executables/swift-section/Commands/InterfaceCommand.swift</code>、<code>DumpCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>引入上面那组参数，<code>makeRequest()</code> 映射</td><td>CLI 是 SwiftSectionKit 的包装</td><td class="numeric">6</td></tr>
       <tr><td><code>Tests/SwiftSectionCommandTests/MultilineTypesFlagTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>映射与校验（退出码 64）</td><td>CLI 两侧都要有测试</td><td class="numeric">6</td></tr>
       <tr><td><code>AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md</code></td><td><span class="tag tag-changed">修改</span></td><td>两个新 flag 与默认宽度</td><td>CLI 改动同批更新</td><td class="numeric">6</td></tr>
       <tr><td><code>Documentations/SwiftSectionKit.md</code>、<code>Internal/Modules/SwiftSectionKit.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新字段</td><td>调用方指南与模块参考</td><td class="numeric">7</td></tr>
@@ -392,7 +395,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       <ul>
         <li>只有 <code>.standard</code> atom 参与扫描；类型名、声明名（含 interface 里的运算符名）、注释等 atom 整体是文字。</li>
         <li><code>"</code> 与反引号之间是文字；<code>//</code> 之后到行末是文字；<code>-&gt;</code> 是箭头；深度大于 0 时的 <code>,</code> 分隔元素。</li>
-        <li><code>&lt;</code> 前面（跳过空白）的 atom 是 <code>.type(_, .declaration)</code>、<code>.function(.declaration)</code> 或 <code>.member(.declaration)</code> 时，这个列表是泛型参数子句，否则是泛型参数列表。</li>
+        <li><code>&lt;</code> 前面（跳过空白）的 atom 是 <code>.type(_, .declaration)</code>、<code>.function(.declaration)</code> 或 <code>.member(.declaration)</code> 时，这个列表是泛型参数子句，否则是泛型参数列表。闭括号读到时再看一次：有一项在自己这一层写着 <code>where</code>、<code>: </code>（冒号后带空格）或 <code>==</code>，是 dump 写在类型名后面的泛型签名（<code>_ConditionalContent&lt; where A: P, B: Q&gt;</code>），也按参数子句处理。</li>
         <li>括号不配对或未关闭返回 <code>nil</code>，整行原样保留；dump 里的 <code>static func &lt; infix(…)</code> 就走这条路。</li>
       </ul>
     </div>
@@ -404,7 +407,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
         <li>不在任何泛型参数列表里面的泛型参数列表，<code>&gt;</code> 的内容列号大于 <code>maximumLineWidth</code> 时，标为长类型的根。</li>
         <li>自下而上：长类型内部元素数不少于 2 的泛型参数列表拆；任何列表有元素是多行时拆；其余不拆。</li>
         <li>拆开的列表：开括号后插入 <code>\n</code> 与 <code>L + 4k</code> 个空格；<code>, </code> 换成 <code>,</code> 再插入换行与缩进；闭括号前插入 <code>\n</code> 与 <code>L + 4(k − 1)</code> 个空格。</li>
-        <li>插入的 atom 都是 <code>.standard</code>，identifier 取前一个括号或逗号 atom 的 identifier，region 不会被切断。</li>
+        <li>插入的 atom 都是 <code>.standard</code>：开括号与逗号之后的换行和缩进取那个开括号或逗号的 identifier，闭括号之前的取闭括号的 identifier，region 不会被切断。</li>
+        <li>有一行被改时，结果按 atom 一个元素重建，不保留输入的元素边界；没有行被改时直接返回输入本身。</li>
         <li>空列表 <code>()</code> 从不拆。</li>
       </ul>
     </div>
@@ -486,7 +490,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>4 条，最近一条：宽度不计缩进</summary>
+    <summary>10 条，最近一条：尖括号里写着要求的是泛型签名</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -496,6 +500,12 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-21</td><td>规则选定</td><td>放得下的类型不动，放不下的类型整个按 TypeAliasFormatter 的结构规则拆；适用于所有类型位置；元组与函数类型的括号同样处理。</td></tr>
           <tr><td class="numeric">2026-11-21</td><td>接入方式</td><td>做成调用方在出口调用一次的纯格式化函数，不改打印器、不加打印配置项。</td></tr>
           <tr><td class="numeric">2026-11-21</td><td>宽度不计缩进</td><td>同一个声明在任何嵌套深度都拆得一样，<code>marksNestedDefinitions</code> 的契约不受影响。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>Accepted</td><td>用户批准，开始实现。功能分支 <code>feature/multiline-type-formatting</code>，从 <code>next</code> 切出。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>闭括号前的换行取闭括号的 identifier</td><td>闭括号前面紧挨的常是带类型引用 identifier 的类型名，换行不该算进那个引用。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>不保留元素边界</td><td>元素边界没有公开读取接口；<code>format</code> 用于打印完成的结果，没有行被改时返回输入本身。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>嵌套定义契约测试并入现有套件</td><td>给 <code>NestedDefinitionRegionContractTests</code> 加格式化变体，复用整套比较；宽度取 30 列，fixture 的长泛型类型不多。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>调用方直接依赖 <code>SwiftDeclarationRendering</code></td><td>Kit 不重新导出模块；<code>swift-section</code> 与 <code>SwiftSectionKitTests</code> 各加一条依赖，Tuist 命令行工程同步。</td></tr>
+          <tr><td class="numeric">2026-11-21</td><td>尖括号里写着要求的是泛型签名</td><td>对系统 SwiftUI 跑 dump 时发现 <code>_ConditionalContent&lt; where A: P, B: Q&gt;</code> 被当成两个参数拆开；补规则并先写了变红的测试。</td></tr>
         </tbody>
       </table>
       </div>
