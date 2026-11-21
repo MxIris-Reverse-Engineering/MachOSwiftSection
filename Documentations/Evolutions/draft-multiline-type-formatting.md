@@ -1,6 +1,6 @@
 # Draft - 长类型拆行：放不下的类型按括号结构拆成多行
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-21
 - **最后更新**: 2026-11-21
@@ -330,7 +330,7 @@ extension MultilineTypeFormatting {
 
 ## 落地步骤
 
-1. **骨架：类型、行切分与宽度闸门** —— 改动地图第 1、2、5 行
+1. **骨架：类型、行切分与宽度闸门**（已完成） —— 改动地图第 1、2、5 行
    - 行为：`emptySourceIsUnchanged`
    - 行为：`linesWithinWidthAreUnchangedAtomForAtom`
    - 行为：`contentWidthIgnoresLeadingIndentation`
