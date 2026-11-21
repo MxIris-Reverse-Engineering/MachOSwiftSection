@@ -260,6 +260,200 @@ struct MultilineTypeFormattingTests {
         }
         #expect(innerList.closingColumn == "Box<Pair<A, B>".count)
     }
+
+    // MARK: - Layout
+
+    private func formatted(_ text: String, maximumLineWidth: Int) -> String {
+        MultilineTypeFormatting(maximumLineWidth: maximumLineWidth).format(PrinterShapedSource.make(text)).string
+    }
+
+    private func isLeftUnchanged(_ source: SemanticString, maximumLineWidth: Int) -> Bool {
+        MultilineTypeFormatting(maximumLineWidth: maximumLineWidth).format(source).components == source.components
+    }
+
+    @Test func multiArgumentGenericBreaksOneArgumentPerLine() {
+        #expect(formatted("typealias Body = Pair<Swift.Int, Swift.String>", maximumLineWidth: 40) == """
+        typealias Body = Pair<
+            Swift.Int,
+            Swift.String
+        >
+        """)
+    }
+
+    @Test func singleArgumentGenericStaysInlineUnlessItsArgumentBreaks() {
+        #expect(formatted("var value: Box<Pair<Swift.Int, Swift.String>>", maximumLineWidth: 40) == """
+        var value: Box<
+            Pair<
+                Swift.Int,
+                Swift.String
+            >
+        >
+        """)
+        #expect(isLeftUnchanged(PrinterShapedSource.make("var value: Box<Box<Box<Swift.Int>>>"), maximumLineWidth: 10))
+    }
+
+    @Test func tupleBreaksOnlyWhenAnElementBreaks() {
+        #expect(formatted("var pair: (Swift.Int, Swift.String, Pair<A, B>)", maximumLineWidth: 40) == """
+        var pair: (
+            Swift.Int,
+            Swift.String,
+            Pair<
+                A,
+                B
+            >
+        )
+        """)
+        #expect(isLeftUnchanged(PrinterShapedSource.make("var tuple: (Swift.Int, Swift.String, Swift.Double, Swift.Float)"), maximumLineWidth: 20))
+    }
+
+    @Test func functionTypeParametersBreakOnlyWhenAParameterBreaks() {
+        #expect(formatted("var handler: (Pair<Swift.Int, Swift.String>) -> Swift.Void", maximumLineWidth: 40) == """
+        var handler: (
+            Pair<
+                Swift.Int,
+                Swift.String
+            >
+        ) -> Swift.Void
+        """)
+    }
+
+    @Test func collectionSugarBreaksOnlyWhenAnElementBreaks() {
+        #expect(formatted("var table: [Swift.String : Pair<Swift.Int, Swift.String>]", maximumLineWidth: 40) == """
+        var table: [
+            Swift.String : Pair<
+                Swift.Int,
+                Swift.String
+            >
+        ]
+        """)
+    }
+
+    @Test func typeThatFitsStaysOnOneLineInAnOverlongLine() {
+        let line = "func update(model: Swift.Result<Swift.Int, Swift.Error>, content: Pair<Swift.Int, Swift.String>) -> Swift.Bool"
+        #expect(formatted(line, maximumLineWidth: 60) == """
+        func update(
+            model: Swift.Result<Swift.Int, Swift.Error>,
+            content: Pair<
+                Swift.Int,
+                Swift.String
+            >
+        ) -> Swift.Bool
+        """)
+    }
+
+    @Test func overlongLineWithoutLongTypeIsUnchanged() {
+        let parameters = "func update(first: Swift.Int, second: Swift.Int, third: Swift.Int) // and a trailing comment"
+        #expect(isLeftUnchanged(PrinterShapedSource.make(parameters), maximumLineWidth: 30))
+        let comment = "var value: Pair<A, B> // a trailing comment long enough to run past the width"
+        #expect(isLeftUnchanged(PrinterShapedSource.make(comment), maximumLineWidth: 30))
+    }
+
+    @Test func genericParameterClauseDoesNotBreakForHavingTwoParameters() {
+        let function = SemanticString(components: [
+            AtomicComponent(string: "func", type: .keyword),
+            AtomicComponent(string: " ", type: .standard),
+            AtomicComponent(string: "make", type: .function(.declaration)),
+            AtomicComponent(string: "<", type: .standard),
+            AtomicComponent(string: "A", type: .type(.other, .name)),
+            AtomicComponent(string: ", ", type: .standard),
+            AtomicComponent(string: "B", type: .type(.other, .name)),
+            AtomicComponent(string: ">", type: .standard),
+            AtomicComponent(string: "(", type: .standard),
+            AtomicComponent(string: "value", type: .argument),
+            AtomicComponent(string: ": ", type: .standard),
+            AtomicComponent(string: "Pair", type: .type(.struct, .name)),
+            AtomicComponent(string: "<", type: .standard),
+            AtomicComponent(string: "Swift.Int", type: .type(.struct, .name)),
+            AtomicComponent(string: ", ", type: .standard),
+            AtomicComponent(string: "Swift.String", type: .type(.struct, .name)),
+            AtomicComponent(string: ">", type: .standard),
+            AtomicComponent(string: ")", type: .standard),
+        ])
+        #expect(MultilineTypeFormatting(maximumLineWidth: 12).format(function).string == """
+        func make<A, B>(
+            value: Pair<
+                Swift.Int,
+                Swift.String
+            >
+        )
+        """)
+    }
+
+    @Test func emptyParenthesesNeverBreak() {
+        #expect(formatted("func make() -> Pair<A, B>", maximumLineWidth: 10) == """
+        func make() -> Pair<
+            A,
+            B
+        >
+        """)
+    }
+
+    @Test func continuationLinesIndentFromTheLineIndentation() {
+        #expect(formatted("    var value: Pair<A, B>", maximumLineWidth: 10) == """
+            var value: Pair<
+                A,
+                B
+            >
+        """)
+    }
+
+    @Test func separatorLosesItsSpaceWhenBroken() {
+        let formattedSource = MultilineTypeFormatting(maximumLineWidth: 10).format(PrinterShapedSource.make("var value: Pair<A, B>"))
+        #expect(formattedSource.components.contains(AtomicComponent(string: ",", type: .standard)))
+        #expect(!formattedSource.components.contains { $0.string.hasSuffix(" ") && $0.string.contains(",") })
+    }
+
+    @Test func operatorDeclarationFromDumpIsLeftUnchanged() {
+        let line = SemanticString(components: [
+            AtomicComponent(string: "static func", type: .keyword),
+            AtomicComponent(string: " ", type: .standard),
+            AtomicComponent(string: "< infix", type: .standard),
+            AtomicComponent(string: "(", type: .standard),
+            AtomicComponent(string: "Pair", type: .type(.struct, .name)),
+            AtomicComponent(string: "<", type: .standard),
+            AtomicComponent(string: "Swift.Int", type: .type(.struct, .name)),
+            AtomicComponent(string: ", ", type: .standard),
+            AtomicComponent(string: "Swift.Int", type: .type(.struct, .name)),
+            AtomicComponent(string: ">", type: .standard),
+            AtomicComponent(string: ")", type: .standard),
+            AtomicComponent(string: " -> ", type: .standard),
+            AtomicComponent(string: "Swift.Bool", type: .type(.struct, .name)),
+        ])
+        #expect(isLeftUnchanged(line, maximumLineWidth: 10))
+    }
+
+    @Test func swiftUIBodyIsLaidOutByStructure() {
+        let source = """
+        extension SettingsApp.SettingsNavigationSplitView: SwiftUI.View {
+            typealias Body = SwiftUI.ModifiedContent<SwiftUI.ModifiedContent<SwiftUI.SceneBridgeReader<SwiftUI.SubscriptionView<Combine.PassthroughSubject<Any, Swift.Never>, SwiftUI.NavigationSplitView<SwiftUI.ModifiedContent<SettingsApp.SettingsSidebarList, SwiftUI.ToolbarRemovingModifier>, SettingsApp.SettingsSecondaryColumn>>>, SwiftUI._EnvironmentKeyWritingModifier<Swift.Bool>>, SwiftUI.OnTestViewModifier>
+        }
+        """
+        #expect(formatted(source, maximumLineWidth: 100) == """
+        extension SettingsApp.SettingsNavigationSplitView: SwiftUI.View {
+            typealias Body = SwiftUI.ModifiedContent<
+                SwiftUI.ModifiedContent<
+                    SwiftUI.SceneBridgeReader<
+                        SwiftUI.SubscriptionView<
+                            Combine.PassthroughSubject<
+                                Any,
+                                Swift.Never
+                            >,
+                            SwiftUI.NavigationSplitView<
+                                SwiftUI.ModifiedContent<
+                                    SettingsApp.SettingsSidebarList,
+                                    SwiftUI.ToolbarRemovingModifier
+                                >,
+                                SettingsApp.SettingsSecondaryColumn
+                            >
+                        >
+                    >,
+                    SwiftUI._EnvironmentKeyWritingModifier<Swift.Bool>
+                >,
+                SwiftUI.OnTestViewModifier
+            >
+        }
+        """)
+    }
 }
 
 extension Collection {

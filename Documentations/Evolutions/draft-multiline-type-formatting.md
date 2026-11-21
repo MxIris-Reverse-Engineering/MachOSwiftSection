@@ -346,7 +346,7 @@ extension MultilineTypeFormatting {
    - 行为：`bracketsInNonStandardAtomsAreText`（类型名、声明名、注释 atom）
    - 行为：`unbalancedLineIsLeftUnchanged`
    - 行为：`operatorDeclarationFromDumpIsLeftUnchanged`（`static func < infix(…)`）
-3. **排版与生成** —— 改动地图第 4、5 行
+3. **排版与生成**（已完成） —— 改动地图第 4、5 行
    - 行为：`multiArgumentGenericBreaksOneArgumentPerLine`
    - 行为：`singleArgumentGenericStaysInlineUnlessItsArgumentBreaks`
    - 行为：`tupleBreaksOnlyWhenAnElementBreaks`
