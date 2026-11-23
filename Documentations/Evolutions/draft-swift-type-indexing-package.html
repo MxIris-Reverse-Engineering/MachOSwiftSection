@@ -356,6 +356,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
         <tr><td><code>SDKIntegrationTests</code></td><td><span class="tag tag-added">新增</span></td><td>对本机真实 SDK 的核对，默认关闭：<code>TYPE_INDEXING_SDK_TESTS=1</code>（只读 API notes，约 2 秒），再加 <code>TYPE_INDEXING_SOURCEKIT_TESTS=1</code> 经 sourcekitd 冷生成 Catalyst 的 UIKit 接口（实测 126 秒）</td><td>单测覆盖不到 SDK 布局与 sourcekitd 参数</td><td class="numeric">2、3</td></tr>
         <tr><td><code>README.md</code>、<code>LICENSE</code>、<code>AGENTS.md</code> + <code>CLAUDE.md</code>（符号链接）、<code>Documentations/README.md</code>、提案索引（项目类型：库）、<code>TypeIndexingPipeline.md</code>（从 MachOSwiftSection 移入并更新）</td><td><span class="tag tag-added">新增</span> <span class="tag tag-moved">移入</span></td><td>用法、三层数据源、改名规则、缓存布局、可用性</td><td>新仓库的文档</td><td class="numeric">1、3</td></tr>
         <tr><td><code>.github/workflows/macOS.yml</code></td><td><span class="tag tag-added">新增</span></td><td>照 MachOSwiftSection 的 <code>macOS.yml</code> 配 macOS 构建与测试</td><td>CI</td><td class="numeric">1</td></tr>
+        <tr><td><code>SourceKitManager.swift</code> · <code>SourceKitManager</code>、<code>InterfaceDocumentService</code>、<code>SourceKitDInterfaceDocumentService</code></td><td><span class="tag tag-changed">修改</span></td><td>每个打开的接口读完就用同一文档名 <code>editor.close</code>（生成失败也关）；同时最多生成 2 个；请求经 <code>InterfaceDocumentService</code> 发出；发 <code>0.1.1</code></td><td>验收时 SourceKitService 涨到 80 GB（见决策日志）</td><td class="numeric">验收</td></tr>
+        <tr><td><code>SourceKitManagerTests.swift</code>、<code>TypeIndexingPipeline.md</code></td><td><span class="tag tag-added">新增</span> <span class="tag tag-changed">修改</span></td><td>替身核对打开与关闭配对、并发上限（去掉任一即失败）；文档记下原因与量法</td><td>回归，文档同批</td><td class="numeric">验收</td></tr>
       </tbody>
     </table>
     </div>
@@ -804,7 +806,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>28 条，最近一条：<code>NS_SWIFT_NAME</code> / <code>NS_REFINED_FOR_SWIFT</code> 改用宏色</summary>
+    <summary>29 条，最近一条：SourceKitService 不再涨到 80 GB</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -838,6 +840,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-23</td><td>一条既有测试的夹具换类</td><td>RuntimeViewerCore 现在经 swift-apinotes 静态链接 MetaCodable 的 <code>HelperCoders</code>，它让 <code>ISO8601DateFormatter</code> 遵循 <code>DateFormatConverter</code>；镜像把一个类的遵循列成一个条目，「只采纳私有 <code>@objc</code> 协议的 category 什么都不打印」那条测试的前提因此不成立。夹具改用没有任何依赖扩展的 <code>EnergyFormatter</code>，测试先断言该类只有一个遵循条目</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>实现完成，待用户看过后收尾</td><td>新包 0.1.0 与 swift-apinotes 0.3.0 已发；MachOObjCSection、MachOSwiftSection、RuntimeViewer 的功能分支已推送并在本地合进各自的常驻检出（未推送）。验证：MachOSwiftSection 的相关测试与夹具测试通过；RuntimeViewer Core 与应用层的整套测试在 Ultra 上跑过，红的都是记忆中的基线红灯或满载超时，单独重跑通过（<code>TitleActivityIndicatorTests</code> 一条基线必红）；<code>./TuistScript.sh check</code> 通过，Tuist workspace 编出整个 App。收尾时发 MachOObjCSection 0.8.209、把临时分支钉改回去</td></tr>
           <tr><td class="numeric">2026-11-23</td><td><code>NS_SWIFT_NAME</code> / <code>NS_REFINED_FOR_SWIFT</code> 改用宏色，swift-semantic-string 加入范围</td><td>用户验收时发现两个宏与 <code>@interface</code>、<code>@end</code> 同为关键字色：MachOObjCSection 把它们打成了 <code>Keyword</code>。查证 Xcode 27.2：Objective-C 的 grammar 从 SourceModel 的 <code>KnownMacros.plist</code> 认出两者（<code>NS_REFINED_FOR_SWIFT</code> 属普通宏、<code>NS_SWIFT_NAME</code> 属函数宏），但只为让解析跳过它们，词法上标成 <code>xcode.syntax.plain</code>；SDK 头文件里的宏色来自索引给的 <code>xcode.syntax.identifier.macro.system</code>（Default (Light) <code>#643820</code>、Default (Dark) <code>#FD8F3F</code>，与预处理语句同色，常规字重）。用户选定完整方案：swift-semantic-string 加 <code>SemanticType.macro</code> 与 <code>Macro</code>（冻结编码 22，之前的读者当普通文本），MachOObjCSection 改用它，RuntimeViewer 主题加可编辑的宏色槽（默认取 Xcode 色，之前存下的自定义主题照样解码），SourceEditor 面板把宏标成 <code>identifier.macro.system</code>，搜索的 <code>RuntimeSemanticKind</code> 把宏归入关键字、线上格式不变；两个命令行的配色同步。收尾因此多两步，排在发 MachOObjCSection 0.8.209 之前：先发 swift-semantic-string 0.7.0，MachOObjCSection 与本仓库把它改回 <code>from: "0.7.0"</code>；RuntimeViewer 对它改回 <code>branch: "next"</code></td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>SourceKitService 不再涨到 80 GB：接口生成完就关闭，同时最多生成 2 个</td><td>用户验收时发现 RuntimeViewer 的两个服务进程各带一个 SourceKitService，各涨到 80 GB。复现：<code>swift-section interface --uses-system-dyld-shared-cache -n AppKit --resolve-c-module-names</code>（缓存清空），按秒采样新起的 SourceKitService，6 秒、27 个模块时到 27 GB，被设的上限掐断。原因在 SourceKit 源码里（<code>SwiftEditorInterfaceGen.cpp</code>、<code>SwiftEditor.cpp</code>）：每次 <code>editor.open.interface</code> 留一个 <code>SwiftInterfaceGenContext</code>（两个 <code>CompilerInstance</code>，载入模块及其全部导入），只有同名的 <code>editor.close</code> 才从 <code>IFaceGenContexts</code> 里删掉；<code>SourceKitManager</code> 每个模块用一个新 UUID 打开、从不关闭，<code>TypeDatabase.index</code> 又把一个镜像的模块一次全提交。用户选了「关闭 + 限并发」：读完响应即关（生成失败也关），同时最多 2 个。同一条复现峰值 413 MB，33 个模块 70 秒全部生成完，名字照常解析。收尾多一步：swift-type-indexing 发 0.1.1，RuntimeViewer 的下限抬到 0.1.1</td></tr>
         </tbody>
       </table>
       </div>
