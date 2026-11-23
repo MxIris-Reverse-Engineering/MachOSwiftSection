@@ -181,26 +181,27 @@ swift-type-indexing  ←  MachOObjCSection  ←  MachOSwiftSection  ←  Runtime
 
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
 |---|---|---|---|---|
-| `RuntimeViewerCore/Package.swift` | 修改 | 加 swift-type-indexing（本地候选 `../../swift-type-indexing` + 远端，限 macOS）；`RuntimeViewerCore` target 加 `TypeIndexing`、`ObjCTypeIndexing`、`SwiftTypeNameResolution` 三个 product（限 macOS） | 接线 | 8 |
+| `RuntimeViewerCore/Package.swift` | 修改 | 加 swift-type-indexing（本地候选 `../../swift-type-indexing` + 远端，限 macOS）；`RuntimeViewerCore` target 加 `TypeIndexing`、`ObjCTypeIndexing`、`SwiftTypeNameResolution` 三个 product（限 macOS）。**实现期间** MachOObjCSection 与 MachOSwiftSection 临时钉 `branch: "feature/swift-type-indexing-package"`，收尾时改回 `branch: "next"` | 接线 | 8 |
 | `RuntimeViewer-Local.xcworkspace/contents.xcworkspacedata`、`.worktrees/swift-type-indexing` 链接、`Documentations/Guides/LocalDependencies.md:37-44` | 修改 | 加 `../swift-type-indexing` | 本地联调 | 8 |
 | `Tuist.swift:49-110`、`TuistScript.sh:82` | 修改 | 删本仓库的 `"TypeIndexing"`，加 `"SwiftTypeNameResolution"`、MachOObjCSection 的 `"ObjCTypeIndexing"`；swift-type-indexing 加进 `SOURCE_DEPENDENCIES` 并列出它的 target | Tuist 描述同批 | 8 |
 | `AGENTS.md`「Dependency floors」 | 修改 | 加 swift-type-indexing 的版本下限与理由 | 规则 | 8 |
-| `RuntimeViewerCore/Sources/RuntimeViewerCore/TypeNames/RuntimeTypeIndex.swift` · `RuntimeTypeIndex` | 新增 | actor，每进程一个；每个 `SDKPlatform` 一个 `TypeDatabase`；`prepare(for images:)` 后台预建；`status`；`resolver(forImageAt:)`；完成时回调 | 进程级共享索引 | 9 |
+| `RuntimeViewerCore/Sources/RuntimeViewerCore/TypeNames/RuntimeTypeIndex.swift` · `RuntimeTypeIndex` | 新增 | actor，每进程一个（`static let process`，不经 `@Dependency`，见决策日志）；每个 `SDKPlatform` 一个 `TypeDatabase`；`request(_:)` 把一个镜像链接的模块和它自己的 ObjC 元数据排成一批，同平台的批次依次执行；每批完成把平台的 generation 加一并通知监听者；`resolution(for:)`、`swiftImportNotes(forClassNamed:/forProtocolNamed:platform:)`、`status()` | 进程级共享索引 | 9 |
+| `.../TypeNames/RuntimeTypeNames.swift` · `RuntimeTypeNames` | 新增 | 进程开关 `enableInThisProcess()`（照 `RuntimeDerivedData.enableInThisProcess()`）；`platformName(of:)` 取镜像第一个 `LC_BUILD_VERSION` 的平台 | 只有打印的服务进程建索引 | 9 |
 | `.../TypeNames/RuntimeTypeIndexLocation.swift` | 新增 | 缓存目录：`.app` / `Contents/XPCServices` / `Contents/Applications` 往上找 `.app` → `~/Library/Caches/<bundle id>/TypeIndex`；不在 App 里 → `~/Library/Caches/runtime-viewer-cli/TypeIndex`；测试用临时目录 | 所有进程共用缓存 | 9 |
 | `.../TypeNames/RuntimeTypeIndexStatus.swift` | 新增 | 线上类型：每个平台 `building(progress)` / `ready` / `unavailable(reason)`、缓存字节数 | Report 与工具栏 | 9 |
-| `.../TypeNames/RuntimeEngine+TypeIndex.swift` · `TypeIndexStatusCommand` | 新增 | Core 自有命令 `typeIndexStatus`，路由属于「问服务进程本身」（neither），带说明注释；加进 `SharedCacheRoutingDeclarationTests` 的清单 | 让 App 读状态 | 9 |
+| `.../TypeNames/RuntimeEngine+TypeNames.swift`、`Engine/RuntimeEngine+Commands.swift` · `TypeIndexStatusCommand` | 新增 | Core 自有命令 `typeIndexStatus`，路由 `.servingEngine`，加进 `SharedCacheRoutingDeclarationTests` 的清单；`typeIndexStatus()` 经新的 `dispatchToServingProcess(_:timeout:)` 发出、连接自带 2 秒超时，旧对端答 `.empty`；`startObservingTypeIndex()` 把批次完成转成广播；`RuntimeTypeNamesCorpusVariant` | 让 App 读状态 | 9 |
 | `.../Engine/RuntimeDataChange.swift` | 修改 | 新 case `typeNamesResolved(platform: String)` | 通知 App 刷新 | 9 |
 | `.../Sections/Swift/RuntimeSwiftSection.swift` | 修改 | 显示打印器与语料打印器都注册 `TypeDatabaseTypeNameResolver`；`updateConfiguration` 每次按开关重建解析器列表（不再被 `removeAllTypeNameResolvers()` 误删）；收到索引就绪时清 `interfaceByObject` / `importedInterfaceByObject` | 打印解析后的名字 | 9 |
 | `.../Sections/ObjC/RuntimeObjCSection.swift:146-236`、`RuntimeEngine.swift:956-962`、`Search/RuntimeEngine+Search.swift:355-356` | 修改 | 类、协议、category 都取 API notes 标注，与 `objcSwiftImportNotes(for:)` 合并后传入 | ObjC 标注 | 9 |
 | `.../Interfaces/SwiftGenerationOptions.swift` | 修改 | `@Default(true) resolvesImportedTypeNames` | 开关 | 9 |
 | `.../Interfaces/RuntimeObjectInterface+GenerationOptions.swift` · `GenerationOptions` | 修改 | `@Default(true) marksSwiftNamesFromAPINotes`（ObjC 头文件的开关，放顶层：`objcHeaderOptions` 是 MachOObjCSection 的 `ObjCGenerationOptions`，而这个开关只决定 RuntimeViewer 传不传标注）；`@Default(false) waitsForTypeIndex` | 开关；非交互的调用方等索引 | 9 |
 | `.../Search/Corpus/RuntimeInterfaceCorpusSnapshot.swift:29-31`、`RuntimeInterfaceCorpusStore.swift:357-369` | 修改 | variant 加 `-TypeNames<SDK build>` 或 `-UnresolvedTypeNames`；内存比较加同一条件；语料构建前等索引 | 语料与显示一致 | 9 |
-| `ServicePluginEntry.swift`（本机、Catalyst、文件、框架四个入口）、命令行 host 入口 | 修改 | 进程启动时配置 `RuntimeTypeIndex` 的缓存位置 | 每个打印的进程 | 9 |
+| `ServicePluginEntry.swift`（本机、Catalyst、文件、框架四个 service 与 Catalyst helper 五个入口）、`CommandLineHostServer.start()`（只在独立 host） | 修改 | 进程启动时 `RuntimeTypeNames.enableInThisProcess()`；缓存位置由 `RuntimeTypeIndexLocation` 从 `Bundle.main` 推出，不用配置 | 每个打印的进程 | 9 |
 | `RuntimeViewerAppCore/BackgroundWork/TypeIndex/TypeIndexCoordinator.swift` | 新增 | 照 `CrossReferencePreparationCoordinator`：读状态、`isWorkInProgress`、`close()` | Report 与 App Nap | 10 |
 | `RuntimeEngineBackgroundWork.swift:85-137` | 修改 | 创建协调器，并入 `isWorkInProgress`、activity reporter、`close()` | 接入后台工作 | 10 |
 | `Reports/ReportNode.swift`、`ReportTreeBuilder.swift`、`ReportViewModel.swift` | 修改 | 新 `ReportCategory.importedTypeNames` 及其节点；状态、原因、缓存大小 | Report 可见 | 10 |
-| `Activity/RuntimeEngineActivityReporter.swift`、`Activity/ToolbarActivity.swift` | 修改 | 新活动种类与文案 | 工具栏进度 | 10 |
-| `Content/ContentTextViewModel.swift:227-247`、`Base/ViewModel.swift:52-63` | 修改 | 收到 `.typeNamesResolved` 时重新取当前内容 | 建好后自动刷新 | 10 |
+| `Activity/RuntimeEngineActivityReporter.swift`、`Activity/ToolbarActivity.swift`、`Presentation/SystemSymbol.swift` | 修改 | 新活动种类（每个批次一项，文案 Indexing Imported Type Names）与 Report 图标 `shippingbox` | 工具栏进度 | 10 |
+| `Content/ContentTextViewModel.swift` | 修改 | 收到 `.typeNamesResolved` 时先在主线程清文档的接口缓存，再重新取当前内容（`Base/ViewModel.swift` 不用改） | 建好后自动刷新 | 10 |
 | `RuntimeViewerUsingAppKit/.../Generation Options/GenerationOptionsViewController.swift` | 修改 | Swift 组加「Resolve Imported Type Names」，ObjC 组加「Mark Swift Names From SDK」 | 开关 | 10 |
 | `RuntimeViewerUsingAppKit/.../App/RuntimeDerivedDataController.swift:50-93`、`DerivedDataStorage/RuntimeDerivedDataMaintenance.swift` | 修改 | 量与删都包括 `TypeIndex` 目录；确认框文案提到它 | Delete Derived Data 一起删 | 10 |
 | `RuntimeViewerMCPBridge/MCPBridgeServer.swift:822-834`、`RuntimeViewerCommandLineInterface/CommandExecutor.swift:444-450,578-596`、`Export/RuntimeEngine+Export.swift:44` | 修改 | 置 `waitsForTypeIndex = true` | 输出稳定 | 11 |
@@ -261,19 +262,25 @@ TypeDatabase                                   (actor, no longer generic)
 ### RuntimeViewer 的数据流（建立与刷新）
 
 ```text
-engine connects (service process)
-  └─> RuntimeTypeIndex.prepare(platform, linked modules)          background, Report row "Imported Type Names"
-        ├─> TypeIndexingAvailability.availability(for:)          unavailable -> status .unavailable(reason), stop
-        └─> TypeDatabase.index(dependencies:moduleFilter:)       reads/writes ~/Library/Caches/<id>/TypeIndex
-              └─> done
-                    ├─> RuntimeSwiftSection: register TypeDatabaseTypeNameResolver, clear interface caches
-                    └─> broadcast RuntimeDataChange.typeNamesResolved(platform:)
-                          └─> app: RuntimeInterfaceCache.invalidateAll()
-                                └─> ContentTextViewModel refetches -> "UIKit.__UICellConfigurationState"
+service process starts (local / Catalyst / file / framework service, Catalyst helper, standalone CLI host)
+  └─> RuntimeTypeNames.enableInThisProcess()
+
+RuntimeSwiftSection.updateConfiguration(for: options)        an image is printed (resolvesImportedTypeNames on)
+  └─> RuntimeTypeIndex.process.request(platform of LC_BUILD_VERSION,
+                                       modules the image links, the image's own ObjC metadata)
+        ├─> TypeIndexingAvailability.availability(for:)      unavailable -> status .unavailable(reason), no batch
+        └─> batch, after the platform's previous one          Report row "Imported Type Names", toolbar activity
+              └─> TypeDatabase.index(dependencies:moduleFilter:)   reads/writes ~/Library/Caches/<id>/TypeIndex
+                    └─> generation += 1, listeners called
+                          ├─> next print: section sees a new generation -> registers TypeDatabaseTypeNameResolver,
+                          │                drops interfaceByObject / importedInterfaceByObject
+                          └─> engine broadcasts RuntimeDataChange.typeNamesResolved(platformName:)
+                                └─> app: ContentTextViewModel flushes RuntimeInterfaceCache, refetches
+                                          -> "UIKit.__UICellConfigurationState"
 
 interface request
-  ├─ UI           (waitsForTypeIndex = false) -> prints now: "__C.X" until ready
-  └─ MCP/CLI/export/Find corpus (waitsForTypeIndex = true) -> awaits ready | unavailable, then prints
+  ├─ UI           (waitsForTypeIndex = false) -> prints now: "__C.X" until the image's batch is done
+  └─ MCP/CLI/export/Find corpus (waitsForTypeIndex = true) -> awaits the image's batch, then prints
 ```
 
 ## 详细设计
@@ -468,22 +475,26 @@ public struct TypeDatabaseTypeNameResolver: ModuleNameResolving, CImportedNameRe
 
 ### RuntimeViewer
 
-**进程内的索引**。`RuntimeTypeIndex` 是每个服务进程一个的 actor（经 `@Dependency` 取得，`fileprivate static let shared`），按 `SDKPlatform` 各持一个 `TypeDatabase`：
+**进程开关**。`RuntimeTypeNames.enableInThisProcess()` 照 `RuntimeDerivedData.enableInThisProcess()` 的样子：四个 XPC service、Catalyst helper 与独立的命令行 host（`CommandLineHostServer.start()`，`kind == .standalone` 时；App 当 host 时打印在 App 的 service 里）在入口处打开，其余进程——App 本身、注入的 payload、iOS 设备、测试——都不打开，照旧印 `__C.`，也从不读 SDK、不写缓存。忘了调用不会坏事，只是那个进程不解析。
 
-- 平台：共享缓存镜像用 `RuntimeSharedCachePartition.platform(ofImageAt:)`（macOS → `.macOS`，Mac Catalyst → `.macCatalyst`）；文件用 `RuntimeFile.platform`；其余镜像读 `LC_BUILD_VERSION`（`macCatalyst` 平台号映射到 `.macCatalyst`）。
-- 预建：engine 连上后、以及新加载的镜像，把它们的依赖模块名并进 `moduleFilter`，依赖镜像包成 `ObjCDeclaredTypeNames` 交给 `index(dependencies:moduleFilter:)`。同一平台已在建时合并请求，不重复建。
-- 不可用：`TypeIndexingAvailability` 不可用时状态记为 `.unavailable(reason)`，打印器不注册解析器，输出保持 `__C.`。
+**进程内的索引**。`RuntimeTypeIndex` 是每个打印进程一个的 actor（`static let process`）。它不经 `@Dependency`：`RuntimeViewerCore` 不依赖 swift-dependencies，能碰到它的只有 engine 与 section，和 `RuntimeDerivedData` 一样。按 `SDKPlatform` 各持一个 `TypeDatabase`：
+
+- 平台：一律取镜像第一个 `LC_BUILD_VERSION` 的平台（`RuntimeTypeNames.platformName(of:)`，`macCatalyst` 映射到 `.macCatalyst`），共享缓存镜像、磁盘文件与已加载镜像同一条规则。没有这个 load command 的旧镜像不解析。
+- 批次：`RuntimeSwiftSection.updateConfiguration` 第一次为一个镜像配置时（`resolvesImportedTypeNames` 开着）调 `request(_:)`，交出这个镜像链接的模块名（`machO.dependencies` 的 install name 推出模块名）和它自己的 `ObjCDeclaredTypeNames`。新模块、新镜像才排一批；平台的第一批同时读 API notes。同一平台的批次串起来依次执行，所以不会重复建。依赖镜像里的私有类型，要等那个依赖自己被打开（后台索引迟早会开）才算进来——不为打印一个镜像去打开它全部依赖的 ObjC 元数据。
+- 不可用：`TypeIndexingAvailability` 不可用时记下原因，不排批次，打印器不注册解析器，输出保持 `__C.`。
 - 内存：每个打印的服务进程各有一份（本机、Catalyst、每个文件、每个框架实例），落地时量一次 `malloc` 在用量写进提案（步骤 9）。
 
-**打印**。`RuntimeSwiftSection.updateConfiguration` 现在在 opaque 开关关闭时 `removeAllTypeNameResolvers()`；改为每次按当前选项重建完整的解析器列表（opaque 解析器 + 类型名解析器），两者互不误删。显示打印器与语料打印器都这样做。索引就绪时 `RuntimeTypeIndex` 通知各 section 清掉 `interfaceByObject` / `importedInterfaceByObject` 并重建解析器列表，然后由 engine `broadcast(.typeNamesResolved(platform:))`。
+**打印**。每批完成把平台的 generation 加一。`RuntimeSwiftSection` 记着自己注册解析器时的 generation，下次配置时发现变了，就按当前选项重建完整的解析器列表（opaque 解析器 + 类型名解析器，互不误删），清掉 `interfaceByObject` / `importedInterfaceByObject`；语料打印器同样按 generation 重建。批次完成时 engine 把监听回调转成 `broadcast(.typeNamesResolved(platformName:))`（`startObservingTypeIndex()`，每个 engine 一次）。ObjC 头文件在 `marksSwiftNamesFromAPINotes` 开着时，把 `swiftImportNotes(forClassNamed:/forProtocolNamed:platform:)` 的结果与 `objcSwiftImportNotes(for:)` 合并；category 按它的类查。
 
-**等待**。`GenerationOptions.waitsForTypeIndex` 为 `true` 时，`RuntimeEngine._interface(for:options:)` 在打印前 `await` 该镜像平台的索引就绪或不可用；`false`（界面）时直接打印。MCP、命令行、导出把它置 `true`；Find 语料构建一律等待。等待只发生在第一次（磁盘缓存冷）建立某个 SDK 版本的模块时。
+**等待**。`GenerationOptions.waitsForTypeIndex` 为 `true` 时，`updateConfiguration` 等这个镜像那一批完成再打印；`false`（界面）时直接打印。MCP（`.mcp` 预设）、命令行（每种选项来源都置 `true`）、导出（`exportGenerationOptions`）等待；Find 语料打印前一律等待（`waitForTypeIndex(of:)`）。等待只在磁盘缓存冷、第一次生成某个 SDK 版本的模块接口时明显。
 
-**兼容性**。三个新选项都用 `@Default`，旧版对端解码时取默认；`RuntimeDataChange` 新 case 只由新版 Mac 服务发出，iOS 设备等旧对端不会收到也不会发出；`typeIndexStatus` 命令对旧对端没有处理器，App 把「无应答」当作 `.unavailable`。
+**兼容性**。三个新选项都用 `@Default`，旧版对端解码时取默认；`RuntimeDataChange` 新 case 只由新版 Mac 服务发出，旧对端不会收到也不会发出；`typeIndexStatus` 命令对旧对端没有处理器，XPC 上没有处理器的命令被丢弃而不是回错，所以 `typeIndexStatus()` 经 `dispatchToServingProcess(_:timeout:)` 用连接自带的 2 秒超时发出，超时或出错都答 `.empty`，Report 里不显示这一类。
 
-**语料 variant**。`RuntimeInterfaceCorpusSnapshot.variant(for:)` 变为 `"\(transformer.derivedDataDigest)-ByCategory-\(typeNamesComponent)"`，`typeNamesComponent` 是 `TypeNames<platform>-<SDK 版本-build>`（解析了）或 `UnresolvedTypeNames`；内存里的比较加同样的条件。
+**语料 variant**。`RuntimeInterfaceCorpusSnapshot` 的 variant 加一段 `RuntimeTypeNamesCorpusVariant.component`：开着索引、找得到 macOS SDK 时是 `TypeNames-<SDK 版本-build>`（共享缓存的 macOS 与 Mac Catalyst 镜像都对着 macOS SDK 读），否则 `UnresolvedTypeNames`。
 
-**界面**。Generation Options 面板：Swift 组「Resolve Imported Type Names」、ObjC 组「Mark Swift Names From SDK」，都默认勾选。Report 新类别「Imported Type Names」，每个 engine 下每个平台一行：建立中（进度）、就绪（缓存大小）、不可用（原因：没有开发者目录 / 没装这个平台的 SDK）。
+**缓存位置**。`RuntimeTypeIndexLocation` 从进程的 `Bundle.main` 往上找第一个是 RuntimeViewer 的 `.app`（`RuntimeDerivedDataLocation.enclosingApplication`），用 `~/Library/Caches/<bundle id>/TypeIndex`，与 `DerivedData` 并列；App、它的 XPC service 与内嵌的命令行工具因此共用一份。不在 App 里的命令行工具用 `~/Library/Caches/runtime-viewer-cli/TypeIndex`。Delete Derived Data 一并量它、删它（先改名再后台删）。
+
+**界面**。Generation Options 面板：Swift 组「Resolve Imported Type Names」、ObjC 组「Mark Swift Names From SDK」，都默认勾选。Report 新类别「Imported Type Names」（排在 Cross References 之后），每个平台一行：建立中（第几批 / 共几批）、就绪（模块数）、不可用（没有开发者目录 / 没装这个平台的 SDK），类别行带缓存大小；没有平台时整类不显示，没有取消、推出、清除。`TypeIndexCoordinator` 照 `CrossReferencePreparationCoordinator`：启动时、每次 `.typeNamesResolved`、engine 换进程时问一次状态，建立中每 2 秒问一次；建立中算进 `isWorkInProgress`（防 App Nap），工具栏显示 Indexing Imported Type Names。内容区收到 `.typeNamesResolved` 先在主线程清文档的接口缓存再重新取，避免缓存自己的清空排在重新取之后。
 
 ## 替代方案考量
 
@@ -559,17 +570,17 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
    - 行为：`cacheEntriesAreWrittenUnderTheGivenDirectory`
    - 行为：`macCatalystSearchesIOSSupportFirst`、`macCatalystTargetTripleIsMacABI`、`macCatalystInterfaceGenerationSeesIOSSupportFrameworks`、`macCatalystCachesApartFromMacOS`
    - 实测（`SDKIntegrationTests`）：Catalyst 下 `UICellConfigurationState` → `UIKit` / `__UICellConfigurationState`；macOS 下 `PKDrawing` → `PencilKit` / `PKDrawingReference`；sourcekitd 冷生成 Catalyst 的 UIKit 接口后 `UIStackView` → `UIKit`
-3. ✅ **ObjC 容器的 API notes 查询**（2026-11-23 在本机完成；fork 的 0.3.0 与新包的推送待用户批准公开仓库）——`SwiftImportAnnotation`、`ObjCContainerSwiftImportAnnotations`、`TypeDatabase.swiftImportAnnotations(…)`。
+3. ✅ **ObjC 容器的 API notes 查询**（2026-11-23 完成；用户批准后 fork 推送并打 `0.3.0`，新仓库 `swift-type-indexing` 公开、推送并打 `0.1.0`）——`SwiftImportAnnotation`、`ObjCContainerSwiftImportAnnotations`、`TypeDatabase.swiftImportAnnotations(…)`。
    - 行为：`classAnnotationCarriesSwiftNameAndSwiftPrivate`
    - 行为：`methodAnnotationIsKeyedBySelectorAndKind`
    - 行为：`propertyAnnotationIsKeyedByNameAndKind`
    - 行为：`protocolAnnotationsAreSeparateFromClassAnnotations`
    - 前置：swift-apinotes fork 把 `ObjCContext.methods` / `properties` 改成 `public`，打 `0.3.0`。
    - 新包打 `0.1.0` 并推送（公开仓库）。
-4. **MachOObjCSection 接入新包**——`Package.swift`、`ObjCTypeIndexing`、`ObjCDeclaredTypeNames`。
+4. ✅ **MachOObjCSection 接入新包**（2026-11-23 完成）——`Package.swift`、`ObjCTypeIndexing`、`ObjCDeclaredTypeNames`。
    - 行为：`declaredTypeNamesListFoundationClassesProtocolsAndStructs`
    - 行为：`typeDatabaseAttributesPrivateClassThroughObjCDeclaredTypeNames`
-5. **ObjC 头文件的 Swift 命名标注**——`ObjCSwiftImportNotes` 扩展、协议与 category 入口、类型一级宏、API notes 转换。
+5. ✅ **ObjC 头文件的 Swift 命名标注**（2026-11-23 完成）——`ObjCSwiftImportNotes` 扩展、协议与 category 入口、类型一级宏、API notes 转换。
    - 行为：`memberSwiftNamePrintsBeforeRefinedForSwift`
    - 行为：`classDeclarationNotePrintsOnItsOwnLineAboveInterface`
    - 行为：`protocolInterfaceTakesNotes`
@@ -577,18 +588,18 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
    - 行为：`mergingKeepsBothSourcesAndTheArgumentWinsPerField`
    - 行为：`apiNotesForClassBecomeNotes`（临时 `.apinotes` 驱动）
    - 行为：`markedRenderingStillProjectsToPlainRendering`
-6. **本仓库切换到新包**——删 `TypeIndexing`、加 `SwiftTypeNameResolution`、CLI 接线、文档与 skill。
+6. ✅ **本仓库切换到新包**（2026-11-23 完成）——删 `TypeIndexing`、加 `SwiftTypeNameResolution`、CLI 接线、文档与 skill。
    - 行为：`resolverMapsEveryPrinterCategory`
    - 行为：`resolverPrintsResolvedModuleAndSwiftName`（假的 `TypeDatabase` 数据驱动打印器）
    - 行为：`resolveCModuleNamesFlagStillMapsToRequest`
    - 端到端（维护者手动）：`swift-section interface --resolve-c-module-names` 对 UIKitCore（Catalyst）输出 `UIKit.__UICellConfigurationState`、对 PencilKit 输出 `PencilKit.PKDrawingReference`。
-7. **`swift-section objc --mark-sdk-swift-names`**。
+7. ✅ **`swift-section objc --mark-sdk-swift-names`**（2026-11-23 完成；`ObjCRequestTests` 按 CI 的步骤先用 Xcode 26.6 编出 `SymbolTestsCore` 夹具再跑，17 条全过）。
    - 行为：`markSDKSwiftNamesFlagMapsToRequest`
    - 行为：`missingSDKWarnsAndPrintsUnmarkedOutput`
    - 端到端（手动）：PencilKit 的 `PKDrawing` 头文件出现 `NS_SWIFT_NAME(PKDrawingReference)`。
-8. **RuntimeViewer 依赖接线**——`RuntimeViewerCore/Package.swift`、Local workspace 与 `.worktrees` 链接、Tuist、`AGENTS.md` 依赖下限、三个 workspace 的锁文件（`UpdatePackagesScript.sh`）。
+8. ✅ **RuntimeViewer 依赖接线**（2026-11-23 完成；`Tuist.swift` 顺带补上 MachOSwiftSection 早已有的 `SwiftSectionTestingMacros`，`next` 上 `check` 本来就因它不过；`RuntimeViewerServer.xcodeproj` 自带的锁文件在 `next` 上已过时，重新解析会带进无关升级，没有动）——`RuntimeViewerCore/Package.swift`、Local workspace 与 `.worktrees` 链接、Tuist、`AGENTS.md` 依赖下限、三个 workspace 的锁文件（`UpdatePackagesScript.sh`）。
    - 行为：`./TuistScript.sh check` 通过；Debug workspace 能编过。
-9. **RuntimeViewer Core**——`TypeNames/` 目录、`RuntimeDataChange` 新 case、`typeIndexStatus` 命令、打印器接线、ObjC 标注合并、三个选项、语料 variant、四个服务与命令行 host 的入口配置。实测：Catalyst 镜像的 API notes 确实来自 `iOSSupport`；记录每个服务进程多出的 `malloc` 在用量。
+9. ✅ **RuntimeViewer Core**（2026-11-23 完成；行为测试按实际做法落在 `RuntimeTypeNamesTests`、`SharedCacheRoutingDeclarationTests` 与 MachOSwiftSection、swift-type-indexing 的测试里；各服务进程多出的 `malloc` 在用量没有量，留作后续）——`TypeNames/` 目录、`RuntimeDataChange` 新 case、`typeIndexStatus` 命令、打印器接线、ObjC 标注合并、三个选项、语料 variant、四个服务与命令行 host 的入口配置。实测：Catalyst 镜像的 API notes 确实来自 `iOSSupport`；记录每个服务进程多出的 `malloc` 在用量。
    - 行为：`typeIndexBuildsOncePerPlatformAndMergesConcurrentRequests`
    - 行为：`unavailableSDKLeavesImportedNamesUnresolved`
    - 行为：`resolverSurvivesOpaqueTypeSwitchOff`
@@ -602,13 +613,13 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
    - 行为：`typeIndexStatusCommandRoutesToServingProcess`
    - 行为：`olderPeerDecodesOptionsWithDefaults`
    - 行为：`cacheLocationWalksUpToEnclosingApp`（App、XPC service、内嵌命令行三种位置）
-10. **RuntimeViewer App**——协调器、Report、工具栏活动、内容刷新、Generation Options 两个开关、Delete Derived Data。
+10. ✅ **RuntimeViewer App**（2026-11-23 完成；`contentRefetchesOnTypeNamesResolved` 即 `ContentTextPipelineTests` 的「a finished batch of the type index refetches the interface on screen」；Delete Derived Data 的两条没有单独的测试，App 一侧只是把同一个目录交给 `RuntimeTypeIndexLocation` 的量与删，后者有测试）——协调器、Report、工具栏活动、内容刷新、Generation Options 两个开关、Delete Derived Data。
     - 行为：`typeIndexCoordinatorReportsBuildingReadyAndUnavailable`
     - 行为：`reportListsImportedTypeNamesPerPlatform`
     - 行为：`contentRefetchesOnTypeNamesResolved`
     - 行为：`deleteDerivedDataRemovesTypeIndexDirectory`
     - 行为：`derivedDataSizeIncludesTypeIndexDirectory`
-11. **MCP、命令行、导出与插件**——`waitsForTypeIndex`、skill、两个插件清单 `1.4.0`、`CommandLineInterface.md`。
+11. ✅ **MCP、命令行、导出与插件**（2026-11-23 完成；MCP 一条由 `RuntimeTypeNamesTests` 的「An interactive print does not wait…; MCP's does」覆盖）——`waitsForTypeIndex`、skill、两个插件清单 `1.4.0`、`CommandLineInterface.md`。
     - 行为：`mcpOptionsWaitForTypeIndex`
     - 行为：`commandLineOptionsWaitForTypeIndex`
     - 行为：`exportConfigurationWaitsForTypeIndex`
@@ -634,8 +645,18 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
 | 2026-11-23 | 开关放 Generation Options 面板 | agent 自定，可推翻：与现有打印开关同处，随请求发出、进缓存键、命令行也读同一份 |
 | 2026-11-23 | 共识确认 | 用户确认以上决定，开始写提案 |
 | 2026-11-23 | Accepted | 用户批准，开始实现 |
-| 2026-11-23 | swift-apinotes fork 加入范围 | 它的 `ObjCContext.methods` / `properties` 在 0.2.0 是 internal，ObjC 成员的标注读不到。改为 `public` 并打 0.3.0（每个字段一行），比在新包里另写一套 YAML 解析更小；推送与打 tag 和新仓库一起请用户批准 |
+| 2026-11-23 | swift-apinotes fork 加入范围 | 它的 `ObjCContext.methods` / `properties` 在 0.2.0 是 internal，ObjC 成员的标注读不到。改为 `public` 并打 0.3.0（每个字段一行），比在新包里另写一套 YAML 解析更小；推送与打 tag 和新仓库一起经用户批准 |
 | 2026-11-23 | 新增 `SDKPlatform.macCatalyst` | 提案原定 Catalyst 按 `.macOS` 索引并「落地时实测确认」：实测 `SDKIndexer` 不搜 `System/iOSSupport`，Catalyst UIKit 的 API notes 找不到；sourcekitd 按前端调用解析参数，macabi target 不会自动加 iOSSupport 框架路径（报 `Could not load module: UIKit`）。新 case 读 macOS SDK、先搜 iOSSupport、显式传 `-Fsystem` |
 | 2026-11-23 | `index` 可多次调用、优先级改为查询时决定 | RuntimeViewer 加载新镜像时要追加模块；原先 API notes 靠写入顺序覆盖模块接口名，追加的接口名会把名字抢回去 |
 | 2026-11-23 | 可用性返回 `sdkSettings` 而非 `sdkPath` | RuntimeViewer 的语料 variant 要 SDK 版本与 build，`SDKSettings` 一并给出 |
 | 2026-11-23 | 加默认关闭的 `SDKIntegrationTests` | 单测覆盖不到真实 SDK 布局与 sourcekitd 参数，上面两个 Catalyst 问题都是实测才发现的；手动开启，不进 CI |
+| 2026-11-23 | MachOObjCSection、MachOSwiftSection、RuntimeViewer 临时钉功能分支 | MachOObjCSection 0.8.209 要等收尾才发，实现期间 MachOSwiftSection 对它、RuntimeViewer 对两者都钉 `branch: "feature/swift-type-indexing-package"`（清单里注明 TEMPORARY）；收尾时发 0.8.209，MachOSwiftSection 改回 `"0.8.209" ..< "0.9.0"`，RuntimeViewer 改回 `branch: "next"` |
+| 2026-11-23 | RuntimeViewer 用进程开关，不配置缓存位置 | 原定在各入口「配置缓存位置」。改为 `RuntimeTypeNames.enableInThisProcess()`，照派生数据的开关：缓存位置能从 `Bundle.main` 推出，真正要控制的是哪些进程读 SDK、跑 sourcekitd——测试、注入的 payload、App 本身都不该。Catalyst helper 也打开（它跑的是 Catalyst 的 engine）；命令行 host 只在独立运行时打开 |
+| 2026-11-23 | `RuntimeTypeIndex` 不经 `@Dependency` | 原定 `@Dependency` + `fileprivate static let shared`。`RuntimeViewerCore` 不依赖 swift-dependencies，项目里 `RuntimeDerivedData` 也是同样的 `static` 单例 |
+| 2026-11-23 | 平台一律取 `LC_BUILD_VERSION`，批次按镜像排 | 原定共享缓存镜像查分区、文件查 `RuntimeFile.platform`，engine 连上时预建。改为每个镜像第一次打印时排一批（它链接的模块 + 它自己的 ObjC 元数据）：一条规则覆盖三种镜像；只为打开了的镜像建，不在连上时为整个共享缓存跑 sourcekitd。依赖镜像的私有类型等那个依赖被打开时才算入 |
+| 2026-11-23 | 刷新靠 generation，等待放在 section 配置时 | 原定索引就绪时主动通知各 section 清缓存、在 `_interface(for:)` 里等待。改为 section 下次配置时比较平台的 generation，自己重建解析器、清缓存；`waitsForTypeIndex` 在 `updateConfiguration` 里等这个镜像那一批。少一条 actor 之间的回调，也不用记哪些 section 活着 |
+| 2026-11-23 | 旧对端的状态答 `.empty`，不显示 | 原定把「无应答」当 `.unavailable`。旧对端（iOS 设备、注入的进程、旧版本）本来就没有索引，Report 里多一行「不可用」只是噪音；查询经连接自带的 2 秒超时发出，因为没有处理器的命令在 XPC 上被丢弃、不回错，靠任务取消收不了尾 |
+| 2026-11-23 | 语料 variant 只带 macOS SDK 的版本 | 原定 `TypeNames<platform>-<SDK>`。服务进程的共享缓存镜像——macOS 与 Mac Catalyst——都对着同一个 macOS SDK 读，一段就够 |
+| 2026-11-23 | 内容区刷新前自己清一次接口缓存 | 文档的接口缓存在同一事件上清空，但它和内容区的订阅各自调度，先后没有保证；内容区先在主线程清再重新取，读不到批次之前的旧结果 |
+| 2026-11-23 | 一条既有测试的夹具换类 | RuntimeViewerCore 现在经 swift-apinotes 静态链接 MetaCodable 的 `HelperCoders`，它让 `ISO8601DateFormatter` 遵循 `DateFormatConverter`；镜像把一个类的遵循列成一个条目，「只采纳私有 `@objc` 协议的 category 什么都不打印」那条测试的前提因此不成立。夹具改用没有任何依赖扩展的 `EnergyFormatter`，测试先断言该类只有一个遵循条目 |
+| 2026-11-23 | 实现完成，待用户看过后收尾 | 新包 0.1.0 与 swift-apinotes 0.3.0 已发；MachOObjCSection、MachOSwiftSection、RuntimeViewer 的功能分支已推送并在本地合进各自的常驻检出（未推送）。验证：MachOSwiftSection 的相关测试与夹具测试通过；RuntimeViewer Core 与应用层的整套测试在 Ultra 上跑过，红的都是记忆中的基线红灯或满载超时，单独重跑通过（`TitleActivityIndicatorTests` 一条基线必红）；`./TuistScript.sh check` 通过，Tuist workspace 编出整个 App。收尾时发 MachOObjCSection 0.8.209、把临时分支钉改回去 |

@@ -166,6 +166,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-23</dd></div>
     <div><dt>项目类型</dt><dd>库（跨仓库唯一提案）</dd></div>
+    <div><dt>跨仓库范围</dt><dd>新仓库 <code>swift-type-indexing</code>、swift-apinotes fork（实现中加入）、MachOObjCSection、MachOSwiftSection（持有本提案）、RuntimeViewer</dd></div>
     <div><dt>原文</dt><dd><code>draft-swift-type-indexing-package.md</code></dd></div>
   </dl>
 </header>
@@ -206,10 +207,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">批准这份提案</p>
-    <ol>
-      <li>批准后状态改为 <code>Accepted</code>，从第 0 步开始实现。</li>
-    </ol>
+    <p class="callout-title">没有待你决定的事</p>
+    <p>提案已批准；swift-apinotes <code>0.3.0</code> 与 <code>swift-type-indexing</code> <code>0.1.0</code> 已经批准推送并打了 tag。</p>
   </div>
   <div class="callout callout-note">
     <p class="callout-title">agent 自己定的（可以推翻）</p>
@@ -263,7 +262,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <rect class="group" x="780" y="255" width="210" height="135" rx="10"/>
     <text class="group-label" x="792" y="275">third party</text>
     <rect class="box-kept" x="795" y="290" width="180" height="32" rx="6"/><text x="805" y="311">SourceKitD</text>
-    <rect class="box-kept" x="795" y="340" width="180" height="32" rx="6"/><text x="805" y="361">swift-apinotes</text>
+    <rect class="box-changed" x="795" y="332" width="180" height="46" rx="6"/><text x="805" y="350">swift-apinotes (fork)</text><text class="caption" x="805" y="368">0.3.0: ObjC members public</text>
 
     <path class="arrow" d="M 215 75 L 265 140"/>
     <path class="arrow" d="M 375 94 L 375 120"/>
@@ -277,7 +276,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <path class="arrow arrow-removed" d="M 485 282 L 535 290"/>
   </svg>
   </div>
-  <p class="figure-caption">箭头从使用方指向依赖。RuntimeViewerCore 还直接依赖 <code>ObjCTypeIndexing</code> 与 <code>TypeIndexing</code>（建 <code>TypeDatabase</code>、取 ObjC 标注），图里省略；三个新依赖都只在 macOS 上。红色虚线是删掉的旧依赖：MachOSwiftSection 的 <code>TypeIndexing</code> 直接调用 <code>ObjCIndexing</code>。</p>
+  <p class="figure-caption">箭头从使用方指向依赖。RuntimeViewerCore 还直接依赖 <code>ObjCTypeIndexing</code> 与 <code>TypeIndexing</code>（建 <code>TypeDatabase</code>、取 ObjC 标注），图里省略；三个新依赖都只在 macOS 上。红色虚线是删掉的旧依赖：MachOSwiftSection 的 <code>TypeIndexing</code> 直接调用 <code>ObjCIndexing</code>。swift-apinotes fork 把 <code>ObjCContext.methods</code> / <code>properties</code> 改成 <code>public</code> 并打 <code>0.3.0</code>，ObjC 成员的标注才有来源。</p>
 
   <h3>新包内部</h3>
 <pre><code>TypeDatabase                                   (actor, no longer generic)
@@ -293,33 +292,42 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 
   <h3>RuntimeViewer 的建立与刷新</h3>
   <div class="figure">
-  <svg viewBox="0 0 1000 260" role="img" aria-label="RuntimeViewer type index flow">
-    <rect class="box-kept" x="10" y="30" width="135" height="50" rx="6"/><text x="20" y="50">engine connects</text><text class="caption" x="20" y="68">service process</text>
-    <rect class="box-added" x="160" y="30" width="145" height="50" rx="6"/><text x="170" y="50">RuntimeTypeIndex</text><text class="caption" x="170" y="68">prepare(platform)</text>
-    <rect class="box-moved" x="320" y="30" width="145" height="50" rx="6"/><text x="330" y="50">TypeDatabase</text><text class="caption" x="330" y="68">index(dependencies:)</text>
-    <rect class="box-changed" x="480" y="30" width="160" height="50" rx="6"/><text x="490" y="50">RuntimeSwiftSection</text><text class="caption" x="490" y="68">resolver, clear cache</text>
-    <rect class="box-changed" x="655" y="30" width="150" height="50" rx="6"/><text x="665" y="50">RuntimeDataChange</text><text class="caption" x="665" y="68">.typeNamesResolved</text>
-    <rect class="box-changed" x="820" y="30" width="170" height="50" rx="6"/><text x="830" y="50">ContentTextViewModel</text><text class="caption" x="830" y="68">refetch: UIKit.__X</text>
-    <path class="arrow" d="M 145 55 L 160 55"/>
-    <path class="arrow" d="M 305 55 L 320 55"/>
-    <path class="arrow" d="M 465 55 L 480 55"/>
-    <path class="arrow" d="M 640 55 L 655 55"/>
-    <path class="arrow" d="M 805 55 L 820 55"/>
+  <svg viewBox="0 0 1000 580" role="img" aria-label="RuntimeViewer type index: building and refreshing">
+    <rect class="box-kept" x="10" y="20" width="310" height="62" rx="6"/><text x="20" y="40">service process starts</text><text class="caption" x="20" y="57">local / Catalyst / file / framework service,</text><text class="caption" x="20" y="72">Catalyst helper, standalone CLI host</text>
+    <rect class="box-added" x="350" y="20" width="270" height="62" rx="6"/><text x="360" y="44">RuntimeTypeNames</text><text class="caption" x="360" y="64">enableInThisProcess()</text>
+    <path class="arrow" d="M 320 51 L 350 51"/>
 
-    <rect class="box-added" x="160" y="110" width="145" height="44" rx="6"/><text x="170" y="128">unavailable</text><text class="caption" x="170" y="145">Report: the reason</text>
-    <rect class="box-added" x="320" y="110" width="145" height="44" rx="6"/><text x="330" y="128">TypeIndex/ cache</text><text class="caption" x="330" y="145">~/Library/Caches/…</text>
-    <path class="arrow arrow-weak" d="M 232 80 L 232 110"/>
-    <path class="arrow arrow-weak" d="M 392 80 L 392 110"/>
+    <rect class="box-changed" x="10" y="110" width="240" height="62" rx="6"/><text x="20" y="130">RuntimeSwiftSection</text><text class="caption" x="20" y="147">updateConfiguration(for: options)</text><text class="caption" x="20" y="162">resolvesImportedTypeNames on</text>
+    <rect class="box-added" x="280" y="110" width="320" height="62" rx="6"/><text x="290" y="130">RuntimeTypeIndex.process.request</text><text class="caption" x="290" y="147">platform of LC_BUILD_VERSION, modules the</text><text class="caption" x="290" y="162">image links, the image's own ObjC metadata</text>
+    <rect class="box-kept" x="630" y="110" width="360" height="62" rx="6"/><text x="640" y="130">TypeIndexingAvailability</text><text class="caption" x="640" y="147">availability(for:)</text><text class="caption" x="640" y="162">unavailable -&gt; status .unavailable(reason), no batch</text>
+    <path class="arrow" d="M 250 141 L 280 141"/>
+    <path class="arrow arrow-weak" d="M 600 141 L 630 141"/>
 
-    <rect class="box-changed" x="10" y="190" width="210" height="44" rx="6"/><text x="20" y="208">UI request</text><text class="caption" x="20" y="225">waitsForTypeIndex = false</text>
-    <rect class="box-kept" x="250" y="190" width="210" height="44" rx="6"/><text x="260" y="208">prints now</text><text class="caption" x="260" y="225">__C.X until ready</text>
-    <rect class="box-changed" x="520" y="190" width="220" height="44" rx="6"/><text x="530" y="208">MCP / CLI / export / Find</text><text class="caption" x="530" y="225">waitsForTypeIndex = true</text>
-    <rect class="box-kept" x="770" y="190" width="220" height="44" rx="6"/><text x="780" y="208">awaits ready | unavailable</text><text class="caption" x="780" y="225">then prints</text>
-    <path class="arrow" d="M 220 212 L 250 212"/>
-    <path class="arrow" d="M 740 212 L 770 212"/>
+    <rect class="box-added" x="280" y="200" width="320" height="62" rx="6"/><text x="290" y="220">batch, after the platform's previous one</text><text class="caption" x="290" y="237">Report row "Imported Type Names",</text><text class="caption" x="290" y="252">toolbar activity</text>
+    <rect class="box-moved" x="630" y="200" width="360" height="62" rx="6"/><text x="640" y="220">TypeDatabase</text><text class="caption" x="640" y="237">index(dependencies:moduleFilter:)</text><text class="caption" x="640" y="252">reads/writes ~/Library/Caches/&lt;id&gt;/TypeIndex</text>
+    <path class="arrow" d="M 440 172 L 440 200"/>
+    <path class="arrow" d="M 600 231 L 630 231"/>
+
+    <rect class="box-added" x="630" y="290" width="360" height="50" rx="6"/><text x="640" y="310">generation += 1</text><text class="caption" x="640" y="328">listeners called</text>
+    <path class="arrow" d="M 810 262 L 810 290"/>
+
+    <rect class="box-changed" x="10" y="370" width="330" height="78" rx="6"/><text x="20" y="390">next print: RuntimeSwiftSection</text><text class="caption" x="20" y="407">sees a new generation, registers</text><text class="caption" x="20" y="422">TypeDatabaseTypeNameResolver, drops</text><text class="caption" x="20" y="437">interfaceByObject / importedInterfaceByObject</text>
+    <rect class="box-changed" x="370" y="370" width="290" height="78" rx="6"/><text x="380" y="390">RuntimeEngine</text><text class="caption" x="380" y="407">broadcasts RuntimeDataChange</text><text class="caption" x="380" y="422">.typeNamesResolved(platformName:)</text>
+    <rect class="box-changed" x="690" y="370" width="300" height="78" rx="6"/><text x="700" y="390">app: ContentTextViewModel</text><text class="caption" x="700" y="407">flushes RuntimeInterfaceCache, refetches</text><text class="caption" x="700" y="422">-&gt; UIKit.__UICellConfigurationState</text>
+    <path class="arrow" d="M 630 315 L 175 315 L 175 370"/>
+    <path class="arrow" d="M 630 315 L 515 315 L 515 370"/>
+    <path class="arrow" d="M 660 409 L 690 409"/>
+
+    <text class="group-label" x="10" y="490">interface request</text>
+    <rect class="box-changed" x="10" y="505" width="230" height="50" rx="6"/><text x="20" y="525">UI</text><text class="caption" x="20" y="543">waitsForTypeIndex = false</text>
+    <rect class="box-kept" x="270" y="505" width="260" height="50" rx="6"/><text x="280" y="525">prints now</text><text class="caption" x="280" y="543">__C.X until the image's batch is done</text>
+    <rect class="box-changed" x="560" y="505" width="200" height="50" rx="6"/><text x="570" y="525">MCP/CLI/export/Find corpus</text><text class="caption" x="570" y="543">waitsForTypeIndex = true</text>
+    <rect class="box-kept" x="790" y="505" width="200" height="50" rx="6"/><text x="800" y="525">awaits the image's batch</text><text class="caption" x="800" y="543">then prints</text>
+    <path class="arrow" d="M 240 530 L 270 530"/>
+    <path class="arrow" d="M 760 530 L 790 530"/>
   </svg>
   </div>
-  <p class="figure-caption">上面一行是索引建立：engine 连上后在服务进程里后台建，建好后打印器注册解析器、清掉旧缓存，再通知 App 重新取。下面一行是两类请求：界面不等，非交互的调用方等。</p>
+  <p class="figure-caption">打印的服务进程（本机、Catalyst、文件、框架四个 service，Catalyst helper，独立的命令行 host）启动时打开索引。Swift section 第一次为一个镜像配置时（开关开着）请求一批：平台取镜像的 <code>LC_BUILD_VERSION</code>，内容是它链接的模块和它自己的 ObjC 元数据；SDK 不可用就记下原因、不排批次。同一平台的批次依次执行，每批完成把平台的 generation 加一：section 下次配置时重新注册解析器、清掉自己的接口缓存，engine 广播 <code>.typeNamesResolved</code>，App 的 <code>ContentTextViewModel</code> 先清 <code>RuntimeInterfaceCache</code> 再重新取。最下面是两类请求：界面立刻打印（这个镜像那一批完成前是 <code>__C.</code>），MCP、命令行、导出与 Find 语料等这个镜像那一批完成再打印。</p>
 </section>
 
 <section id="map">
@@ -333,18 +341,36 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <table>
       <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
       <tbody>
-        <tr><td><code>Package.swift</code></td><td><span class="tag tag-added">新增</span></td><td>product / target <code>TypeIndexing</code> 与测试 target；依赖 SourceKitD、swift-apinotes、FrameworkToolbox（均限 macOS）；平台与 MachOSwiftSection 一致；打开三项 upcoming feature</td><td>独立成包；平台声明不能高于 MachOObjCSection</td><td class="numeric">1</td></tr>
-        <tr><td><code>InterfaceDeclarationNode</code>、<code>InterfaceTypeNameExtractor</code>、<code>ModuleIndexCache</code>、<code>ModuleInterfaceIndexer</code>、<code>SDKIndexer</code>、<code>SDKPlatform</code>、<code>SourceKitManager</code>、<code>Subprocess</code>、<code>SupplementaryAPINotes</code></td><td><span class="tag tag-moved">移入</span></td><td>原样搬入；<code>package</code> 改 <code>public</code>（只公开需要的）；日志子系统改名</td><td>搬家</td><td class="numeric">1</td></tr>
-        <tr><td><code>APINotesIndex</code></td><td><span class="tag tag-moved">移入</span> <span class="tag tag-changed">修改</span></td><td>用 <code>ImportedTypeNameCategory</code>；改名规则修正；新增 ObjC 容器条目</td><td>修正改名；给 ObjC 标注提供数据</td><td class="numeric">1–3</td></tr>
-        <tr><td><code>TypeDatabase</code></td><td><span class="tag tag-moved">移入</span> <span class="tag tag-changed">修改</span></td><td>去泛型；收 <code>[any DeclaredTypeNameSource]</code>；构造器加 <code>cacheDirectory:</code>；新增 <code>swiftImportAnnotations(…)</code></td><td>去掉对 MachOObjCSection 的依赖；缓存位置由调用方决定</td><td class="numeric">1–3</td></tr>
-        <tr><td><code>DeclaredTypeNameSource</code></td><td><span class="tag tag-added">新增</span></td><td><code>imagePath</code>、<code>declaredTypeNames()</code></td><td>取代直接调用 <code>ObjCInterfaceIndexer</code></td><td class="numeric">1</td></tr>
-        <tr><td><code>ImportedTypeNameCategory</code></td><td><span class="tag tag-added">新增</span></td><td>四个 case</td><td>取代 SwiftPrinting 的 <code>CImportedTypeNameCategory</code></td><td class="numeric">1</td></tr>
-        <tr><td><code>SourceKitLocator</code></td><td><span class="tag tag-added">新增</span></td><td>先试 Xcode 工具链，再试 <code>&lt;developer dir&gt;/usr/lib/sourcekitd.framework</code></td><td>支持 Command Line Tools</td><td class="numeric">2</td></tr>
-        <tr><td><code>TypeIndexingAvailability</code></td><td><span class="tag tag-added">新增</span></td><td>SDK 路径、sourcekitd 路径、不可用原因</td><td>调用方决定开不开、界面说明原因</td><td class="numeric">2</td></tr>
-        <tr><td><code>SwiftImportAnnotation</code>、<code>ObjCContainerSwiftImportAnnotations</code>、<code>ObjCMemberKey</code></td><td><span class="tag tag-added">新增</span></td><td>API notes 的命名标注</td><td>给 MachOObjCSection 用</td><td class="numeric">3</td></tr>
-        <tr><td><code>Tests/TypeIndexingTests/*</code></td><td><span class="tag tag-moved">移入</span> <span class="tag tag-changed">修改</span></td><td>7 个文件搬入；改用假的 <code>DeclaredTypeNameSource</code>；不改名的旧测试按新规则改写</td><td>搬家；规则修正</td><td class="numeric">1–2</td></tr>
-        <tr><td>四个新测试文件</td><td><span class="tag tag-added">新增</span></td><td>改名规则、sourcekitd 定位、缓存目录、ObjC 标注查询</td><td>回归测试</td><td class="numeric">2–3</td></tr>
-        <tr><td>README、LICENSE、AGENTS.md、文档目录、CI</td><td><span class="tag tag-added">新增</span></td><td><code>TypeIndexingPipeline.md</code> 从 MachOSwiftSection 移入并更新</td><td>新仓库的文档</td><td class="numeric">1、3</td></tr>
+        <tr><td><code>Package.swift</code></td><td><span class="tag tag-added">新增</span></td><td>包名 <code>swift-type-indexing</code>，product / target <code>TypeIndexing</code>，测试 target <code>TypeIndexingTests</code>；依赖 SourceKitD、swift-apinotes（<code>from: "0.3.0"</code>，本地候选 <code>../../../Fork/Library/swift-apinotes</code>）、FrameworkToolbox（后两者限 macOS）；平台与 MachOSwiftSection 一致（macOS 10.15 / iOS 13 / tvOS 13 / watchOS 6 / visionOS 1）；打开 <code>ExistentialAny</code>、<code>MemberImportVisibility</code>、<code>InferIsolatedConformances</code></td><td>独立成包；平台声明不能高于 MachOObjCSection，否则 SwiftPM 拒绝解析</td><td class="numeric">1</td></tr>
+        <tr><td><code>InterfaceDeclarationNode</code>、<code>InterfaceTypeNameExtractor</code>、<code>ModuleIndexCache</code>、<code>ModuleInterfaceIndexer</code>、<code>SDKIndexer</code>、<code>SDKPlatform</code>、<code>SourceKitManager</code>、<code>Subprocess</code>、<code>SupplementaryAPINotes</code></td><td><span class="tag tag-moved">移入</span></td><td>原样搬入；<code>package</code> 改 <code>public</code>（只公开调用方需要的，其余 <code>internal</code>）；<code>@Loggable</code> 子系统改为 <code>com.mxiris.type-indexing</code></td><td>搬家</td><td class="numeric">1</td></tr>
+        <tr><td><code>APINotesIndex</code></td><td><span class="tag tag-moved">移入</span> <span class="tag tag-changed">修改</span></td><td>用 <code>ImportedTypeNameCategory</code>；改名规则：有 <code>SwiftName</code> 用它（不论 <code>SwiftPrivate</code>），只有 <code>SwiftPrivate</code> 时 <code>"__" + cName</code>；<code>cNamesBySwiftName</code> 同步登记；新增 ObjC 容器的方法、属性条目索引</td><td>修正改名；给 ObjC 标注提供数据</td><td class="numeric">1、2、3</td></tr>
+        <tr><td><code>TypeDatabase</code></td><td><span class="tag tag-moved">移入</span> <span class="tag tag-changed">修改</span></td><td>去泛型；<code>index(dependencies:moduleFilter:)</code> 改收 <code>[any DeclaredTypeNameSource]</code>，可多次调用（第一次发现 SDK、登记 API notes，之后只补新模块与新依赖）；API notes、模块接口、运行时元数据三张表在查询时按优先级查，不再靠写入顺序覆盖；<code>moduleName(forImagePath:)</code> 保持纯函数；构造器加 <code>cacheDirectory:</code>；没有 sourcekitd 时只读缓存；新增 <code>swiftImportAnnotations(forObjCClassNamed:)</code> / <code>forObjCProtocolNamed:</code></td><td>去掉对 MachOObjCSection 的依赖；RuntimeViewer 加载新镜像时要追加模块；缓存位置由调用方决定；给 ObjC 标注用</td><td class="numeric">1、2、3</td></tr>
+        <tr><td><code>DeclaredTypeNameSource</code></td><td><span class="tag tag-added">新增</span></td><td>协议：<code>imagePath</code>、<code>declaredTypeNames() async throws -&gt; [String]</code></td><td>取代直接调用 <code>ObjCInterfaceIndexer</code></td><td class="numeric">1</td></tr>
+        <tr><td><code>ImportedTypeNameCategory</code></td><td><span class="tag tag-added">新增</span></td><td><code>objcClass</code> / <code>objcProtocol</code> / <code>valueType</code> / <code>other</code></td><td>取代 SwiftPrinting 的 <code>CImportedTypeNameCategory</code></td><td class="numeric">1</td></tr>
+        <tr><td><code>SourceKitLocator</code></td><td><span class="tag tag-added">新增</span></td><td>依次试 <code>&lt;developer dir&gt;/Toolchains/XcodeDefault.xctoolchain/usr/lib/sourcekitd.framework/sourcekitd</code> 与 <code>&lt;developer dir&gt;/usr/lib/sourcekitd.framework/sourcekitd</code>；<code>SourceKitManager</code> 改用它</td><td>支持 Command Line Tools</td><td class="numeric">2</td></tr>
+        <tr><td><code>TypeIndexingAvailability</code></td><td><span class="tag tag-added">新增</span></td><td><code>static func availability(for: SDKPlatform)</code>：<code>sdkSettings</code>（含 SDK 路径与版本，供 RuntimeViewer 的语料 variant 用）、sourcekitd 路径、不可用原因</td><td>调用方决定开不开、在界面上说明原因</td><td class="numeric">2</td></tr>
+        <tr><td><code>SDKPlatform.macCatalyst</code>、<code>SDKSettings.macCatalystVersion</code>、<code>compilerArguments(for:)</code></td><td><span class="tag tag-changed">修改</span></td><td>新 case <code>macCatalyst</code>：读 macOS SDK（<code>xcrunSDKName</code>），target <code>ios&lt;SupportedTargets.iosmac.DefaultDeploymentTarget&gt;-macabi</code>，给 sourcekitd 显式补 <code>-Fsystem …/System/iOSSupport/System/Library/Frameworks</code>；<code>SDKIndexer</code> 的 Catalyst 搜索路径先 <code>System/iOSSupport/…</code> 再 macOS 的；缓存目录与 macOS 分开</td><td>Mac Catalyst 的 UIKit 与其 API notes 只在 <code>iOSSupport</code> 里，原来按 <code>.macOS</code> 索引找不到</td><td class="numeric">2、3</td></tr>
+        <tr><td><code>SwiftImportAnnotation</code>、<code>ObjCContainerSwiftImportAnnotations</code>、<code>ObjCMemberKey</code></td><td><span class="tag tag-added">新增</span></td><td>单个声明与一个类 / 协议的 API notes 命名标注</td><td>给 MachOObjCSection 用</td><td class="numeric">3</td></tr>
+        <tr><td><code>Tests/TypeIndexingTests/*</code></td><td><span class="tag tag-moved">移入</span> <span class="tag tag-changed">修改</span></td><td>7 个文件搬入；<code>TypeDatabase&lt;MachOFile&gt;</code> 改为用假的 <code>DeclaredTypeNameSource</code>；<code>swiftPrivateEntitiesAreAttributedButNotRenamed</code> 改写为新规则</td><td>搬家；规则修正</td><td class="numeric">1、2</td></tr>
+        <tr><td><code>DeclaredTypeNameSourceTests</code>、<code>SwiftNameRuleTests</code>、<code>SourceKitLocatorTests</code>、<code>TypeIndexingAvailabilityTests</code>、<code>CacheDirectoryTests</code>、<code>MacCatalystPlatformTests</code>、<code>ObjCSwiftImportAnnotationTests</code></td><td><span class="tag tag-added">新增</span></td><td>见各步骤的行为清单</td><td>回归测试</td><td class="numeric">1、2、3</td></tr>
+        <tr><td><code>SDKIntegrationTests</code></td><td><span class="tag tag-added">新增</span></td><td>对本机真实 SDK 的核对，默认关闭：<code>TYPE_INDEXING_SDK_TESTS=1</code>（只读 API notes，约 2 秒），再加 <code>TYPE_INDEXING_SOURCEKIT_TESTS=1</code> 经 sourcekitd 冷生成 Catalyst 的 UIKit 接口（实测 126 秒）</td><td>单测覆盖不到 SDK 布局与 sourcekitd 参数</td><td class="numeric">2、3</td></tr>
+        <tr><td><code>README.md</code>、<code>LICENSE</code>、<code>AGENTS.md</code> + <code>CLAUDE.md</code>（符号链接）、<code>Documentations/README.md</code>、提案索引（项目类型：库）、<code>TypeIndexingPipeline.md</code>（从 MachOSwiftSection 移入并更新）</td><td><span class="tag tag-added">新增</span> <span class="tag tag-moved">移入</span></td><td>用法、三层数据源、改名规则、缓存布局、可用性</td><td>新仓库的文档</td><td class="numeric">1、3</td></tr>
+        <tr><td><code>.github/workflows/macOS.yml</code></td><td><span class="tag tag-added">新增</span></td><td>照 MachOSwiftSection 的 <code>macOS.yml</code> 配 macOS 构建与测试</td><td>CI</td><td class="numeric">1</td></tr>
+      </tbody>
+    </table>
+    </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>swift-apinotes（fork，实现中加入）</summary>
+    <div class="details-body">
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+      <tbody>
+        <tr><td><code>ObjCContext.swift</code> · <code>ObjCContext.methods</code> / <code>properties</code></td><td><span class="tag tag-changed">修改</span></td><td>标 <code>public</code>；打 tag <code>0.3.0</code></td><td>0.2.0 里是 internal，包外读不到类与协议的成员，ObjC 成员的标注没有来源</td><td class="numeric">3</td></tr>
+        <tr><td><code>Tests/APINotesTests/ObjCContextMemberAccessTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>不带 <code>@testable</code> 读成员（修复前编译失败）</td><td>回归</td><td class="numeric">3</td></tr>
       </tbody>
     </table>
     </div>
@@ -358,14 +384,15 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <table>
       <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
       <tbody>
-        <tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>本地候选 + 远端依赖 swift-type-indexing；新 target / product <code>ObjCTypeIndexing</code> 与测试 target</td><td>只有新 target 依赖新包</td><td class="numeric">4</td></tr>
-        <tr><td><code>ObjCDeclaredTypeNames&lt;MachO&gt;</code></td><td><span class="tag tag-added">新增</span></td><td>实现 <code>DeclaredTypeNameSource</code>，包一层 <code>ObjCInterfaceIndexer</code></td><td>取代 MachOSwiftSection 里那段直接调用</td><td class="numeric">4</td></tr>
+        <tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.package(local: ../swift-type-indexing, remote: …, from: "0.1.0")</code>，带理由注释；新 target <code>ObjCTypeIndexing</code>（依赖 <code>ObjCIndexing</code>、<code>ObjCDeclarationRendering</code>、<code>TypeIndexing</code> 限 macOS）与同名 product；测试 target <code>ObjCTypeIndexingTests</code></td><td>接入新包，且只有新 target 依赖它</td><td class="numeric">4</td></tr>
+        <tr><td><code>ObjCDeclaredTypeNames&lt;MachO&gt;</code></td><td><span class="tag tag-added">新增</span></td><td>实现 <code>DeclaredTypeNameSource</code>：<code>ObjCInterfaceIndexer(machO:imagePath:)</code> → <code>prepare()</code> → 类、协议、struct、union 名</td><td>取代 MachOSwiftSection <code>TypeDatabase.indexObjCMetadata(of:)</code> 的那段</td><td class="numeric">4</td></tr>
         <tr><td><code>ObjCSwiftImportNotes+TypeDatabase.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>init(apiNotesForClassNamed:in:)</code>、<code>init(apiNotesForProtocolNamed:in:)</code></td><td>API notes → 标注</td><td class="numeric">5</td></tr>
-        <tr><td><code>ObjCSwiftImportNotes</code>、<code>Note</code></td><td><span class="tag tag-changed">修改</span></td><td><code>swiftName</code>、<code>declarationNote</code>、<code>merging(_:)</code>；渲染 <code>NS_SWIFT_NAME</code></td><td>标 Swift 命名</td><td class="numeric">5</td></tr>
-        <tr><td><code>ObjCClassInfo</code> / <code>ObjCProtocolInfo</code> / <code>ObjCCategoryInfo</code></td><td><span class="tag tag-changed">修改</span></td><td>声明行之前打印类型一级的宏行；category 成员读标注</td><td>类型一级宏</td><td class="numeric">5</td></tr>
-        <tr><td><code>ObjCInterfaceBuilder</code> 协议与 category 入口</td><td><span class="tag tag-changed">修改</span></td><td>加 <code>swiftImportNotes:</code> 参数（默认空）</td><td>协议与 category 也能标</td><td class="numeric">5</td></tr>
-        <tr><td>测试</td><td><span class="tag tag-added">新增</span> <span class="tag tag-changed">修改</span></td><td><code>SwiftImportNotesRenderingTests</code> 加用例；新 <code>ObjCTypeIndexingTests</code></td><td>回归</td><td class="numeric">4–5</td></tr>
-        <tr><td>README、命令行指南、术语表、提案索引</td><td><span class="tag tag-changed">修改</span></td><td>新 target、新标注、cross-repository 行</td><td>文档同批</td><td class="numeric">4–5</td></tr>
+        <tr><td><code>ObjCSwiftImportNotes</code>、<code>Note</code></td><td><span class="tag tag-changed">修改</span></td><td><code>Note</code> 加 <code>swiftName: String?</code>；值上加 <code>declarationNote: Note?</code>；加 <code>merging(_:)</code>；渲染 <code>NS_SWIFT_NAME(name)</code>（在 <code>NS_REFINED_FOR_SWIFT</code> 前）；新增类型一级的渲染函数</td><td>标 Swift 命名</td><td class="numeric">5</td></tr>
+        <tr><td><code>ObjCClassInfo</code> / <code>ObjCProtocolInfo</code> / <code>ObjCCategoryInfo</code> 的 <code>semanticString(using:)</code></td><td><span class="tag tag-changed">修改</span></td><td>声明行之前打印类型一级的宏行；category 成员也读标注</td><td>类型一级宏</td><td class="numeric">5</td></tr>
+        <tr><td><code>ObjCInterfaceBuilder</code> 的 <code>protocolInterface</code> / <code>markedProtocolInterface</code> / <code>categoryInterface</code> / <code>markedCategoryInterface</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>swiftImportNotes:</code> 参数（默认空）</td><td>协议与 category 也能标</td><td class="numeric">5</td></tr>
+        <tr><td><code>Tests/ObjCInterfaceTests/SwiftImportNotesRenderingTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>NS_SWIFT_NAME</code>、类型一级、协议、category 的用例</td><td>回归</td><td class="numeric">5</td></tr>
+        <tr><td><code>Tests/ObjCTypeIndexingTests/*</code></td><td><span class="tag tag-added">新增</span></td><td><code>ObjCDeclaredTypeNames</code> 对 Foundation 镜像列出 <code>NSObject</code> 等；API notes 转换（临时 <code>.apinotes</code> 驱动）</td><td>回归</td><td class="numeric">4、5</td></tr>
+        <tr><td><code>README.md</code>、<code>ObjCSectionCommandLine.md</code>（库调用方一节）、<code>Glossary.md</code>、提案索引（cross-repository 行）</td><td><span class="tag tag-changed">修改</span></td><td>新 target、新标注、指向本提案</td><td>文档同批</td><td class="numeric">4、5</td></tr>
       </tbody>
     </table>
     </div>
@@ -379,15 +406,16 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <table>
       <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
       <tbody>
-        <tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>删 <code>TypeIndexing</code> target、product、测试 target 与 SourceKitD / swift-apinotes；加 swift-type-indexing 与 <code>SwiftTypeNameResolution</code></td><td>搬家后的接线</td><td class="numeric">6</td></tr>
-        <tr><td><code>Sources/Declaration/TypeIndexing/</code>（11 个文件）</td><td><span class="tag tag-removed">删除</span></td><td>已移入新包</td><td>搬家</td><td class="numeric">6</td></tr>
-        <tr><td><code>TypeDatabaseTypeNameResolver</code></td><td><span class="tag tag-added">新增</span></td><td>把 <code>TypeDatabase</code> 适配成打印器的两个角色协议，映射分类枚举</td><td>唯一的适配点，RuntimeViewer 也用它</td><td class="numeric">6</td></tr>
-        <tr><td><code>SwiftInterfaceBuilderTypeNameProvider</code></td><td><span class="tag tag-moved">移动</span> <span class="tag tag-changed">修改</span></td><td>移进 <code>SwiftTypeNameResolution</code>，改为建立在适配器之上</td><td>名字不变，CLI 调用方不动</td><td class="numeric">6</td></tr>
-        <tr><td><code>InterfaceRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>改 import</td><td>接线</td><td class="numeric">6</td></tr>
-        <tr><td><code>ObjCInterfaceCommand.swift</code> 与 <code>SwiftSectionKit/ObjC</code></td><td><span class="tag tag-changed">修改</span></td><td>新开关 <code>--mark-sdk-swift-names</code>；找不到 SDK 时警告并照常输出</td><td><code>swift-section objc</code> 的同类开关</td><td class="numeric">7</td></tr>
+        <tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>删 <code>TypeIndexing</code> target、product、<code>TypeIndexingTests</code>、SourceKitD 与 swift-apinotes 两个依赖；加 swift-type-indexing 本地候选依赖；加 target / product <code>SwiftTypeNameResolution</code>（依赖 <code>SwiftPrinting</code>、<code>SwiftInterface</code>、<code>TypeIndexing</code> 与 <code>ObjCTypeIndexing</code> 限 macOS）；<code>SwiftSectionKit</code>、<code>IntegrationTests</code> 改依赖它</td><td>搬家后的接线</td><td class="numeric">6</td></tr>
+        <tr><td><code>Sources/Declaration/TypeIndexing/</code>（除适配器外 11 个文件）</td><td><span class="tag tag-removed">删除</span></td><td>已移入新包</td><td>搬家</td><td class="numeric">6</td></tr>
+        <tr><td><code>TypeDatabaseTypeNameResolver</code></td><td><span class="tag tag-added">新增</span></td><td>包一个 <code>TypeDatabase</code>，实现 <code>ModuleNameResolving</code> + <code>CImportedNameResolving</code>，映射 <code>CImportedTypeNameCategory</code> → <code>ImportedTypeNameCategory</code></td><td>打印器与新包之间唯一的适配点，RuntimeViewer 也用它</td><td class="numeric">6</td></tr>
+        <tr><td><code>SwiftInterfaceBuilderTypeNameProvider</code></td><td><span class="tag tag-moved">移动</span> <span class="tag tag-changed">修改</span></td><td>从 <code>Sources/Declaration/TypeIndexing/</code> 移进 <code>SwiftTypeNameResolution</code>；依赖改为 <code>TypeDatabaseTypeNameResolver</code> 与 <code>ObjCDeclaredTypeNames</code>；<code>buildVersionCommand</code> 改用 MachOKitExtensions 的公开版本</td><td>名字不变以免动 CLI 调用方</td><td class="numeric">6</td></tr>
+        <tr><td><code>InterfaceRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>import TypeIndexing</code> 改为新模块；<code>APINotesFile(path:)</code> 预校验照旧</td><td>接线</td><td class="numeric">6</td></tr>
+        <tr><td><code>ObjCInterfaceCommand.swift</code>、<code>SwiftSectionKit/ObjC/*</code></td><td><span class="tag tag-changed">修改</span></td><td>新增 <code>--mark-sdk-swift-names</code>：按镜像平台建 <code>TypeDatabase</code>，把 API notes 标注交给 <code>ObjCInterfaceBuilder</code>；找不到 SDK 时警告并照常输出</td><td><code>swift-section objc</code> 的同类开关</td><td class="numeric">7</td></tr>
         <tr><td><code>Tests/TypeIndexingTests/</code></td><td><span class="tag tag-removed">删除</span></td><td>已移入新包</td><td>搬家</td><td class="numeric">6</td></tr>
-        <tr><td>集成测试、命令映射测试、新的适配器测试</td><td><span class="tag tag-changed">修改</span> <span class="tag tag-added">新增</span></td><td>import 改名；新开关的映射；分类映射与打印</td><td>回归</td><td class="numeric">6–7</td></tr>
-        <tr><td>README、文档索引、补充映射指南、内部文档、术语表、SwiftSectionKit、ObjC 命令行文档、AGENTS.md、swift-section 插件 skill 与版本</td><td><span class="tag tag-changed">修改</span></td><td>指向新包、新 target、新开关</td><td>文档同批</td><td class="numeric">6–7</td></tr>
+        <tr><td><code>TypeNameProviderTests.swift</code>、<code>CommandRequestMappingTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>import 改名；加 <code>--mark-sdk-swift-names</code> 的映射用例</td><td>接线</td><td class="numeric">6、7</td></tr>
+        <tr><td><code>Tests/SwiftTypeNameResolutionTests/TypeDatabaseTypeNameResolverTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>分类映射、<code>__C</code> 解析经适配器到达打印器</td><td>回归</td><td class="numeric">6</td></tr>
+        <tr><td>README（product 表等）、文档索引、<code>SupplementaryTypeMappings.md</code>、内部文档（<code>TypeIndexingPipeline.md</code> 删、改为指向新包，<code>ProjectMap.md</code>、<code>Modules/README.md</code>）、术语表、<code>SwiftSectionKit{,_zh}.md</code>、<code>ObjCCommandLine{,_zh}.md</code>、<code>AGENTS.md</code> / <code>CLAUDE.md</code>、swift-section 插件 skill（加 objc 新开关）及其插件清单的 <code>version</code></td><td><span class="tag tag-changed">修改</span></td><td>指向新包、新 target、新开关</td><td>文档同批</td><td class="numeric">6、7</td></tr>
         <tr><td><code>Documentations/Evolutions/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>登记本提案</td><td>索引</td><td class="numeric">0</td></tr>
       </tbody>
     </table>
@@ -402,27 +430,33 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <table>
       <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
       <tbody>
-        <tr><td><code>RuntimeViewerCore/Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 swift-type-indexing；Core 加三个 product（限 macOS）</td><td>接线</td><td class="numeric">8</td></tr>
-        <tr><td>Local workspace、<code>.worktrees</code> 链接、<code>LocalDependencies.md</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>../swift-type-indexing</code></td><td>本地联调</td><td class="numeric">8</td></tr>
-        <tr><td><code>Tuist.swift</code>、<code>TuistScript.sh</code></td><td><span class="tag tag-changed">修改</span></td><td>换掉 <code>"TypeIndexing"</code>，加两个新 target 与新包</td><td>Tuist 描述同批</td><td class="numeric">8</td></tr>
-        <tr><td><code>AGENTS.md</code>「Dependency floors」</td><td><span class="tag tag-changed">修改</span></td><td>新包的版本下限与理由</td><td>规则</td><td class="numeric">8</td></tr>
-        <tr><td><code>TypeNames/RuntimeTypeIndex</code></td><td><span class="tag tag-added">新增</span></td><td>每进程一个；每平台一个 <code>TypeDatabase</code>；后台预建；状态；解析器</td><td>进程级共享索引</td><td class="numeric">9</td></tr>
-        <tr><td><code>TypeNames/RuntimeTypeIndexLocation</code></td><td><span class="tag tag-added">新增</span></td><td>往上找 <code>.app</code> 定缓存目录；不在 App 里用 <code>runtime-viewer-cli</code> 自己的目录</td><td>所有进程共用缓存</td><td class="numeric">9</td></tr>
-        <tr><td><code>TypeNames/RuntimeTypeIndexStatus</code>、<code>TypeIndexStatusCommand</code></td><td><span class="tag tag-added">新增</span></td><td>线上状态类型；Core 自有命令，路由为「问服务进程本身」</td><td>Report 与工具栏</td><td class="numeric">9</td></tr>
-        <tr><td><code>RuntimeDataChange</code></td><td><span class="tag tag-changed">修改</span></td><td>新 case <code>typeNamesResolved(platform:)</code></td><td>通知 App 刷新</td><td class="numeric">9</td></tr>
-        <tr><td><code>RuntimeSwiftSection</code></td><td><span class="tag tag-changed">修改</span></td><td>两个打印器都注册解析器；每次按开关重建解析器列表；就绪时清缓存</td><td>打印解析后的名字</td><td class="numeric">9</td></tr>
-        <tr><td><code>RuntimeObjCSection</code>、<code>RuntimeEngine</code>、<code>RuntimeEngine+Search</code></td><td><span class="tag tag-changed">修改</span></td><td>类、协议、category 都合并 API notes 标注</td><td>ObjC 标注</td><td class="numeric">9</td></tr>
-        <tr><td><code>SwiftGenerationOptions</code>、<code>GenerationOptions</code></td><td><span class="tag tag-changed">修改</span></td><td><code>resolvesImportedTypeNames</code>、<code>marksSwiftNamesFromAPINotes</code>（默认开）、<code>waitsForTypeIndex</code>（默认关）</td><td>开关；非交互调用方等索引</td><td class="numeric">9</td></tr>
-        <tr><td>语料 variant 与内存比较</td><td><span class="tag tag-changed">修改</span></td><td>带上是否解析与 SDK 版本；构建前等索引</td><td>语料与显示一致</td><td class="numeric">9</td></tr>
-        <tr><td>四个服务入口与命令行 host</td><td><span class="tag tag-changed">修改</span></td><td>配置缓存位置</td><td>每个打印的进程</td><td class="numeric">9</td></tr>
-        <tr><td><code>TypeIndexCoordinator</code>、<code>RuntimeEngineBackgroundWork</code></td><td><span class="tag tag-added">新增</span> <span class="tag tag-changed">修改</span></td><td>状态、进行中、App Nap、关闭</td><td>Report 与后台工作</td><td class="numeric">10</td></tr>
-        <tr><td>Report 三个文件、工具栏活动两个文件</td><td><span class="tag tag-changed">修改</span></td><td>新类别「Imported Type Names」与活动文案</td><td>可见</td><td class="numeric">10</td></tr>
-        <tr><td><code>ContentTextViewModel</code>、<code>ViewModel</code></td><td><span class="tag tag-changed">修改</span></td><td>收到 <code>.typeNamesResolved</code> 时重新取</td><td>自动刷新</td><td class="numeric">10</td></tr>
-        <tr><td><code>GenerationOptionsViewController</code></td><td><span class="tag tag-changed">修改</span></td><td>两个默认勾选的开关</td><td>开关</td><td class="numeric">10</td></tr>
-        <tr><td><code>RuntimeDerivedDataController</code>、<code>RuntimeDerivedDataMaintenance</code></td><td><span class="tag tag-changed">修改</span></td><td>量与删都包括 <code>TypeIndex</code> 目录</td><td>Delete Derived Data 一起删</td><td class="numeric">10</td></tr>
-        <tr><td>MCP、命令行执行器、导出</td><td><span class="tag tag-changed">修改</span></td><td>置 <code>waitsForTypeIndex = true</code></td><td>输出稳定</td><td class="numeric">11</td></tr>
-        <tr><td>runtime-viewer 插件 skill 与两个清单</td><td><span class="tag tag-changed">修改</span></td><td>说明输出变化；<code>1.3.0</code> → <code>1.4.0</code></td><td>插件规则</td><td class="numeric">11</td></tr>
-        <tr><td><code>DerivedData.md</code>、<code>CommandLineInterface.md</code>、两份索引</td><td><span class="tag tag-changed">修改</span></td><td>新缓存目录、输出变化、cross-repository 行</td><td>文档同批</td><td class="numeric">8、11</td></tr>
+        <tr><td><code>RuntimeViewerCore/Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 swift-type-indexing（本地候选 <code>../../swift-type-indexing</code> + 远端，限 macOS）；<code>RuntimeViewerCore</code> target 加 <code>TypeIndexing</code>、<code>ObjCTypeIndexing</code>、<code>SwiftTypeNameResolution</code> 三个 product（限 macOS）。<strong>实现期间</strong> MachOObjCSection 与 MachOSwiftSection 临时钉 <code>branch: "feature/swift-type-indexing-package"</code>，收尾时改回 <code>branch: "next"</code></td><td>接线</td><td class="numeric">8</td></tr>
+        <tr><td>Local workspace、<code>.worktrees/swift-type-indexing</code> 链接、<code>LocalDependencies.md</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>../swift-type-indexing</code></td><td>本地联调</td><td class="numeric">8</td></tr>
+        <tr><td><code>Tuist.swift</code>、<code>TuistScript.sh</code></td><td><span class="tag tag-changed">修改</span></td><td>删 MachOSwiftSection 的 <code>"TypeIndexing"</code>，加 <code>"SwiftTypeNameResolution"</code>、MachOObjCSection 的 <code>"ObjCTypeIndexing"</code>；swift-type-indexing 加进 <code>SOURCE_DEPENDENCIES</code> 并列出它的 target</td><td>Tuist 描述同批</td><td class="numeric">8</td></tr>
+        <tr><td><code>AGENTS.md</code>「Dependency floors」</td><td><span class="tag tag-changed">修改</span></td><td>加 swift-type-indexing 的版本下限与理由</td><td>规则</td><td class="numeric">8</td></tr>
+        <tr><td><code>TypeNames/RuntimeTypeIndex.swift</code> · <code>RuntimeTypeIndex</code></td><td><span class="tag tag-added">新增</span></td><td>actor，每进程一个（<code>static let process</code>，不经 <code>@Dependency</code>）；每个 <code>SDKPlatform</code> 一个 <code>TypeDatabase</code>；<code>request(_:)</code> 把一个镜像链接的模块和它自己的 ObjC 元数据排成一批，同平台的批次依次执行；每批完成把平台的 generation 加一并通知监听者；<code>resolution(for:)</code>、<code>swiftImportNotes(forClassNamed:/forProtocolNamed:platform:)</code>、<code>status()</code></td><td>进程级共享索引</td><td class="numeric">9</td></tr>
+        <tr><td><code>TypeNames/RuntimeTypeNames.swift</code> · <code>RuntimeTypeNames</code></td><td><span class="tag tag-added">新增</span></td><td>进程开关 <code>enableInThisProcess()</code>（照 <code>RuntimeDerivedData.enableInThisProcess()</code>）；<code>platformName(of:)</code> 取镜像第一个 <code>LC_BUILD_VERSION</code> 的平台</td><td>只有打印的服务进程建索引</td><td class="numeric">9</td></tr>
+        <tr><td><code>TypeNames/RuntimeTypeIndexLocation.swift</code></td><td><span class="tag tag-added">新增</span></td><td>缓存目录：<code>.app</code> / <code>Contents/XPCServices</code> / <code>Contents/Applications</code> 往上找 <code>.app</code> → <code>~/Library/Caches/&lt;bundle id&gt;/TypeIndex</code>；不在 App 里 → <code>~/Library/Caches/runtime-viewer-cli/TypeIndex</code>；测试用临时目录</td><td>所有进程共用缓存</td><td class="numeric">9</td></tr>
+        <tr><td><code>TypeNames/RuntimeTypeIndexStatus.swift</code></td><td><span class="tag tag-added">新增</span></td><td>线上类型：每个平台 <code>building(progress)</code> / <code>ready</code> / <code>unavailable(reason)</code>、缓存字节数</td><td>Report 与工具栏</td><td class="numeric">9</td></tr>
+        <tr><td><code>TypeNames/RuntimeEngine+TypeNames.swift</code>、<code>Engine/RuntimeEngine+Commands.swift</code> · <code>TypeIndexStatusCommand</code></td><td><span class="tag tag-added">新增</span></td><td>Core 自有命令 <code>typeIndexStatus</code>，路由 <code>.servingEngine</code>，加进 <code>SharedCacheRoutingDeclarationTests</code> 的清单；<code>typeIndexStatus()</code> 经新的 <code>dispatchToServingProcess(_:timeout:)</code> 发出、连接自带 2 秒超时，旧对端答 <code>.empty</code>；<code>startObservingTypeIndex()</code> 把批次完成转成广播；<code>RuntimeTypeNamesCorpusVariant</code></td><td>让 App 读状态</td><td class="numeric">9</td></tr>
+        <tr><td><code>Engine/RuntimeDataChange.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新 case <code>typeNamesResolved(platform: String)</code></td><td>通知 App 刷新</td><td class="numeric">9</td></tr>
+        <tr><td><code>Sections/Swift/RuntimeSwiftSection.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>显示打印器与语料打印器都注册 <code>TypeDatabaseTypeNameResolver</code>；<code>updateConfiguration</code> 每次按开关重建解析器列表（不再被 <code>removeAllTypeNameResolvers()</code> 误删）；收到索引就绪时清 <code>interfaceByObject</code> / <code>importedInterfaceByObject</code></td><td>打印解析后的名字</td><td class="numeric">9</td></tr>
+        <tr><td><code>RuntimeObjCSection.swift</code>、<code>RuntimeEngine.swift</code>、<code>Search/RuntimeEngine+Search.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>类、协议、category 都取 API notes 标注，与 <code>objcSwiftImportNotes(for:)</code> 合并后传入</td><td>ObjC 标注</td><td class="numeric">9</td></tr>
+        <tr><td><code>Interfaces/SwiftGenerationOptions.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>@Default(true) resolvesImportedTypeNames</code></td><td>开关</td><td class="numeric">9</td></tr>
+        <tr><td><code>Interfaces/RuntimeObjectInterface+GenerationOptions.swift</code> · <code>GenerationOptions</code></td><td><span class="tag tag-changed">修改</span></td><td><code>@Default(true) marksSwiftNamesFromAPINotes</code>（ObjC 头文件的开关，放顶层：<code>objcHeaderOptions</code> 是 MachOObjCSection 的 <code>ObjCGenerationOptions</code>，而这个开关只决定 RuntimeViewer 传不传标注）；<code>@Default(false) waitsForTypeIndex</code></td><td>开关；非交互的调用方等索引</td><td class="numeric">9</td></tr>
+        <tr><td><code>RuntimeInterfaceCorpusSnapshot.swift</code>、<code>RuntimeInterfaceCorpusStore.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>variant 加 <code>-TypeNames&lt;SDK build&gt;</code> 或 <code>-UnresolvedTypeNames</code>；内存比较加同一条件；语料构建前等索引</td><td>语料与显示一致</td><td class="numeric">9</td></tr>
+        <tr><td><code>ServicePluginEntry.swift</code>（本机、Catalyst、文件、框架四个 service 与 Catalyst helper 五个入口）、<code>CommandLineHostServer.start()</code>（只在独立 host）</td><td><span class="tag tag-changed">修改</span></td><td>进程启动时 <code>RuntimeTypeNames.enableInThisProcess()</code>；缓存位置由 <code>RuntimeTypeIndexLocation</code> 从 <code>Bundle.main</code> 推出，不用配置</td><td>每个打印的进程</td><td class="numeric">9</td></tr>
+        <tr><td><code>BackgroundWork/TypeIndex/TypeIndexCoordinator.swift</code></td><td><span class="tag tag-added">新增</span></td><td>照 <code>CrossReferencePreparationCoordinator</code>：读状态、<code>isWorkInProgress</code>、<code>close()</code></td><td>Report 与 App Nap</td><td class="numeric">10</td></tr>
+        <tr><td><code>RuntimeEngineBackgroundWork.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>创建协调器，并入 <code>isWorkInProgress</code>、activity reporter、<code>close()</code></td><td>接入后台工作</td><td class="numeric">10</td></tr>
+        <tr><td><code>ReportNode.swift</code>、<code>ReportTreeBuilder.swift</code>、<code>ReportViewModel.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新 <code>ReportCategory.importedTypeNames</code> 及其节点；状态、原因、缓存大小</td><td>Report 可见</td><td class="numeric">10</td></tr>
+        <tr><td><code>RuntimeEngineActivityReporter.swift</code>、<code>ToolbarActivity.swift</code>、<code>Presentation/SystemSymbol.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>新活动种类（每个批次一项，文案 Indexing Imported Type Names）与 Report 图标 <code>shippingbox</code></td><td>工具栏进度</td><td class="numeric">10</td></tr>
+        <tr><td><code>Content/ContentTextViewModel.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>收到 <code>.typeNamesResolved</code> 时先在主线程清文档的接口缓存，再重新取当前内容（<code>Base/ViewModel.swift</code> 不用改）</td><td>建好后自动刷新</td><td class="numeric">10</td></tr>
+        <tr><td><code>GenerationOptionsViewController.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>Swift 组加「Resolve Imported Type Names」，ObjC 组加「Mark Swift Names From SDK」</td><td>开关</td><td class="numeric">10</td></tr>
+        <tr><td><code>RuntimeDerivedDataController.swift</code>、<code>RuntimeDerivedDataMaintenance.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>量与删都包括 <code>TypeIndex</code> 目录；确认框文案提到它</td><td>Delete Derived Data 一起删</td><td class="numeric">10</td></tr>
+        <tr><td><code>MCPBridgeServer.swift</code>、<code>CommandExecutor.swift</code>、<code>Export/RuntimeEngine+Export.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>置 <code>waitsForTypeIndex = true</code></td><td>输出稳定</td><td class="numeric">11</td></tr>
+        <tr><td>runtime-viewer 插件的 <code>SKILL.md</code>、<code>.claude-plugin/plugin.json</code>、<code>.codex-plugin/plugin.json</code></td><td><span class="tag tag-changed">修改</span></td><td>说明 <code>__C.</code> 解析与首次等待；版本 <code>1.3.0</code> → <code>1.4.0</code></td><td>插件规则</td><td class="numeric">11</td></tr>
+        <tr><td><code>DerivedData.md</code>、<code>CommandLineInterface.md</code>、提案索引（cross-repository 行）、<code>Documentations/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新缓存目录、输出变化、索引</td><td>文档同批</td><td class="numeric">8、11</td></tr>
+        <tr><td>测试（见各步骤的行为清单）</td><td><span class="tag tag-added">新增</span></td><td><code>RuntimeViewerCoreTests</code> 与 <code>RuntimeViewerAppCoreTests</code> 中的对应套件</td><td>回归</td><td class="numeric">9、10、11</td></tr>
       </tbody>
     </table>
     </div>
@@ -436,7 +470,10 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <details open>
     <summary>新包的公开 API</summary>
     <div class="details-body">
-<pre><code><span class="token-keyword">public protocol</span> <span class="token-type">DeclaredTypeNameSource</span>: <span class="token-type">Sendable</span> {
+<pre><code><span class="token-comment">/// One dependency image whose runtime metadata lists the types it declares.
+/// Consulted, in order, only for names the SDK's module interfaces and API
+/// notes do not attribute; the first image that declares a name wins.</span>
+<span class="token-keyword">public protocol</span> <span class="token-type">DeclaredTypeNameSource</span>: <span class="token-type">Sendable</span> {
     <span class="token-keyword">var</span> imagePath: <span class="token-type">String</span> { <span class="token-keyword">get</span> }
     <span class="token-keyword">func</span> declaredTypeNames() <span class="token-keyword">async throws</span> -&gt; [<span class="token-type">String</span>]
 }
@@ -446,15 +483,27 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 }
 
 <span class="token-keyword">public struct</span> <span class="token-type">TypeIndexingAvailability</span>: <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
-    <span class="token-keyword">public var</span> sdkPath: <span class="token-type">String</span>?
-    <span class="token-keyword">public var</span> sourceKitPath: <span class="token-type">String</span>?        <span class="token-comment">// nil: module interfaces skipped</span>
-    <span class="token-keyword">public var</span> unavailabilityReason: <span class="token-type">UnavailabilityReason</span>?
+    <span class="token-keyword">public enum</span> <span class="token-type">UnavailabilityReason</span>: <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
+        <span class="token-keyword">case</span> noDeveloperDirectory
+        <span class="token-keyword">case</span> sdkNotInstalled(<span class="token-type">SDKPlatform</span>)
+    }
+    <span class="token-keyword">public let</span> sdkSettings: <span class="token-type">SDKSettings</span>?          <span class="token-comment">// path, version, build, Mac Catalyst version</span>
+    <span class="token-keyword">public let</span> sourceKitPath: <span class="token-type">String</span>?             <span class="token-comment">// nil: module interfaces skipped</span>
+    <span class="token-keyword">public let</span> unavailabilityReason: <span class="token-type">UnavailabilityReason</span>?
+    <span class="token-keyword">public var</span> isAvailable: <span class="token-type">Bool</span> { unavailabilityReason == <span class="token-keyword">nil</span> }
     <span class="token-keyword">public static func</span> availability(for platform: <span class="token-type">SDKPlatform</span>) -&gt; <span class="token-type">TypeIndexingAvailability</span>
 }
 
+<span class="token-keyword">public enum</span> <span class="token-type">SDKPlatform</span>: <span class="token-type">String</span>, <span class="token-type">CaseIterable</span>, <span class="token-type">Hashable</span>, <span class="token-type">Codable</span>, <span class="token-type">Sendable</span> {
+    <span class="token-keyword">case</span> macOS = <span class="token-string">"macosx"</span>
+    <span class="token-keyword">case</span> macCatalyst = <span class="token-string">"maccatalyst"</span>             <span class="token-comment">// the macOS SDK read through System/iOSSupport</span>
+    <span class="token-keyword">case</span> iOS = <span class="token-string">"iphoneos"</span>
+    <span class="token-comment">// tvOS, watchOS, visionOS, driverKit and the simulators, as before</span>
+}
+
 <span class="token-keyword">public struct</span> <span class="token-type">SwiftImportAnnotation</span>: <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
-    <span class="token-keyword">public var</span> swiftName: <span class="token-type">String</span>?
-    <span class="token-keyword">public var</span> isSwiftPrivate: <span class="token-type">Bool</span>
+    <span class="token-keyword">public var</span> swiftName: <span class="token-type">String</span>?                  <span class="token-comment">// SwiftName: the Swift name as is</span>
+    <span class="token-keyword">public var</span> isSwiftPrivate: <span class="token-type">Bool</span>                <span class="token-comment">// without a SwiftName, Swift prefixes "__"</span>
 }
 
 <span class="token-keyword">public enum</span> <span class="token-type">ObjCMemberKey</span>: <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
@@ -477,45 +526,71 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <span class="token-keyword">public func</span> swiftImportAnnotations(forObjCProtocolNamed protocolName: <span class="token-type">String</span>) -&gt; <span class="token-type">ObjCContainerSwiftImportAnnotations</span>?
     <span class="token-keyword">public static func</span> moduleName(forImagePath imagePath: <span class="token-type">String</span>) -&gt; <span class="token-type">String</span>
 }</code></pre>
-    <p>所有源码仍包在 <code>#if os(macOS)</code> 里。协议按「是什么」命名，沿用组织里 <code>ObjCMetadataSource</code> 的 <code>Source</code> 后缀；不给 MachOKit 的类型补遵循新包的协议，由 MachOObjCSection 的包装类型实现。</p>
+    <ul>
+      <li>所有源码仍包在 <code>#if os(macOS)</code> 里。</li>
+      <li><code>SDKPlatform</code> 公开，并新增 <code>macCatalyst</code>（落地时发现，见决策日志）；<code>SDKSettings</code>（<code>sdkPath</code>、<code>version</code>、<code>productBuildVersion</code>、<code>macCatalystVersion</code>、<code>cacheDirectoryComponent</code>）与 <code>APINotesFile(path:)</code> 一并公开——后者是 <code>swift-section</code> 预检 <code>--supplementary-apinotes</code> 路径用的。</li>
+      <li><code>index(dependencies:moduleFilter:)</code> 可多次调用：第一次发现 SDK 并登记 API notes，之后只补新的模块与依赖镜像；因此 API notes 优先于模块接口改为查询时决定（三张表），不再靠写入顺序。</li>
+      <li>搬家时保留的三个 <code>register(...)</code> 测试钩子（提案 0009）降为 <code>internal</code>，测试用 <code>@testable import</code>。</li>
+      <li>命名照 <code>apple-style-api-design</code>：协议按「是什么」命名，沿用组织里 <code>ObjCMetadataSource</code> 的 <code>Source</code> 后缀；查询读成名词短语（<code>moduleName(forTypeName:)</code>）；不给 MachOKit 的类型补遵循新包的协议，由 MachOObjCSection 的包装类型实现。</li>
+    </ul>
     </div>
   </details>
 
   <details>
     <summary>改名规则</summary>
     <div class="details-body">
-<pre><code><span class="token-keyword">let</span> swiftName: <span class="token-type">String</span>? = <span class="token-keyword">if let</span> explicitSwiftName = entity.swiftName {
-    explicitSwiftName                         <span class="token-comment">// swift_name wins, no "__"</span>
-} <span class="token-keyword">else if</span> entity.isSwiftPrivate == <span class="token-keyword">true</span> {
-    <span class="token-string">"__"</span> + cName                              <span class="token-comment">// swift_private alone</span>
-} <span class="token-keyword">else</span> {
-    <span class="token-keyword">nil</span>
+<pre><code><span class="token-comment">// APINotesIndex.registerEntities(_:declaredIn:into:)</span>
+<span class="token-keyword">for</span> entity <span class="token-keyword">in</span> entities {
+    <span class="token-keyword">let</span> cName = entity.name
+    moduleNamesByCName[cName] = moduleName
+    <span class="token-keyword">let</span> swiftName: <span class="token-type">String</span>? = <span class="token-keyword">if let</span> explicitSwiftName = entity.swiftName {
+        explicitSwiftName                         <span class="token-comment">// swift_name wins, no "__"</span>
+    } <span class="token-keyword">else if</span> entity.isSwiftPrivate == <span class="token-keyword">true</span> {
+        <span class="token-string">"__"</span> + cName                              <span class="token-comment">// swift_private alone</span>
+    } <span class="token-keyword">else</span> {
+        <span class="token-keyword">nil</span>
+    }
+    <span class="token-keyword">guard let</span> swiftName, swiftName != cName <span class="token-keyword">else</span> { <span class="token-keyword">continue</span> }
+    <span class="token-keyword">self</span>[keyPath: renameTable][cName] = <span class="token-type">Name</span>(moduleName: moduleName, name: swiftName)
+    cNamesBySwiftName[swiftName] = <span class="token-type">Name</span>(moduleName: moduleName, name: cName)
 }</code></pre>
-    <p>依据是 Clang importer：有 <code>swift_name</code> 时直接用它并提前返回，只有没有它时才在 <code>swift_private</code> 的声明前加 <code>__</code>。ObjC 成员按同样两条规则记录，但只保存原始的 <code>swiftName</code> / <code>isSwiftPrivate</code>，因为成员一级要打印的是宏。</p>
+    <p>依据是 Clang importer：有 <code>swift_name</code> 时直接用它并提前返回，只有没有它时才在 <code>swift_private</code> 的声明前加 <code>__</code>。ObjC 成员（<code>Methods:</code> 的 <code>Selector</code> + <code>MethodKind</code>，<code>Properties:</code> 的 <code>Name</code> + <code>PropertyKind</code>）按同样两条规则记进 <code>ObjCContainerSwiftImportAnnotations</code>，但只保存原始的 <code>swiftName</code> / <code>isSwiftPrivate</code>，因为成员一级要打印的是宏，不是推导后的 Swift 名。</p>
     </div>
   </details>
 
   <details>
     <summary>缓存目录</summary>
     <div class="details-body">
-    <p><code>ModuleIndexCache</code> 的目录改为 <code>&lt;cacheDirectory&gt;/&lt;platform&gt;/&lt;SDK 版本-build&gt;/</code>；不传时是 <code>Application Support/swift-type-indexing/SDKIndexer</code>。旧的 <code>Application Support/MachOSwiftSection/SDKIndexer</code> 不再读、也不自动删，新包第一次运行时重建一次。</p>
+    <p><code>ModuleIndexCache</code> 的目录改为 <code>&lt;cacheDirectory&gt;/&lt;platform rawValue&gt;/&lt;SDK 版本-build&gt;/</code>；不传时是 <code>Application Support/swift-type-indexing/SDKIndexer</code>。<code>currentGeneratorVersion</code> 不变（条目格式没变）；旧的 <code>Application Support/MachOSwiftSection/SDKIndexer</code> 不再读、也不自动删，新包第一次运行时重建一次。</p>
     </div>
   </details>
 
   <details>
     <summary>MachOObjCSection：Swift 命名标注</summary>
     <div class="details-body">
-<pre><code><span class="token-keyword">public struct</span> <span class="token-type">ObjCDeclaredTypeNames</span>&lt;<span class="token-type">MachO</span>: <span class="token-type">ObjCMetadataSource</span> &amp; <span class="token-type">Sendable</span>&gt;: <span class="token-type">DeclaredTypeNameSource</span> {
+<pre><code><span class="token-comment">// ObjCTypeIndexing (macOS only)</span>
+<span class="token-keyword">public struct</span> <span class="token-type">ObjCDeclaredTypeNames</span>&lt;<span class="token-type">MachO</span>: <span class="token-type">ObjCMetadataSource</span> &amp; <span class="token-type">Sendable</span>&gt;: <span class="token-type">DeclaredTypeNameSource</span> {
     <span class="token-keyword">public init</span>(machO: <span class="token-type">MachO</span>, imagePath: <span class="token-type">String</span>)
+    <span class="token-keyword">public var</span> imagePath: <span class="token-type">String</span> { <span class="token-keyword">get</span> }
+    <span class="token-keyword">public func</span> declaredTypeNames() <span class="token-keyword">async throws</span> -&gt; [<span class="token-type">String</span>]
 }
 
 <span class="token-keyword">extension</span> <span class="token-type">ObjCSwiftImportNotes</span> {
+    <span class="token-macro">@available</span>(macOS <span class="token-number">13.0</span>, *)
     <span class="token-keyword">public init</span>(apiNotesForClassNamed className: <span class="token-type">String</span>, in typeDatabase: <span class="token-type">TypeDatabase</span>) <span class="token-keyword">async</span>
+    <span class="token-macro">@available</span>(macOS <span class="token-number">13.0</span>, *)
     <span class="token-keyword">public init</span>(apiNotesForProtocolNamed protocolName: <span class="token-type">String</span>, in typeDatabase: <span class="token-type">TypeDatabase</span>) <span class="token-keyword">async</span>
-    <span class="token-keyword">public var</span> declarationNote: <span class="token-type">Note</span>?                 <span class="token-comment">// the type itself</span>
-    <span class="token-keyword">public func</span> merging(_ other: <span class="token-type">ObjCSwiftImportNotes</span>) -&gt; <span class="token-type">ObjCSwiftImportNotes</span>
 }
-<span class="token-comment">// Note gains `swiftName: String?`</span></code></pre>
+
+<span class="token-comment">// ObjCDeclarationRendering</span>
+<span class="token-keyword">extension</span> <span class="token-type">ObjCSwiftImportNotes</span> {
+    <span class="token-keyword">public struct</span> <span class="token-type">Note</span>: <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
+        <span class="token-keyword">public var</span> isRefinedForSwift: <span class="token-type">Bool</span>
+        <span class="token-keyword">public var</span> swiftName: <span class="token-type">String</span>?              <span class="token-comment">// + NS_SWIFT_NAME(swiftName)</span>
+    }
+    <span class="token-keyword">public var</span> declarationNote: <span class="token-type">Note</span>?               <span class="token-comment">// + the type itself</span>
+    <span class="token-keyword">public func</span> merging(_ other: <span class="token-type">ObjCSwiftImportNotes</span>) -&gt; <span class="token-type">ObjCSwiftImportNotes</span>   <span class="token-comment">// other wins per field</span>
+}</code></pre>
     <p>打印效果：</p>
 <pre><code><span class="token-macro">NS_REFINED_FOR_SWIFT</span>
 <span class="token-keyword">@interface</span> <span class="token-type">UICellConfigurationState</span> : <span class="token-type">UIViewConfigurationState</span>
@@ -524,8 +599,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 
 <span class="token-macro">NS_SWIFT_NAME</span>(PKDrawingReference)
 <span class="token-keyword">@interface</span> <span class="token-type">PKDrawing</span> : <span class="token-type">NSObject</span> &lt;<span class="token-type">NSCopying</span>, <span class="token-type">NSSecureCoding</span>&gt;
+- (<span class="token-keyword">instancetype</span>)initWithData:(<span class="token-type">NSData</span> *)data error:(<span class="token-type">NSError</span> **)error;
 <span class="token-keyword">@end</span></code></pre>
-    <p>类型一级的宏单独一行，放在 <code>@interface</code> / <code>@protocol</code> 上面（与演进视图打印可用性宏的写法相同）；成员一级放在 <code>;</code> 前，<code>NS_SWIFT_NAME(...)</code> 在 <code>NS_REFINED_FOR_SWIFT</code> 前。</p>
+    <ul>
+      <li>类型一级的宏单独一行，放在 <code>@interface</code> / <code>@protocol</code> 上面（与演进视图打印可用性宏的写法相同）；<code>declarationNote</code> 两个字段都有时打成一行 <code>NS_SWIFT_NAME(X) NS_REFINED_FOR_SWIFT</code>。</li>
+      <li>成员一级放在 <code>;</code> 前，<code>NS_SWIFT_NAME(...)</code> 在 <code>NS_REFINED_FOR_SWIFT</code> 前：<code>- (void)foo NS_SWIFT_NAME(bar()) NS_REFINED_FOR_SWIFT;</code>。</li>
+      <li>标注不进可折叠区域（与现在的 <code>NS_REFINED_FOR_SWIFT</code> 一致：它是声明的一部分，不是注释）。</li>
+    </ul>
     </div>
   </details>
 
@@ -535,10 +615,12 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <pre><code><span class="token-macro">@available</span>(macOS <span class="token-number">13.0</span>, *)
 <span class="token-keyword">public struct</span> <span class="token-type">TypeDatabaseTypeNameResolver</span>: <span class="token-type">ModuleNameResolving</span>, <span class="token-type">CImportedNameResolving</span> {
     <span class="token-keyword">public init</span>(typeDatabase: <span class="token-type">TypeDatabase</span>)
+    <span class="token-keyword">public func</span> moduleName(forTypeName typeName: <span class="token-type">String</span>) <span class="token-keyword">async</span> -&gt; <span class="token-type">String</span>?
+    <span class="token-keyword">public func</span> swiftName(forCName cName: <span class="token-type">String</span>, category: <span class="token-type">CImportedTypeNameCategory</span>) <span class="token-keyword">async</span> -&gt; <span class="token-type">String</span>?
 }</code></pre>
     <ul>
-      <li><code>SwiftInterfaceBuilderTypeNameProvider</code> 保留名字与构造器签名，内部改用这个适配器和 <code>ObjCDeclaredTypeNames</code>。</li>
-      <li><code>swift-section objc interface --mark-sdk-swift-names</code>：按镜像平台建只读 API notes 的 <code>TypeDatabase</code>（不碰 sourcekitd），为每个类与协议取标注；找不到 SDK 时打印 warning，输出与不加开关时相同。</li>
+      <li><code>SwiftInterfaceBuilderTypeNameProvider</code> 保留公开名字与构造器签名，内部改为：按镜像平台建 <code>TypeDatabase</code>（<code>LC_BUILD_VERSION</code> 的 macCatalyst 映射到 <code>.macCatalyst</code>；原来映射到 <code>.macOS</code>，Catalyst 镜像因此读不到 UIKit 的 API notes），依赖镜像包成 <code>ObjCDeclaredTypeNames</code>，把查询转给一个 <code>TypeDatabaseTypeNameResolver</code>。</li>
+      <li><code>swift-section objc interface --mark-sdk-swift-names</code>：按镜像 <code>LC_BUILD_VERSION</code> 的平台建 <code>TypeDatabase</code>（只读 API notes，<code>moduleFilter</code> 返回 <code>false</code>，所以不碰 sourcekitd），对每个类与协议取 <code>ObjCSwiftImportNotes(apiNotesFor…:in:)</code> 传给 <code>ObjCInterfaceBuilder</code>；找不到 SDK 时打印 warning，输出与不加开关时相同。</li>
     </ul>
     </div>
   </details>
@@ -547,14 +629,21 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <summary>RuntimeViewer</summary>
     <div class="details-body">
     <ul>
-      <li><strong>进程内的索引</strong>：<code>RuntimeTypeIndex</code> 每个服务进程一个，每个 <code>SDKPlatform</code> 一个 <code>TypeDatabase</code>。平台按镜像来源取：共享缓存镜像、文件、<code>LC_BUILD_VERSION</code>。Mac Catalyst 用 macOS SDK（读 <code>iOSSupport</code> 里的 API notes，落地时实测确认）。</li>
-      <li><strong>预建</strong>：engine 连上与加载新镜像时，把依赖模块并进过滤条件，同一平台在建时合并请求。不可用时状态记原因，打印器不注册解析器。</li>
-      <li><strong>打印</strong>：每次按当前选项重建完整的解析器列表（opaque + 类型名），不再被 <code>removeAllTypeNameResolvers()</code> 误删；显示与语料两个打印器都这样做。就绪时清 section 的接口缓存，再广播 <code>.typeNamesResolved</code>。</li>
-      <li><strong>等待</strong>：<code>waitsForTypeIndex</code> 为真时，打印前等该平台索引就绪或不可用。MCP、命令行、导出置真，Find 语料构建一律等待；只在磁盘缓存冷的第一次会等。</li>
-      <li><strong>兼容性</strong>：三个新选项都用 <code>@Default</code>；新 case 只由新版 Mac 服务发出；旧对端不回应状态命令时当作不可用。</li>
-      <li><strong>语料 variant</strong>：<code>…-ByCategory-TypeNames&lt;platform&gt;-&lt;SDK 版本-build&gt;</code> 或 <code>…-UnresolvedTypeNames</code>。</li>
-      <li><strong>界面</strong>：Generation Options 的 Swift 组「Resolve Imported Type Names」、ObjC 组「Mark Swift Names From SDK」，默认勾选；Report 新类别「Imported Type Names」，每个平台一行显示建立中、就绪（缓存大小）或不可用（原因）。</li>
-      <li><strong>内存</strong>：每个打印的服务进程各一份，落地时量一次 <code>malloc</code> 在用量写回提案。</li>
+      <li><strong>进程开关</strong>：<code>RuntimeTypeNames.enableInThisProcess()</code> 照 <code>RuntimeDerivedData.enableInThisProcess()</code> 的样子：四个 XPC service、Catalyst helper 与独立的命令行 host（<code>CommandLineHostServer.start()</code>，<code>kind == .standalone</code> 时；App 当 host 时打印在 App 的 service 里）在入口处打开。其余进程——App 本身、注入的 payload、iOS 设备、测试——都不打开，照旧印 <code>__C.</code>，也从不读 SDK、不写缓存。忘了调用不会坏事，只是那个进程不解析。</li>
+      <li><strong>进程内的索引</strong>：<code>RuntimeTypeIndex</code> 是每个打印进程一个的 actor（<code>static let process</code>）。它不经 <code>@Dependency</code>：<code>RuntimeViewerCore</code> 不依赖 swift-dependencies，能碰到它的只有 engine 与 section，和 <code>RuntimeDerivedData</code> 一样。按 <code>SDKPlatform</code> 各持一个 <code>TypeDatabase</code>：
+        <ul>
+          <li>平台：一律取镜像第一个 <code>LC_BUILD_VERSION</code> 的平台（<code>RuntimeTypeNames.platformName(of:)</code>，<code>macCatalyst</code> 映射到 <code>.macCatalyst</code>），共享缓存镜像、磁盘文件与已加载镜像同一条规则。没有这个 load command 的旧镜像不解析。</li>
+          <li>批次：<code>RuntimeSwiftSection.updateConfiguration</code> 第一次为一个镜像配置时（<code>resolvesImportedTypeNames</code> 开着）调 <code>request(_:)</code>，交出这个镜像链接的模块名（<code>machO.dependencies</code> 的 install name 推出模块名）和它自己的 <code>ObjCDeclaredTypeNames</code>。新模块、新镜像才排一批；平台的第一批同时读 API notes。同一平台的批次串起来依次执行，所以不会重复建。依赖镜像里的私有类型，要等那个依赖自己被打开（后台索引迟早会开）才算进来——不为打印一个镜像去打开它全部依赖的 ObjC 元数据。</li>
+          <li>不可用：<code>TypeIndexingAvailability</code> 不可用时记下原因，不排批次，打印器不注册解析器，输出保持 <code>__C.</code>。</li>
+          <li>内存：每个打印的服务进程各有一份（本机、Catalyst、每个文件、每个框架实例），落地时量一次 <code>malloc</code> 在用量写进提案（步骤 9）。</li>
+        </ul>
+      </li>
+      <li><strong>打印</strong>：每批完成把平台的 generation 加一。<code>RuntimeSwiftSection</code> 记着自己注册解析器时的 generation，下次配置时发现变了，就按当前选项重建完整的解析器列表（opaque 解析器 + 类型名解析器，互不误删），清掉 <code>interfaceByObject</code> / <code>importedInterfaceByObject</code>；语料打印器同样按 generation 重建。批次完成时 engine 把监听回调转成 <code>broadcast(.typeNamesResolved(platformName:))</code>（<code>startObservingTypeIndex()</code>，每个 engine 一次）。ObjC 头文件在 <code>marksSwiftNamesFromAPINotes</code> 开着时，把 <code>swiftImportNotes(forClassNamed:/forProtocolNamed:platform:)</code> 的结果与 <code>objcSwiftImportNotes(for:)</code> 合并；category 按它的类查。</li>
+      <li><strong>等待</strong>：<code>GenerationOptions.waitsForTypeIndex</code> 为 <code>true</code> 时，<code>updateConfiguration</code> 等这个镜像那一批完成再打印；<code>false</code>（界面）时直接打印。MCP（<code>.mcp</code> 预设）、命令行（每种选项来源都置 <code>true</code>）、导出（<code>exportGenerationOptions</code>）等待；Find 语料打印前一律等待（<code>waitForTypeIndex(of:)</code>）。等待只在磁盘缓存冷、第一次生成某个 SDK 版本的模块接口时明显。</li>
+      <li><strong>兼容性</strong>：三个新选项都用 <code>@Default</code>，旧版对端解码时取默认；<code>RuntimeDataChange</code> 新 case 只由新版 Mac 服务发出，旧对端不会收到也不会发出；<code>typeIndexStatus</code> 命令对旧对端没有处理器，XPC 上没有处理器的命令被丢弃而不是回错，所以 <code>typeIndexStatus()</code> 经 <code>dispatchToServingProcess(_:timeout:)</code> 用连接自带的 2 秒超时发出，超时或出错都答 <code>.empty</code>，Report 里不显示这一类。</li>
+      <li><strong>语料 variant</strong>：<code>RuntimeInterfaceCorpusSnapshot</code> 的 variant 加一段 <code>RuntimeTypeNamesCorpusVariant.component</code>：开着索引、找得到 macOS SDK 时是 <code>TypeNames-&lt;SDK 版本-build&gt;</code>（共享缓存的 macOS 与 Mac Catalyst 镜像都对着 macOS SDK 读），否则 <code>UnresolvedTypeNames</code>。</li>
+      <li><strong>缓存位置</strong>：<code>RuntimeTypeIndexLocation</code> 从进程的 <code>Bundle.main</code> 往上找第一个是 RuntimeViewer 的 <code>.app</code>（<code>RuntimeDerivedDataLocation.enclosingApplication</code>），用 <code>~/Library/Caches/&lt;bundle id&gt;/TypeIndex</code>，与 <code>DerivedData</code> 并列；App、它的 XPC service 与内嵌的命令行工具因此共用一份。不在 App 里的命令行工具用 <code>~/Library/Caches/runtime-viewer-cli/TypeIndex</code>。Delete Derived Data 一并量它、删它（先改名再后台删）。</li>
+      <li><strong>界面</strong>：Generation Options 面板的 Swift 组「Resolve Imported Type Names」、ObjC 组「Mark Swift Names From SDK」，都默认勾选。Report 新类别「Imported Type Names」（排在 Cross References 之后），每个平台一行：建立中（第几批 / 共几批）、就绪（模块数）、不可用（没有开发者目录 / 没装这个平台的 SDK），类别行带缓存大小；没有平台时整类不显示，没有取消、推出、清除。<code>TypeIndexCoordinator</code> 照 <code>CrossReferencePreparationCoordinator</code>：启动时、每次 <code>.typeNamesResolved</code>、engine 换进程时问一次状态，建立中每 2 秒问一次；建立中算进 <code>isWorkInProgress</code>（防 App Nap），工具栏显示 Indexing Imported Type Names。内容区收到 <code>.typeNamesResolved</code> 先在主线程清文档的接口缓存再重新取，避免缓存自己的清空排在重新取之后。</li>
     </ul>
     </div>
   </details>
@@ -667,43 +756,58 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="steps">
   <h2>落地步骤</h2>
   <ol start="0">
-    <li><strong>提案入库</strong>：登记草案；批准后在另外两个仓库的索引加 cross-repository 行。</li>
-    <li><strong>建新包并原样搬入</strong>：<code>existingTypeIndexingTestsPassAgainstNonGenericDatabase</code>、<code>declaredTypeNameSourcesAreQueriedLazilyInDependencyOrder</code>、<code>firstImageDeclaringANameWinsTheAttribution</code>、<code>failingSourceIsDroppedAndNotRetried</code></li>
-    <li><strong>改名规则与 Command Line Tools</strong>（先写测试并确认修复前失败）：<code>swiftPrivateWithoutSwiftNameResolvesToDoubleUnderscorePrefix</code>、<code>swiftNameWinsOverSwiftPrivate</code>、<code>plainEntityKeepsItsCName</code>、<code>sourceKitIsFoundInCommandLineToolsLayout</code>、<code>sourceKitIsFoundInXcodeToolchainLayout</code>、<code>missingSourceKitSkipsModuleInterfacesButKeepsAPINotes</code>、<code>availabilityReportsMissingSDK</code>、<code>cacheEntriesAreWrittenUnderTheGivenDirectory</code></li>
-    <li><strong>ObjC 容器的 API notes 查询</strong>，之后新包打 <code>0.1.0</code> 并推送：<code>classAnnotationCarriesSwiftNameAndSwiftPrivate</code>、<code>methodAnnotationIsKeyedBySelectorAndKind</code>、<code>propertyAnnotationIsKeyedByNameAndKind</code>、<code>protocolAnnotationsAreSeparateFromClassAnnotations</code></li>
-    <li><strong>MachOObjCSection 接入新包</strong>：<code>declaredTypeNamesListFoundationClassesProtocolsAndStructs</code>、<code>typeDatabaseAttributesPrivateClassThroughObjCDeclaredTypeNames</code></li>
-    <li><strong>ObjC 头文件的 Swift 命名标注</strong>：<code>memberSwiftNamePrintsBeforeRefinedForSwift</code>、<code>classDeclarationNotePrintsOnItsOwnLineAboveInterface</code>、<code>protocolInterfaceTakesNotes</code>、<code>categoryMembersTakeNotes</code>、<code>mergingKeepsBothSourcesAndTheArgumentWinsPerField</code>、<code>apiNotesForClassBecomeNotes</code>、<code>markedRenderingStillProjectsToPlainRendering</code></li>
-    <li><strong>MachOSwiftSection 切换到新包</strong>：<code>resolverMapsEveryPrinterCategory</code>、<code>resolverPrintsResolvedModuleAndSwiftName</code>、<code>resolveCModuleNamesFlagStillMapsToRequest</code>；手动端到端核对 <code>UIKit.__UICellConfigurationState</code> 与 <code>PencilKit.PKDrawingReference</code></li>
-    <li><strong><code>swift-section objc --mark-sdk-swift-names</code></strong>：<code>markSDKSwiftNamesFlagMapsToRequest</code>、<code>missingSDKWarnsAndPrintsUnmarkedOutput</code>；手动核对 <code>NS_SWIFT_NAME(PKDrawingReference)</code></li>
-    <li><strong>RuntimeViewer 依赖接线</strong>：<code>./TuistScript.sh check</code> 通过，Debug workspace 能编过</li>
-    <li><strong>RuntimeViewer Core</strong>（实测 Catalyst 的 API notes 来源，量各服务进程的内存）：<code>typeIndexBuildsOncePerPlatformAndMergesConcurrentRequests</code>、<code>unavailableSDKLeavesImportedNamesUnresolved</code>、<code>resolverSurvivesOpaqueTypeSwitchOff</code>、<code>readyIndexClearsSectionInterfaceCaches</code>、<code>readyIndexBroadcastsTypeNamesResolved</code>、<code>waitingRequestPrintsResolvedNamesOnColdIndex</code>、<code>nonWaitingRequestPrintsImportedPlaceholderOnColdIndex</code>、<code>switchOffPrintsImportedPlaceholder</code>、<code>objcHeaderMergesAPINotesWithRefinedMembers</code>、<code>corpusVariantNamesTypeNameResolution</code>、<code>typeIndexStatusCommandRoutesToServingProcess</code>、<code>olderPeerDecodesOptionsWithDefaults</code>、<code>cacheLocationWalksUpToEnclosingApp</code></li>
-    <li><strong>RuntimeViewer App</strong>：<code>typeIndexCoordinatorReportsBuildingReadyAndUnavailable</code>、<code>reportListsImportedTypeNamesPerPlatform</code>、<code>contentRefetchesOnTypeNamesResolved</code>、<code>deleteDerivedDataRemovesTypeIndexDirectory</code>、<code>derivedDataSizeIncludesTypeIndexDirectory</code></li>
-    <li><strong>MCP、命令行、导出与插件</strong>：<code>mcpOptionsWaitForTypeIndex</code>、<code>commandLineOptionsWaitForTypeIndex</code>、<code>exportConfigurationWaitsForTypeIndex</code></li>
+    <li><strong>提案入库</strong>：MachOSwiftSection 的提案索引登记草案；批准后、开工前，在 MachOObjCSection 与 RuntimeViewer 的提案索引各加一行 cross-repository 链接。无代码。</li>
+    <li>✅ <strong>建新包并原样搬入</strong>（2026-11-23 完成）：Package.swift、移入的源码与测试、<code>DeclaredTypeNameSource</code>、<code>ImportedTypeNameCategory</code>、README / LICENSE / AGENTS.md / CI。行为：<code>existingTypeIndexingTestsPassAgainstNonGenericDatabase</code>、<code>declaredTypeNameSourcesAreQueriedLazilyInDependencyOrder</code>、<code>firstImageDeclaringANameWinsTheAttribution</code>、<code>failingSourceIsDroppedAndNotRetried</code></li>
+    <li>✅ <strong>改名规则、Command Line Tools 与 Mac Catalyst</strong>（2026-11-23 完成）：<code>APINotesIndex</code> 改名规则、<code>SourceKitLocator</code>、<code>TypeIndexingAvailability</code>、缓存目录注入；先写测试并确认修复前失败。行为：<code>swiftPrivateWithoutSwiftNameResolvesToDoubleUnderscorePrefix</code>、<code>swiftNameWinsOverSwiftPrivate</code>、<code>plainEntityKeepsItsCName</code>、<code>sourceKitIsFoundInCommandLineToolsLayout</code>、<code>sourceKitIsFoundInXcodeToolchainLayout</code>、<code>missingSourceKitSkipsModuleInterfacesButKeepsAPINotes</code>、<code>availabilityReportsMissingSDK</code>、<code>cacheEntriesAreWrittenUnderTheGivenDirectory</code>、<code>macCatalystSearchesIOSSupportFirst</code>、<code>macCatalystTargetTripleIsMacABI</code>、<code>macCatalystInterfaceGenerationSeesIOSSupportFrameworks</code>、<code>macCatalystCachesApartFromMacOS</code>。实测（<code>SDKIntegrationTests</code>）：Catalyst 下 <code>UICellConfigurationState</code> → <code>UIKit</code> / <code>__UICellConfigurationState</code>；macOS 下 <code>PKDrawing</code> → <code>PencilKit</code> / <code>PKDrawingReference</code>；sourcekitd 冷生成 Catalyst 的 UIKit 接口后 <code>UIStackView</code> → <code>UIKit</code></li>
+    <li>✅ <strong>ObjC 容器的 API notes 查询</strong>（2026-11-23 完成；用户批准后 fork 推送并打 <code>0.3.0</code>，新仓库 <code>swift-type-indexing</code> 公开、推送并打 <code>0.1.0</code>）：<code>SwiftImportAnnotation</code>、<code>ObjCContainerSwiftImportAnnotations</code>、<code>TypeDatabase.swiftImportAnnotations(…)</code>。行为：<code>classAnnotationCarriesSwiftNameAndSwiftPrivate</code>、<code>methodAnnotationIsKeyedBySelectorAndKind</code>、<code>propertyAnnotationIsKeyedByNameAndKind</code>、<code>protocolAnnotationsAreSeparateFromClassAnnotations</code>。前置：swift-apinotes fork 把 <code>ObjCContext.methods</code> / <code>properties</code> 改成 <code>public</code>，打 <code>0.3.0</code>。新包打 <code>0.1.0</code> 并推送（公开仓库）。</li>
+    <li>✅ <strong>MachOObjCSection 接入新包</strong>（2026-11-23 完成）：<code>Package.swift</code>、<code>ObjCTypeIndexing</code>、<code>ObjCDeclaredTypeNames</code>。行为：<code>declaredTypeNamesListFoundationClassesProtocolsAndStructs</code>、<code>typeDatabaseAttributesPrivateClassThroughObjCDeclaredTypeNames</code></li>
+    <li>✅ <strong>ObjC 头文件的 Swift 命名标注</strong>（2026-11-23 完成）：<code>ObjCSwiftImportNotes</code> 扩展、协议与 category 入口、类型一级宏、API notes 转换。行为：<code>memberSwiftNamePrintsBeforeRefinedForSwift</code>、<code>classDeclarationNotePrintsOnItsOwnLineAboveInterface</code>、<code>protocolInterfaceTakesNotes</code>、<code>categoryMembersTakeNotes</code>、<code>mergingKeepsBothSourcesAndTheArgumentWinsPerField</code>、<code>apiNotesForClassBecomeNotes</code>（临时 <code>.apinotes</code> 驱动）、<code>markedRenderingStillProjectsToPlainRendering</code></li>
+    <li>✅ <strong>MachOSwiftSection 切换到新包</strong>（2026-11-23 完成）：删 <code>TypeIndexing</code>、加 <code>SwiftTypeNameResolution</code>、CLI 接线、文档与 skill。行为：<code>resolverMapsEveryPrinterCategory</code>、<code>resolverPrintsResolvedModuleAndSwiftName</code>（假的 <code>TypeDatabase</code> 数据驱动打印器）、<code>resolveCModuleNamesFlagStillMapsToRequest</code>。端到端（维护者手动）：<code>swift-section interface --resolve-c-module-names</code> 对 UIKitCore（Catalyst）输出 <code>UIKit.__UICellConfigurationState</code>、对 PencilKit 输出 <code>PencilKit.PKDrawingReference</code></li>
+    <li>✅ <strong><code>swift-section objc --mark-sdk-swift-names</code></strong>（2026-11-23 完成；<code>ObjCRequestTests</code> 按 CI 的步骤先用 Xcode 26.6 编出 <code>SymbolTestsCore</code> 夹具再跑，17 条全过）。行为：<code>markSDKSwiftNamesFlagMapsToRequest</code>、<code>missingSDKWarnsAndPrintsUnmarkedOutput</code>。端到端（手动）：PencilKit 的 <code>PKDrawing</code> 头文件出现 <code>NS_SWIFT_NAME(PKDrawingReference)</code></li>
+    <li>✅ <strong>RuntimeViewer 依赖接线</strong>（2026-11-23 完成；<code>Tuist.swift</code> 顺带补上 MachOSwiftSection 早已有的 <code>SwiftSectionTestingMacros</code>，<code>next</code> 上 <code>check</code> 本来就因它不过；<code>RuntimeViewerServer.xcodeproj</code> 自带的锁文件在 <code>next</code> 上已过时，重新解析会带进无关升级，没有动）：<code>RuntimeViewerCore/Package.swift</code>、Local workspace 与 <code>.worktrees</code> 链接、Tuist、<code>AGENTS.md</code> 依赖下限、三个 workspace 的锁文件（<code>UpdatePackagesScript.sh</code>）。行为：<code>./TuistScript.sh check</code> 通过；Debug workspace 能编过</li>
+    <li>✅ <strong>RuntimeViewer Core</strong>（2026-11-23 完成；行为测试按实际做法落在 <code>RuntimeTypeNamesTests</code>、<code>SharedCacheRoutingDeclarationTests</code> 与 MachOSwiftSection、swift-type-indexing 的测试里；各服务进程多出的 <code>malloc</code> 在用量没有量，留作后续）：<code>TypeNames/</code> 目录、<code>RuntimeDataChange</code> 新 case、<code>typeIndexStatus</code> 命令、打印器接线、ObjC 标注合并、三个选项、语料 variant、四个服务与命令行 host 的入口配置。实测：Catalyst 镜像的 API notes 确实来自 <code>iOSSupport</code>；记录每个服务进程多出的 <code>malloc</code> 在用量。行为：<code>typeIndexBuildsOncePerPlatformAndMergesConcurrentRequests</code>、<code>unavailableSDKLeavesImportedNamesUnresolved</code>、<code>resolverSurvivesOpaqueTypeSwitchOff</code>、<code>readyIndexClearsSectionInterfaceCaches</code>、<code>readyIndexBroadcastsTypeNamesResolved</code>、<code>waitingRequestPrintsResolvedNamesOnColdIndex</code>、<code>nonWaitingRequestPrintsImportedPlaceholderOnColdIndex</code>、<code>switchOffPrintsImportedPlaceholder</code>、<code>objcHeaderMergesAPINotesWithRefinedMembers</code>、<code>corpusVariantNamesTypeNameResolution</code>、<code>typeIndexStatusCommandRoutesToServingProcess</code>、<code>olderPeerDecodesOptionsWithDefaults</code>、<code>cacheLocationWalksUpToEnclosingApp</code>（App、XPC service、内嵌命令行三种位置）</li>
+    <li>✅ <strong>RuntimeViewer App</strong>（2026-11-23 完成；<code>contentRefetchesOnTypeNamesResolved</code> 即 <code>ContentTextPipelineTests</code> 的「a finished batch of the type index refetches the interface on screen」；Delete Derived Data 的两条没有单独的测试，App 一侧只是把同一个目录交给 <code>RuntimeTypeIndexLocation</code> 的量与删，后者有测试）：协调器、Report、工具栏活动、内容刷新、Generation Options 两个开关、Delete Derived Data。行为：<code>typeIndexCoordinatorReportsBuildingReadyAndUnavailable</code>、<code>reportListsImportedTypeNamesPerPlatform</code>、<code>contentRefetchesOnTypeNamesResolved</code>、<code>deleteDerivedDataRemovesTypeIndexDirectory</code>、<code>derivedDataSizeIncludesTypeIndexDirectory</code></li>
+    <li>✅ <strong>MCP、命令行、导出与插件</strong>（2026-11-23 完成；MCP 一条由 <code>RuntimeTypeNamesTests</code> 的「An interactive print does not wait…; MCP's does」覆盖）：<code>waitsForTypeIndex</code>、skill、两个插件清单 <code>1.4.0</code>、<code>CommandLineInterface.md</code>。行为：<code>mcpOptionsWaitForTypeIndex</code>、<code>commandLineOptionsWaitForTypeIndex</code>、<code>exportConfigurationWaitsForTypeIndex</code></li>
   </ol>
-  <p>收尾时判断：新包的 <code>TypeIndexingPipeline.md</code> 承担实现说明，RuntimeViewer 的 <code>DerivedData.md</code> 加一节；预计新术语「类型索引」「Swift 命名标注」进各仓库的术语表。</p>
+  <p>收尾时必须判断两件事，结果写进决策日志：要不要配套专题文章（新包的 <code>TypeIndexingPipeline.md</code> 承担实现说明；RuntimeViewer 预计在 <code>DerivedData.md</code> 加一节类型索引缓存，是否另写实现说明到时判断）；有没有引入新术语（预计有「类型索引（type index）」「Swift 命名标注」，登记进各仓库的 <code>Glossary.md</code>）。</p>
 </section>
 
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>12 条，最近一条：Accepted</summary>
+    <summary>27 条，最近一条：实现完成，待用户看过后收尾</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
         <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
         <tbody>
-          <tr><td class="numeric">2026-11-23</td><td>Created as Draft</td><td>RuntimeViewer 把桥接类型显示成 <code>__C.UICellConfigurationState</code>；二进制只记 ObjC 运行时名，改名只在 SDK 里，而已有的 <code>TypeIndexing</code> RuntimeViewer 用不上、改名规则有误。用户决定抽成独立包，三方接入</td></tr>
-          <tr><td class="numeric">2026-11-23</td><td>否决二进制层面的推断</td><td>同名桥接 20 个里 14 个是 <code>XReference</code></td></tr>
-          <tr><td class="numeric">2026-11-23</td><td>ObjC 一侧并入本提案</td><td>用户选择一并做；新包因此不能依赖 MachOObjCSection</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>Created as Draft</td><td>RuntimeViewer 把 <code>UICellConfigurationState</code> 的桥接类型显示成 <code>__C.UICellConfigurationState</code>。查明二进制只记 ObjC 运行时名、改名只在 SDK 的 API notes 里，而 MachOSwiftSection 已有的 <code>TypeIndexing</code> RuntimeViewer 用不上、且改名规则有误；用户决定把它抽成独立的包，三方接入</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>否决二进制层面的推断</td><td>同名又桥接的 20 个 SDK 类型里 14 个是 <code>XReference</code>，与 <code>__X</code> 在二进制里无法区分</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>ObjC 一侧并入本提案</td><td>用户选择一并做，而不是另起提案；新包因此不能依赖 MachOObjCSection，ObjC 元数据一层改为协议注入</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>新仓库名 <code>swift-type-indexing</code></td><td>用户选择；模块名仍是 <code>TypeIndexing</code></td></tr>
-          <tr><td class="numeric">2026-11-23</td><td>找得到 SDK 就自动开</td><td>用户选择；Command Line Tools 也带 macOS SDK 与 sourcekitd（用户指出，本机核对）</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>RuntimeViewer 找得到 SDK 就自动开</td><td>用户选择；可用条件从「装了 Xcode」改为「找得到该平台 SDK」，因为 Command Line Tools 也带 macOS SDK 与 sourcekitd（用户指出，本机核对）</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>ObjC 只标 Swift 命名、不加 <code>@import</code></td><td>用户选择</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>后台预建、先显示 <code>__C.</code></td><td>用户选择</td></tr>
-          <tr><td class="numeric">2026-11-23</td><td>提案放 MachOSwiftSection</td><td>用户选择；其余仓库加 cross-repository 行</td></tr>
-          <tr><td class="numeric">2026-11-23</td><td>MCP、命令行、导出一起换</td><td>用户选择；非交互调用方等索引就绪（agent 自定，可推翻）</td></tr>
-          <tr><td class="numeric">2026-11-23</td><td>开关放 Generation Options</td><td>agent 自定，可推翻</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>提案放在 MachOSwiftSection</td><td>用户选择；其余三个仓库的索引加 cross-repository 行</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>MCP、命令行、导出一起换</td><td>用户选择；为了输出稳定，这些非交互的调用方等索引就绪（agent 自定，可推翻）</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>开关放 Generation Options 面板</td><td>agent 自定，可推翻：与现有打印开关同处，随请求发出、进缓存键、命令行也读同一份</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>共识确认</td><td>用户确认以上决定，开始写提案</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>Accepted</td><td>用户批准，开始实现</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>swift-apinotes fork 加入范围</td><td>它的 <code>ObjCContext.methods</code> / <code>properties</code> 在 0.2.0 是 internal，ObjC 成员的标注读不到。改为 <code>public</code> 并打 0.3.0（每个字段一行），比在新包里另写一套 YAML 解析更小；推送与打 tag 和新仓库一起经用户批准</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>新增 <code>SDKPlatform.macCatalyst</code></td><td>提案原定 Catalyst 按 <code>.macOS</code> 索引并「落地时实测确认」：实测 <code>SDKIndexer</code> 不搜 <code>System/iOSSupport</code>，Catalyst UIKit 的 API notes 找不到；sourcekitd 按前端调用解析参数，macabi target 不会自动加 iOSSupport 框架路径（报 <code>Could not load module: UIKit</code>）。新 case 读 macOS SDK、先搜 iOSSupport、显式传 <code>-Fsystem</code></td></tr>
+          <tr><td class="numeric">2026-11-23</td><td><code>index</code> 可多次调用、优先级改为查询时决定</td><td>RuntimeViewer 加载新镜像时要追加模块；原先 API notes 靠写入顺序覆盖模块接口名，追加的接口名会把名字抢回去</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>可用性返回 <code>sdkSettings</code> 而非 <code>sdkPath</code></td><td>RuntimeViewer 的语料 variant 要 SDK 版本与 build，<code>SDKSettings</code> 一并给出</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>加默认关闭的 <code>SDKIntegrationTests</code></td><td>单测覆盖不到真实 SDK 布局与 sourcekitd 参数，上面两个 Catalyst 问题都是实测才发现的；手动开启，不进 CI</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>MachOObjCSection、MachOSwiftSection、RuntimeViewer 临时钉功能分支</td><td>MachOObjCSection 0.8.209 要等收尾才发，实现期间 MachOSwiftSection 对它、RuntimeViewer 对两者都钉 <code>branch: "feature/swift-type-indexing-package"</code>（清单里注明 TEMPORARY）；收尾时发 0.8.209，MachOSwiftSection 改回 <code>"0.8.209" ..&lt; "0.9.0"</code>，RuntimeViewer 改回 <code>branch: "next"</code></td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>RuntimeViewer 用进程开关，不配置缓存位置</td><td>原定在各入口「配置缓存位置」。改为 <code>RuntimeTypeNames.enableInThisProcess()</code>，照派生数据的开关：缓存位置能从 <code>Bundle.main</code> 推出，真正要控制的是哪些进程读 SDK、跑 sourcekitd——测试、注入的 payload、App 本身都不该。Catalyst helper 也打开（它跑的是 Catalyst 的 engine）；命令行 host 只在独立运行时打开</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td><code>RuntimeTypeIndex</code> 不经 <code>@Dependency</code></td><td>原定 <code>@Dependency</code> + <code>fileprivate static let shared</code>。<code>RuntimeViewerCore</code> 不依赖 swift-dependencies，项目里 <code>RuntimeDerivedData</code> 也是同样的 <code>static</code> 单例</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>平台一律取 <code>LC_BUILD_VERSION</code>，批次按镜像排</td><td>原定共享缓存镜像查分区、文件查 <code>RuntimeFile.platform</code>，engine 连上时预建。改为每个镜像第一次打印时排一批（它链接的模块 + 它自己的 ObjC 元数据）：一条规则覆盖三种镜像；只为打开了的镜像建，不在连上时为整个共享缓存跑 sourcekitd。依赖镜像的私有类型等那个依赖被打开时才算入</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>刷新靠 generation，等待放在 section 配置时</td><td>原定索引就绪时主动通知各 section 清缓存、在 <code>_interface(for:)</code> 里等待。改为 section 下次配置时比较平台的 generation，自己重建解析器、清缓存；<code>waitsForTypeIndex</code> 在 <code>updateConfiguration</code> 里等这个镜像那一批。少一条 actor 之间的回调，也不用记哪些 section 活着</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>旧对端的状态答 <code>.empty</code>，不显示</td><td>原定把「无应答」当 <code>.unavailable</code>。旧对端（iOS 设备、注入的进程、旧版本）本来就没有索引，Report 里多一行「不可用」只是噪音；查询经连接自带的 2 秒超时发出，因为没有处理器的命令在 XPC 上被丢弃、不回错，靠任务取消收不了尾</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>语料 variant 只带 macOS SDK 的版本</td><td>原定 <code>TypeNames&lt;platform&gt;-&lt;SDK&gt;</code>。服务进程的共享缓存镜像——macOS 与 Mac Catalyst——都对着同一个 macOS SDK 读，一段就够</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>内容区刷新前自己清一次接口缓存</td><td>文档的接口缓存在同一事件上清空，但它和内容区的订阅各自调度，先后没有保证；内容区先在主线程清再重新取，读不到批次之前的旧结果</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>一条既有测试的夹具换类</td><td>RuntimeViewerCore 现在经 swift-apinotes 静态链接 MetaCodable 的 <code>HelperCoders</code>，它让 <code>ISO8601DateFormatter</code> 遵循 <code>DateFormatConverter</code>；镜像把一个类的遵循列成一个条目，「只采纳私有 <code>@objc</code> 协议的 category 什么都不打印」那条测试的前提因此不成立。夹具改用没有任何依赖扩展的 <code>EnergyFormatter</code>，测试先断言该类只有一个遵循条目</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td>实现完成，待用户看过后收尾</td><td>新包 0.1.0 与 swift-apinotes 0.3.0 已发；MachOObjCSection、MachOSwiftSection、RuntimeViewer 的功能分支已推送并在本地合进各自的常驻检出（未推送）。验证：MachOSwiftSection 的相关测试与夹具测试通过；RuntimeViewer Core 与应用层的整套测试在 Ultra 上跑过，红的都是记忆中的基线红灯或满载超时，单独重跑通过（<code>TitleActivityIndicatorTests</code> 一条基线必红）；<code>./TuistScript.sh check</code> 通过，Tuist workspace 编出整个 App。收尾时发 MachOObjCSection 0.8.209、把临时分支钉改回去</td></tr>
         </tbody>
       </table>
       </div>
