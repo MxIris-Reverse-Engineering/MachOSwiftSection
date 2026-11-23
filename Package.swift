@@ -102,10 +102,20 @@ var dependencies: [Package.Dependency] = [
 
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
 
-    // TypeIndexing (all its sources are `#if os(macOS)`; both products carry
-    // a macOS-only platform condition on the target dependency)
-    .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
-    .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
+    // The SDK index `SwiftTypeNameResolution` resolves `__C` types with, moved
+    // out of this package (proposal swift-type-indexing-package). Its sources
+    // are all `#if os(macOS)`, so targets depend on it with a macOS-only
+    // condition.
+    .package(
+        local: .package(
+            path: "../swift-type-indexing",
+            isRelative: true,
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/swift-type-indexing",
+            from: "0.1.0",
+        ),
+    ),
 
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
@@ -225,7 +235,13 @@ extension Package.Dependency {
             // 0.8.208 defines `SymbolLanguage.objectiveC` and registers it when
             // its image loads, and takes MachOKitExtensions 3.0.0, which this
             // package requires (proposal split-symbol-language).
-            "0.8.208" ..< "0.9.0",
+            // 0.8.209 adds `ObjCTypeIndexing`, the bridge to swift-type-indexing
+            // `SwiftTypeNameResolution` hands dependency images through
+            // (proposal swift-type-indexing-package).
+            // TEMPORARY: the feature branch until MachOObjCSection 0.8.209 is
+            // released; the proposal's wrap-up puts the range back:
+            // "0.8.209" ..< "0.9.0",
+            branch: "feature/swift-type-indexing-package",
         ),
     )
 }
@@ -883,23 +899,26 @@ extension Target {
         path: "Sources/Output/SwiftInterface",
     )
 
-    /// Module-attribution index for `__C` types (evolution proposal 0009):
-    /// resolves `__C.NSString` to `Foundation.NSString` via SourceKit-generated
-    /// module interfaces (substructure, no SwiftSyntax), APINotes renames, and
-    /// a lazy ObjC-metadata index over the binary's dependencies. Every source
-    /// file is `#if os(macOS)`.
-    static let TypeIndexing = Target.target(
-        name: "TypeIndexing",
+    /// The printer's side of swift-type-indexing (proposal
+    /// swift-type-indexing-package): `TypeDatabaseTypeNameResolver` answers the
+    /// printer's `ModuleNameResolving` and `CImportedNameResolving` from a
+    /// `TypeDatabase`, so `__C.UICellConfigurationState` prints as
+    /// `UIKit.__UICellConfigurationState`; `SwiftInterfaceBuilderTypeNameProvider`
+    /// attaches one to a `SwiftInterfaceBuilder` for a binary and its
+    /// dependencies. Every source file is `#if os(macOS)`.
+    static let SwiftTypeNameResolution = Target.target(
+        name: "SwiftTypeNameResolution",
         dependencies: [
             .target(.SwiftInterface),
+            .target(.SwiftPrinting),
+            .target(.MachOSwiftSection),
             .product(.MachOKit),
-            .product(name: "ObjCIndexing", package: "MachOObjCSection"),
+            .product(.MachOKitExtensions),
             .product(name: "ObjCMetadataSource", package: "MachOObjCSection"),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
-            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
-            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
+            .product(name: "ObjCTypeIndexing", package: "MachOObjCSection", condition: .when(platforms: [.macOS])),
+            .product(name: "TypeIndexing", package: "swift-type-indexing", condition: .when(platforms: [.macOS])),
         ],
-        path: "Sources/Declaration/TypeIndexing",
+        path: "Sources/Output/SwiftTypeNameResolution",
     )
 
     // MARK: - Commands
@@ -926,7 +945,9 @@ extension Target {
             .target(.SwiftDiffing),
             .target(.SwiftInterface),
             .target(.SwiftPrivateDiscriminators),
-            .target(.TypeIndexing),
+            .target(.SwiftTypeNameResolution),
+            // `APINotesFile`, which checks `--supplementary-apinotes` paths.
+            .product(name: "TypeIndexing", package: "swift-type-indexing", condition: .when(platforms: [.macOS])),
             .target(.Utilities),
             // `refs` and `symbolicate`.
             .target(.CrossReferenceAnalysis),
@@ -1222,10 +1243,13 @@ extension Target {
         swiftSettings: testSettings,
     )
 
-    static let TypeIndexingTests = Target.testTarget(
-        name: "TypeIndexingTests",
+    static let SwiftTypeNameResolutionTests = Target.testTarget(
+        name: "SwiftTypeNameResolutionTests",
         dependencies: [
-            .target(.TypeIndexing),
+            .target(.SwiftTypeNameResolution),
+            .target(.SwiftPrinting),
+            .product(.MachOKit),
+            .product(name: "TypeIndexing", package: "swift-type-indexing", condition: .when(platforms: [.macOS])),
         ],
         swiftSettings: testSettings,
     )
@@ -1486,7 +1510,8 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftInterface),
             .target(.SwiftDiffing),
-            .target(.TypeIndexing),
+            .target(.SwiftTypeNameResolution),
+            .product(name: "TypeIndexing", package: "swift-type-indexing", condition: .when(platforms: [.macOS])),
             .target(.SwiftSectionTestingSupport),
             .target(.SwiftSectionFixtureSupport),
             .product(.MachOKit),
@@ -1532,7 +1557,7 @@ let package = Package(
         .library(.SwiftPrinting),
         .library(.SwiftSpecialization),
         .library(.SwiftInterface),
-        .library(.TypeIndexing),
+        .library(.SwiftTypeNameResolution),
         .library(.SwiftSectionKit),
         .executable(.swift_section),
     ],
@@ -1560,7 +1585,7 @@ let package = Package(
         .SwiftPrinting,
         .SwiftSpecialization,
         .SwiftInterface,
-        .TypeIndexing,
+        .SwiftTypeNameResolution,
         .SwiftSectionKit,
         .SwiftSectionMacros,
         .SwiftSectionTestingMacros,
@@ -1584,7 +1609,7 @@ let package = Package(
         .SwiftOutputTransformerTests,
         .SwiftLayoutTests,
         .SwiftDumpTests,
-        .TypeIndexingTests,
+        .SwiftTypeNameResolutionTests,
         .SwiftPrintingTests,
         .SwiftDeclarationRenderingTests,
         .SwiftThunkAnalysisTests,

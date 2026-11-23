@@ -7,7 +7,7 @@ import MachODependencies
 import MachOSwiftSection
 import MachOFoundation
 
-/// The images a provider such as TypeIndexing's
+/// The images a provider such as `SwiftTypeNameResolution`'s
 /// `SwiftInterfaceBuilderTypeNameProvider` works against: the root plus its
 /// **direct** dependencies only.
 ///

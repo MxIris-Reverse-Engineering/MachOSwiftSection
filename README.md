@@ -73,7 +73,7 @@ Since 0.25.0 the Mach-O layer underneath — `MachOBase`, `MachOFoundation`, `Ma
 | `SwiftThunkAnalysis` | Reads a type stored behind a metadata accessor thunk (availability-conditional opaque types, noncopyable fields) by evaluating its ARM64 code instead of running it, and ties a class's ObjC method table to its Swift members. |
 | `CrossReferenceAnalysis` | What each function of a loaded arm64 image calls and references — functions, Objective-C classes, Swift types — read from its machine code. `MachOImage` only. |
 | `SwiftSpecialization` | Runtime specialization of generic types (`GenericSpecializer`). |
-| `TypeIndexing` | Attributes `__C` types to their real module (`__C.NSString` → `Foundation.NSString`) through SDK module interfaces and APINotes. macOS only. |
+| `SwiftTypeNameResolution` | Resolves `__C` types to their real module and Swift name (`__C.NSString` → `Foundation.NSString`, `__C.UICellConfigurationState` → `UIKit.__UICellConfigurationState`) through [swift-type-indexing](https://github.com/MxIris-Reverse-Engineering/swift-type-indexing), which reads the SDK's module interfaces and API notes. macOS only. |
 
 **Declarations and output**
 

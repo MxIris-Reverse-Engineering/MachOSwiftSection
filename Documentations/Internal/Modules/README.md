@@ -34,7 +34,7 @@
 | SwiftObjCInterop | [SwiftObjCInterop.md](SwiftObjCInterop.md) | ✅ 已写（拆分来历：[0089-swift-objc-interop-module](../../Evolutions/0089-swift-objc-interop-module.md)） |
 | SwiftLayout | [SwiftLayout.md](SwiftLayout.md) | ✅ 已写（专题：[StaticLayoutEngine.md](../StaticLayoutEngine.md)、[StaticLayoutDependencyClosure.md](../StaticLayoutDependencyClosure.md)） |
 | SwiftDiffing | — | 待写（专题：[ABIDiffDesignAndLimitations.md](../ABIDiffDesignAndLimitations.md)、[ABIEvolutionDesign.md](../ABIEvolutionDesign.md)） |
-| TypeIndexing | — | 待写（专题：[TypeIndexingPipeline.md](../TypeIndexingPipeline.md)） |
+| SwiftTypeNameResolution | — | 适配层，打印器与 swift-type-indexing 之间（索引本身的说明在 [swift-type-indexing 的 TypeIndexingPipeline.md](https://github.com/MxIris-Reverse-Engineering/swift-type-indexing/blob/main/Documentations/Internal/TypeIndexingPipeline.md)） |
 | SwiftOutputTransformer | — | 待写（专题：[OutputTransformerMigration.md](../OutputTransformerMigration.md)） |
 | MachOSwiftSection | — | 待写 |
 | MachOFoundation | — | 由 MachOKitExtensions 提供（2.0.0 起，同名 product）：再导出 `MachOBase`、`MachOSymbols`、`MachODependencies` |

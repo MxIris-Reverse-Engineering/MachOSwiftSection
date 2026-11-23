@@ -241,7 +241,7 @@ struct SymbolicDemanglerFixedShapeExtractionTests {
         // The protocol Swift spells `NSObjectProtocol` is the ObjC protocol
         // `NSObject`; the reference record mangles the ObjC runtime name
         // (`So8NSObject_p`), and the Swift-side rename is APINotes' business
-        // (TypeIndexing), not the demangler's.
+        // (swift-type-indexing), not the demangler's.
         let printed = node.print(using: .default)
         #expect(printed == "__C.NSCopying & __C.NSObject")
 

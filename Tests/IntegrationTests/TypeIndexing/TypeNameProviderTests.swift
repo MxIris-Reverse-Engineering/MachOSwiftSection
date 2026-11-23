@@ -6,21 +6,22 @@ import MachOKit
 import MachOSwiftSection
 import SwiftInterface
 import Testing
-import TypeIndexing
+import SwiftTypeNameResolution
 @testable import SwiftSectionTestingSupport
 import MachODependencies
 import SwiftPrinting
 import SwiftIndexing
 import Semantic
 
-/// Maintainer-run end-to-end for the TypeIndexing provider (evolution
-/// proposal 0008): builds the fixture's interface with and without
+/// Maintainer-run end-to-end for the `__C` type-name provider (evolution
+/// proposal 0008, moved onto swift-type-indexing by proposal
+/// swift-type-indexing-package): builds the fixture's interface with and without
 /// `SwiftInterfaceBuilderTypeNameProvider` attached and prints every line the
 /// provider changed, plus any `__C.` reference left unresolved.
 ///
 /// The first run per SDK build generates the linked modules' interfaces
 /// through sourcekitd (tens of seconds) and caches the extraction under
-/// `Application Support/MachOSwiftSection/SDKIndexer/`.
+/// `Application Support/swift-type-indexing/SDKIndexer/`.
 final class TypeNameProviderMachOFileTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 

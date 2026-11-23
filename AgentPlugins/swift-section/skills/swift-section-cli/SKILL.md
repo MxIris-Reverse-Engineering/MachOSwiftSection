@@ -351,10 +351,14 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
-Turns `__C.NSString` into `Foundation.NSString`. Needs macOS 13+ and an Xcode installation, and
-the first run per SDK generates module interfaces through sourcekitd — slow once, cached after.
-Attribution against a non-macOS binary is limited (it warns and degrades rather than failing).
-`--supplementary-apinotes` only does anything alongside it.
+Turns `__C.NSString` into `Foundation.NSString`, and applies the SDK's Swift renames: a
+`SwiftPrivate` type prints with `__` (`UIKit.__UICellConfigurationState`), a `SwiftName` one under
+that name (`PencilKit.PKDrawingReference`). Needs macOS 13+ and the binary's SDK in the active
+developer directory — Xcode, or the Command Line Tools for macOS and Mac Catalyst binaries. The
+first run per SDK generates module interfaces through sourcekitd — slow once (UIKit takes about two
+minutes), cached after in `~/Library/Application Support/swift-type-indexing`. Without sourcekitd only
+API notes and Objective-C metadata attribute names. A binary whose SDK is not installed warns and
+prints `__C.` unresolved. `--supplementary-apinotes` only does anything alongside it.
 
 ## 9. Reading the output: things that look like bugs and are not
 
