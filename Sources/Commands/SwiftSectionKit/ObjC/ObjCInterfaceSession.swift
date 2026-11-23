@@ -85,28 +85,34 @@ struct ObjCInterfaceSession {
 
     // MARK: - Rendering
 
-    func interface(of kind: ObjCDeclarationKind, named name: String) -> SemanticString? {
+    /// The declaration of `kind` named `name`, with `swiftImportNotes` printed
+    /// as their macros on a class, protocol or category (structs and unions
+    /// take none).
+    func interface(of kind: ObjCDeclarationKind, named name: String, swiftImportNotes: ObjCSwiftImportNotes = ObjCSwiftImportNotes()) -> SemanticString? {
         switch kind {
         case .classes:
             builder.classInterface(
                 named: name,
                 options: options,
                 cTypeReplacements: cTypeReplacements,
-                ivarOffsetCommentBuilder: ivarOffsetCommentBuilder
+                ivarOffsetCommentBuilder: ivarOffsetCommentBuilder,
+                swiftImportNotes: swiftImportNotes
             )
         case .protocols:
             builder.protocolInterface(
                 named: name,
                 options: options,
                 cTypeReplacements: cTypeReplacements,
-                ivarOffsetCommentBuilder: ivarOffsetCommentBuilder
+                ivarOffsetCommentBuilder: ivarOffsetCommentBuilder,
+                swiftImportNotes: swiftImportNotes
             )
         case .categories:
             builder.categoryInterface(
                 uniqueName: name,
                 options: options,
                 cTypeReplacements: cTypeReplacements,
-                ivarOffsetCommentBuilder: ivarOffsetCommentBuilder
+                ivarOffsetCommentBuilder: ivarOffsetCommentBuilder,
+                swiftImportNotes: swiftImportNotes
             )
         case .structs:
             builder.structInterface(

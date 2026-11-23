@@ -258,6 +258,17 @@ struct ObjCSectionCommandTests {
         #expect(try swiftView.makeRequest().printsSwiftImport)
     }
 
+    @Test("The interface subcommand marks the SDK's Swift names only with --mark-sdk-swift-names, and the request knows")
+    func markSDKSwiftNamesFlagMapsToRequest() throws {
+        let plain = try ObjCInterfaceCommand.parse(["PKDrawing", "/tmp/Sample"])
+        #expect(!plain.marksSDKSwiftNames)
+        #expect(try !plain.makeRequest().marksSDKSwiftNames)
+
+        let marked = try ObjCInterfaceCommand.parse(["PKDrawing", "/tmp/Sample", "--mark-sdk-swift-names"])
+        #expect(marked.marksSDKSwiftNames)
+        #expect(try marked.makeRequest().marksSDKSwiftNames)
+    }
+
     // MARK: - Command Tree
 
     @Test("dump is the default objc subcommand")

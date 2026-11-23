@@ -38,7 +38,7 @@ RuntimeViewer · MachOKitUI · swift-decompiler ───┘           └──
 swift-section                       CLI wrapper
 └─ SwiftSectionKit                  one request per subcommand (+ MachOObjCSection's ObjC* products for `objc`)
    ├─ SwiftDump                     the `dump` output
-   ├─ TypeIndexing                  `__C` type → module attribution (macOS only)
+   ├─ SwiftTypeNameResolution       `__C` type → module + Swift name via swift-type-indexing (macOS only)
    └─ SwiftInterface                orchestrator: single version / diff / evolution
       ├─ SwiftIndexing              image → declaration model
       ├─ SwiftPrinting              declaration model → Swift source (a peer of SwiftIndexing)

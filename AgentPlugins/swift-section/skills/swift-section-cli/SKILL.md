@@ -51,7 +51,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 0.25.0 `objc evolution --interface` / `--emit-available` / `--platform`,
 `objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`,
 `interface --expand-macros` and the `refs` and `symbolicate` subcommands, and after 0.26.0
-`--multiline-types` / `--maximum-line-width` on `dump` and `interface`.
+`--multiline-types` / `--maximum-line-width` on `dump` and `interface`, and
+`objc interface --mark-sdk-swift-names`.
 When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
@@ -351,10 +352,18 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
 
 ## 8. `--resolve-c-module-names` (interface, macOS only)
 
-Turns `__C.NSString` into `Foundation.NSString`. Needs macOS 13+ and an Xcode installation, and
-the first run per SDK generates module interfaces through sourcekitd — slow once, cached after.
-Attribution against a non-macOS binary is limited (it warns and degrades rather than failing).
-`--supplementary-apinotes` only does anything alongside it.
+Turns `__C.NSString` into `Foundation.NSString`, and applies the SDK's Swift renames: a
+`SwiftPrivate` type prints with `__` (`UIKit.__UICellConfigurationState`), a `SwiftName` one under
+that name (`PencilKit.PKDrawingReference`). Needs macOS 13+ and the binary's SDK in the active
+developer directory — Xcode, or the Command Line Tools for macOS and Mac Catalyst binaries. The
+first run per SDK generates module interfaces through sourcekitd — slow once (UIKit takes about two
+minutes), cached after in `~/Library/Application Support/swift-type-indexing`. Without sourcekitd only
+API notes and Objective-C metadata attribute names. A binary whose SDK is not installed warns and
+prints `__C.` unresolved. `--supplementary-apinotes` only does anything alongside it.
+
+`objc interface --mark-sdk-swift-names` reads the same SDK's API notes for an Objective-C header:
+the class's or protocol's `NS_SWIFT_NAME(...)` / `NS_REFINED_FOR_SWIFT` on a line above
+`@interface`, a member's before its `;`. API notes only, about two seconds, no sourcekitd.
 
 ## 9. Reading the output: things that look like bugs and are not
 

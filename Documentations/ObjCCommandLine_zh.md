@@ -30,6 +30,9 @@ swift-section objc interface <name> <file>
 # 同一个类 / 协议 / 分类，打印成 Swift 导入它的样子
 swift-section objc interface <name> <file> --swift
 
+# 头文件里标出 SDK 的 API notes 给它的 NS_SWIFT_NAME / NS_REFINED_FOR_SWIFT
+swift-section objc interface <name> <file> --mark-sdk-swift-names
+
 # 把二进制的 Objective-C API 冻结成基线快照（JSON）
 swift-section objc snapshot <file> --label 26.0 -o baseline.json
 
@@ -102,6 +105,25 @@ class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __
   按它的唯一名字指定，例如 `CIColor(NSAppKitAdditions)`。
 - Swift 类按运行时名指定（`_TtC6AppKit11SliderModel`），与头文件一样。struct 与 union 没有
   Swift 视图。
+
+## SDK 的 Swift 命名（`interface --mark-sdk-swift-names`）
+
+二进制不留 `NS_SWIFT_NAME(...)` 与 `NS_REFINED_FOR_SWIFT` 的痕迹。加 `--mark-sdk-swift-names` 时，`interface` 从当前开发者目录
+里、这个二进制所属平台的 SDK 的 API notes 把它们读回来，照头文件的写法打出：
+
+```
+$ swift-section objc interface PKDrawing --uses-system-dyld-shared-cache -n PencilKit --mark-sdk-swift-names
+NS_SWIFT_NAME(PKDrawingReference)
+@interface PKDrawing : NSObject <NSCopying, NSSecureCoding>
+…
+```
+
+- 类与协议本身的宏单独一行，在 `@interface` / `@protocol` 上面；成员的宏在分号前，`NS_SWIFT_NAME(...)` 在前。category
+  只打成员的宏，取自它所扩展的类的 API notes。
+- 只打这两个宏，nullability 等其余 API notes 属性不打。
+- SDK 按二进制 `LC_BUILD_VERSION` 里的平台找：macOS 与 Mac Catalyst 的二进制有 Xcode 或 Command Line Tools 即可，其他平台要
+  Xcode 里有对应 SDK。本机没有对应 SDK 时打一条警告，照常输出不带标注的头文件。要 macOS 13；与 `--swift` 同用时忽略。
+- 只读 API notes（约两秒），不生成模块接口。
 
 ## 十个生成开关
 

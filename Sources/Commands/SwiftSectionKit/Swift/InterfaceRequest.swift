@@ -11,6 +11,7 @@ import OutputTransformer
 import SwiftOutputTransformer
 #if os(macOS)
 import TypeIndexing
+import SwiftTypeNameResolution
 import Semantic
 #endif
 

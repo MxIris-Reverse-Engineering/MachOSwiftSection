@@ -33,6 +33,9 @@ swift-section objc interface <name> <file>
 # The same class, protocol or category as Swift imports it
 swift-section objc interface <name> <file> --swift
 
+# The header with the NS_SWIFT_NAME / NS_REFINED_FOR_SWIFT the SDK's API notes give it
+swift-section objc interface <name> <file> --mark-sdk-swift-names
+
 # Freeze a binary's Objective-C API as a baseline snapshot (JSON)
 swift-section objc snapshot <file> --label 26.0 -o baseline.json
 
@@ -120,6 +123,28 @@ class NSColor: __C.NSObject, __C.NSAccessibilityColor, __C.CAAnimatableValue, __
   another binary is a category; name it by its unique name, such as `CIColor(NSAppKitAdditions)`.
 - A Swift class goes by its runtime name (`_TtC6AppKit11SliderModel`), as for the header. Structs
   and unions have no Swift view.
+
+## SDK Swift names (`interface --mark-sdk-swift-names`)
+
+A binary keeps no trace of `NS_SWIFT_NAME(...)` or `NS_REFINED_FOR_SWIFT`. With
+`--mark-sdk-swift-names`, `interface` reads them back from the API notes of the binary's SDK in the
+active developer directory and prints them as the header did:
+
+```
+$ swift-section objc interface PKDrawing --uses-system-dyld-shared-cache -n PencilKit --mark-sdk-swift-names
+NS_SWIFT_NAME(PKDrawingReference)
+@interface PKDrawing : NSObject <NSCopying, NSSecureCoding>
+…
+```
+
+- The class's or protocol's own macros go on a line above `@interface` / `@protocol`; a member's go
+  ahead of its `;`, `NS_SWIFT_NAME(...)` first. A category prints its members' macros only, taken
+  from the API notes of the class it extends.
+- Only these two macros: nullability and the other API notes attributes are not printed.
+- The SDK is the one the binary's `LC_BUILD_VERSION` names: macOS and Mac Catalyst binaries need
+  Xcode or the Command Line Tools, others the matching SDK in Xcode. A binary no installed SDK covers
+  prints a warning and its plain interface. Needs macOS 13; ignored with `--swift`.
+- Reads API notes only (about two seconds); no module interface is generated.
 
 ## Ten generation switches
 

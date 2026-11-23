@@ -237,4 +237,44 @@ struct ObjCRequestTests {
         }
         #expect(!output.messages(of: .progress).contains { $0.hasPrefix("Indexing") })
     }
+
+    // MARK: - SDK Swift names
+
+    @Test("--mark-sdk-swift-names marks a class with the Swift name the SDK's API notes give it")
+    func markSDKSwiftNamesMarksAnSDKClass() async throws {
+        let output = RecordingOutput()
+        try await ObjCInterfaceRequest(
+            declarationName: "PKDrawing",
+            kind: .classes,
+            source: .systemDyldSharedCache(image: .name("PencilKit")),
+            marksSDKSwiftNames: true
+        ).run(output: output)
+        #expect(output.printedProduct.hasPrefix("NS_SWIFT_NAME(PKDrawingReference)\n@interface PKDrawing"), "\(output.printedProduct.prefix(200))")
+        #expect(output.messages(of: .warning).isEmpty)
+    }
+
+    @Test("--mark-sdk-swift-names leaves a class the API notes do not mention as it was")
+    func markSDKSwiftNamesLeavesAnUnmentionedClassAlone() async throws {
+        let plain = RecordingOutput()
+        try await ObjCInterfaceRequest(declarationName: Self.bridgeClassName, source: Self.fixture).run(output: plain)
+        let marked = RecordingOutput()
+        try await ObjCInterfaceRequest(declarationName: Self.bridgeClassName, source: Self.fixture, marksSDKSwiftNames: true).run(output: marked)
+        #expect(marked.printedProduct == plain.printedProduct)
+        #expect(marked.messages(of: .warning).isEmpty)
+    }
+
+    @Test("--mark-sdk-swift-names on a binary no SDK covers warns and prints the plain interface")
+    func missingSDKWarnsAndPrintsUnmarkedOutput() async throws {
+        let directoryURL = try FixtureFiles.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let copyPath = try FixtureFiles.makeCopy(of: FixtureFiles.symbolTestsCore, buildPlatform: PLATFORM_BRIDGEOS, in: directoryURL)
+        let source = MachOSource.file(path: copyPath, architecture: nil)
+
+        let plain = RecordingOutput()
+        try await ObjCInterfaceRequest(declarationName: Self.bridgeClassName, source: source).run(output: plain)
+        let marked = RecordingOutput()
+        try await ObjCInterfaceRequest(declarationName: Self.bridgeClassName, source: source, marksSDKSwiftNames: true).run(output: marked)
+        #expect(marked.printedProduct == plain.printedProduct)
+        #expect(marked.messages(of: .warning).contains { $0.contains("--mark-sdk-swift-names") }, "\(marked.messages(of: .warning))")
+    }
 }

@@ -42,6 +42,9 @@ struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
     @Flag(name: .customLong("swift"), help: "Print the declaration as Swift imports it — names by the ClangImporter's rules, members Swift implements as their Swift declarations — instead of as an Objective-C header. Classes, categories and protocols only.")
     var printsSwiftImport: Bool = false
 
+    @Flag(name: .customLong("mark-sdk-swift-names"), help: "Mark the NS_SWIFT_NAME and NS_REFINED_FOR_SWIFT the API notes of the binary's SDK give the declaration and its members, read from the active developer directory (Xcode, or the Command Line Tools for macOS and Mac Catalyst). macOS 13 or later; ignored with --swift.")
+    var marksSDKSwiftNames: Bool = false
+
     /// The library request these flags describe.
     func makeRequest() throws -> ObjCInterfaceRequest {
         ObjCInterfaceRequest(
@@ -53,7 +56,8 @@ struct ObjCInterfaceCommand: AsyncParsableCommand, Sendable {
             ivarOffsetComment: transformerOptions.buildIvarOffsetComment(),
             reportsIndexingProgress: verbose,
             destination: outputPath.map { .file(path: $0) } ?? .output,
-            printsSwiftImport: printsSwiftImport
+            printsSwiftImport: printsSwiftImport,
+            marksSDKSwiftNames: marksSDKSwiftNames
         )
     }
 
