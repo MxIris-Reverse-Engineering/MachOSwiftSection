@@ -281,7 +281,10 @@ extension Package.Dependency {
             // 0.6.0 adds the annotation regions `marksCommentStructure` marks
             // every comment with; 0.5.0 added the definition regions
             // `marksNestedDefinitions` wraps each nested definition in.
-            from: "0.6.0",
+            // TEMPORARY: the feature branch, for `SemanticType.macro`
+            // (proposal swift-type-indexing-package), until 0.7.0 is
+            // released; the proposal's wrap-up puts `from: "0.7.0"` here.
+            branch: "feature/swift-type-indexing-package",
         ),
     )
 

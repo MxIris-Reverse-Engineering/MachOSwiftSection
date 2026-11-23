@@ -6,7 +6,7 @@
 - **最后更新**: 2026-11-23
 - **所属愿景**: 无
 - **关联提案**: [0009 TypeIndexing 重启](0009-type-indexing-revival.md)、[0010 补充类型映射](0010-community-type-mapping-bundles.md)、[0096 Swift 优先的导入声明](0096-swift-first-imported-declarations.md)（`ObjCSwiftImportNotes` 的来历）
-- **跨仓库范围**: 新仓库 `MxIris-Reverse-Engineering/swift-type-indexing`、swift-apinotes fork（`MxIris-DeveloperTool-Forks/swift-apinotes`，实现中加入，见决策日志）、MachOObjCSection、MachOSwiftSection（本仓库，持有这份唯一的提案）、RuntimeViewer。另外三个仓库的提案索引各加一行「cross-repository」链接指回这里
+- **跨仓库范围**: 新仓库 `MxIris-Reverse-Engineering/swift-type-indexing`、swift-apinotes fork（`MxIris-DeveloperTool-Forks/swift-apinotes`，实现中加入，见决策日志）、swift-semantic-string（`SemanticType.macro`，验收中加入，见决策日志）、MachOObjCSection、MachOSwiftSection（本仓库，持有这份唯一的提案）、RuntimeViewer。另外三个仓库的提案索引各加一行「cross-repository」链接指回这里
 - **实现分支 / PR**: 新仓库 `swift-type-indexing` 的 `main`；MachOObjCSection、MachOSwiftSection、RuntimeViewer 各自的 `feature/swift-type-indexing-package`（各从 `next` 切）
 - **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
 - **网页版**: 同目录同名的 `.html`
@@ -147,6 +147,13 @@ swift-type-indexing  ←  MachOObjCSection  ←  MachOSwiftSection  ←  Runtime
 | `Sources/APINotes/TopLevelItems/ObjCContext.swift` · `ObjCContext.methods` / `properties` | 修改 | 标 `public`；打 tag `0.3.0` | 0.2.0 里是 internal，包外读不到类与协议的成员，ObjC 成员的标注没有来源 | 3 |
 | `Tests/APINotesTests/ObjCContextMemberAccessTests.swift` | 新增 | 不带 `@testable` 读成员（修复前编译失败） | 回归 | 3 |
 
+### swift-semantic-string（验收中加入）
+
+| 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
+|---|---|---|---|---|
+| `Sources/Semantic/SemanticType.swift` · `SemanticType.macro`、`Sources/Semantic/Components/Macro.swift` · `Macro` | 新增 | 宏这一语义类型与它的组件；冻结编码取 22（之前的读者把它当未知编码，显示成 `.other`）；发 `0.7.0` | MachOObjCSection 打印的 `NS_SWIFT_NAME` / `NS_REFINED_FOR_SWIFT` 原先只能标成关键字 | 验收 |
+| `Tests/SemanticTests/FrozenSemanticStringTests.swift`、`ReviewFindingsRegressionTests.swift`、`README.md`、`AGENTS.md` | 修改 | 类型清单与编码总数加一，冻结与两种 `Codable` 的往返；文档列出新类型 | 回归，文档同批 | 验收 |
+
 ### MachOObjCSection
 
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
@@ -159,6 +166,10 @@ swift-type-indexing  ←  MachOObjCSection  ←  MachOSwiftSection  ←  Runtime
 | `Sources/ObjCInterface/ObjCInterfaceBuilder.swift` · `protocolInterface` / `markedProtocolInterface` / `categoryInterface` / `markedCategoryInterface` | 修改 | 加 `swiftImportNotes:` 参数（默认空） | 协议与 category 也能标 | 5 |
 | `Tests/ObjCInterfaceTests/SwiftImportNotesRenderingTests.swift` | 修改 | 加 `NS_SWIFT_NAME`、类型一级、协议、category 的用例 | 回归 | 5 |
 | `Tests/ObjCTypeIndexingTests/*` | 新增 | `ObjCDeclaredTypeNames` 对 Foundation 镜像列出 `NSObject` 等；API notes 转换（临时 `.apinotes` 驱动） | 回归 | 4、5 |
+| `Sources/ObjCDeclarationRendering/ObjCSwiftImportNotes.swift` | 修改 | 两个宏由 `Keyword` 改为 `Macro`；括号里的 Swift 名仍是普通文本 | 验收时发现它们与 `@interface` 同为关键字色，Xcode 用宏色（见决策日志） | 验收 |
+| `Sources/objc-section/Utilities/SemanticString+Color.swift` | 修改 | `.macro` 用 Xcode Default 主题的宏色（浅色 `#643820`、深色 `#FD8F3F`） | 命令行配色同步 | 验收 |
+| `Package.swift`（swift-semantic-string） | 修改 | 临时钉 `branch: "feature/swift-type-indexing-package"`（注明 TEMPORARY），收尾改为 `from: "0.7.0"` | 用到 `Macro` | 验收 |
+| `Tests/ObjCInterfaceTests/SwiftImportNotesRenderingTests.swift` · `macrosAreMacroRuns` | 修改 | 两个宏是 `.macro`、Swift 名是 `.standard`（修复前失败） | 回归 | 验收 |
 | `README.md`、`Documentations/Guides/ObjCSectionCommandLine.md`（库调用方一节）、`Documentations/Glossary.md:167-177`、`Documentations/Evolutions/README.md`（cross-repository 行） | 修改 | 新 target、新标注、指向本提案 | 文档同批 | 4、5 |
 
 ### MachOSwiftSection（本仓库）
@@ -176,6 +187,8 @@ swift-type-indexing  ←  MachOObjCSection  ←  MachOSwiftSection  ←  Runtime
 | `Tests/SwiftTypeNameResolutionTests/TypeDatabaseTypeNameResolverTests.swift` | 新增 | 分类映射、`__C` 解析经适配器到达打印器 | 回归 | 6 |
 | `README.md`（:76 product 表、:445-451）、`Documentations/README.md`、`Documentations/SupplementaryTypeMappings.md`、`Documentations/Internal/{TypeIndexingPipeline.md（删，改为指向新包）,ProjectMap.md,Modules/README.md}`、`Documentations/Glossary.md:445-448`、`Documentations/SwiftSectionKit{,_zh}.md`、`Documentations/ObjCCommandLine{,_zh}.md`、`AGENTS.md:69` / `CLAUDE.md:69`、`AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md`（:46、:216-217、§8 :352-357，加 objc 新开关）及其插件清单的 `version` | 修改 | 指向新包、新 target、新开关 | 文档同批 | 6、7 |
 | `Documentations/Evolutions/README.md` | 修改 | 登记本提案 | 索引 | 0 |
+| `Sources/Executables/swift-section/Output/StandardStreamOutput.swift` | 修改 | `.macro` 的配色与 objc-section 相同 | `objc interface --mark-sdk-swift-names` 的宏上色 | 验收 |
+| `Package.swift`（swift-semantic-string） | 修改 | 临时钉功能分支，收尾改为 `from: "0.7.0"` | 与 MachOObjCSection 的钉法一致 | 验收 |
 
 ### RuntimeViewer
 
@@ -208,6 +221,14 @@ swift-type-indexing  ←  MachOObjCSection  ←  MachOSwiftSection  ←  Runtime
 | `AgentPlugins/runtime-viewer/skills/runtime-viewer-cli/SKILL.md`、`.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` | 修改 | 说明 `__C.` 解析与首次等待；版本 `1.3.0` → `1.4.0` | 插件规则 | 11 |
 | `Documentations/DerivedData.md`、`Documentations/Guides/CommandLineInterface.md`、`Documentations/Evolutions/README.md`（cross-repository 行）、`Documentations/README.md` | 修改 | 新缓存目录、输出变化、索引 | 文档同批 | 8、11 |
 | 测试（见各步骤的行为清单） | 新增 | `RuntimeViewerCoreTests` 与 `RuntimeViewerAppCoreTests` 中的对应套件 | 回归 | 9、10、11 |
+| `RuntimeViewerCore/Package.swift`（swift-semantic-string） | 修改 | 也临时钉功能分支，收尾改回 `branch: "next"` | MachOObjCSection 的功能分支钉着它，两处不一致 SwiftPM 解析不了 | 验收 |
+| `RuntimeViewerSettings/Settings+Theme.swift` · `Preset.macro`、`Style.xcodeMacro` | 修改 | 新颜色槽，`@Default` 是 Xcode 的宏色对、常规字重；之前存下的自定义主题照样解码 | 主题原本只有七种文字颜色，没有宏色 | 验收 |
+| `RuntimeViewerSettingsUI/Components/ThemeSettingsView.swift` | 修改 | 编辑器加 Macro 一行，预览加一行 `NS_SWIFT_NAME`，列表的色块加一格 | 宏色可编辑 | 验收 |
+| `RuntimeViewerAppUI/Theme/ThemePreset+ThemeProfile.swift` · `ResolvedTheme` | 修改 | `.macro` 取 `preset.macro` | `NSTextView` 面板的着色 | 验收 |
+| `RuntimeViewerUsingAppKit/.../Content/SourceEditorThemeConversion.swift` | 修改 | `.macro` 标成 `xcode.syntax.identifier.macro.system`，`xcode.syntax.preprocessor` 也取宏色；`identifier.macro` 仍借给错误色 | SourceEditor 面板的着色，与 Xcode 的键一致 | 验收 |
+| `RuntimeViewerCore/.../Search/RuntimeSemanticKind.swift` | 修改 | `.macro` 归入 `.keyword` | 这个枚举跨 engine 边界，加新 case 旧对端解码不了 | 验收 |
+| `ThemePresetMacroSlotTests`、`ResolvedThemeTests`、`RuntimeSemanticKindTests`、`SemanticRetypingTests.anObjectiveCSDKMacroTakesTheSystemMacroTypeFromItsSemanticRun` | 新增 | 旧预设解码、主题映射（去掉映射即失败）、归并、SourceEditor 把宏重新标成系统宏 | 回归 | 验收 |
+| 五个锁文件（Debug、Distribution workspace 与 Core、Packages、CommandLine 包） | 修改 | 三个功能分支的新提交，swift-semantic-string 改钉功能分支 | 钉版本同批 | 验收 |
 
 ## 架构图
 
@@ -660,3 +681,4 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
 | 2026-11-23 | 内容区刷新前自己清一次接口缓存 | 文档的接口缓存在同一事件上清空，但它和内容区的订阅各自调度，先后没有保证；内容区先在主线程清再重新取，读不到批次之前的旧结果 |
 | 2026-11-23 | 一条既有测试的夹具换类 | RuntimeViewerCore 现在经 swift-apinotes 静态链接 MetaCodable 的 `HelperCoders`，它让 `ISO8601DateFormatter` 遵循 `DateFormatConverter`；镜像把一个类的遵循列成一个条目，「只采纳私有 `@objc` 协议的 category 什么都不打印」那条测试的前提因此不成立。夹具改用没有任何依赖扩展的 `EnergyFormatter`，测试先断言该类只有一个遵循条目 |
 | 2026-11-23 | 实现完成，待用户看过后收尾 | 新包 0.1.0 与 swift-apinotes 0.3.0 已发；MachOObjCSection、MachOSwiftSection、RuntimeViewer 的功能分支已推送并在本地合进各自的常驻检出（未推送）。验证：MachOSwiftSection 的相关测试与夹具测试通过；RuntimeViewer Core 与应用层的整套测试在 Ultra 上跑过，红的都是记忆中的基线红灯或满载超时，单独重跑通过（`TitleActivityIndicatorTests` 一条基线必红）；`./TuistScript.sh check` 通过，Tuist workspace 编出整个 App。收尾时发 MachOObjCSection 0.8.209、把临时分支钉改回去 |
+| 2026-11-23 | `NS_SWIFT_NAME` / `NS_REFINED_FOR_SWIFT` 改用宏色，swift-semantic-string 加入范围 | 用户验收时发现两个宏与 `@interface`、`@end` 同为关键字色：MachOObjCSection 把它们打成了 `Keyword`。查证 Xcode 27.2：Objective-C 的 grammar 从 SourceModel 的 `KnownMacros.plist` 认出两者（`NS_REFINED_FOR_SWIFT` 属普通宏、`NS_SWIFT_NAME` 属函数宏），但只为让解析跳过它们，词法上标成 `xcode.syntax.plain`；SDK 头文件里的宏色来自索引给的 `xcode.syntax.identifier.macro.system`（Default (Light) `#643820`、Default (Dark) `#FD8F3F`，与预处理语句同色，常规字重）。用户选定完整方案：swift-semantic-string 加 `SemanticType.macro` 与 `Macro`（冻结编码 22，之前的读者当普通文本），MachOObjCSection 改用它，RuntimeViewer 主题加可编辑的宏色槽（默认取 Xcode 色，之前存下的自定义主题照样解码），SourceEditor 面板把宏标成 `identifier.macro.system`，搜索的 `RuntimeSemanticKind` 把宏归入关键字、线上格式不变；两个命令行的配色同步。收尾因此多两步，排在发 MachOObjCSection 0.8.209 之前：先发 swift-semantic-string 0.7.0，MachOObjCSection 与本仓库把它改回 `from: "0.7.0"`；RuntimeViewer 对它改回 `branch: "next"` |

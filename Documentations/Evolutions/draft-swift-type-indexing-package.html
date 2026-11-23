@@ -166,7 +166,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-23</dd></div>
     <div><dt>项目类型</dt><dd>库（跨仓库唯一提案）</dd></div>
-    <div><dt>跨仓库范围</dt><dd>新仓库 <code>swift-type-indexing</code>、swift-apinotes fork（实现中加入）、MachOObjCSection、MachOSwiftSection（持有本提案）、RuntimeViewer</dd></div>
+    <div><dt>跨仓库范围</dt><dd>新仓库 <code>swift-type-indexing</code>、swift-apinotes fork（实现中加入）、swift-semantic-string（验收中加入）、MachOObjCSection、MachOSwiftSection（持有本提案）、RuntimeViewer</dd></div>
     <div><dt>原文</dt><dd><code>draft-swift-type-indexing-package.md</code></dd></div>
   </dl>
 </header>
@@ -378,6 +378,21 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   </details>
 
   <details>
+    <summary>swift-semantic-string（验收中加入）</summary>
+    <div class="details-body">
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+      <tbody>
+        <tr><td><code>SemanticType.swift</code> · <code>SemanticType.macro</code>、<code>Components/Macro.swift</code> · <code>Macro</code></td><td><span class="tag tag-added">新增</span></td><td>宏这一语义类型与它的组件；冻结编码取 22（之前的读者把它当未知编码，显示成 <code>.other</code>）；发 <code>0.7.0</code></td><td>MachOObjCSection 打印的 <code>NS_SWIFT_NAME</code> / <code>NS_REFINED_FOR_SWIFT</code> 原先只能标成关键字</td><td class="numeric">验收</td></tr>
+        <tr><td><code>FrozenSemanticStringTests.swift</code>、<code>ReviewFindingsRegressionTests.swift</code>、<code>README.md</code>、<code>AGENTS.md</code></td><td><span class="tag tag-changed">修改</span></td><td>类型清单与编码总数加一，冻结与两种 <code>Codable</code> 的往返；文档列出新类型</td><td>回归，文档同批</td><td class="numeric">验收</td></tr>
+      </tbody>
+    </table>
+    </div>
+    </div>
+  </details>
+
+  <details>
     <summary>MachOObjCSection</summary>
     <div class="details-body">
     <div class="table-wrap">
@@ -393,6 +408,10 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
         <tr><td><code>Tests/ObjCInterfaceTests/SwiftImportNotesRenderingTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>NS_SWIFT_NAME</code>、类型一级、协议、category 的用例</td><td>回归</td><td class="numeric">5</td></tr>
         <tr><td><code>Tests/ObjCTypeIndexingTests/*</code></td><td><span class="tag tag-added">新增</span></td><td><code>ObjCDeclaredTypeNames</code> 对 Foundation 镜像列出 <code>NSObject</code> 等；API notes 转换（临时 <code>.apinotes</code> 驱动）</td><td>回归</td><td class="numeric">4、5</td></tr>
         <tr><td><code>README.md</code>、<code>ObjCSectionCommandLine.md</code>（库调用方一节）、<code>Glossary.md</code>、提案索引（cross-repository 行）</td><td><span class="tag tag-changed">修改</span></td><td>新 target、新标注、指向本提案</td><td>文档同批</td><td class="numeric">4、5</td></tr>
+        <tr><td><code>ObjCSwiftImportNotes.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>两个宏由 <code>Keyword</code> 改为 <code>Macro</code>；括号里的 Swift 名仍是普通文本</td><td>验收时发现它们与 <code>@interface</code> 同为关键字色，Xcode 用宏色（见决策日志）</td><td class="numeric">验收</td></tr>
+        <tr><td><code>objc-section/Utilities/SemanticString+Color.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.macro</code> 用 Xcode Default 主题的宏色（浅色 <code>#643820</code>、深色 <code>#FD8F3F</code>）</td><td>命令行配色同步</td><td class="numeric">验收</td></tr>
+        <tr><td><code>Package.swift</code>（swift-semantic-string）</td><td><span class="tag tag-changed">修改</span></td><td>临时钉 <code>branch: "feature/swift-type-indexing-package"</code>（注明 TEMPORARY），收尾改为 <code>from: "0.7.0"</code></td><td>用到 <code>Macro</code></td><td class="numeric">验收</td></tr>
+        <tr><td><code>SwiftImportNotesRenderingTests.swift</code> · <code>macrosAreMacroRuns</code></td><td><span class="tag tag-changed">修改</span></td><td>两个宏是 <code>.macro</code>、Swift 名是 <code>.standard</code>（修复前失败）</td><td>回归</td><td class="numeric">验收</td></tr>
       </tbody>
     </table>
     </div>
@@ -417,6 +436,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
         <tr><td><code>Tests/SwiftTypeNameResolutionTests/TypeDatabaseTypeNameResolverTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>分类映射、<code>__C</code> 解析经适配器到达打印器</td><td>回归</td><td class="numeric">6</td></tr>
         <tr><td>README（product 表等）、文档索引、<code>SupplementaryTypeMappings.md</code>、内部文档（<code>TypeIndexingPipeline.md</code> 删、改为指向新包，<code>ProjectMap.md</code>、<code>Modules/README.md</code>）、术语表、<code>SwiftSectionKit{,_zh}.md</code>、<code>ObjCCommandLine{,_zh}.md</code>、<code>AGENTS.md</code> / <code>CLAUDE.md</code>、swift-section 插件 skill（加 objc 新开关）及其插件清单的 <code>version</code></td><td><span class="tag tag-changed">修改</span></td><td>指向新包、新 target、新开关</td><td>文档同批</td><td class="numeric">6、7</td></tr>
         <tr><td><code>Documentations/Evolutions/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>登记本提案</td><td>索引</td><td class="numeric">0</td></tr>
+        <tr><td><code>swift-section/Output/StandardStreamOutput.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.macro</code> 的配色与 objc-section 相同</td><td><code>objc interface --mark-sdk-swift-names</code> 的宏上色</td><td class="numeric">验收</td></tr>
+        <tr><td><code>Package.swift</code>（swift-semantic-string）</td><td><span class="tag tag-changed">修改</span></td><td>临时钉功能分支，收尾改为 <code>from: "0.7.0"</code></td><td>与 MachOObjCSection 的钉法一致</td><td class="numeric">验收</td></tr>
       </tbody>
     </table>
     </div>
@@ -457,6 +478,14 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
         <tr><td>runtime-viewer 插件的 <code>SKILL.md</code>、<code>.claude-plugin/plugin.json</code>、<code>.codex-plugin/plugin.json</code></td><td><span class="tag tag-changed">修改</span></td><td>说明 <code>__C.</code> 解析与首次等待；版本 <code>1.3.0</code> → <code>1.4.0</code></td><td>插件规则</td><td class="numeric">11</td></tr>
         <tr><td><code>DerivedData.md</code>、<code>CommandLineInterface.md</code>、提案索引（cross-repository 行）、<code>Documentations/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新缓存目录、输出变化、索引</td><td>文档同批</td><td class="numeric">8、11</td></tr>
         <tr><td>测试（见各步骤的行为清单）</td><td><span class="tag tag-added">新增</span></td><td><code>RuntimeViewerCoreTests</code> 与 <code>RuntimeViewerAppCoreTests</code> 中的对应套件</td><td>回归</td><td class="numeric">9、10、11</td></tr>
+        <tr><td><code>RuntimeViewerCore/Package.swift</code>（swift-semantic-string）</td><td><span class="tag tag-changed">修改</span></td><td>也临时钉功能分支，收尾改回 <code>branch: "next"</code></td><td>MachOObjCSection 的功能分支钉着它，两处不一致 SwiftPM 解析不了</td><td class="numeric">验收</td></tr>
+        <tr><td><code>Settings+Theme.swift</code> · <code>Preset.macro</code>、<code>Style.xcodeMacro</code></td><td><span class="tag tag-changed">修改</span></td><td>新颜色槽，<code>@Default</code> 是 Xcode 的宏色对、常规字重；之前存下的自定义主题照样解码</td><td>主题原本只有七种文字颜色，没有宏色</td><td class="numeric">验收</td></tr>
+        <tr><td><code>ThemeSettingsView.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>编辑器加 Macro 一行，预览加一行 <code>NS_SWIFT_NAME</code>，列表的色块加一格</td><td>宏色可编辑</td><td class="numeric">验收</td></tr>
+        <tr><td><code>ThemePreset+ThemeProfile.swift</code> · <code>ResolvedTheme</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.macro</code> 取 <code>preset.macro</code></td><td><code>NSTextView</code> 面板的着色</td><td class="numeric">验收</td></tr>
+        <tr><td><code>SourceEditorThemeConversion.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.macro</code> 标成 <code>xcode.syntax.identifier.macro.system</code>，<code>xcode.syntax.preprocessor</code> 也取宏色；<code>identifier.macro</code> 仍借给错误色</td><td>SourceEditor 面板的着色，与 Xcode 的键一致</td><td class="numeric">验收</td></tr>
+        <tr><td><code>RuntimeSemanticKind.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.macro</code> 归入 <code>.keyword</code></td><td>这个枚举跨 engine 边界，加新 case 旧对端解码不了</td><td class="numeric">验收</td></tr>
+        <tr><td><code>ThemePresetMacroSlotTests</code>、<code>ResolvedThemeTests</code>、<code>RuntimeSemanticKindTests</code>、<code>SemanticRetypingTests</code> 新增一条</td><td><span class="tag tag-added">新增</span></td><td>旧预设解码、主题映射（去掉映射即失败）、归并、SourceEditor 把宏重新标成系统宏</td><td>回归</td><td class="numeric">验收</td></tr>
+        <tr><td>五个锁文件（Debug、Distribution workspace 与 Core、Packages、CommandLine 包）</td><td><span class="tag tag-changed">修改</span></td><td>三个功能分支的新提交，swift-semantic-string 改钉功能分支</td><td>钉版本同批</td><td class="numeric">验收</td></tr>
       </tbody>
     </table>
     </div>
@@ -775,7 +804,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>27 条，最近一条：实现完成，待用户看过后收尾</summary>
+    <summary>28 条，最近一条：<code>NS_SWIFT_NAME</code> / <code>NS_REFINED_FOR_SWIFT</code> 改用宏色</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -808,6 +837,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-23</td><td>内容区刷新前自己清一次接口缓存</td><td>文档的接口缓存在同一事件上清空，但它和内容区的订阅各自调度，先后没有保证；内容区先在主线程清再重新取，读不到批次之前的旧结果</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>一条既有测试的夹具换类</td><td>RuntimeViewerCore 现在经 swift-apinotes 静态链接 MetaCodable 的 <code>HelperCoders</code>，它让 <code>ISO8601DateFormatter</code> 遵循 <code>DateFormatConverter</code>；镜像把一个类的遵循列成一个条目，「只采纳私有 <code>@objc</code> 协议的 category 什么都不打印」那条测试的前提因此不成立。夹具改用没有任何依赖扩展的 <code>EnergyFormatter</code>，测试先断言该类只有一个遵循条目</td></tr>
           <tr><td class="numeric">2026-11-23</td><td>实现完成，待用户看过后收尾</td><td>新包 0.1.0 与 swift-apinotes 0.3.0 已发；MachOObjCSection、MachOSwiftSection、RuntimeViewer 的功能分支已推送并在本地合进各自的常驻检出（未推送）。验证：MachOSwiftSection 的相关测试与夹具测试通过；RuntimeViewer Core 与应用层的整套测试在 Ultra 上跑过，红的都是记忆中的基线红灯或满载超时，单独重跑通过（<code>TitleActivityIndicatorTests</code> 一条基线必红）；<code>./TuistScript.sh check</code> 通过，Tuist workspace 编出整个 App。收尾时发 MachOObjCSection 0.8.209、把临时分支钉改回去</td></tr>
+          <tr><td class="numeric">2026-11-23</td><td><code>NS_SWIFT_NAME</code> / <code>NS_REFINED_FOR_SWIFT</code> 改用宏色，swift-semantic-string 加入范围</td><td>用户验收时发现两个宏与 <code>@interface</code>、<code>@end</code> 同为关键字色：MachOObjCSection 把它们打成了 <code>Keyword</code>。查证 Xcode 27.2：Objective-C 的 grammar 从 SourceModel 的 <code>KnownMacros.plist</code> 认出两者（<code>NS_REFINED_FOR_SWIFT</code> 属普通宏、<code>NS_SWIFT_NAME</code> 属函数宏），但只为让解析跳过它们，词法上标成 <code>xcode.syntax.plain</code>；SDK 头文件里的宏色来自索引给的 <code>xcode.syntax.identifier.macro.system</code>（Default (Light) <code>#643820</code>、Default (Dark) <code>#FD8F3F</code>，与预处理语句同色，常规字重）。用户选定完整方案：swift-semantic-string 加 <code>SemanticType.macro</code> 与 <code>Macro</code>（冻结编码 22，之前的读者当普通文本），MachOObjCSection 改用它，RuntimeViewer 主题加可编辑的宏色槽（默认取 Xcode 色，之前存下的自定义主题照样解码），SourceEditor 面板把宏标成 <code>identifier.macro.system</code>，搜索的 <code>RuntimeSemanticKind</code> 把宏归入关键字、线上格式不变；两个命令行的配色同步。收尾因此多两步，排在发 MachOObjCSection 0.8.209 之前：先发 swift-semantic-string 0.7.0，MachOObjCSection 与本仓库把它改回 <code>from: "0.7.0"</code>；RuntimeViewer 对它改回 <code>branch: "next"</code></td></tr>
         </tbody>
       </table>
       </div>
