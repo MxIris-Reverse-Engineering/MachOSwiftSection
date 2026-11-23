@@ -24,6 +24,7 @@ struct TypeDatabaseTypeNameResolverTests {
     /// found no API notes.
     @Test
     func buildPlatformsMapToTheirSDKs() {
+        guard #available(macOS 13.0, *) else { return }
         #expect(SDKPlatform(MachOKit.Platform.macOS) == .macOS)
         #expect(SDKPlatform(MachOKit.Platform.macCatalyst) == .macCatalyst)
         #expect(SDKPlatform(MachOKit.Platform.iOS) == .iOS)

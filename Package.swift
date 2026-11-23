@@ -948,6 +948,8 @@ extension Target {
             .target(.SwiftTypeNameResolution),
             // `APINotesFile`, which checks `--supplementary-apinotes` paths.
             .product(name: "TypeIndexing", package: "swift-type-indexing", condition: .when(platforms: [.macOS])),
+            // `objc interface --mark-sdk-swift-names`.
+            .product(name: "ObjCTypeIndexing", package: "MachOObjCSection", condition: .when(platforms: [.macOS])),
             .target(.Utilities),
             // `refs` and `symbolicate`.
             .target(.CrossReferenceAnalysis),

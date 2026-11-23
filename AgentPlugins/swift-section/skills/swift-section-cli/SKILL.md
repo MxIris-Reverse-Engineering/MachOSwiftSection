@@ -51,7 +51,8 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 0.25.0 `objc evolution --interface` / `--emit-available` / `--platform`,
 `objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`,
 `interface --expand-macros` and the `refs` and `symbolicate` subcommands, and after 0.26.0
-`--multiline-types` / `--maximum-line-width` on `dump` and `interface`.
+`--multiline-types` / `--maximum-line-width` on `dump` and `interface`, and
+`objc interface --mark-sdk-swift-names`.
 When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
@@ -359,6 +360,10 @@ first run per SDK generates module interfaces through sourcekitd — slow once (
 minutes), cached after in `~/Library/Application Support/swift-type-indexing`. Without sourcekitd only
 API notes and Objective-C metadata attribute names. A binary whose SDK is not installed warns and
 prints `__C.` unresolved. `--supplementary-apinotes` only does anything alongside it.
+
+`objc interface --mark-sdk-swift-names` reads the same SDK's API notes for an Objective-C header:
+the class's or protocol's `NS_SWIFT_NAME(...)` / `NS_REFINED_FOR_SWIFT` on a line above
+`@interface`, a member's before its `;`. API notes only, about two seconds, no sourcekitd.
 
 ## 9. Reading the output: things that look like bugs and are not
 

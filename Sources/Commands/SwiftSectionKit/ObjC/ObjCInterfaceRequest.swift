@@ -33,6 +33,13 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
     /// proposal `objc-imported-declarations`). Classes, categories and
     /// protocols only; the header options do not apply.
     public var printsSwiftImport: Bool
+    /// Mark the `NS_SWIFT_NAME(...)` / `NS_REFINED_FOR_SWIFT` the API notes of
+    /// the binary's SDK give a class, protocol or category and its members,
+    /// read from the active developer directory (proposal
+    /// swift-type-indexing-package). macOS 13 and later; a binary no
+    /// installed SDK covers prints a warning and its plain interface. Ignored
+    /// with `printsSwiftImport`.
+    public var marksSDKSwiftNames: Bool
 
     public init(
         declarationName: String,
@@ -43,7 +50,8 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
         ivarOffsetComment: Transformer.ObjCIvarOffset? = nil,
         reportsIndexingProgress: Bool = false,
         destination: ProductDestination = .output,
-        printsSwiftImport: Bool = false
+        printsSwiftImport: Bool = false,
+        marksSDKSwiftNames: Bool = false
     ) {
         self.declarationName = declarationName
         self.kind = kind
@@ -54,6 +62,7 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
         self.reportsIndexingProgress = reportsIndexingProgress
         self.destination = destination
         self.printsSwiftImport = printsSwiftImport
+        self.marksSDKSwiftNames = marksSDKSwiftNames
     }
 
     public func run(output: some SwiftSectionOutput) async throws {
@@ -70,11 +79,14 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
             output: output
         )
 
+        let swiftImportNotesForKind = await sdkSwiftImportNotesProvider(for: session.machOFile, output: output)
+
         // Searched in declaration-kind order rather than by guessing from the
         // spelling: `Foo(Bar)` is unambiguous, but a bare name could be a
         // class, a protocol or a struct.
         for candidateKind in kind.map({ [$0] }) ?? ObjCDeclarationKind.allCases {
-            guard let interface = session.interface(of: candidateKind, named: declarationName) else { continue }
+            let swiftImportNotes = await swiftImportNotesForKind?(candidateKind) ?? ObjCSwiftImportNotes()
+            guard let interface = session.interface(of: candidateKind, named: declarationName, swiftImportNotes: swiftImportNotes) else { continue }
             switch destination {
             case .file(let path):
                 try interface.string.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
@@ -85,6 +97,24 @@ public struct ObjCInterfaceRequest: Sendable, Equatable {
         }
 
         throw ObjCDeclarationLookupError.declarationNotFound(declarationName)
+    }
+
+    /// What gives the notes of a declaration kind when `marksSDKSwiftNames`
+    /// is on and the binary's SDK is readable; `nil` otherwise.
+    private func sdkSwiftImportNotesProvider(for machOFile: MachOFile, output: some SwiftSectionOutput) async -> (@Sendable (ObjCDeclarationKind) async -> ObjCSwiftImportNotes)? {
+        guard marksSDKSwiftNames else { return nil }
+        #if os(macOS)
+        guard #available(macOS 13.0, *) else {
+            output.report(SwiftSectionDiagnostic(severity: .warning, message: "warning: --mark-sdk-swift-names needs macOS 13 or later; printing without the SDK's Swift names"))
+            return nil
+        }
+        guard let notesSource = await SDKSwiftImportNotesSource.make(for: machOFile, output: output) else { return nil }
+        let declarationName = declarationName
+        return { candidateKind in await notesSource.notes(for: candidateKind, named: declarationName) }
+        #else
+        output.report(SwiftSectionDiagnostic(severity: .warning, message: "warning: --mark-sdk-swift-names needs macOS; printing without the SDK's Swift names"))
+        return nil
+        #endif
     }
 
     /// The Swift side: the image's declaration index, which pairs a class or

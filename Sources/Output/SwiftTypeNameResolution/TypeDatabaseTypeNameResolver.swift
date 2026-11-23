@@ -52,6 +52,7 @@ extension ImportedTypeNameCategory {
     }
 }
 
+@available(macOS 13.0, *)
 extension SDKPlatform {
     /// The SDK an image built for `platform` is read against, or `nil` for a
     /// platform no SDK covers. Mac Catalyst has its own case: its frameworks
