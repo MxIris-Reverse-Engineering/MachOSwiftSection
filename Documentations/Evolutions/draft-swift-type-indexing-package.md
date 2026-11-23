@@ -1,12 +1,12 @@
 # Draft - 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-23
 - **最后更新**: 2026-11-23
 - **所属愿景**: 无
 - **关联提案**: [0009 TypeIndexing 重启](0009-type-indexing-revival.md)、[0010 补充类型映射](0010-community-type-mapping-bundles.md)、[0096 Swift 优先的导入声明](0096-swift-first-imported-declarations.md)（`ObjCSwiftImportNotes` 的来历）
-- **跨仓库范围**: 新仓库 `MxIris-Reverse-Engineering/swift-type-indexing`、MachOObjCSection、MachOSwiftSection（本仓库，持有这份唯一的提案）、RuntimeViewer。另外三个仓库的提案索引各加一行「cross-repository」链接指回这里
+- **跨仓库范围**: 新仓库 `MxIris-Reverse-Engineering/swift-type-indexing`、swift-apinotes fork（`MxIris-DeveloperTool-Forks/swift-apinotes`，实现中加入，见决策日志）、MachOObjCSection、MachOSwiftSection（本仓库，持有这份唯一的提案）、RuntimeViewer。另外三个仓库的提案索引各加一行「cross-repository」链接指回这里
 - **实现分支 / PR**: 新仓库 `swift-type-indexing` 的 `main`；MachOObjCSection、MachOSwiftSection、RuntimeViewer 各自的 `feature/swift-type-indexing-package`（各从 `next` 切）
 - **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
 - **网页版**: 同目录同名的 `.html`
@@ -124,19 +124,28 @@ swift-type-indexing  ←  MachOObjCSection  ←  MachOSwiftSection  ←  Runtime
 
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
 |---|---|---|---|---|
-| `Package.swift` | 新增 | 包名 `swift-type-indexing`，product / target `TypeIndexing`，测试 target `TypeIndexingTests`；依赖 SourceKitD、swift-apinotes、FrameworkToolbox（均 `.when(platforms: [.macOS])`）；平台与本仓库一致（macOS 10.15 / iOS 13 / tvOS 13 / watchOS 6 / visionOS 1）；打开 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances` | 独立成包；平台声明不能高于 MachOObjCSection，否则 SwiftPM 拒绝解析 | 1 |
+| `Package.swift` | 新增 | 包名 `swift-type-indexing`，product / target `TypeIndexing`，测试 target `TypeIndexingTests`；依赖 SourceKitD、swift-apinotes（`from: "0.3.0"`，本地候选 `../../../Fork/Library/swift-apinotes`）、FrameworkToolbox（后两者均 `.when(platforms: [.macOS])`）；平台与本仓库一致（macOS 10.15 / iOS 13 / tvOS 13 / watchOS 6 / visionOS 1）；打开 `ExistentialAny`、`MemberImportVisibility`、`InferIsolatedConformances` | 独立成包；平台声明不能高于 MachOObjCSection，否则 SwiftPM 拒绝解析 | 1 |
 | `Sources/TypeIndexing/{InterfaceDeclarationNode,InterfaceTypeNameExtractor,ModuleIndexCache,ModuleInterfaceIndexer,SDKIndexer,SDKPlatform,SourceKitManager,Subprocess,SupplementaryAPINotes}.swift` | 移入 | 从本仓库原样搬入；`package` 改 `public`（只公开调用方需要的，其余 `internal`）；`@Loggable` 子系统改为 `com.mxiris.type-indexing` | 搬家 | 1 |
 | `Sources/TypeIndexing/APINotesIndex.swift` · `APINotesIndex` | 移入 + 修改 | 用 `ImportedTypeNameCategory`；改名规则：有 `SwiftName` 用它（不论 `SwiftPrivate`），只有 `SwiftPrivate` 时 `"__" + cName`；`cNamesBySwiftName` 同步登记；新增 ObjC 容器的方法、属性条目索引 | 修正改名；给 ObjC 标注提供数据 | 1、2、3 |
-| `Sources/TypeIndexing/TypeDatabase.swift` · `TypeDatabase` | 移入 + 修改 | 去泛型；`index(dependencies:moduleFilter:)` 改收 `[any DeclaredTypeNameSource]`；`moduleName(forImagePath:)` 保持纯函数；构造器加 `cacheDirectory:`；新增 `swiftImportAnnotations(forObjCClassNamed:)` / `forObjCProtocolNamed:` | 去掉对 MachOObjCSection 的依赖；缓存位置由调用方决定；给 ObjC 标注用 | 1、2、3 |
+| `Sources/TypeIndexing/TypeDatabase.swift` · `TypeDatabase` | 移入 + 修改 | 去泛型；`index(dependencies:moduleFilter:)` 改收 `[any DeclaredTypeNameSource]`，可多次调用（第一次发现 SDK、登记 API notes，之后只补新模块与新依赖）；API notes、模块接口、运行时元数据三张表在查询时按优先级查，不再靠写入顺序覆盖；`moduleName(forImagePath:)` 保持纯函数；构造器加 `cacheDirectory:`；没有 sourcekitd 时只读缓存；新增 `swiftImportAnnotations(forObjCClassNamed:)` / `forObjCProtocolNamed:` | 去掉对 MachOObjCSection 的依赖；RuntimeViewer 加载新镜像时要追加模块；缓存位置由调用方决定；给 ObjC 标注用 | 1、2、3 |
 | `Sources/TypeIndexing/DeclaredTypeNameSource.swift` · `DeclaredTypeNameSource` | 新增 | 协议：`imagePath`、`declaredTypeNames() async throws -> [String]` | 取代直接调用 `ObjCInterfaceIndexer` | 1 |
 | `Sources/TypeIndexing/ImportedTypeNameCategory.swift` · `ImportedTypeNameCategory` | 新增 | `objcClass` / `objcProtocol` / `valueType` / `other` | 取代 SwiftPrinting 的 `CImportedTypeNameCategory` | 1 |
 | `Sources/TypeIndexing/SourceKitLocator.swift` · `SourceKitLocator` | 新增 | 依次试 `<developer dir>/Toolchains/XcodeDefault.xctoolchain/usr/lib/sourcekitd.framework/sourcekitd` 与 `<developer dir>/usr/lib/sourcekitd.framework/sourcekitd`；`SourceKitManager` 改用它 | 支持 Command Line Tools | 2 |
-| `Sources/TypeIndexing/TypeIndexingAvailability.swift` · `TypeIndexingAvailability` | 新增 | `static func availability(for: SDKPlatform) -> TypeIndexingAvailability`：SDK 路径、sourcekitd 路径、不可用原因 | 调用方决定开不开、在界面上说明原因 | 2 |
+| `Sources/TypeIndexing/TypeIndexingAvailability.swift` · `TypeIndexingAvailability` | 新增 | `static func availability(for: SDKPlatform) -> TypeIndexingAvailability`：`sdkSettings`（含 SDK 路径与版本，供 RuntimeViewer 的语料 variant 用）、sourcekitd 路径、不可用原因 | 调用方决定开不开、在界面上说明原因 | 2 |
+| `Sources/TypeIndexing/SDKPlatform.swift` · `SDKPlatform.macCatalyst`、`SDKSettings.macCatalystVersion`、`compilerArguments(for:)` | 修改 | 新 case `macCatalyst`：读 macOS SDK（`xcrunSDKName`），target `ios<SupportedTargets.iosmac.DefaultDeploymentTarget>-macabi`，给 sourcekitd 显式补 `-Fsystem …/System/iOSSupport/System/Library/Frameworks`；`SDKIndexer` 的 Catalyst 搜索路径先 `System/iOSSupport/…` 再 macOS 的；缓存目录与 macOS 分开 | Mac Catalyst 的 UIKit 与其 API notes 只在 `iOSSupport` 里，原来按 `.macOS` 索引找不到 | 2、3 |
 | `Sources/TypeIndexing/SwiftImportAnnotation.swift` · `SwiftImportAnnotation`、`ObjCContainerSwiftImportAnnotations`、`ObjCMemberKey` | 新增 | 单个声明与一个类 / 协议的 API notes 命名标注 | 给 MachOObjCSection 用 | 3 |
 | `Tests/TypeIndexingTests/*` | 移入 + 修改 | 本仓库 `Tests/TypeIndexingTests/` 的 7 个文件搬入；`TypeDatabase<MachOFile>` 改为用假的 `DeclaredTypeNameSource`；`swiftPrivateEntitiesAreAttributedButNotRenamed` 改写为新规则 | 搬家；规则修正 | 1、2 |
-| `Tests/TypeIndexingTests/{SwiftNameRuleTests,SourceKitLocatorTests,CacheDirectoryTests,ObjCSwiftImportAnnotationTests}.swift` | 新增 | 见各步骤的行为清单 | 回归测试 | 2、3 |
+| `Tests/TypeIndexingTests/{DeclaredTypeNameSourceTests,SwiftNameRuleTests,SourceKitLocatorTests,TypeIndexingAvailabilityTests,CacheDirectoryTests,MacCatalystPlatformTests,ObjCSwiftImportAnnotationTests}.swift` | 新增 | 见各步骤的行为清单 | 回归测试 | 1、2、3 |
+| `Tests/TypeIndexingTests/SDKIntegrationTests.swift` | 新增 | 对本机真实 SDK 的核对，默认关闭：`TYPE_INDEXING_SDK_TESTS=1`（只读 API notes，约 2 秒），再加 `TYPE_INDEXING_SOURCEKIT_TESTS=1` 经 sourcekitd 冷生成 Catalyst 的 UIKit 接口（实测 126 秒） | 单测覆盖不到 SDK 布局与 sourcekitd 参数 | 2、3 |
 | `README.md`、`LICENSE`、`AGENTS.md` + `CLAUDE.md`（符号链接）、`Documentations/README.md`、`Documentations/Evolutions/README.md`（项目类型：库）、`Documentations/Internal/TypeIndexingPipeline.md`（从本仓库移入并更新） | 新增 / 移入 | 用法、三层数据源、改名规则、缓存布局、可用性 | 新仓库的文档 | 1、3 |
 | `.github/workflows/macOS.yml` | 新增 | 照本仓库 `macOS.yml` 配 macOS 构建与测试 | CI | 1 |
+
+### swift-apinotes（fork，实现中加入）
+
+| 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
+|---|---|---|---|---|
+| `Sources/APINotes/TopLevelItems/ObjCContext.swift` · `ObjCContext.methods` / `properties` | 修改 | 标 `public`；打 tag `0.3.0` | 0.2.0 里是 internal，包外读不到类与协议的成员，ObjC 成员的标注没有来源 | 3 |
+| `Tests/APINotesTests/ObjCContextMemberAccessTests.swift` | 新增 | 不带 `@testable` 读成员（修复前编译失败） | 回归 | 3 |
 
 ### MachOObjCSection
 
@@ -302,14 +311,21 @@ public struct TypeIndexingAvailability: Sendable, Hashable {
         case noDeveloperDirectory
         case sdkNotInstalled(SDKPlatform)
     }
-    public var sdkPath: String?
+    public let sdkSettings: SDKSettings?       // path, version, build, Mac Catalyst version
     /// `nil` when the developer directory has no sourcekitd: API notes and
     /// runtime metadata still resolve names, module interfaces are skipped.
-    public var sourceKitPath: String?
-    public var unavailabilityReason: UnavailabilityReason?
+    public let sourceKitPath: String?
+    public let unavailabilityReason: UnavailabilityReason?
     public var isAvailable: Bool { unavailabilityReason == nil }
 
     public static func availability(for platform: SDKPlatform) -> TypeIndexingAvailability
+}
+
+public enum SDKPlatform: String, CaseIterable, Hashable, Codable, Sendable {
+    case macOS = "macosx"
+    case macCatalyst = "maccatalyst"            // the macOS SDK read through System/iOSSupport
+    case iOS = "iphoneos"
+    // tvOS, watchOS, visionOS, driverKit and the simulators, as before
 }
 
 /// What an API notes file says about how Swift imports one declaration.
@@ -355,7 +371,8 @@ public actor TypeDatabase {
 #endif
 ```
 
-- `SDKPlatform` 原样公开（它已经是 `String` raw value 的 enum）。
+- `SDKPlatform` 公开，并新增 `macCatalyst`（落地时发现，见决策日志）；`SDKSettings`（`sdkPath`、`version`、`productBuildVersion`、`macCatalystVersion`、`cacheDirectoryComponent`）与 `APINotesFile(path:)` 一并公开——后者是 `swift-section` 预检 `--supplementary-apinotes` 路径用的。
+- `index(dependencies:moduleFilter:)` 可多次调用：第一次发现 SDK 并登记 API notes，之后只补新的模块与依赖镜像；因此 API notes 优先于模块接口改为查询时决定（三张表），不再靠写入顺序。
 - 搬家时保留的三个 `register(...)` 测试钩子（提案 0009「与提案的差异」一节）降为 `internal`，测试用 `@testable import`。
 - 命名照 `apple-style-api-design`：协议按「是什么」命名并沿用组织里 `ObjCMetadataSource` 的 `Source` 后缀；查询读成名词短语（`moduleName(forTypeName:)`）；不给 MachOKit 的类型补遵循新包的协议（由 MachOObjCSection 的包装类型实现）。
 
@@ -445,7 +462,7 @@ public struct TypeDatabaseTypeNameResolver: ModuleNameResolving, CImportedNameRe
 #endif
 ```
 
-`SwiftInterfaceBuilderTypeNameProvider` 保留公开名字与构造器签名，内部改为：按镜像平台建 `TypeDatabase`，依赖镜像包成 `ObjCDeclaredTypeNames`，把查询转给一个 `TypeDatabaseTypeNameResolver`。
+`SwiftInterfaceBuilderTypeNameProvider` 保留公开名字与构造器签名，内部改为：按镜像平台建 `TypeDatabase`（`LC_BUILD_VERSION` 的 macCatalyst 映射到 `.macCatalyst`，原来映射到 `.macOS`，Catalyst 镜像因此读不到 UIKit 的 API notes），依赖镜像包成 `ObjCDeclaredTypeNames`，把查询转给一个 `TypeDatabaseTypeNameResolver`。
 
 `swift-section objc interface --mark-sdk-swift-names`：按镜像 `LC_BUILD_VERSION` 的平台建 `TypeDatabase`（只读 API notes，`moduleFilter` 返回 `false`，所以不碰 sourcekitd），对每个类与协议取 `ObjCSwiftImportNotes(apiNotesFor…:in:)` 传给 `ObjCInterfaceBuilder`。找不到 SDK 时打印一条 warning，输出与不加开关时相同。
 
@@ -453,7 +470,7 @@ public struct TypeDatabaseTypeNameResolver: ModuleNameResolving, CImportedNameRe
 
 **进程内的索引**。`RuntimeTypeIndex` 是每个服务进程一个的 actor（经 `@Dependency` 取得，`fileprivate static let shared`），按 `SDKPlatform` 各持一个 `TypeDatabase`：
 
-- 平台：共享缓存镜像用 `RuntimeSharedCachePartition.platform(ofImageAt:)`（macOS → `.macOS`，Mac Catalyst → `.macOS`，与 `SwiftInterfaceBuilderTypeNameProvider` 的映射一致，API notes 读 SDK 的 `iOSSupport`——落地时实测确认，见步骤 9）；文件用 `RuntimeFile.platform`；其余镜像读 `LC_BUILD_VERSION`。
+- 平台：共享缓存镜像用 `RuntimeSharedCachePartition.platform(ofImageAt:)`（macOS → `.macOS`，Mac Catalyst → `.macCatalyst`）；文件用 `RuntimeFile.platform`；其余镜像读 `LC_BUILD_VERSION`（`macCatalyst` 平台号映射到 `.macCatalyst`）。
 - 预建：engine 连上后、以及新加载的镜像，把它们的依赖模块名并进 `moduleFilter`，依赖镜像包成 `ObjCDeclaredTypeNames` 交给 `index(dependencies:moduleFilter:)`。同一平台已在建时合并请求，不重复建。
 - 不可用：`TypeIndexingAvailability` 不可用时状态记为 `.unavailable(reason)`，打印器不注册解析器，输出保持 `__C.`。
 - 内存：每个打印的服务进程各有一份（本机、Catalyst、每个文件、每个框架实例），落地时量一次 `malloc` 在用量写进提案（步骤 9）。
@@ -526,12 +543,12 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
 
 0. **提案入库**——本仓库 `Documentations/Evolutions/README.md` 登记草案；批准后、开工前，在 MachOObjCSection 与 RuntimeViewer 的提案索引各加一行 cross-repository 链接。
    - 行为：无代码。
-1. **建新包并原样搬入**——swift-type-indexing 改动地图的 Package.swift、移入的源码与测试、`DeclaredTypeNameSource`、`ImportedTypeNameCategory`、README / LICENSE / AGENTS.md / CI。
+1. ✅ **建新包并原样搬入**（2026-11-23 完成）——swift-type-indexing 改动地图的 Package.swift、移入的源码与测试、`DeclaredTypeNameSource`、`ImportedTypeNameCategory`、README / LICENSE / AGENTS.md / CI。
    - 行为：`existingTypeIndexingTestsPassAgainstNonGenericDatabase`
    - 行为：`declaredTypeNameSourcesAreQueriedLazilyInDependencyOrder`
    - 行为：`firstImageDeclaringANameWinsTheAttribution`
    - 行为：`failingSourceIsDroppedAndNotRetried`
-2. **改名规则与 Command Line Tools**——`APINotesIndex` 改名规则、`SourceKitLocator`、`TypeIndexingAvailability`、缓存目录注入。先写测试并确认修复前失败。
+2. ✅ **改名规则、Command Line Tools 与 Mac Catalyst**（2026-11-23 完成）——`APINotesIndex` 改名规则、`SourceKitLocator`、`TypeIndexingAvailability`、缓存目录注入。先写测试并确认修复前失败。
    - 行为：`swiftPrivateWithoutSwiftNameResolvesToDoubleUnderscorePrefix`
    - 行为：`swiftNameWinsOverSwiftPrivate`
    - 行为：`plainEntityKeepsItsCName`
@@ -540,11 +557,14 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
    - 行为：`missingSourceKitSkipsModuleInterfacesButKeepsAPINotes`
    - 行为：`availabilityReportsMissingSDK`
    - 行为：`cacheEntriesAreWrittenUnderTheGivenDirectory`
-3. **ObjC 容器的 API notes 查询**——`SwiftImportAnnotation`、`ObjCContainerSwiftImportAnnotations`、`TypeDatabase.swiftImportAnnotations(…)`。
+   - 行为：`macCatalystSearchesIOSSupportFirst`、`macCatalystTargetTripleIsMacABI`、`macCatalystInterfaceGenerationSeesIOSSupportFrameworks`、`macCatalystCachesApartFromMacOS`
+   - 实测（`SDKIntegrationTests`）：Catalyst 下 `UICellConfigurationState` → `UIKit` / `__UICellConfigurationState`；macOS 下 `PKDrawing` → `PencilKit` / `PKDrawingReference`；sourcekitd 冷生成 Catalyst 的 UIKit 接口后 `UIStackView` → `UIKit`
+3. ✅ **ObjC 容器的 API notes 查询**（2026-11-23 在本机完成；fork 的 0.3.0 与新包的推送待用户批准公开仓库）——`SwiftImportAnnotation`、`ObjCContainerSwiftImportAnnotations`、`TypeDatabase.swiftImportAnnotations(…)`。
    - 行为：`classAnnotationCarriesSwiftNameAndSwiftPrivate`
    - 行为：`methodAnnotationIsKeyedBySelectorAndKind`
    - 行为：`propertyAnnotationIsKeyedByNameAndKind`
    - 行为：`protocolAnnotationsAreSeparateFromClassAnnotations`
+   - 前置：swift-apinotes fork 把 `ObjCContext.methods` / `properties` 改成 `public`，打 `0.3.0`。
    - 新包打 `0.1.0` 并推送（公开仓库）。
 4. **MachOObjCSection 接入新包**——`Package.swift`、`ObjCTypeIndexing`、`ObjCDeclaredTypeNames`。
    - 行为：`declaredTypeNamesListFoundationClassesProtocolsAndStructs`
@@ -614,3 +634,8 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
 | 2026-11-23 | 开关放 Generation Options 面板 | agent 自定，可推翻：与现有打印开关同处，随请求发出、进缓存键、命令行也读同一份 |
 | 2026-11-23 | 共识确认 | 用户确认以上决定，开始写提案 |
 | 2026-11-23 | Accepted | 用户批准，开始实现 |
+| 2026-11-23 | swift-apinotes fork 加入范围 | 它的 `ObjCContext.methods` / `properties` 在 0.2.0 是 internal，ObjC 成员的标注读不到。改为 `public` 并打 0.3.0（每个字段一行），比在新包里另写一套 YAML 解析更小；推送与打 tag 和新仓库一起请用户批准 |
+| 2026-11-23 | 新增 `SDKPlatform.macCatalyst` | 提案原定 Catalyst 按 `.macOS` 索引并「落地时实测确认」：实测 `SDKIndexer` 不搜 `System/iOSSupport`，Catalyst UIKit 的 API notes 找不到；sourcekitd 按前端调用解析参数，macabi target 不会自动加 iOSSupport 框架路径（报 `Could not load module: UIKit`）。新 case 读 macOS SDK、先搜 iOSSupport、显式传 `-Fsystem` |
+| 2026-11-23 | `index` 可多次调用、优先级改为查询时决定 | RuntimeViewer 加载新镜像时要追加模块；原先 API notes 靠写入顺序覆盖模块接口名，追加的接口名会把名字抢回去 |
+| 2026-11-23 | 可用性返回 `sdkSettings` 而非 `sdkPath` | RuntimeViewer 的语料 variant 要 SDK 版本与 build，`SDKSettings` 一并给出 |
+| 2026-11-23 | 加默认关闭的 `SDKIntegrationTests` | 单测覆盖不到真实 SDK 布局与 sourcekitd 参数，上面两个 Catalyst 问题都是实测才发现的；手动开启，不进 CI |
