@@ -450,6 +450,11 @@ swift-section interface --resolve-c-module-names /path/to/binary
 # Frameworks with no SDK module (AttributeGraph, …) take user-provided APINotes
 swift-section interface --resolve-c-module-names --supplementary-apinotes AttributeGraph.apinotes /path/to/binary
 
+# A C type the binary's own descriptors rename prints under its Swift name everywhere —
+# declaration, member types, extension headers (`AnyWeakAttribute`, not `__C.AGWeakAttribute`).
+# c-name prints every C-imported type as the binary mangles it instead.
+swift-section interface --c-imported-type-name-spelling c-name /path/to/binary
+
 # Experimental: spell opaque result types (`some View`) from their opaque type
 # descriptors; complex return types may fail to parse
 swift-section interface --parse-opaque-return-type /path/to/binary

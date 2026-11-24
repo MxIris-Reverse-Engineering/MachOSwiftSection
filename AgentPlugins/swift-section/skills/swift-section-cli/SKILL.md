@@ -215,8 +215,8 @@ switches).
 
 Only `interface` has: `--exported-only`, `--sort-members-by-offset`,
 `--parse-opaque-return-type`, `--show-c-imported-types`, `--resolve-c-module-names`,
-`--supplementary-apinotes`, `--infer-objc-overrides`, `--requirements-on-associated-types`,
-`--expand-macros`.
+`--supplementary-apinotes`, `--c-imported-type-name-spelling`, `--infer-objc-overrides`,
+`--requirements-on-associated-types`, `--expand-macros`.
 
 `--requirements-on-associated-types` changes where a protocol's requirements print, never which:
 `associatedtype Body: SwiftUI.View` instead of `protocol View where Self.Body: SwiftUI.View`,
@@ -361,12 +361,25 @@ minutes), cached after in `~/Library/Application Support/swift-type-indexing`. W
 API notes and Objective-C metadata attribute names. A binary whose SDK is not installed warns and
 prints `__C.` unresolved. `--supplementary-apinotes` only does anything alongside it.
 
+**Swift names come first, with or without the SDK.** A C type has two names: its descriptor carries
+the one Swift code uses, every mangled reference the C one. `interface` prints the Swift one everywhere
+— declaration, member types, extension headers — when the binary's own descriptor gives it
+(`AnyWeakAttribute` for `AGWeakAttribute`, `CGColor` for `CGColorRef`), with no module when nothing
+resolves it and under its module when this flag does. `--c-imported-type-name-spelling c-name` prints
+every C-imported type as the binary mangles it (`struct AGWeakAttribute`, `__C.AGWeakAttribute`) and
+makes this flag do nothing.
+
 `objc interface --mark-sdk-swift-names` reads the same SDK's API notes for an Objective-C header:
 the class's or protocol's `NS_SWIFT_NAME(...)` / `NS_REFINED_FOR_SWIFT` on a line above
 `@interface`, a member's before its `;`. API notes only, about two seconds, no sourcekitd.
 
 ## 9. Reading the output: things that look like bugs and are not
 
+- **A C type imported as a member keeps its C name** (`struct NSAttributedStringKey`,
+  `__C.NSAttributedStringKey`) unless `--resolve-c-module-names` spells it
+  (`Foundation.NSAttributedString.Key`): its descriptor stores only the leaf (`Key`), and nothing
+  in the binary names the type it belongs to. A top-level rename shaped the same way
+  (`NSDecimal` → `Decimal`) keeps its C name too.
 - **`// not exported`** is an export-trie fact, not an access-level claim. A missing entry
   means "not statically callable from outside this image", which is not the same as `internal`.
 - **`… is declared in Enabled.swift of module SwiftUICore`** above a SwiftUI declaration is not a
