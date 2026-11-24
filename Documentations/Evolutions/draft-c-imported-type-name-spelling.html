@@ -197,14 +197,14 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <li><strong><code>.cName</code></strong>：一律按 mangled 的样子印（声明 <code>struct AGWeakAttribute</code>，引用 <code>__C.AGWeakAttribute</code>）。</li>
   </ul>
   <p>同时修掉扩展头不经类型名解析器的问题：SDK 类型的成员已经解析成 <code>CoreFoundation.CGRect</code>，扩展头却还是 <code>__C.CGRect</code>。</p>
-  <p>RuntimeViewer 把这个选项做成全局生成选项（Generation Options › Imported Type Names: Swift / C）。用 SourceEditor 显示时，改了名的 C 类型在声明行末尾带一条 Xcode 式的行尾标注（<code>Imported from C as AGWeakAttribute</code>），点开后用里面的按钮切换。</p>
+  <p>RuntimeViewer 把这个选项做成全局生成选项（Generation Options › Imported Type Names: Swift / C）。用 SourceEditor 显示时，改了名的 C 类型在声明行末尾带一个注释标签样式的胶囊（<code>C name AGWeakAttribute</code>），单击就切换。胶囊画在文本旁边，不进接口文本。</p>
 </section>
 
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout callout-note">
-    <p class="callout-title">已定：两次点击</p>
-    <p>用户批准按 Xcode 原生的两步做：点横幅弹出下拉框，用里面的按钮切换；右键横幅的菜单里也有同一个动作。不改 <code>Mx-Iris/SourceEditor</code>。</p>
+    <p class="callout-title">已定：单击行尾标签</p>
+    <p>最初按 Xcode 原生两步做了行尾标注（点横幅弹下拉框、按钮在下拉框里）。用户看过后不要这种像报错的横幅，改成标签：声明行末尾一个与注释标签同样的胶囊，单击即切换；悬停变深、手形指针、工具提示。标签写法（<code>C name</code>、放在行尾）是我们定的，目视后可调。</p>
   </div>
 </section>
 
@@ -232,7 +232,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <li><strong>生成选项</strong>：<code>SwiftGenerationOptions.cImportedTypeNameSpelling</code>（<code>@Default(.swiftName)</code>）。面板的 Swift 一组加一行 <code>Imported Type Names: Swift | C</code>。它与「Resolve Imported Type Names」各管各的：后者在 C 名模式下不起作用，也不再为它建类型索引。</li>
     <li><strong>内部标注开关</strong>：<code>GenerationOptions.marksCImportedTypeNames</code>，不出现在面板里，存下来的值永远是 false；内容区只在 SourceEditor 可用时打开，<code>currentMergedGenerationOptions</code> 照同样的规则合并。</li>
     <li><strong>接口带回名字</strong>：<code>RuntimeObjectInterface.cImportedTypeNames</code>，每条是声明名的 UTF-8 范围和两个名字，与宏展开在同一处从标注区域里取出；注释结构不认这种 kind。</li>
-    <li><strong>行尾标注</strong>：bridge 新增 <code>showLineAnnotations(_:)</code> 与一个代理回调。Swift 名模式写 <code>Imported from C as AGWeakAttribute</code> / <code>Show C Names</code>，C 名模式写 <code>Imported to Swift as AnyWeakAttribute</code> / <code>Show Swift Names</code>。切换就是翻转全局生成选项，所有内容区一起重新取接口。</li>
+    <li><strong>行尾标签</strong>：bridge 新增 <code>showLineEndTags(_:)</code> 与一个代理回调。Swift 名模式写 <code>C name AGWeakAttribute</code>（提示 <code>Show C Names</code>），C 名模式写 <code>Swift name AnyWeakAttribute</code>（提示 <code>Show Swift Names</code>）。单击即翻转全局生成选项，所有内容区一起重新取接口。标签画在文本旁边，复制、查找、导出都不受影响。</li>
     <li><strong>其余出口跟着选项走</strong>：MCP、App 充当 host 时的命令行、导出读的都是 <code>appDefaults.options</code>；独立运行的命令行 host 用默认的 Swift 名。Find 语料始终用 Swift 名打印。</li>
   </ol>
   <h3>非目标</h3>
@@ -273,10 +273,10 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <rect class="box-changed" x="525" y="97" width="450" height="44" rx="6"/><text x="535" y="115">GenerationOptions</text><text class="caption" x="535" y="132">+ marksCImportedTypeNames (internal, stored false)</text>
     <rect class="box-added" x="525" y="149" width="450" height="44" rx="6"/><text x="535" y="167">RuntimeInterfaceCImportedTypeName</text><text class="caption" x="535" y="184">declared name's UTF-8 range + both names</text>
     <rect class="box-changed" x="525" y="201" width="450" height="44" rx="6"/><text x="535" y="219">RuntimeObjectInterface</text><text class="caption" x="535" y="236">+ cImportedTypeNames</text>
-    <rect class="box-added" x="525" y="253" width="450" height="44" rx="6"/><text x="535" y="271">SourceEditorBridgingLineAnnotation</text><text class="caption" x="535" y="288">range, message, action title, identifier</text>
-    <rect class="box-changed" x="525" y="305" width="450" height="44" rx="6"/><text x="535" y="323">SourceEditorBridging + delegate</text><text class="caption" x="535" y="340">+ showLineAnnotations(_:), + didPerformActionOfLineAnnotation</text>
-    <rect class="box-changed" x="525" y="357" width="450" height="44" rx="6"/><text x="535" y="375">ContentInterface, ContentTextViewModel</text><text class="caption" x="535" y="392">+ notes, + spelling toggle input</text>
-    <rect class="box-changed" x="525" y="409" width="450" height="44" rx="6"/><text x="535" y="427">ContentSourceEditorViewController</text><text class="caption" x="535" y="444">line annotations, toggle relay</text>
+    <rect class="box-added" x="525" y="253" width="450" height="44" rx="6"/><text x="535" y="271">SourceEditorBridgingLineEndTag, LineEndTagController</text><text class="caption" x="535" y="288">capsule + text layer past the line's end; hover, click, pointing hand</text>
+    <rect class="box-changed" x="525" y="305" width="450" height="44" rx="6"/><text x="535" y="323">SourceEditorBridging + delegate</text><text class="caption" x="535" y="340">+ showLineEndTags(_:), + didClickLineEndTag</text>
+    <rect class="box-changed" x="525" y="357" width="450" height="44" rx="6"/><text x="535" y="375">ContentInterface, ContentTextViewModel</text><text class="caption" x="535" y="392">+ tags, + spelling toggle input</text>
+    <rect class="box-changed" x="525" y="409" width="450" height="44" rx="6"/><text x="535" y="427">ContentSourceEditorViewController</text><text class="caption" x="535" y="444">line-end tags, toggle relay</text>
     <rect class="box-changed" x="525" y="461" width="450" height="30" rx="6"/><text x="535" y="481">GenerationOptionsViewController: Imported Type Names</text>
 
     <path class="arrow" d="M 525 67 L 475 223"/>
@@ -286,14 +286,14 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <p class="figure-caption">实线：RuntimeViewer 的生成选项映射进打印配置。虚线：接口里的名字来自打印器标出的区域。SDK 解析器照旧注册在打印器上，没有改动。</p>
 
   <div class="figure">
-  <svg viewBox="0 0 1000 450" role="img" aria-label="What happens after Show C Names">
-    <rect class="box-added" x="200" y="15" width="600" height="44" rx="6"/><text x="212" y="33">click "Show C Names" in the line annotation's dropdown</text><text class="caption" x="212" y="50">SourceEditorLineAnnotation.Action (or the banner's contextual menu)</text>
-    <rect class="box-added" x="200" y="77" width="600" height="44" rx="6"/><text x="212" y="95">navigationDelegate.didPerformActionOfLineAnnotation</text><text class="caption" x="212" y="112">ContentSourceEditorViewController -&gt; toggle relay</text>
+  <svg viewBox="0 0 1000 450" role="img" aria-label="What happens after a click on the line-end tag">
+    <rect class="box-added" x="200" y="15" width="600" height="44" rx="6"/><text x="212" y="33">click the tag "C name AGWeakAttribute"</text><text class="caption" x="212" y="50">LineEndTagController, an event consumer of SourceEditorView, takes the click</text>
+    <rect class="box-added" x="200" y="77" width="600" height="44" rx="6"/><text x="212" y="95">navigationDelegate.didClickLineEndTag</text><text class="caption" x="212" y="112">ContentSourceEditorViewController -&gt; toggle relay</text>
     <rect class="box-changed" x="200" y="139" width="600" height="44" rx="6"/><text x="212" y="157">ContentTextViewModel</text><text class="caption" x="212" y="174">appDefaults.options.swiftInterfaceOptions.cImportedTypeNameSpelling = .cName</text>
     <rect class="box-kept" x="200" y="201" width="600" height="44" rx="6"/><text x="212" y="219">appDefaults.$options</text><text class="caption" x="212" y="236">every content pane refetches</text>
     <rect class="box-changed" x="200" y="263" width="600" height="44" rx="6"/><text x="212" y="281">service: RuntimeSwiftSection.updateConfiguration</text><text class="caption" x="212" y="298">printer prints with .cName and marks declared names; cache cleared</text>
     <rect class="box-added" x="200" y="325" width="600" height="44" rx="6"/><text x="212" y="343">separatingAnnotationRegions()</text><text class="caption" x="212" y="360">RuntimeObjectInterface.cImportedTypeNames</text>
-    <rect class="box-added" x="200" y="387" width="600" height="44" rx="6"/><text x="212" y="405">setSource + showLineAnnotations</text><text class="caption" x="212" y="422">"Imported to Swift as AnyWeakAttribute"  [Show Swift Names]</text>
+    <rect class="box-added" x="200" y="387" width="600" height="44" rx="6"/><text x="212" y="405">setSource + showLineEndTags</text><text class="caption" x="212" y="422">struct AGWeakAttribute {  (Swift name AnyWeakAttribute)</text>
     <path class="arrow" d="M 500 59 L 500 77"/>
     <path class="arrow" d="M 500 121 L 500 139"/>
     <path class="arrow" d="M 500 183 L 500 201"/>
@@ -302,7 +302,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <path class="arrow" d="M 500 369 L 500 387"/>
   </svg>
   </div>
-  <p class="figure-caption">点「Show C Names」之后：改的是全局生成选项，所有内容区经同一条重新取接口的路径刷新。</p>
+  <p class="figure-caption">单击行尾标签之后：改的是全局生成选项，所有内容区经同一条重新取接口的路径刷新。</p>
 </section>
 
 <section id="map">
@@ -332,13 +332,15 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       <tr><td>RV · <code>Interfaces/RuntimeInterfaceCImportedTypeName.swift</code></td><td><span class="tag tag-added">新增</span></td><td>声明名的范围与两个名字</td><td>提示所需的数据</td><td class="numeric">4</td></tr>
       <tr><td>RV · <code>RuntimeObjectInterface.swift</code> 及两处 <code>+AnnotationRegions</code></td><td><span class="tag tag-changed">修改</span></td><td>可选字段；分离时取出；注释结构忽略</td><td>照宏展开的路</td><td class="numeric">4</td></tr>
       <tr><td>RV · <code>RuntimeSwiftSection.swift</code> · <code>updateConfiguration</code></td><td><span class="tag tag-changed">修改</span></td><td>设标注开关；<code>.cName</code> 下不请求类型索引</td><td>C 名用不到索引</td><td class="numeric">4</td></tr>
-      <tr><td>RV · <code>SourceEditorBridging.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>SourceEditorBridgingLineAnnotation</code>、<code>showLineAnnotations(_:)</code>、代理回调</td><td>bridge 接口</td><td class="numeric">5</td></tr>
-      <tr><td>RV · <code>SourceEditorBridge.swift</code>（或新的 <code>LineAnnotationController.swift</code>）</td><td><span class="tag tag-changed">修改</span></td><td>清掉旧标注、插入 <code>SourceEditorLineAnnotation</code>、动作回调代理</td><td>接上框架的行尾标注</td><td class="numeric">5</td></tr>
-      <tr><td>RV · <code>RuntimeViewerSourceEditorBridgeTests/LineAnnotationTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>第 5 步的行为</td><td>回归</td><td class="numeric">5</td></tr>
-      <tr><td>RV · <code>RuntimeViewerAppCore/Content/ContentInterface.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>提示的值（范围、消息、动作标题）</td><td>AppCore 描述、App 只画</td><td class="numeric">6</td></tr>
+      <tr><td>RV · <code>SourceEditorBridging.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>SourceEditorBridgingLineEndTag</code>、<code>showLineEndTags(_:)</code>、代理回调</td><td>bridge 接口</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>LineEndTagController.swift</code></td><td><span class="tag tag-added">新增</span></td><td>行尾画胶囊与文字层；悬停、工具提示、单击、手形光标</td><td>画行尾标签、接点击</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>SourceEditorBridge.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>注册控制器；换数据源前清掉标签；外观交给两个控制器</td><td>接上控制器</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>CommentDecorationController.swift</code> · <code>TagAppearance</code></td><td><span class="tag tag-changed">修改</span></td><td>多存注释字体；按样式取字色；<code>cgColor(_:in:)</code> 模块内可见</td><td>两种标签共用外观</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>RuntimeViewerSourceEditorBridgeTests/LineEndTagTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>第 5 步的行为</td><td>回归</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>RuntimeViewerAppCore/Content/ContentInterface.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>标签的值（范围、标签名、另一个名字、工具提示）</td><td>AppCore 描述、App 只画</td><td class="numeric">6</td></tr>
       <tr><td>RV · <code>RuntimeViewerAppCore/Content/ContentTextViewModel.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>合并标注开关；新输入翻转拼写</td><td>切换即改全局选项</td><td class="numeric">6</td></tr>
       <tr><td>RV · <code>RuntimeViewerAppCore/Base/ViewModel.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>currentMergedGenerationOptions</code> 同样合并</td><td>缓存键对齐</td><td class="numeric">6</td></tr>
-      <tr><td>RV · <code>Content/ContentSourceEditorViewController.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>setSource</code> 之后放标注；回调进 relay</td><td>接上 ViewModel</td><td class="numeric">6</td></tr>
+      <tr><td>RV · <code>Content/ContentSourceEditorViewController.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>setSource</code> 之后放标签；回调进 relay</td><td>接上 ViewModel</td><td class="numeric">6</td></tr>
       <tr><td>RV · <code>Generation Options/GenerationOptionsViewController.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>Imported Type Names: Swift | C</code></td><td>面板入口</td><td class="numeric">6</td></tr>
       <tr><td>RV · Core 与 AppCore 测试</td><td><span class="tag tag-added">新增</span></td><td>第 4、6 步的行为</td><td>回归</td><td class="numeric">4、6</td></tr>
       <tr><td>RV · 命令行插件 skill 与清单</td><td><span class="tag tag-changed">修改</span></td><td>补上描述符的 Swift 名与 C 名选项；<code>1.4.0</code> 已发布就抬到 <code>1.4.1</code></td><td>输出变了</td><td class="numeric">7</td></tr>
@@ -440,22 +442,24 @@ declared name of a C-imported descriptor
 <span class="token-comment">// RuntimeObjectInterface</span>
 <span class="token-keyword">public let</span> cImportedTypeNames: [<span class="token-type">RuntimeInterfaceCImportedTypeName</span>]?
 
-<span class="token-macro">@objc</span>(RuntimeViewerSourceEditorBridgingLineAnnotation)
-<span class="token-keyword">public final class</span> <span class="token-type">SourceEditorBridgingLineAnnotation</span>: <span class="token-type">NSObject</span> {
+<span class="token-macro">@objc</span>(RuntimeViewerSourceEditorBridgingLineEndTag)
+<span class="token-keyword">public final class</span> <span class="token-type">SourceEditorBridgingLineEndTag</span>: <span class="token-type">NSObject</span> {
     <span class="token-keyword">public let</span> characterRange: <span class="token-type">NSRange</span>
-    <span class="token-keyword">public let</span> message: <span class="token-type">String</span>
-    <span class="token-keyword">public let</span> actionTitle: <span class="token-type">String</span>
+    <span class="token-keyword">public let</span> label: <span class="token-type">String</span>          <span class="token-comment">// "C name"</span>
+    <span class="token-keyword">public let</span> value: <span class="token-type">String</span>          <span class="token-comment">// "AGWeakAttribute"</span>
+    <span class="token-keyword">public let</span> valueStyle: <span class="token-type">SourceEditorBridgingCommentRunStyle</span>
+    <span class="token-keyword">public let</span> toolTip: <span class="token-type">String</span>?       <span class="token-comment">// "Show C Names"</span>
     <span class="token-keyword">public let</span> identifier: <span class="token-type">String</span>
 }
 <span class="token-comment">// SourceEditorBridging</span>
-<span class="token-keyword">func</span> showLineAnnotations(<span class="token-keyword">_</span> annotations: [<span class="token-type">SourceEditorBridgingLineAnnotation</span>])
+<span class="token-keyword">func</span> showLineEndTags(<span class="token-keyword">_</span> tags: [<span class="token-type">SourceEditorBridgingLineEndTag</span>])
 <span class="token-comment">// SourceEditorBridgingNavigationDelegate</span>
-<span class="token-keyword">func</span> sourceEditorBridge(<span class="token-keyword">_</span> bridge: <span class="token-type">SourceEditorBridging</span>, didPerformActionOfLineAnnotationWithIdentifier identifier: <span class="token-type">String</span>)</code></pre>
+<span class="token-keyword">func</span> sourceEditorBridge(<span class="token-keyword">_</span> bridge: <span class="token-type">SourceEditorBridging</span>, didClickLineEndTagWithIdentifier identifier: <span class="token-type">String</span>)</code></pre>
       <ul>
         <li>线上兼容：旧版对端不认这两个选项，不带 <code>cImportedTypeNames</code>，内容区就没有提示；新版对端收到旧版请求时取默认值。</li>
-        <li>Bridge 实现照复刻版 tag <code>27.2.0-alpha.2</code> 的源码：<code>lineIdentifier</code> 取 <code>dataSource.identifierForLine(_:)</code>；动作进 <code>actions</code>，<code>revealAction</code> 用同一个标题；不可拖动、不可最小化、不画滚动条标记。</li>
-        <li>类别的图标与颜色不凭猜：Xcode 的 note 类别在 IDESourceEditor 里、不在复刻范围，实现前读 <code>/Volumes/RE/Xcode/26.6/</code> 的导出确认，没有就停下来问。</li>
-        <li>AppCore 按当前拼写生成文字：<code>.swiftName</code> 写 <code>Imported from C as &lt;cName&gt;</code> / <code>Show C Names</code>，<code>.cName</code> 写 <code>Imported to Swift as &lt;swiftName&gt;</code> / <code>Show Swift Names</code>；ViewModel 的新输入在主线程翻转 <code>appDefaults.options</code> 里的拼写。</li>
+        <li><code>LineEndTagController</code> 是布局可视化、事件消费者（<code>.high</code>）与光标矩形提供者，在 bridge 的 <code>init</code> 里注册一次。每次布局取「选中整行时会画的矩形」里最后一行最右的那个，胶囊左边离它一个空格宽，高度与注释标签一样；胶囊是 <code>CAShapeLayer</code>、文字是 <code>CATextLayer</code>，都在 <code>underlayLayer</code>，外观用注释标签那一份（多存了注释字体）。</li>
+        <li>左键按下（不带 ⌘、⌃）落在胶囊里就回调并吃掉这次点击与随后的抬起；移动时悬停的胶囊填充不透明度翻倍、内容视图的 <code>toolTip</code> 换成标签的提示（照 gutter 的做法）；每个胶囊一个手形光标矩形。<code>setSource</code> 换数据源前清掉标签。</li>
+        <li>AppCore 按当前拼写生成值：<code>.swiftName</code> 是 <code>C name</code> + C 名、提示 <code>Show C Names</code>，<code>.cName</code> 是 <code>Swift name</code> + Swift 名、提示 <code>Show Swift Names</code>；ViewModel 的新输入在主线程翻转 <code>appDefaults.options</code> 里的拼写。</li>
       </ul>
     </div>
   </details>
@@ -464,7 +468,7 @@ declared name of a C-imported descriptor
 <section id="research">
   <h2>调研</h2>
   <details>
-    <summary>11 条查证过的事实</summary>
+    <summary>12 条查证过的事实</summary>
     <div class="details-body">
       <ol>
         <li><strong>复现</strong>：<code>swift-section 0.24.0 interface --show-c-imported-types</code> 打 macOS 27.2 的 AttributeGraph，得到 <code>struct AnyAttribute</code>、<code>struct AnyWeakAttribute { … var _details: __C.AGWeakAttribute.__Unnamed_struct__details }</code> 与 <code>struct WeakAttribute&lt;A&gt; { var base: __C.AGWeakAttribute }</code>。</li>
@@ -478,6 +482,7 @@ declared name of a C-imported descriptor
         <li><strong>命令行</strong>：<code>InterfaceCommand.swift</code>、<code>InterfaceRequest.swift</code>；插件 skill §8，清单 <code>0.27.0</code>。</li>
         <li><strong>RuntimeViewer</strong>：生成选项在 <code>appDefaults.options</code>，内容区随它重取；面板有 <code>.enumOption</code>；注释结构与宏展开都是「标区域 → 分离 → 接口带可选字段」；bridge 是 Objective-C 协议，从未用过行尾标注；命令行插件 <code>1.4.0</code> 尚未发布。</li>
         <li><strong>复刻版 SourceEditor 的行尾标注</strong>（tag <code>27.2.0-alpha.2</code>）：<code>insertLineAnnotation(_:)</code> 等公开入口齐全；横幅本身不带按钮，点横幅弹下拉框（<code>handleLeftMouseUpEvent</code>），右键菜单只有 <code>revealAction</code>；交互代理没有「点了横幅」的回调。</li>
+        <li><strong>注释标签怎么画、能不能接点击</strong>（验收时查的）：胶囊是 <code>underlayLayer</code> 里的 <code>CAShapeLayer</code>，位置取自 <code>selectionRects</code>，字是编辑器自己画的源码文字，所以离不开文本；<code>SourceEditorView</code> 把按下、抬起、移动、移出都先交给事件消费者，移动来自它自己的跟踪区域；光标矩形提供者在 I 形光标之后追加；gutter 悬停时改视图的 <code>toolTip</code>；<code>positionFromInternalCharOffset</code>、<code>lineContentLengthForLine</code> 都是公开的。</li>
       </ol>
     </div>
   </details>
@@ -486,13 +491,14 @@ declared name of a C-imported descriptor
 <section id="alternatives">
   <h2>替代方案</h2>
   <details>
-    <summary>6 条被否的路径</summary>
+    <summary>7 条被否的路径</summary>
     <div class="details-body">
       <ul>
         <li><strong>模块未知时写 <code>__C.AnyWeakAttribute</code></strong>：与声明行仍不一致，且是打印器以前特意避开的半翻译写法；用户选了裸名。</li>
         <li><strong>默认按 C 名统一</strong>：读的是 Swift interface，Swift 名更贴合；C 名作为可切换的拼写保留。</li>
         <li><strong>按前缀推断成员导入的父类型</strong>：二进制里没有父路径，前缀切分会切出 <code>NS.Decimal</code> 这种错误结果。</li>
-        <li><strong>类型名后面的胶囊标签</strong>：要多输出一段注释，复制与导出会带上它，还要给标签加点击；用户选了行尾标注。</li>
+        <li><strong>打印器多印一段注释，再按注释标签画</strong>：标签的字来自文本，复制、查找、导出都会带上，NSTextView 下还是普通注释；改由 bridge 在行尾自己画。</li>
+        <li><strong>复刻版的行尾标注</strong>（最初的实现）：横幅像报错，切换要点两下；用户看过后改成单击的行尾标签。</li>
         <li><strong>只切换当前编辑栏</strong>：要另存一份不进设置的状态，缓存键多一维；用户选了全局生成选项。</li>
         <li><strong>拼写与 <code>resolvesImportedTypeNames</code> 合成三档</strong>：类型索引功能还在验收，合并就要改它的设置与测试；两个开关各管各的更简单。</li>
       </ul>
@@ -513,7 +519,7 @@ declared name of a C-imported descriptor
   <ul>
     <li><strong>本仓库</strong>：<code>SwiftInterfaceBuilder</code>、<code>diff --interface</code> 的渲染、<code>swift-section interface</code> 的默认输出跟着变；ABI diff 的键不变。</li>
     <li><strong>MachOKitUI、SymbolViewer</strong>：输出变化同上，不需要改代码。</li>
-    <li><strong>RuntimeViewer · 用户可见</strong>：SourceEditor 下改了名的声明行末尾多一条灰色行尾标注；Generation Options 多一行；默认接口统一成 Swift 名；MCP、App 充当 host 时的命令行与导出跟着选项；Find 结果始终是 Swift 名。</li>
+    <li><strong>RuntimeViewer · 用户可见</strong>：SourceEditor 下改了名的声明行末尾多一个注释标签样式的胶囊，写着另一个名字，单击即切换；Generation Options 多一行；默认接口统一成 Swift 名；MCP、App 充当 host 时的命令行与导出跟着选项；Find 结果始终是 Swift 名。</li>
     <li><strong>RuntimeViewer · 兼容</strong>：旧设置取 <code>.swiftName</code>，标注开关存下来永远是 false，不需要迁移；提示只在 macOS 的 SourceEditor 路径；不涉及权限、公证与 Sparkle；Find 语料的旧文件因产出者身份改变自然失效，不必改 variant。</li>
     <li><strong>顺序约束</strong>：两边都叠在 <code>swift-type-indexing-package</code> 上（它还在两个仓库的本地 <code>next</code>、没推送），要等它先收尾，或在它的功能分支之上开分支。</li>
   </ul>
@@ -535,8 +541,8 @@ declared name of a C-imported descriptor
     <li>✅ <strong>打印规则</strong> —— <code>swiftSpellingPrintsBareSwiftNameWhenModuleIsUnknown</code>、<code>untrustedDeclaredNamePrintsCName</code>、<code>swiftSpellingKeepsModuleThatResolverFinds</code>、<code>extensionHeaderSpellsLikeMemberTypes</code>、<code>cSpellingPrintsMangledNamesAndAsksNoResolver</code>；扩展头逐字节不变与 diff 的键由全量测试覆盖。</li>
     <li>✅ <strong>标注与命令行</strong> —— <code>markedDeclaredNameCarriesBothSpellings</code>、<code>markedCSpellingCarriesTheSameNames</code>、<code>sameSpellingsAreNotMarked</code>、<code>regionKindRoundTripsDottedSwiftName</code>、<code>interfaceCImportedTypeNameSpelling</code>；README 与插件 skill（<code>0.28.0</code>）。</li>
     <li>✅ <strong>RuntimeViewer Core</strong> —— 对系统 AttributeGraph 的引擎测试 7 条与 <code>changedSpellingReconfiguresOnce</code>；类型索引那条在测试进程里无从观察，不写。</li>
-    <li>✅ <strong>Bridge 的行尾标注</strong> —— <code>lineAnnotationSitsOnFirstLineOfItsRange</code>、<code>showingAgainReplaces</code>、<code>setSourceRemovesLineAnnotations</code>、<code>performingActionNotifiesDelegateWithIdentifier</code>、<code>contextualMenuOffersTheSameAction</code>。</li>
-    <li>✅ <strong>AppCore 与 App</strong> —— <code>notesNameCDeclarationUnderSwiftSpelling</code>、<code>notesNameSwiftTypeUnderCSpelling</code>、<code>noteRangeIsInUTF16</code>、<code>noNamesNoNotes</code>、<code>togglingFlipsStoredSpelling</code>；界面目视交给用户。</li>
+    <li>✅ <strong>Bridge 的行尾标签</strong>（最初做成行尾标注，验收时改掉） —— <code>tagSitsPastTheEndOfTheLineItsRangeStartsOn</code>、<code>tagAddsNothingToTheText</code>、<code>showingAgainReplaces</code>、<code>setSourceRemovesTags</code>、<code>clickingNotifiesDelegateWithIdentifier</code>、<code>tagTakesThePointingHand</code>、<code>hoveringDarkensTagAndShowsToolTip</code>。</li>
+    <li>✅ <strong>AppCore 与 App</strong> —— <code>tagHoldsCNameUnderSwiftSpelling</code>、<code>tagHoldsSwiftNameUnderCSpelling</code>、<code>tagRangeIsInUTF16</code>、<code>noNamesNoTags</code>、<code>togglingFlipsStoredSpelling</code>；界面目视交给用户。</li>
     <li>✅ <strong>收尾的一部分</strong> —— 五个锁文件钉到 MachOSwiftSection 功能分支的同一提交、命令行插件 skill；取号与 Implemented 留给正式收尾。</li>
   </ol>
 </section>
@@ -544,7 +550,7 @@ declared name of a C-imported descriptor
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>20 条，最近一条：文档判断</summary>
+    <summary>21 条，最近一条：提示改成行尾标签</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -570,6 +576,7 @@ declared name of a C-imported descriptor
           <tr><td class="numeric">2026-11-24</td><td>行尾标注的外观是我们自己的类别</td><td>灰色、<code>info.circle.fill</code>、整行 8% 淡灰，交给用户目视验收时再调。</td></tr>
           <tr><td class="numeric">2026-11-24</td><td>实现完成，待用户看过后收尾</td><td>相关测试全过；MSS 全量只有读不到本机没有的文件的 36 处，与基线同类；整个 App 编译通过；两个功能分支已在本地合进常驻 <code>next</code>，没推送。</td></tr>
           <tr><td class="numeric">2026-11-24</td><td>文档判断</td><td>提案、MSS 的 README 与插件 skill、RV 的命令行插件 skill 已同步；其余不需要改。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>提示改成行尾标签</td><td>用户看过行尾标注后不要这种像报错的横幅，要标签。改为声明行末尾一个与注释标签同样的胶囊，单击即切换，悬停变深、手形指针、工具提示；由 bridge 自己画胶囊与文字层，接口文本、复制与查找都不变，打印器不动。标签写法与位置是我们定的，目视后可调。</td></tr>
         </tbody>
       </table>
       </div>

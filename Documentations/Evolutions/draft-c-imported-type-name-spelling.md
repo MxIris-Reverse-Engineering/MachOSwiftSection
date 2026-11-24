@@ -9,7 +9,7 @@
 - **实现分支 / PR**: 两个仓库都是 `feature/c-imported-type-name-spelling`（worktree `.worktrees/MachOSwiftSection-CImportedTypeNameSpelling`、`.worktrees/RuntimeViewer-CImportedTypeNameSpelling`），叠在 `feature/swift-type-indexing-package` 上
 - **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
 - **网页版**: 同目录同名的 `.html`
-- **涉及仓库**: MachOSwiftSection（本仓库，打印器与 `swift-section`）、RuntimeViewer（生成选项、内容区的行尾提示）。这是跨仓库的唯一提案，RuntimeViewer 的提案索引登记为 cross-repository draft
+- **涉及仓库**: MachOSwiftSection（本仓库，打印器与 `swift-section`）、RuntimeViewer（生成选项、内容区的行尾标签）。这是跨仓库的唯一提案，RuntimeViewer 的提案索引登记为 cross-repository draft
 
 ## 摘要
 
@@ -22,7 +22,7 @@ Swift interface 里，从 C 导入、被改了名的类型（`NS_SWIFT_NAME`、t
 
 同时修掉扩展头不经类型名解析器的问题：SDK 类型的成员已经解析成 `CoreFoundation.CGRect`，扩展头却还是 `__C.CGRect`。
 
-RuntimeViewer 把这个选项做成全局生成选项（Generation Options › Imported Type Names: Swift / C）。用 SourceEditor 显示时，改了名的 C 类型在声明行末尾带一条 Xcode 式的行尾标注（`Imported from C as AGWeakAttribute`），点开后用里面的按钮切换。
+RuntimeViewer 把这个选项做成全局生成选项（Generation Options › Imported Type Names: Swift / C）。用 SourceEditor 显示时，改了名的 C 类型在声明行末尾带一个注释标签样式的胶囊（`C name AGWeakAttribute`），单击就切换。胶囊画在文本旁边，不进接口文本。
 
 ## 动机
 
@@ -84,6 +84,12 @@ extension __C.AGWeakAttribute: Swift.Equatable {}
 11. **复刻版 SourceEditor 的行尾标注**（`Mx-Iris/SourceEditor` tag `27.2.0-alpha.2`，RuntimeViewer 钉的版本）：
     - 公开入口 `SourceEditorView.insertLineAnnotation(_:)`、`removeAllLineAnnotations()`、`lineAnnotations`（`SourceEditor/macOS/SourceEditorView.swift:967-989`）；`SourceEditorLineAnnotation.init(category:message:lineIdentifier:…:revealAction:…)`（`SourceEditor/Annotations/LineAnnotations/SourceEditorLineAnnotation.swift:134`）；`SourceEditorLineAnnotationCategory`（同文件 `:7`）；动作 `SourceEditorLineAnnotation.Action`（`SourceEditorLineAnnotationAction.swift`，`DisplayStyle` 有 `inline` / `lineItem` / `dropdown`）。
     - **横幅本身不带按钮**：点横幅时 `SourceEditorLineAnnotationManager.handleLeftMouseUpEvent`（`SourceEditorLineAnnotationManager.swift:960-977`）弹出 Xcode 那种下拉框，动作按钮在下拉框里；右键横幅弹出的菜单里只有 `revealAction` 这一项（`SourceEditorLineAnnotationView.swift:788-800`）。`SourceEditorLineAnnotationInteractionDelegate`（`SourceEditorLineAnnotationDropdownPresentation.swift:39`）没有「点了横幅」的回调。所以「点一下就切换」要么走两步（点横幅、再点下拉里的按钮），要么用右键菜单，要么去改复刻版框架。
+12. **RuntimeViewer 的注释标签怎么画、能不能接点击**（验收时用户要求把行尾标注改成标签后查的）：
+    - 注释标签（`Field offset 0x0` 那种胶囊）由 bridge 的 `CommentDecorationController` 画：胶囊是 `CAShapeLayer`，放在内容视图的 `underlayLayer` 里，位置取自「选中这几列时会画的矩形」（`SourceEditorContentView.selectionRects(for:coalesceInteriorRects:includeLineSpacing:)`），每次布局在 `LayoutVisualization.didLayoutInContentView` 里重摆；胶囊里的字是编辑器自己画的源码文字，只改了颜色。所以标签离不开文本里的一段注释，行尾没有文字可画。
+    - 鼠标：复刻版 `SourceEditorView` 把按下、抬起、移动、移出都先交给事件消费者（`SourceEditorView+EventHandling.swift`），移动来自它自己的跟踪区域（`SourceEditorView.swift:285`，`mouseMoved`、`inVisibleRect`、窗口为 key 时）；消费者返回 `true` 就不再进选区跟踪。折叠三角就是这样接的点击。
+    - 指针：`addCursorRectOverrideProvider(_:)` 的提供者在编辑器的 I 形光标之后追加光标矩形（`SourceEditorView.resetCursorRects`）。
+    - 工具提示：复刻版自己只在 gutter 用，做法是悬停时改视图的 `toolTip`（`SourceEditorGutter.swift:501`）。
+    - 行信息：`SourceEditorDataSource.positionFromInternalCharOffset(_:lineHint:)`、`lineContentLengthForLine(_:)`、`lineCount` 都是公开的。
 
 ## 提议方案
 
@@ -111,16 +117,16 @@ extension __C.AGWeakAttribute: Swift.Equatable {}
 1. **生成选项**：`SwiftGenerationOptions.cImportedTypeNameSpelling`（`@Default(.swiftName)`，旧设置读出来是 Swift 名）。Generation Options 面板的 Swift 一组加一行 `Imported Type Names: Swift | C`。它与「Resolve Imported Type Names」各管各的：后者决定要不要用 SDK 解析模块，在 C 名模式下不起作用，也不再为它建类型索引。
 2. **内部标注开关**：`GenerationOptions.marksCImportedTypeNames`，不出现在面板里，存下来的值永远是默认的 false。内容区只在 SourceEditor 可用时把它打开，`currentMergedGenerationOptions` 照同样的规则合并。
 3. **接口带回名字**：`RuntimeObjectInterface.cImportedTypeNames: [RuntimeInterfaceCImportedTypeName]?`，每条是声明名在文本里的 UTF-8 范围和两个名字。从分离出的标注区域里取，与宏展开在同一处；注释结构不认这种 kind。
-4. **行尾标注**：bridge 新增 `showLineAnnotations(_:)` 与一个代理回调。内容区每次 `setSource` 之后，给每个改了名的声明放一条：
-   - Swift 名模式：`Imported from C as AGWeakAttribute`，动作 `Show C Names`；
-   - C 名模式：`Imported to Swift as AnyWeakAttribute`，动作 `Show Swift Names`。
+4. **行尾标签**：bridge 新增 `showLineEndTags(_:)` 与一个代理回调。内容区每次 `setSource` 之后，给每个改了名的声明在行尾放一个标签，样子与注释标签一样（胶囊、标签字体与配色），写着文本没印的那个名字：
+   - Swift 名模式：`C name AGWeakAttribute`，提示 `Show C Names`；
+   - C 名模式：`Swift name AnyWeakAttribute`，提示 `Show Swift Names`。
 
-   点横幅弹出下拉框，用里面的按钮切换；右键横幅的菜单里也有同一个动作（`revealAction`）。切换就是翻转全局的生成选项，所有内容区一起重新取接口。
+   单击标签就切换：翻转全局的生成选项，所有内容区一起重新取接口。标签画在文本旁边，不进接口文本，复制、查找、导出都不受影响。
 5. **其余出口跟着选项走**：MCP、App 充当 host 时的命令行、导出读的都是 `appDefaults.options`，与其他生成选项一样；独立运行的命令行 host 用默认的 Swift 名。Find 语料始终用 Swift 名打印。
 
-### 交互：两次点击
+### 交互：单击行尾标签
 
-用户选的样式里，按钮直接画在横幅上；复刻版框架的横幅没有按钮（前期调研 11）。用户批准按 Xcode 原生的两步做：点横幅弹出下拉框，用里面的按钮切换；右键横幅的菜单里也有同一个动作。不改 `Mx-Iris/SourceEditor`。
+最初按用户批准的 Xcode 原生两步做了行尾标注（点横幅弹下拉框，按钮在下拉框里）。用户看过之后不要这种像报错的横幅，改成标签：声明行末尾一个与注释标签同样的胶囊，单击即切换。悬停时胶囊变深、指针变成手形、显示工具提示（`Show C Names` / `Show Swift Names`）。注释标签离不开文本里的一段注释（前期调研 12），所以行尾标签由 bridge 自己画胶囊和文字，不往接口文本里加东西。不改 `Mx-Iris/SourceEditor`。
 
 ### 非目标
 
@@ -129,7 +135,7 @@ extension __C.AGWeakAttribute: Swift.Equatable {}
 - **只在声明行放提示**：引用处（`var base: AnyWeakAttribute`）不放，一屏里可能有几十个引用，提示会太吵。
 - **侧栏、路径栏、Find 结果里的对象名不跟着切换**：它们来自索引，不重新打印。Find 语料始终是 Swift 名，搜 C 名搜不到改了名的引用。
 - **`dump`、`diff`、`snapshot` 的键不变**：ABI diff 按 mangled 身份对比（`Sources/Output/SwiftDiffing/Keying.swift`），只有 `diff --interface` 的渲染会跟着新的默认拼写变。
-- **NSTextView 显示路径与 iOS 版不放提示**：两处都没有行尾标注；iOS 版也没有生成选项界面，只能用默认的 Swift 名。
+- **NSTextView 显示路径与 iOS 版不放提示**：两处都没有行尾标签；iOS 版也没有生成选项界面，只能用默认的 Swift 名。
 - **命令行工具不加对应参数**：它读 App 的生成选项，独立 host 用默认值。
 
 ## 改动地图
@@ -157,13 +163,15 @@ extension __C.AGWeakAttribute: Swift.Equatable {}
 | RV · `…/Interfaces/RuntimeInterfaceCImportedTypeName.swift` | 新增 | 声明名的 UTF-8 范围与两个名字 | 接口带回提示所需的数据 | 4 |
 | RV · `…/Interfaces/RuntimeObjectInterface.swift`、`RuntimeObjectInterface+AnnotationRegions.swift`、`RuntimeInterfaceCommentStructure+AnnotationRegions.swift` | 修改 | 加可选字段 `cImportedTypeNames`；分离时取出；注释结构忽略这种 kind | 照宏展开的路 | 4 |
 | RV · `…/Sections/Swift/RuntimeSwiftSection.swift` · `updateConfiguration` | 修改 | 设 `marksCImportedTypeNames`；`.cName` 下不请求类型索引 | C 名用不到索引 | 4 |
-| RV · `RuntimeViewerUsingAppKit/RuntimeViewerSourceEditorBridge/SourceEditorBridging.swift` | 修改 | `SourceEditorBridgingLineAnnotation`、`showLineAnnotations(_:)`、代理的 `sourceEditorBridge(_:didPerformActionOfLineAnnotationWithIdentifier:)` | bridge 接口 | 5 |
-| RV · `…/RuntimeViewerSourceEditorBridge/SourceEditorBridge.swift`（或新的 `LineAnnotationController.swift`） | 修改 / 新增 | `setSource` 清掉旧标注；插入 `SourceEditorLineAnnotation`（类别、图标、颜色、动作、`revealAction`）；动作回调代理 | 接上框架的行尾标注 | 5 |
-| RV · `RuntimeViewerUsingAppKit/RuntimeViewerSourceEditorBridgeTests/LineAnnotationTests.swift` | 新增 | 第 5 步的行为 | 回归 | 5 |
-| RV · `RuntimeViewerPackages/Sources/RuntimeViewerAppCore/Content/ContentInterface.swift` | 修改 | 加提示的值（UTF-16 范围、消息、动作标题），按当前拼写生成文字 | AppCore 描述、AppUI / App 只画 | 6 |
+| RV · `RuntimeViewerUsingAppKit/RuntimeViewerSourceEditorBridge/SourceEditorBridging.swift` | 修改 | `SourceEditorBridgingLineEndTag`、`showLineEndTags(_:)`、代理的 `sourceEditorBridge(_:didClickLineEndTagWithIdentifier:)` | bridge 接口 | 5 |
+| RV · `…/RuntimeViewerSourceEditorBridge/LineEndTagController.swift` · `LineEndTagController` | 新增 | 在行尾画胶囊与文字层；悬停变深、工具提示；单击回调；手形光标矩形 | 画行尾标签、接点击 | 5 |
+| RV · `…/RuntimeViewerSourceEditorBridge/SourceEditorBridge.swift` | 修改 | 注册控制器；`setSource` 换数据源前清掉标签；标签外观同时交给两个控制器 | 接上控制器 | 5 |
+| RV · `…/RuntimeViewerSourceEditorBridge/CommentDecorationController.swift` · `TagAppearance` | 修改 | 多存注释字体；按样式取字色的方法；`cgColor(_:in:)` 改成模块内可见 | 行尾标签与注释标签共用外观 | 5 |
+| RV · `RuntimeViewerUsingAppKit/RuntimeViewerSourceEditorBridgeTests/LineEndTagTests.swift` | 新增 | 第 5 步的行为（`CommentDecorationTests` 的 `CursorRectRecorder` 改成测试目标内可见） | 回归 | 5 |
+| RV · `RuntimeViewerPackages/Sources/RuntimeViewerAppCore/Content/ContentInterface.swift` | 修改 | 加标签的值（UTF-16 范围、标签名、另一个名字、工具提示），按当前拼写生成文字 | AppCore 描述、AppUI / App 只画 | 6 |
 | RV · `…/RuntimeViewerAppCore/Content/ContentTextViewModel.swift` | 修改 | 合并 `marksCImportedTypeNames`；新输入 `cImportedTypeNameSpellingToggled`，翻转 `appDefaults.options` 里的拼写 | 切换即改全局选项 | 6 |
 | RV · `…/RuntimeViewerAppCore/Base/ViewModel.swift` · `currentMergedGenerationOptions` | 修改 | 同样合并 `marksCImportedTypeNames` | 缓存键与内容区对齐 | 6 |
-| RV · `RuntimeViewerUsingAppKit/RuntimeViewerUsingAppKit/Content/ContentSourceEditorViewController.swift` | 修改 | `setSource` 之后 `showLineAnnotations`；代理回调进 relay | 接上 ViewModel | 6 |
+| RV · `RuntimeViewerUsingAppKit/RuntimeViewerUsingAppKit/Content/ContentSourceEditorViewController.swift` | 修改 | `setSource` 之后 `showLineEndTags`；代理回调进 relay | 接上 ViewModel | 6 |
 | RV · `RuntimeViewerUsingAppKit/RuntimeViewerUsingAppKit/Generation Options/GenerationOptionsViewController.swift` | 修改 | `.enumOption(title: "Imported Type Names", labels: ["Swift", "C"], …)` | 面板入口 | 6 |
 | RV · `RuntimeViewerCore/Tests/…`、`RuntimeViewerPackages/Tests/RuntimeViewerAppCoreTests/…` | 新增 | 第 4、6 步的行为 | 回归 | 4、6 |
 | RV · `AgentPlugins/runtime-viewer/skills/runtime-viewer-cli/SKILL.md`、两份插件清单 | 修改 | 「Imported types」一段补上描述符的 Swift 名与 C 名选项；`1.4.0` 已发布就抬到 `1.4.1`，没发布就留在 `1.4.0` | 输出变了 | 7 |
@@ -196,13 +204,15 @@ RuntimeViewer
 +   RuntimeInterfaceCImportedTypeName      declared name's UTF-8 range + both names
 ~   RuntimeObjectInterface                 + cImportedTypeNames
   RuntimeViewerSourceEditorBridge/
-+   SourceEditorBridgingLineAnnotation
-~   SourceEditorBridging                   + showLineAnnotations(_:)
-~   SourceEditorBridgingNavigationDelegate + didPerformActionOfLineAnnotationWithIdentifier
++   SourceEditorBridgingLineEndTag
++   LineEndTagController                   capsule + text layer past the line's end; hover, click, pointing hand
+~   SourceEditorBridging                   + showLineEndTags(_:)
+~   SourceEditorBridgingNavigationDelegate + didClickLineEndTagWithIdentifier
+~   CommentDecorationController.TagAppearance  + commentFont, shared with the line-end tags
   RuntimeViewerAppCore/Content/
-~   ContentInterface, ContentTextViewModel + notes, + spelling toggle input
+~   ContentInterface, ContentTextViewModel + tags, + spelling toggle input
   RuntimeViewerUsingAppKit/
-~   ContentSourceEditorViewController      line annotations, toggle relay
+~   ContentSourceEditorViewController      line-end tags, toggle relay
 ~   GenerationOptionsViewController        + "Imported Type Names: Swift | C"
 ```
 
@@ -221,12 +231,13 @@ declared name of a C-imported descriptor
 └─ .swiftName                               -> resolver's spelling ?? trusted name ?? ABI name
 ```
 
-**点「Show C Names」之后**：
+**单击行尾标签之后**：
 
 ```text
-click "Show C Names" in the line annotation's dropdown
-  -> SourceEditorBridge: SourceEditorLineAnnotation.Action
-  -> navigationDelegate.sourceEditorBridge(_:didPerformActionOfLineAnnotationWithIdentifier:)
+click the tag "C name AGWeakAttribute" after `struct AnyWeakAttribute {`
+  -> SourceEditorView.mouseDown -> event consumers
+  -> LineEndTagController.handleMouseEvent                           consumes the click
+  -> navigationDelegate.sourceEditorBridge(_:didClickLineEndTagWithIdentifier:)
   -> ContentSourceEditorViewController: cImportedTypeNameSpellingToggledRelay
   -> ContentTextViewModel: appDefaults.options.swiftInterfaceOptions.cImportedTypeNameSpelling = .cName
   -> appDefaults.$options: every content pane refetches
@@ -234,8 +245,8 @@ click "Show C Names" in the line annotation's dropdown
        -> RuntimeSwiftSection.updateConfiguration                   printer config changed: cache cleared
        -> SwiftDeclarationPrinter prints with .cName, marks declared names
        -> separatingAnnotationRegions() -> RuntimeObjectInterface.cImportedTypeNames
-  -> ContentSourceEditorViewController.setSource + showLineAnnotations
-       "Imported to Swift as AnyWeakAttribute"  [Show Swift Names]
+  -> ContentSourceEditorViewController.setSource + showLineEndTags
+       struct AGWeakAttribute {  (Swift name AnyWeakAttribute)
 ```
 
 ## 详细设计
@@ -371,48 +382,50 @@ public let cImportedTypeNames: [RuntimeInterfaceCImportedTypeName]?
 ### Bridge
 
 ```swift
-/// A note at the end of a line, with one action — Xcode's issue annotation, used here for a
-/// C-imported type's other name. A class, because `SourceEditorBridging` is an Objective-C protocol.
-@objc(RuntimeViewerSourceEditorBridgingLineAnnotation)
-public final class SourceEditorBridgingLineAnnotation: NSObject {
-    /// The UTF-16 range in the current source the note is about; it sits at the end of the
-    /// range's first line.
+/// A tag a space past the end of a line that the reader can click, drawn as a comment tag is: a
+/// capsule in a note's fill holding a label in a note's label colour and a value after it, in the
+/// comment font. A class, because `SourceEditorBridging` is an Objective-C protocol.
+@objc(RuntimeViewerSourceEditorBridgingLineEndTag)
+public final class SourceEditorBridgingLineEndTag: NSObject {
+    /// A UTF-16 range into the current source; the tag sits after the end of the line its start lies on.
     public let characterRange: NSRange
-    public let message: String
-    /// The title of the action, in the dropdown the note opens and in its contextual menu.
-    public let actionTitle: String
-    /// Handed back when the action is performed.
+    public let label: String          // "C name"
+    public let value: String          // "AGWeakAttribute"
+    public let valueStyle: SourceEditorBridgingCommentRunStyle   // .type
+    public let toolTip: String?       // "Show C Names"
     public let identifier: String
 
-    public init(characterRange: NSRange, message: String, actionTitle: String, identifier: String)
+    public init(characterRange: NSRange, label: String, value: String,
+                valueStyle: SourceEditorBridgingCommentRunStyle, toolTip: String?, identifier: String)
 }
 
 // SourceEditorBridging
-/// Replaces the line annotations shown on the current source. `setSource` removes them all,
-/// so call this after it, with ranges of that source.
-func showLineAnnotations(_ annotations: [SourceEditorBridgingLineAnnotation])
+/// Replaces the line-end tags shown on the current source. `setSource` removes them all, so call
+/// this after it, with ranges of that source. Nothing is added to the text.
+func showLineEndTags(_ tags: [SourceEditorBridgingLineEndTag])
 
 // SourceEditorBridgingNavigationDelegate
-/// The action of the line annotation shown under `identifier` was performed.
-func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAnnotationWithIdentifier identifier: String)
+/// The line-end tag shown under `identifier` was clicked.
+func sourceEditorBridge(_ bridge: SourceEditorBridging, didClickLineEndTagWithIdentifier identifier: String)
 ```
 
-- 实现照复刻版 tag `27.2.0-alpha.2` 的源码：`lineIdentifier` 取 `dataSource.identifierForLine(_:)`；`SourceEditorLineAnnotation` 的动作用 `Action(message:displayStyle:…)` 放进 `actions`，`revealAction` 用同一个标题，右键菜单里就有这一项；`allowsMinimization: false`、`isDraggable: false`、不画滚动条标记。
-- **类别是我们自己的**：Xcode 的 issue 与 note 类别在 IDESourceEditor 里，不在复刻范围，所以外观是我们的取舍，不是复刻 Xcode：`identifier` 为 `RuntimeViewer.note`，图标 `info.circle.fill`，`annotationColor` 为 `.systemGray`，整行淡灰（`systemGray` 的 8%），不标范围、不进滚动条、不能拖动、不能最小化，`defaultViewState: .inline`。框架会怎么用这些值，读自复刻版 tag 上的源码：带标注的行按 `lineHighlightColor` 整行着色（`SourceEditorLineAnnotationManager.lineHighlightForLineIdentifier`），点横幅弹出聚合下拉框，标注那一行右侧为每个 `.inline` / `.dropdown` 动作画一个按钮、按钮文字是 `buttonMessage`（`SourceEditorLineAnnotationAggregatedDropdown`、`DropdownAnnotationView`），右键横幅的菜单只有 `revealAction`。
-- `setSource` 在换数据源之前 `removeAllLineAnnotations()`，与行内展开同一个理由：标注挂在旧数据源的行标识上。
-- 实现在 `SourceEditorBridge.swift` 末尾的一个扩展里：`sourceEditorView` 是 `private`，另起文件访问不到。
-- 框架里缺的东西（比如横幅上的按钮）属于 `Mx-Iris/SourceEditor` 的改动，不在 bridge 里绕。
+- `LineEndTagController` 是一个布局可视化（`LayoutVisualization`）、事件消费者（优先级 `.high`，与注释标签相同）和光标矩形提供者，在 bridge 的 `init` 里注册一次（前期调研 12）。
+- **画法**：每次布局（以及 `show` 时），对每个标签取「选中整行时会画的矩形」里最后一行最右的那个，胶囊左边离它一个空格宽，高度与注释标签一样（文字高减上下各 1 点，行被抬高时按注释字体的文字高）。胶囊是 `CAShapeLayer`，文字是 `CATextLayer`（CoreText 属性：注释字体，标签取 note 的标签色，名字取类型色），都放在 `underlayLayer`，外观用注释标签的那一份（`TagAppearance`，多存了注释字体）。被折叠进上一行的行不画。
+- **鼠标**：左键按下（不带 ⌘、⌃）落在胶囊里就回调、吃掉这次点击，连同之后的抬起；移动时更新悬停的标签：胶囊填充的不透明度翻倍，内容视图的 `toolTip` 换成标签的提示（照 gutter 的做法），移出时还原。
+- **指针**：每个胶囊上一个手形光标矩形；胶囊位置变了或滚动时让编辑器重算光标矩形（照注释标签的三角）。
+- `setSource` 在换数据源之前清掉标签：标签记的是旧文本的行号。
+- 不用复刻版的行尾标注（`SourceEditorLineAnnotation`）：横幅像报错、动作要两步，用户看过后否掉了（决策日志）。
 
 ### AppCore 与 App
 
-- `ContentInterface` 加 `cImportedTypeNameNotes: [ContentTextViewModel.CImportedTypeNameNote]`，每条是 UTF-16 范围、消息和动作标题，由 `ContentTextViewModel.cImportedTypeNameNotes(of:)` 按取接口时的拼写生成（`FetchedInterface` 带着 `cImportedTypeNames` 与 `cImportedTypeNameSpelling`）：
-  - `.swiftName`：`Imported from C as <cName>` / `Show C Names`；
-  - `.cName`：`Imported to Swift as <swiftName>` / `Show Swift Names`。
+- `ContentInterface` 加 `cImportedTypeNameTags: [ContentTextViewModel.CImportedTypeNameTag]`，每条是 UTF-16 范围、标签名、另一个名字和工具提示，由 `ContentTextViewModel.cImportedTypeNameTags(of:)` 按取接口时的拼写生成（`FetchedInterface` 带着 `cImportedTypeNames` 与 `cImportedTypeNameSpelling`）：
+  - `.swiftName`：`C name` + `<cName>`，提示 `Show C Names`；
+  - `.cName`：`Swift name` + `<swiftName>`，提示 `Show Swift Names`。
 
   文字放在 AppCore，因为它是「描述值」（RuntimeViewerPackages 的 `Sources/AGENTS.md`）。
-- 内部标注开关照 `marksAttachedMacros` 的写法：`Settings.Editor.showsCImportedTypeNameNotes`（SourceEditor 可用即为真），`ContentTextViewModel` 取接口时与 `currentMergedGenerationOptions` 都合并进去。
+- 内部标注开关照 `marksAttachedMacros` 的写法：`Settings.Editor.showsCImportedTypeNameTags`（SourceEditor 可用即为真），`ContentTextViewModel` 取接口时与 `currentMergedGenerationOptions` 都合并进去。
 - `ContentTextViewModel.Input` 加 `cImportedTypeNameSpellingToggled: Signal<Void>`（`@Init(default: .empty())`，NSTextView 与 iOS 的调用点不用改），在主线程把 `appDefaults.options.swiftInterfaceOptions.cImportedTypeNameSpelling` 换成另一个值。之后所有内容区都经 `appDefaults.$options` 重新取接口，不需要单独通知。
-- `ContentSourceEditorViewController`：每次 `setSource` 之后 `bridge.showLineAnnotations(...)`，identifier 用提示的序号；代理回调直接 `accept` 到 relay（不管是哪一条，都是同一个全局切换）。
+- `ContentSourceEditorViewController`：每次 `setSource` 之后 `bridge.showLineEndTags(...)`（名字用 `.type` 的颜色），identifier 用标签的序号；代理回调直接 `accept` 到 relay（不管是哪一个，都是同一个全局切换）。
 - 面板：`.enumOption(title: "Imported Type Names", labels: ["Swift", "C"], keyPath: \.swiftInterfaceOptions.cImportedTypeNameSpelling)`，放在「Resolve Imported Type Names」上面。
 
 ## 替代方案考量
@@ -420,7 +433,8 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
 - **模块未知时写 `__C.AnyWeakAttribute`**：保留「C 导入、模块未知」的信号，但与声明行 `struct AnyWeakAttribute` 仍不一致，而且是打印器以前特意避开的半翻译写法（前期调研 5）。用户选了裸名。
 - **按 C 名统一（声明行也印 `AGWeakAttribute`）作为默认**：与 mangled 一致，但读的是 Swift interface，Swift 名更贴合。C 名作为可切换的另一种拼写保留。
 - **按前缀推断成员导入的父类型**（`NSAttributedStringKey` → `NSAttributedString.Key`）：二进制里没有父路径（前期调研 3、4），按前缀切分会把 `NSDecimal` 切成 `NS.Decimal` 这种错误结果。`swift-type-indexing-package` 已经否定过只靠二进制推断改名。
-- **提示做成类型名后面的胶囊标签**：要打印器多输出一段注释，复制与导出会带上它，还要给标签加点击处理。用户选了行尾标注。
+- **提示做成打印器输出的一段注释，再按注释标签画**：标签的字要来自文本（前期调研 12），所以得让打印器多印一段注释，复制、查找与导出都会带上它，NSTextView 路径还会显示成普通注释。改由 bridge 在行尾自己画胶囊和文字，文本不变。
+- **复刻版的行尾标注**（最初的实现）：横幅像报错，切换要先点横幅、再点下拉框里的按钮。用户看过后改成单击的行尾标签。
 - **只切换当前编辑栏**：要在 ViewModel 里另存一份不进设置的状态，接口缓存键也要多一维；用户选了全局生成选项。
 - **把拼写和 `resolvesImportedTypeNames` 合成一个三档枚举**：类型索引功能还在验收、设置项已经写好，合并就要改它的设置与测试；两个开关各管各的更简单，C 名模式下后者不起作用即可。
 
@@ -441,7 +455,7 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
 - **本仓库**：`SwiftInterface`（`SwiftInterfaceBuilder` 用同一个打印器）、`SwiftDiffing` 的 `--interface` 渲染、`swift-section interface` 的默认输出跟着变；ABI diff 的键不变。
 - **MachOKitUI、SymbolViewer**：经打印器显示 Swift interface，输出变化同上，不需要改代码。
 - **RuntimeViewer**（本提案的另一半）：
-  - **用户可见**：用 SourceEditor 显示时，改了名的 C 类型的声明行末尾多一条灰色的行尾标注；Generation Options 多一行 `Imported Type Names`；默认接口里这些类型统一成 Swift 名；MCP、App 充当 host 时的命令行与导出跟着选项；Find 结果始终是 Swift 名。
+  - **用户可见**：用 SourceEditor 显示时，改了名的 C 类型的声明行末尾多一个注释标签样式的胶囊，写着另一个名字，单击即切换；Generation Options 多一行 `Imported Type Names`；默认接口里这些类型统一成 Swift 名；MCP、App 充当 host 时的命令行与导出跟着选项；Find 结果始终是 Swift 名。
   - **可发现性**：提示默认就在（只要 SourceEditor 可用），面板里有同名开关；不加首次引导。
   - **数据与配置兼容**：`appDefaults.options` 里没有这个键时取 `.swiftName`；`marksCImportedTypeNames` 存下来永远是 false。不需要迁移。
   - **平台**：提示只在 macOS 的 SourceEditor 路径；NSTextView 路径与 iOS 版只有默认的 Swift 名。
@@ -489,12 +503,12 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
    - 行为（`CImportedTypeNameSpellingEngineTests`，对系统的 AttributeGraph）：`spellingDefaultsToSwiftNameInOlderPayload`、`spellingRawValuesAreStable`、`corpusPrintsSwiftNamesWhateverTheSpelling`、`swiftSpellingIsUniform`、`cSpellingIsUniform`、`interfaceCarriesCImportedTypeNamesWhenMarked`、`commentStructureIgnoresCImportedTypeNameRegions`
    - 行为（`SwiftSectionPrinterConfigurationTests`）：`changedSpellingReconfiguresOnce`（打印器只重配一次，接口缓存随之清掉）
    - 原计划的 `cNameSpellingRequestsNoTypeIndex` 不写：测试进程不打开类型索引（`RuntimeTypeNames.enableInThisProcess()` 只在服务进程调用），无从观察，代码是 `updateConfiguration(for:)` 里一行条件。`marksCImportedTypeNamesIsNeverStoredTrue` 改由第 6 步的 `togglingFlipsStoredSpelling` 一并断言。
-5. ✅ **Bridge 的行尾标注** —— `SourceEditorBridging.swift`、`SourceEditorBridge.swift`、`LineAnnotationTests.swift`
-   - 行为：`lineAnnotationSitsOnFirstLineOfItsRange`、`showingAgainReplaces`、`setSourceRemovesLineAnnotations`、`performingActionNotifiesDelegateWithIdentifier`、`contextualMenuOffersTheSameAction`
+5. ✅ **Bridge 的行尾标签** —— `SourceEditorBridging.swift`、`LineEndTagController.swift`、`SourceEditorBridge.swift`、`CommentDecorationController.swift`、`LineEndTagTests.swift`（最初做成行尾标注，验收时改掉，见决策日志）
+   - 行为：`tagSitsPastTheEndOfTheLineItsRangeStartsOn`、`tagAddsNothingToTheText`、`showingAgainReplaces`、`setSourceRemovesTags`、`clickingNotifiesDelegateWithIdentifier`、`tagTakesThePointingHand`、`hoveringDarkensTagAndShowsToolTip`
 6. ✅ **AppCore 与 App** —— `ContentInterface`、`ContentTextViewModel`、`ViewModel.currentMergedGenerationOptions`、`ContentSourceEditorViewController`、面板
-   - 行为（`CImportedTypeNameNoteTests`）：`notesNameCDeclarationUnderSwiftSpelling`、`notesNameSwiftTypeUnderCSpelling`、`noteRangeIsInUTF16`、`noNamesNoNotes`、`togglingFlipsStoredSpelling`
+   - 行为（`CImportedTypeNameTagTests`）：`tagHoldsCNameUnderSwiftSpelling`、`tagHoldsSwiftNameUnderCSpelling`、`tagRangeIsInUTF16`、`noNamesNoTags`、`togglingFlipsStoredSpelling`
    - 原计划的 `mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns` 不写：取决于 `SourceEditorFrameworks.availability`，包级测试里框架不在，写出来只是重复实现。
-   - 编完用 SourceEditor 打开 AttributeGraph 的 `AnyWeakAttribute`，人工看一次提示与切换（交给用户目视）。
+   - 编完用 SourceEditor 打开 AttributeGraph 的 `AnyWeakAttribute`，人工看一次标签与切换（交给用户目视）。
 7. ✅（锁文件与插件 skill；取号与 Implemented 留给正式收尾）**收尾** —— RuntimeViewer 插件 skill（版本 `1.4.0` 是类型索引功能抬的、还没发布，不再抬）、抬 MSS pin、重解析五个锁文件、两边索引与本提案状态
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
@@ -526,3 +540,4 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
 | 2026-11-24 | 行尾标注的外观是我们自己的类别 | Xcode 的 issue 与 note 类别在 IDESourceEditor 里，不在复刻范围；取灰色、`info.circle.fill`、整行 8% 的淡灰，交给用户目视验收时再调。 |
 | 2026-11-24 | 实现完成，待用户看过后收尾 | 验证（都在 Ultra）：MachOSwiftSection 相关测试 43 条全过；全量 22 个目标中只有 `IntegrationTests` 报 36 处，全是读不到本机没有的文件（`Xcode-26.3.0.app`、iOS 18.5 模拟器运行时），与基线同类。RuntimeViewer Core 相关 55 条、AppCore 14 条全过；整个 App 经 Tuist 工作区编译通过；bridge 测试 78 条中 `LineAnnotation` 5 条全过，失败的是两条既有的滚动条测试，外加一条高负载下偶发的 `SymbolOccurrence`（单独重跑两次都过）。五个锁文件把 MachOSwiftSection 钉到 `feature/c-imported-type-name-spelling` 的同一提交。两个功能分支已在本地合进各自的常驻 `next`，没推送。 |
 | 2026-11-24 | 文档判断 | 已同步：本提案、MachOSwiftSection 的 README 与 swift-section 插件 skill（插件 `0.28.0`）、RuntimeViewer 的命令行插件 skill。RuntimeViewer 的 `AGENTS.md` 与使用指南没有讲到这两个开关的地方，不需要改。配套实现说明与术语登记留给正式收尾时判断。 |
+| 2026-11-24 | 提示改成行尾标签 | 用户看过行尾标注后不要这种像报错的横幅，要标签。改为声明行末尾一个与注释标签同样的胶囊（`C name AGWeakAttribute` / `Swift name AnyWeakAttribute`），单击即切换，悬停变深、手形指针、工具提示。注释标签的字来自文本，行尾没有文字，所以由 bridge 自己画胶囊与文字层，接口文本、复制与查找都不变；打印器与 `marksCImportedTypeNames` 不动。标签写法（`C name`、放在行尾而不是紧跟类型名）是我们定的，用户目视后可调。 |
