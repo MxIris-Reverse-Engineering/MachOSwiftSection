@@ -1,6 +1,6 @@
 # Draft - C 导入类型的名字统一成 Swift 名，并能切换回 C 名
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-24
 - **最后更新**: 2026-11-24
@@ -100,7 +100,7 @@ extension __C.AGWeakAttribute: Swift.Equatable {}
    3. 都没有 → 照旧 `__C.ABI名`。
 
    嵌在 C 类型里的类型，父类型那一段按同样的规则印（`AnyWeakAttribute.__Unnamed_struct__details`）。
-4. **`.cName`**：引用一律按 mangled 的样子印 `__C.ABI名`，**不问任何解析器**——模块也不解析，因为 `UIKit.UICellConfigurationState` 会和同名的 Swift 结构体混淆，这正是 `swift-type-indexing-package` 起因里的例子。
+4. **`.cName`**：引用一律按 mangled 的样子印 `__C.ABI名`，**打印时不问任何解析器**——模块也不解析，因为 `UIKit.UICellConfigurationState` 会和同名的 Swift 结构体混淆，这正是 `swift-type-indexing-package` 起因里的例子。只有打开了标注（第 7 条）时，声明名会去问解析器要标注里那个 Swift 名，打印出来的文字不变。
 5. **声明行与引用走同一套规则**：C 导入类型的声明名，在 `.cName` 下是 ABI 名；在 `.swiftName` 下依次取解析器给的 Swift 拼写（可以带点号，`struct NSAttributedString.Key`）、名字表里的名字、ABI 名。不可信的条目因此从 `struct Key` 变成 `struct NSAttributedStringKey`。
 6. **扩展头改走异步的类型打印路径**：只改扩展类型根在 `__C` / `__C_Synthesized` 的扩展，用打印器同一套解析与拼写印出名字，仍包成同一种 `TypeDeclaration`。其余扩展一个字节都不变。
 7. **标注**：`SwiftDeclarationPrintConfiguration.marksCImportedTypeNames`（默认关）打开时，两种拼写不同的 C 导入类型的声明名外面包一个 `AnnotationRegion`，kind 里带着两个名字。文本不变，分离之后与不标注时逐字节相同。
@@ -288,7 +288,7 @@ extension AnnotationRegion.Kind {
 }
 ```
 
-kind 的编码是 `"cImportedTypeName" + "\u{1F}" + swiftName + "\u{1F}" + cName`。U+001F（unit separator）不会出现在 Swift 或 C 的标识符里，点号可以照常出现在 Swift 名里。解析只认这个前缀，并且要求恰好三段。
+kind 的编码是 `"cImportedTypeName|" + swiftName + "|" + cName`。`|` 不会出现在 Swift 或 C 的名字里，点号可以照常出现在 Swift 名里。解析只认这个前缀，并且要求恰好三段、两个名字都不为空。原先设计用 U+001F，实现时发现 swift-semantic-string 拒绝 kind 里的任何控制字符（它自己的标记就是控制字符，`AnnotationTag.validate`），改成了 `|`。
 
 ### 名字表（模块内部）
 
@@ -398,17 +398,20 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
 ```
 
 - 实现照复刻版 tag `27.2.0-alpha.2` 的源码：`lineIdentifier` 取 `dataSource.identifierForLine(_:)`；`SourceEditorLineAnnotation` 的动作用 `Action(message:displayStyle:…)` 放进 `actions`，`revealAction` 用同一个标题，右键菜单里就有这一项；`allowsMinimization: false`、`isDraggable: false`、不画滚动条标记。
-- **类别的图标与颜色不凭猜**：Xcode 的 note 类别在 IDESourceEditor 里，不在复刻范围。实现前读 `/Volumes/RE/Xcode/26.6/` 的导出确认 note 的外观；导出里没有，就停下来问，不要按名字推断（RuntimeViewer 的 `RuntimeViewerPrecompiledLibraries/SourceEditor/AGENTS.md`）。
+- **类别是我们自己的**：Xcode 的 issue 与 note 类别在 IDESourceEditor 里，不在复刻范围，所以外观是我们的取舍，不是复刻 Xcode：`identifier` 为 `RuntimeViewer.note`，图标 `info.circle.fill`，`annotationColor` 为 `.systemGray`，整行淡灰（`systemGray` 的 8%），不标范围、不进滚动条、不能拖动、不能最小化，`defaultViewState: .inline`。框架会怎么用这些值，读自复刻版 tag 上的源码：带标注的行按 `lineHighlightColor` 整行着色（`SourceEditorLineAnnotationManager.lineHighlightForLineIdentifier`），点横幅弹出聚合下拉框，标注那一行右侧为每个 `.inline` / `.dropdown` 动作画一个按钮、按钮文字是 `buttonMessage`（`SourceEditorLineAnnotationAggregatedDropdown`、`DropdownAnnotationView`），右键横幅的菜单只有 `revealAction`。
+- `setSource` 在换数据源之前 `removeAllLineAnnotations()`，与行内展开同一个理由：标注挂在旧数据源的行标识上。
+- 实现在 `SourceEditorBridge.swift` 末尾的一个扩展里：`sourceEditorView` 是 `private`，另起文件访问不到。
 - 框架里缺的东西（比如横幅上的按钮）属于 `Mx-Iris/SourceEditor` 的改动，不在 bridge 里绕。
 
 ### AppCore 与 App
 
-- `ContentInterface` 加 `cImportedTypeNameNotes: [ContentCImportedTypeNameNote]`，每条是 UTF-16 范围、消息和动作标题，由 `ContentTextViewModel` 按当前拼写生成：
+- `ContentInterface` 加 `cImportedTypeNameNotes: [ContentTextViewModel.CImportedTypeNameNote]`，每条是 UTF-16 范围、消息和动作标题，由 `ContentTextViewModel.cImportedTypeNameNotes(of:)` 按取接口时的拼写生成（`FetchedInterface` 带着 `cImportedTypeNames` 与 `cImportedTypeNameSpelling`）：
   - `.swiftName`：`Imported from C as <cName>` / `Show C Names`；
   - `.cName`：`Imported to Swift as <swiftName>` / `Show Swift Names`。
 
   文字放在 AppCore，因为它是「描述值」（RuntimeViewerPackages 的 `Sources/AGENTS.md`）。
-- `ContentTextViewModel.Input` 加 `cImportedTypeNameSpellingToggled: Signal<Void>`，在主线程把 `appDefaults.options.swiftInterfaceOptions.cImportedTypeNameSpelling` 换成另一个值。之后所有内容区都经 `appDefaults.$options` 重新取接口，不需要单独通知。
+- 内部标注开关照 `marksAttachedMacros` 的写法：`Settings.Editor.showsCImportedTypeNameNotes`（SourceEditor 可用即为真），`ContentTextViewModel` 取接口时与 `currentMergedGenerationOptions` 都合并进去。
+- `ContentTextViewModel.Input` 加 `cImportedTypeNameSpellingToggled: Signal<Void>`（`@Init(default: .empty())`，NSTextView 与 iOS 的调用点不用改），在主线程把 `appDefaults.options.swiftInterfaceOptions.cImportedTypeNameSpelling` 换成另一个值。之后所有内容区都经 `appDefaults.$options` 重新取接口，不需要单独通知。
 - `ContentSourceEditorViewController`：每次 `setSource` 之后 `bridge.showLineAnnotations(...)`，identifier 用提示的序号；代理回调直接 `accept` 到 relay（不管是哪一条，都是同一个全局切换）。
 - 面板：`.enumOption(title: "Imported Type Names", labels: ["Swift", "C"], keyPath: \.swiftInterfaceOptions.cImportedTypeNameSpelling)`，放在「Resolve Imported Type Names」上面。
 
@@ -460,49 +463,39 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
 
 ## 落地步骤
 
-0. **登记草案** —— 两边的提案索引
-   - 行为：无（只有文档）。
-1. **名字表与可信规则** —— MSS 的 `CImportedTypeNameSpelling.swift`、配置两个属性、`CImportedTypeSwiftNameTable.swift`、打印器按需建表
-   - 行为：`trustsUserFacingNameWhenABINameDiffers`（`AnyWeakAttribute` / `AGWeakAttribute`、`CGColor` / `CGColorRef`）
-   - 行为：`refusesLeafNameOfTypeImportedAsMember`（`Key` / `NSAttributedStringKey`）
-   - 行为：`refusesRelatedEntityName`
-   - 行为：`refusesNameWithoutABIName`
-   - 行为：`nameTableReadsAttributeGraphDescriptors`（读系统 shared cache 的 AttributeGraph：`AnyWeakAttribute`、`AnyAttribute` 的身份节点各对一条）
-2. **打印规则** —— MSS 的 `printType`、`resolvedModuleName`、delegate 查询、声明头、扩展头与四个调用点、快照更新
-   - 行为：`swiftSpellingPrintsBareSwiftNameWhenModuleIsUnknown`（`var _details: AnyWeakAttribute.__Unnamed_struct__details`、`extension AnyWeakAttribute: Swift.Hashable`）
-   - 行为：`swiftSpellingKeepsModuleThatResolverFinds`（测试替身解析器：`__C.CGRect` → `CoreFoundation.CGRect`，扩展头相同）
-   - 行为：`cSpellingPrintsMangledNamesAndAsksNoResolver`（声明 `struct AGWeakAttribute`、扩展 `extension __C.AGWeakAttribute`，替身解析器被调用 0 次）
-   - 行为：`untrustedDeclaredNamePrintsCName`（SwiftUICore 的 `NSAttributedStringKey` 声明行）
+已完成的步骤标 ✅。测试名是实际写成的；MachOSwiftSection 的测试在 `Tests/SwiftInterfaceTests/CImportedTypeNameSpellingTests.swift`，用测试里现场编译的桥接头 fixture（`swift_name` 改名的结构体与 `swift_wrapper` typedef、匿名嵌套结构体、导入成成员的 `ProbeOwner.Key`），照 `CImportedTypeConformanceInterfaceTests` 的做法，不依赖系统镜像。
+
+0. ✅ **登记草案** —— 两边的提案索引；提案随两个功能分支的第一个提交走。
+1. ✅ **名字表与可信规则** —— MSS 的 `CImportedTypeNameSpelling.swift`、配置两个属性、`CImportedTypeSwiftNameTable.swift`、打印器按需建表
+   - 行为：`trustsUserFacingNameWhenABINameDiffers`（`AnyWeakAttribute` / `AGWeakAttribute`、`AnyAttribute` / `AGAttribute`、`CGColor` / `CGColorRef`、`__UIPointerShape` / `UIPointerShape`）
+   - 行为：`refusesLeafNameOfTypeImportedAsMember`（`Key` / `NSAttributedStringKey`、`Name` / `NSNotificationName`、`Decimal` / `NSDecimal`）
+   - 行为：`refusesRelatedEntityName`、`refusesNameWithoutABIName`
+   - 行为：`nameTableReadsTheFixturesDescriptors`（fixture 的 `AnyFooThing`、`AnyFooIdentifier` 各对一条，`Key` 与匿名结构体没有）
+2. ✅ **打印规则** —— MSS 的 `printType`、`resolvedModuleName`、delegate 查询、声明头、扩展头与四个调用点
+   - 行为：`swiftSpellingPrintsBareSwiftNameWhenModuleIsUnknown`（`var _details: AnyFooThing.__Unnamed_struct__details`、`extension AnyFooThing: … Swift.Equatable`，全文不出现 C 名）
+   - 行为：`untrustedDeclaredNamePrintsCName`（`struct ProbeOwnerKey`，没有 `struct Key`）
+   - 行为：`swiftSpellingKeepsModuleThatResolverFinds`（替身解析器：找到模块、没给 Swift 名时取描述符的名字 `ProbeModule.AnyFooThing`；给了 `ProbeOwner.Key` 时声明 `struct ProbeOwner.Key`、引用与扩展头 `ProbeModule.ProbeOwner.Key`）
    - 行为：`extensionHeaderSpellsLikeMemberTypes`
-   - 行为：`nonCImportedExtensionHeadersAreByteIdentical`
-   - 行为：`abiDiffKeysAreUnchanged`（现有 diff 测试照旧通过）
-3. **标注与命令行** —— MSS 的 `AnnotationRegionKind+CImportedTypeName.swift`、声明头包区域、`InterfaceRequest` 与 `InterfaceCommand`、README 与插件 skill
-   - 行为：`markedDeclaredNameCarriesBothSpellings`
-   - 行为：`separatedMarkedPrintEqualsUnmarkedPrint`
-   - 行为：`regionKindRoundTripsDottedSwiftName`（`NSAttributedString.Key`）
+   - 行为：`cSpellingPrintsMangledNamesAndAsksNoResolver`（声明 `struct AGFooThing`、扩展 `extension __C.AGFooThing`，替身解析器被问 0 次）
+   - 原计划的 `nonCImportedExtensionHeadersAreByteIdentical` 与 `abiDiffKeysAreUnchanged` 不单独写：两者由 MachOSwiftSection 的全量测试覆盖（快照与 diff 测试照旧通过），见决策日志。
+3. ✅ **标注与命令行** —— MSS 的 `AnnotationRegionKind+CImportedTypeName.swift`、声明头包区域、`InterfaceRequest` 与 `InterfaceCommand`、README 与插件 skill（插件 `0.28.0`）
+   - 行为：`markedDeclaredNameCarriesBothSpellings`（分离后的文本与不标注时逐字节相同）
+   - 行为：`markedCSpellingCarriesTheSameNames`
    - 行为：`sameSpellingsAreNotMarked`
-   - 行为：`interfaceCommandParsesCNameSpelling`
-   - 推送 MSS 的功能分支，RuntimeViewer 临时按分支钉（照 `swift-type-indexing-package` 的 TEMPORARY 写法）。
-4. **RuntimeViewer Core** —— 两个选项、`RuntimeInterfaceCImportedTypeName`、接口字段、分离、`updateConfiguration`
-   - 行为：`spellingDefaultsToSwiftNameInOlderPayload`
-   - 行为：`marksCImportedTypeNamesIsNeverStoredTrue`
-   - 行为：`interfaceCarriesCImportedTypeNamesWhenMarked`
-   - 行为：`commentStructureIgnoresCImportedTypeNameRegions`
-   - 行为：`cNameSpellingRequestsNoTypeIndex`
-   - 行为：`changingSpellingClearsInterfaceCache`
-   - 行为：`corpusPrintsSwiftNamesWhateverTheSpelling`
+   - 行为：`regionKindRoundTripsDottedSwiftName`
+   - 行为：`interfaceCImportedTypeNameSpelling`（`SwiftSectionCommandTests`：默认 `swift-name`，`c-name` 映射到 `.cName`，拒绝 `cName` 这种拼法）
+   - MSS 功能分支已推送；RuntimeViewer 临时按分支钉（`RuntimeViewerCore/Package.swift` 的 TEMPORARY 注释）。
+4. ✅ **RuntimeViewer Core** —— 两个选项、`RuntimeInterfaceCImportedTypeName`、接口字段、分离、`updateConfiguration`、打印配置映射
+   - 行为（`CImportedTypeNameSpellingEngineTests`，对系统的 AttributeGraph）：`spellingDefaultsToSwiftNameInOlderPayload`、`spellingRawValuesAreStable`、`corpusPrintsSwiftNamesWhateverTheSpelling`、`swiftSpellingIsUniform`、`cSpellingIsUniform`、`interfaceCarriesCImportedTypeNamesWhenMarked`、`commentStructureIgnoresCImportedTypeNameRegions`
+   - 行为（`SwiftSectionPrinterConfigurationTests`）：`changedSpellingReconfiguresOnce`（打印器只重配一次，接口缓存随之清掉）
+   - 原计划的 `cNameSpellingRequestsNoTypeIndex` 不写：测试进程不打开类型索引（`RuntimeTypeNames.enableInThisProcess()` 只在服务进程调用），无从观察，代码是 `updateConfiguration(for:)` 里一行条件。`marksCImportedTypeNamesIsNeverStoredTrue` 改由第 6 步的 `togglingFlipsStoredSpelling` 一并断言。
 5. **Bridge 的行尾标注** —— `SourceEditorBridging.swift`、`SourceEditorBridge.swift`、`LineAnnotationTests.swift`
-   - 行为：`lineAnnotationSitsOnFirstLineOfItsRange`
-   - 行为：`setSourceRemovesLineAnnotations`
-   - 行为：`performingActionNotifiesDelegateWithIdentifier`
-   - 行为：`contextualMenuOffersTheSameAction`
-6. **AppCore 与 App** —— `ContentInterface`、`ContentTextViewModel`、`currentMergedGenerationOptions`、`ContentSourceEditorViewController`、面板
-   - 行为：`notesNameCDeclarationUnderSwiftSpelling`
-   - 行为：`notesNameSwiftTypeUnderCSpelling`
-   - 行为：`togglingFlipsStoredSpelling`
-   - 行为：`mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns`
+   - 行为：`lineAnnotationSitsOnFirstLineOfItsRange`、`showingAgainReplaces`、`setSourceRemovesLineAnnotations`、`performingActionNotifiesDelegateWithIdentifier`、`contextualMenuOffersTheSameAction`
+6. **AppCore 与 App** —— `ContentInterface`、`ContentTextViewModel`、`ViewModel.currentMergedGenerationOptions`、`ContentSourceEditorViewController`、面板
+   - 行为（`CImportedTypeNameNoteTests`）：`notesNameCDeclarationUnderSwiftSpelling`、`notesNameSwiftTypeUnderCSpelling`、`noteRangeIsInUTF16`、`noNamesNoNotes`、`togglingFlipsStoredSpelling`
+   - 原计划的 `mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns` 不写：取决于 `SourceEditorFrameworks.availability`，包级测试里框架不在，写出来只是重复实现。
    - 编完用 SourceEditor 打开 AttributeGraph 的 `AnyWeakAttribute`，人工看一次提示与切换（交给用户目视）。
-7. **收尾** —— RuntimeViewer 插件 skill 与版本、抬 MSS pin、重解析锁文件、两边索引与本提案状态
+7. **收尾** —— RuntimeViewer 插件 skill（版本 `1.4.0` 是类型索引功能抬的、还没发布，不再抬）、抬 MSS pin、重解析五个锁文件、两边索引与本提案状态
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 
@@ -525,3 +518,9 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
 | 2026-11-24 | Accepted | 用户批准，开始实现。 |
 | 2026-11-24 | 交互定为两次点击 | 用户确认按 Xcode 原生的两步做（横幅 → 下拉里的按钮，右键菜单也有），不改复刻版框架。 |
 | 2026-11-24 | 两边都从远端的 `feature/swift-type-indexing-package` 切 | 远端比两边本地 `next` 多了验收时的修复（宏的配色、文档）；提案随功能分支的第一个提交走，因为两边本地 `next` 都有未推送的合并，不往 `next` 上单独提交提案。 |
+| 2026-11-24 | In Progress | 第 1–4 步做完：MachOSwiftSection 的打印器、命令行与文档，RuntimeViewer Core。 |
+| 2026-11-24 | kind 的分隔符改成 `\|` | 原设计的 U+001F 被 swift-semantic-string 拒绝：它不允许 kind 里出现任何控制字符（`AnnotationTag.validate`），它自己的标记就是控制字符。 |
+| 2026-11-24 | C 名模式在标注时才问解析器 | C 名模式的声明名原先也去问解析器（为了标注里的 Swift 名），`cSpellingPrintsMangledNamesAndAsksNoResolver` 抓到了。改为只在 `marksCImportedTypeNames` 打开时问，打印的文字不受影响，RuntimeViewer 在 C 名模式下的提示仍能写出 SDK 给的 Swift 名。 |
+| 2026-11-24 | MSS 测试用现场编译的 fixture | 原计划读系统 shared cache 的 AttributeGraph 与 SwiftUICore；改用 `CImportedTypeConformanceInterfaceTests` 那种测试里现场编译的桥接头 dylib，三种形状（顶层改名、`swift_wrapper` typedef 改名、导入成成员）都能精确构造，也不随系统版本变。RuntimeViewer Core 的引擎测试仍用系统的 AttributeGraph，那是报告的现场。 |
+| 2026-11-24 | 两条行为测试并入全量与别的测试 | `nonCImportedExtensionHeadersAreByteIdentical`、`abiDiffKeysAreUnchanged` 由 MachOSwiftSection 全量测试覆盖；`marksCImportedTypeNamesIsNeverStoredTrue` 并入 `togglingFlipsStoredSpelling`；`cNameSpellingRequestsNoTypeIndex` 与 `mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns` 在测试进程里无从观察（类型索引只在服务进程打开，SourceEditor 框架只在 App 里），不写。 |
+| 2026-11-24 | 行尾标注的外观是我们自己的类别 | Xcode 的 issue 与 note 类别在 IDESourceEditor 里，不在复刻范围；取灰色、`info.circle.fill`、整行 8% 的淡灰，交给用户目视验收时再调。 |
