@@ -105,7 +105,8 @@ var dependencies: [Package.Dependency] = [
     // The SDK index `SwiftTypeNameResolution` resolves `__C` types with, moved
     // out of this package (proposal swift-type-indexing-package). Its sources
     // are all `#if os(macOS)`, so targets depend on it with a macOS-only
-    // condition.
+    // condition. 0.1.1 closes each module interface it generates once read:
+    // with 0.1.0, `--resolve-c-module-names` grew SourceKitService to tens of GB.
     .package(
         local: .package(
             path: "../swift-type-indexing",
@@ -113,7 +114,7 @@ var dependencies: [Package.Dependency] = [
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-type-indexing",
-            from: "0.1.0",
+            from: "0.1.1",
         ),
     ),
 
@@ -237,11 +238,9 @@ extension Package.Dependency {
             // package requires (proposal split-symbol-language).
             // 0.8.209 adds `ObjCTypeIndexing`, the bridge to swift-type-indexing
             // `SwiftTypeNameResolution` hands dependency images through
-            // (proposal swift-type-indexing-package).
-            // TEMPORARY: the feature branch until MachOObjCSection 0.8.209 is
-            // released; the proposal's wrap-up puts the range back:
-            // "0.8.209" ..< "0.9.0",
-            branch: "feature/swift-type-indexing-package",
+            // (proposal swift-type-indexing-package), and prints `NS_SWIFT_NAME`
+            // and `NS_REFINED_FOR_SWIFT` as macros.
+            "0.8.209" ..< "0.9.0",
         ),
     )
 }
@@ -280,11 +279,10 @@ extension Package.Dependency {
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
             // 0.6.0 adds the annotation regions `marksCommentStructure` marks
             // every comment with; 0.5.0 added the definition regions
-            // `marksNestedDefinitions` wraps each nested definition in.
-            // TEMPORARY: the feature branch, for `SemanticType.macro`
-            // (proposal swift-type-indexing-package), until 0.7.0 is
-            // released; the proposal's wrap-up puts `from: "0.7.0"` here.
-            branch: "feature/swift-type-indexing-package",
+            // `marksNestedDefinitions` wraps each nested definition in. 0.7.0
+            // adds `SemanticType.macro`, which MachOObjCSection 0.8.209 prints
+            // two macros with (proposal swift-type-indexing-package).
+            from: "0.7.0",
         ),
     )
 
