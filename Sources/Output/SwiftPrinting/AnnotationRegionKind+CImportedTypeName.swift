@@ -19,9 +19,10 @@ public struct CImportedTypeNames: Sendable, Hashable {
 extension AnnotationRegion.Kind {
     private static let cImportedTypeNamePrefix = "cImportedTypeName"
 
-    /// U+001F, the unit separator: in no Swift or C identifier, so a dotted
-    /// Swift name passes through whole.
-    private static let cImportedTypeNameSeparator: Character = "\u{1F}"
+    /// In no Swift or C name, so a dotted Swift name passes through whole. Not
+    /// a control character: swift-semantic-string rejects those in a kind,
+    /// since its own markers are control characters.
+    private static let cImportedTypeNameSeparator: Character = "|"
 
     /// The declared name of a C-imported type whose Swift and C names differ,
     /// marked when `SwiftDeclarationPrintConfiguration.marksCImportedTypeNames`
