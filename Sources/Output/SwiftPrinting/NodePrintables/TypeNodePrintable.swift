@@ -184,6 +184,12 @@ extension TypeNodePrintable {
 
         var resolvedCImportedModule = false
         var resolvedCImportedModuleName: String?
+        // The Swift name the image's own descriptor gives a C-imported type
+        // (`AnyWeakAttribute` for `__C.AGWeakAttribute`; evolution proposal
+        // `c-imported-type-name-spelling`): what the identifier prints when no
+        // resolver spells it, with no module at all when none finds the
+        // module either — the name the type's declaration prints.
+        let descriptorSwiftName = swiftNameFromDescriptor(ofCImportedType: name)
         if shouldPrintContext(), !isLocalType {
             let writtenUnitCountBeforeContext = target.writtenUnitCount
             if contextNode.kind == .module {
@@ -193,7 +199,9 @@ extension TypeNodePrintable {
                 if resolvedCImportedModule {
                     resolvedCImportedModuleName = moduleName.text
                 }
-                target.write(moduleName.text, context: .context(for: contextNode, state: .printModule))
+                if resolvedCImportedModule || descriptorSwiftName == nil {
+                    target.write(moduleName.text, context: .context(for: contextNode, state: .printModule))
+                }
                 // The module→type separator stays inside this leaf's scope so
                 // a fully-qualified top-level name (`AppKit.MenuItem`)
                 // selects as one span.
@@ -254,6 +262,8 @@ extension TypeNodePrintable {
                         } else {
                             target.write(swiftSpelling, context: .context(for: declarationName, parentKind: name.kind, state: .printIdentifier))
                         }
+                    } else if let descriptorSwiftName {
+                        target.write(descriptorSwiftName, context: .context(for: declarationName, parentKind: name.kind, state: .printIdentifier))
                     } else {
                         await printIdentifier(declarationName, parentKind: name.kind)
                     }
@@ -265,6 +275,21 @@ extension TypeNodePrintable {
                 await printPrivateDeclName(privateDeclName, parentKind: name.kind)
             }
         }
+    }
+
+    /// The Swift name the image's own descriptor gives the C-imported type
+    /// `name` refers to, when this printer spells Swift names and the type
+    /// sits directly in `__C` / `__C_Synthesized`; nil otherwise. A type
+    /// nested in a C type keeps its own name, and its parent prints through
+    /// this same rule when its reference is printed.
+    func swiftNameFromDescriptor(ofCImportedType name: Node) -> String? {
+        guard context.cImportedTypeNameSpelling == .swiftName,
+              let delegate,
+              let contextNode = name.children.first,
+              contextNode.kind == .module,
+              contextNode.text == objcModule || contextNode.text == cModule
+        else { return nil }
+        return delegate.cImportedTypeSwiftName(forIdentity: name)
     }
 
     /// Writes the module selector a nested type's own name carries — the

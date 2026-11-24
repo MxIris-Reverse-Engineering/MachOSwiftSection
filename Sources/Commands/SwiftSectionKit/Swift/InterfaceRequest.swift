@@ -75,6 +75,12 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// `any P.Type`), as the compiler writes a `.swiftinterface`. On by
     /// default.
     public var usesExistentialAny: Bool
+    /// How the types a mangling places in `__C` spell their names: the name
+    /// Swift code uses (`AnyWeakAttribute`, from the image's own descriptors,
+    /// under the module `cModuleNameResolution` finds), or the C name every
+    /// mangled reference carries (`__C.AGWeakAttribute`). Swift names by
+    /// default (evolution proposal `c-imported-type-name-spelling`).
+    public var cImportedTypeNameSpelling: CImportedTypeNameSpelling
     /// What an attached macro generated, as the binary has it: an
     /// `@Observable` class's registrar, the storage and computed properties of
     /// its tracked properties, the generated methods and conformance. Off by
@@ -114,6 +120,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         infersObjCOverridesFromSelectorNames: Bool = false,
         usesModuleSelectors: Bool = false,
         usesExistentialAny: Bool = true,
+        cImportedTypeNameSpelling: CImportedTypeNameSpelling = .swiftName,
         expandsMacros: Bool = false,
         protocolRequirementPlacement: ProtocolRequirementPlacement = .protocolWhereClause,
         emitsHeader: Bool = false,
@@ -138,6 +145,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         self.usesModuleSelectors = usesModuleSelectors
         self.usesExistentialAny = usesExistentialAny
+        self.cImportedTypeNameSpelling = cImportedTypeNameSpelling
         self.expandsMacros = expandsMacros
         self.protocolRequirementPlacement = protocolRequirementPlacement
         self.emitsHeader = emitsHeader
@@ -178,6 +186,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         printConfiguration.infersObjCOverridesFromSelectorNames = infersObjCOverridesFromSelectorNames
         printConfiguration.usesModuleSelectors = usesModuleSelectors
         printConfiguration.usesExistentialAny = usesExistentialAny
+        printConfiguration.cImportedTypeNameSpelling = cImportedTypeNameSpelling
         printConfiguration.expandsMacros = expandsMacros
         printConfiguration.protocolRequirementPlacement = protocolRequirementPlacement
 

@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - C 导入类型的名字统一成 Swift 名，并能切换回 C 名</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> C 导入类型的名字统一成 Swift 名，并能切换回 C 名</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-24</dd></div>
+    <div><dt>项目类型</dt><dd>库（跨仓库唯一提案，RuntimeViewer 参与）</dd></div>
+    <div><dt>原文</dt><dd><code>draft-c-imported-type-name-spelling.md</code></dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#decide">要你定</a></li>
+    <li><a href="#proposal">方案</a></li>
+    <li><a href="#architecture">架构图</a></li>
+    <li><a href="#map">改动地图</a></li>
+    <li><a href="#design">详细设计</a></li>
+    <li><a href="#research">调研</a></li>
+    <li><a href="#alternatives">替代方案</a></li>
+    <li><a href="#impact">影响</a></li>
+    <li><a href="#steps">落地步骤</a></li>
+    <li><a href="#log">决策日志</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p>Swift interface 里，从 C 导入、被改了名的类型（<code>NS_SWIFT_NAME</code>、typedef、CF 的 <code>Ref</code> 去尾）现在<strong>声明行印 Swift 名、其余地方印 C 名</strong>：<code>struct AnyWeakAttribute { var _details: __C.AGWeakAttribute.__Unnamed_struct__details }</code>，紧跟着 <code>extension __C.AGWeakAttribute: Swift.Hashable {}</code>。原因是声明行取类型描述符里的名字，而引用处取 mangled 名，Swift 给 Clang 声明做 mangling 时一律用 C 名。描述符的导入信息（import info）里两个名字本来都存着，不需要 SDK。</p>
+  <p>本提案让打印器多一个拼写选项 <code>CImportedTypeNameSpelling</code>：</p>
+  <ul>
+    <li><strong>默认 <code>.swiftName</code></strong>：声明、成员类型、扩展头全部用 Swift 名。查不到所属模块时写裸名（<code>extension AnyWeakAttribute: Swift.Hashable {}</code>），查得到时照旧写成 <code>模块.Swift名</code>。</li>
+    <li><strong><code>.cName</code></strong>：一律按 mangled 的样子印（声明 <code>struct AGWeakAttribute</code>，引用 <code>__C.AGWeakAttribute</code>）。</li>
+  </ul>
+  <p>同时修掉扩展头不经类型名解析器的问题：SDK 类型的成员已经解析成 <code>CoreFoundation.CGRect</code>，扩展头却还是 <code>__C.CGRect</code>。</p>
+  <p>RuntimeViewer 把这个选项做成全局生成选项（Generation Options › Imported Type Names: Swift / C）。用 SourceEditor 显示时，改了名的 C 类型在声明行末尾带一条 Xcode 式的行尾标注（<code>Imported from C as AGWeakAttribute</code>），点开后用里面的按钮切换。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+  <div class="callout callout-note">
+    <p class="callout-title">已定：两次点击</p>
+    <p>用户批准按 Xcode 原生的两步做：点横幅弹出下拉框，用里面的按钮切换；右键横幅的菜单里也有同一个动作。不改 <code>Mx-Iris/SourceEditor</code>。</p>
+  </div>
+</section>
+
+<section id="proposal">
+  <h2>方案</h2>
+  <h3>MachOSwiftSection</h3>
+  <ol>
+    <li><strong>拼写选项</strong>：<code>SwiftDeclarationPrintConfiguration.cImportedTypeNameSpelling</code>，默认 <code>.swiftName</code>。</li>
+    <li><strong>本镜像的名字表</strong>：打印器第一次需要时，从本镜像所有 C 导入的类型描述符建一张表，以 mangled 身份为键、描述符的名字为值，只收可信的条目：
+      <ul>
+        <li>有 ABI 名，且与描述符的名字不同；</li>
+        <li>不是相关实体（<code>__C_Synthesized</code> 里的错误码结构体之类）；</li>
+        <li>ABI 名<strong>不以</strong>描述符的名字结尾——导入成成员的类型（<code>NSAttributedStringKey</code> → <code>Key</code>）都长这样，描述符给的只是叶子，宁可不改名。代价是 <code>NSDecimal</code> → <code>Decimal</code> 这类顶层改名也被挡掉，照旧印 C 名，有 SDK 时由类型索引补上。</li>
+      </ul>
+    </li>
+    <li><strong><code>.swiftName</code> 下一个 <code>__C</code> 引用怎么印</strong>（按顺序取第一个成立的）：解析器把模块解析出来了 → 照旧 <code>模块.Swift拼写</code>；名字表里有它 → <strong>只写 Swift 名，不写模块</strong>（<code>AnyWeakAttribute</code>）；都没有 → 照旧 <code>__C.ABI名</code>。嵌在 C 类型里的类型，父类型那一段按同样的规则印（<code>AnyWeakAttribute.__Unnamed_struct__details</code>）。</li>
+    <li><strong><code>.cName</code></strong>：引用一律按 mangled 的样子印 <code>__C.ABI名</code>，不问任何解析器——模块也不解析，因为 <code>UIKit.UICellConfigurationState</code> 会和同名的 Swift 结构体混淆。</li>
+    <li><strong>声明行与引用走同一套规则</strong>：<code>.cName</code> 下是 ABI 名；<code>.swiftName</code> 下依次取解析器给的 Swift 拼写（可以带点号，<code>struct NSAttributedString.Key</code>）、名字表里的名字、ABI 名。不可信的条目因此从 <code>struct Key</code> 变成 <code>struct NSAttributedStringKey</code>。</li>
+    <li><strong>扩展头改走异步的类型打印路径</strong>：只改扩展类型根在 <code>__C</code> / <code>__C_Synthesized</code> 的扩展，仍包成同一种 <code>TypeDeclaration</code>。其余扩展一个字节都不变。</li>
+    <li><strong>标注</strong>：<code>marksCImportedTypeNames</code>（默认关）打开时，两种拼写不同的声明名外面包一个 <code>AnnotationRegion</code>，kind 里带着两个名字。文本不变，分离之后与不标注时逐字节相同。</li>
+    <li><strong><code>swift-section interface --c-imported-type-name-spelling swift-name|c-name</code></strong>，默认 <code>swift-name</code>。</li>
+  </ol>
+  <h3>RuntimeViewer</h3>
+  <ol>
+    <li><strong>生成选项</strong>：<code>SwiftGenerationOptions.cImportedTypeNameSpelling</code>（<code>@Default(.swiftName)</code>）。面板的 Swift 一组加一行 <code>Imported Type Names: Swift | C</code>。它与「Resolve Imported Type Names」各管各的：后者在 C 名模式下不起作用，也不再为它建类型索引。</li>
+    <li><strong>内部标注开关</strong>：<code>GenerationOptions.marksCImportedTypeNames</code>，不出现在面板里，存下来的值永远是 false；内容区只在 SourceEditor 可用时打开，<code>currentMergedGenerationOptions</code> 照同样的规则合并。</li>
+    <li><strong>接口带回名字</strong>：<code>RuntimeObjectInterface.cImportedTypeNames</code>，每条是声明名的 UTF-8 范围和两个名字，与宏展开在同一处从标注区域里取出；注释结构不认这种 kind。</li>
+    <li><strong>行尾标注</strong>：bridge 新增 <code>showLineAnnotations(_:)</code> 与一个代理回调。Swift 名模式写 <code>Imported from C as AGWeakAttribute</code> / <code>Show C Names</code>，C 名模式写 <code>Imported to Swift as AnyWeakAttribute</code> / <code>Show Swift Names</code>。切换就是翻转全局生成选项，所有内容区一起重新取接口。</li>
+    <li><strong>其余出口跟着选项走</strong>：MCP、App 充当 host 时的命令行、导出读的都是 <code>appDefaults.options</code>；独立运行的命令行 host 用默认的 Swift 名。Find 语料始终用 Swift 名打印。</li>
+  </ol>
+  <h3>非目标</h3>
+  <ul>
+    <li>不推断导入成成员的类型的父路径：描述符只给叶子，没有 SDK 就保持 C 名。</li>
+    <li>相关实体（<code>__C_Synthesized</code>）不改。</li>
+    <li>只在声明行放提示，引用处不放。</li>
+    <li>侧栏、路径栏、Find 结果里的对象名不跟着切换；Find 语料始终是 Swift 名，搜 C 名搜不到改了名的引用。</li>
+    <li><code>dump</code>、<code>diff</code>、<code>snapshot</code> 的键不变（ABI diff 按 mangled 身份对比）。</li>
+    <li>NSTextView 显示路径与 iOS 版不放提示；命令行工具不加对应参数。</li>
+  </ul>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+    <li><i class="swatch swatch-kept"></i>不变</li>
+  </ul>
+  <div class="figure">
+  <svg viewBox="0 0 1000 510" role="img" aria-label="What changes in MachOSwiftSection and RuntimeViewer">
+    <rect class="group" x="10" y="10" width="480" height="490" rx="10"/>
+    <text class="group-label" x="22" y="32">MachOSwiftSection</text>
+    <rect class="box-added" x="25" y="45" width="450" height="44" rx="6"/><text x="35" y="63">CImportedTypeNameSpelling</text><text class="caption" x="35" y="80">.swiftName (default) | .cName</text>
+    <rect class="box-added" x="25" y="97" width="450" height="44" rx="6"/><text x="35" y="115">CImportedTypeSwiftNameTable</text><text class="caption" x="35" y="132">mangled identity -&gt; trusted descriptor name</text>
+    <rect class="box-added" x="25" y="149" width="450" height="44" rx="6"/><text x="35" y="167">AnnotationRegion.Kind.cImportedTypeName(_:)</text><text class="caption" x="35" y="184">both names, when marking is on</text>
+    <rect class="box-changed" x="25" y="201" width="450" height="44" rx="6"/><text x="35" y="219">SwiftDeclarationPrintConfiguration</text><text class="caption" x="35" y="236">+ cImportedTypeNameSpelling, + marksCImportedTypeNames</text>
+    <rect class="box-changed" x="25" y="253" width="450" height="44" rx="6"/><text x="35" y="271">SwiftDeclarationPrinter</text><text class="caption" x="35" y="288">memoized name table from typeContextDescriptors</text>
+    <rect class="box-changed" x="25" y="305" width="450" height="44" rx="6"/><text x="35" y="323">TypeNodePrintable.printType</text><text class="caption" x="35" y="340">spelling rules for __C references</text>
+    <rect class="box-changed" x="25" y="357" width="450" height="44" rx="6"/><text x="35" y="375">+Headers: declared name, extension headers</text><text class="caption" x="35" y="392">same rules; extension headers become async</text>
+    <rect class="box-changed" x="25" y="409" width="450" height="44" rx="6"/><text x="35" y="427">swift-section interface</text><text class="caption" x="35" y="444">--c-imported-type-name-spelling swift-name|c-name</text>
+    <rect class="box-kept" x="25" y="461" width="450" height="30" rx="6"/><text x="35" y="481">swift-type-indexing resolvers (SDK)</text>
+
+    <rect class="group" x="510" y="10" width="480" height="490" rx="10"/>
+    <text class="group-label" x="522" y="32">RuntimeViewer</text>
+    <rect class="box-changed" x="525" y="45" width="450" height="44" rx="6"/><text x="535" y="63">SwiftGenerationOptions</text><text class="caption" x="535" y="80">+ cImportedTypeNameSpelling (@Default .swiftName)</text>
+    <rect class="box-changed" x="525" y="97" width="450" height="44" rx="6"/><text x="535" y="115">GenerationOptions</text><text class="caption" x="535" y="132">+ marksCImportedTypeNames (internal, stored false)</text>
+    <rect class="box-added" x="525" y="149" width="450" height="44" rx="6"/><text x="535" y="167">RuntimeInterfaceCImportedTypeName</text><text class="caption" x="535" y="184">declared name's UTF-8 range + both names</text>
+    <rect class="box-changed" x="525" y="201" width="450" height="44" rx="6"/><text x="535" y="219">RuntimeObjectInterface</text><text class="caption" x="535" y="236">+ cImportedTypeNames</text>
+    <rect class="box-added" x="525" y="253" width="450" height="44" rx="6"/><text x="535" y="271">SourceEditorBridgingLineAnnotation</text><text class="caption" x="535" y="288">range, message, action title, identifier</text>
+    <rect class="box-changed" x="525" y="305" width="450" height="44" rx="6"/><text x="535" y="323">SourceEditorBridging + delegate</text><text class="caption" x="535" y="340">+ showLineAnnotations(_:), + didPerformActionOfLineAnnotation</text>
+    <rect class="box-changed" x="525" y="357" width="450" height="44" rx="6"/><text x="535" y="375">ContentInterface, ContentTextViewModel</text><text class="caption" x="535" y="392">+ notes, + spelling toggle input</text>
+    <rect class="box-changed" x="525" y="409" width="450" height="44" rx="6"/><text x="535" y="427">ContentSourceEditorViewController</text><text class="caption" x="535" y="444">line annotations, toggle relay</text>
+    <rect class="box-changed" x="525" y="461" width="450" height="30" rx="6"/><text x="535" y="481">GenerationOptionsViewController: Imported Type Names</text>
+
+    <path class="arrow" d="M 525 67 L 475 223"/>
+    <path class="arrow arrow-weak" d="M 525 223 L 475 171"/>
+  </svg>
+  </div>
+  <p class="figure-caption">实线：RuntimeViewer 的生成选项映射进打印配置。虚线：接口里的名字来自打印器标出的区域。SDK 解析器照旧注册在打印器上，没有改动。</p>
+
+  <div class="figure">
+  <svg viewBox="0 0 1000 450" role="img" aria-label="What happens after Show C Names">
+    <rect class="box-added" x="200" y="15" width="600" height="44" rx="6"/><text x="212" y="33">click "Show C Names" in the line annotation's dropdown</text><text class="caption" x="212" y="50">SourceEditorLineAnnotation.Action (or the banner's contextual menu)</text>
+    <rect class="box-added" x="200" y="77" width="600" height="44" rx="6"/><text x="212" y="95">navigationDelegate.didPerformActionOfLineAnnotation</text><text class="caption" x="212" y="112">ContentSourceEditorViewController -&gt; toggle relay</text>
+    <rect class="box-changed" x="200" y="139" width="600" height="44" rx="6"/><text x="212" y="157">ContentTextViewModel</text><text class="caption" x="212" y="174">appDefaults.options.swiftInterfaceOptions.cImportedTypeNameSpelling = .cName</text>
+    <rect class="box-kept" x="200" y="201" width="600" height="44" rx="6"/><text x="212" y="219">appDefaults.$options</text><text class="caption" x="212" y="236">every content pane refetches</text>
+    <rect class="box-changed" x="200" y="263" width="600" height="44" rx="6"/><text x="212" y="281">service: RuntimeSwiftSection.updateConfiguration</text><text class="caption" x="212" y="298">printer prints with .cName and marks declared names; cache cleared</text>
+    <rect class="box-added" x="200" y="325" width="600" height="44" rx="6"/><text x="212" y="343">separatingAnnotationRegions()</text><text class="caption" x="212" y="360">RuntimeObjectInterface.cImportedTypeNames</text>
+    <rect class="box-added" x="200" y="387" width="600" height="44" rx="6"/><text x="212" y="405">setSource + showLineAnnotations</text><text class="caption" x="212" y="422">"Imported to Swift as AnyWeakAttribute"  [Show Swift Names]</text>
+    <path class="arrow" d="M 500 59 L 500 77"/>
+    <path class="arrow" d="M 500 121 L 500 139"/>
+    <path class="arrow" d="M 500 183 L 500 201"/>
+    <path class="arrow" d="M 500 245 L 500 263"/>
+    <path class="arrow" d="M 500 307 L 500 325"/>
+    <path class="arrow" d="M 500 369 L 500 387"/>
+  </svg>
+  </div>
+  <p class="figure-caption">点「Show C Names」之后：改的是全局生成选项，所有内容区经同一条重新取接口的路径刷新。</p>
+</section>
+
+<section id="map">
+  <h2>改动地图</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>仓库 · 文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+    <tbody>
+      <tr><td>MSS · <code>SwiftPrinting/CImportedTypeNameSpelling.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>.swiftName</code> / <code>.cName</code></td><td>拼写选项的类型</td><td class="numeric">1</td></tr>
+      <tr><td>MSS · <code>SwiftDeclarationPrintConfiguration.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>cImportedTypeNameSpelling</code> 与 <code>marksCImportedTypeNames</code></td><td>打印配置</td><td class="numeric">1</td></tr>
+      <tr><td>MSS · <code>SwiftPrinting/CImportedTypeSwiftNameTable.swift</code></td><td><span class="tag tag-added">新增</span></td><td>「mangled 身份 → 描述符名字」的表与可信规则</td><td>描述符里现成的 Swift 名</td><td class="numeric">1</td></tr>
+      <tr><td>MSS · <code>SwiftDeclarationPrinter.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>按需建表并复用；回答名字表查询；扩展头调用改 <code>await</code></td><td>打印器持有名字表</td><td class="numeric">1、2</td></tr>
+      <tr><td>MSS · <code>NodePrintables/TypeNodePrintable.swift</code> · <code>printType(_:)</code></td><td><span class="tag tag-changed">修改</span></td><td><code>__C</code> 引用按拼写规则印</td><td>统一引用处</td><td class="numeric">2</td></tr>
+      <tr><td>MSS · <code>NodePrintables/NodePrintable.swift</code> · <code>resolvedModuleName</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.cName</code> 下不问解析器</td><td>C 名等于 mangled 拼写</td><td class="numeric">2</td></tr>
+      <tr><td>MSS · 节点打印器的 delegate 协议</td><td><span class="tag tag-changed">修改</span></td><td>按 mangled 身份取名字表里的 Swift 名</td><td>名字表是打印器自带的</td><td class="numeric">2</td></tr>
+      <tr><td>MSS · <code>SwiftDeclarationPrinter+Headers.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>声明名同一套规则；标注时包区域；根在 <code>__C</code> 的扩展头走异步类型打印</td><td>声明、扩展与成员一致</td><td class="numeric">2、3</td></tr>
+      <tr><td>MSS · 扩展头的四个调用点</td><td><span class="tag tag-changed">修改</span></td><td><code>await renderExtendedTypeName</code></td><td>签名变成 async</td><td class="numeric">2</td></tr>
+      <tr><td>MSS · <code>SwiftPrinting/AnnotationRegionKind+CImportedTypeName.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>CImportedTypeNames</code>、kind 的构造与解析</td><td>把两个名字交给宿主</td><td class="numeric">3</td></tr>
+      <tr><td>MSS · <code>InterfaceRequest.swift</code>、<code>InterfaceCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--c-imported-type-name-spelling</code></td><td>命令行能切回 C 名</td><td class="numeric">3</td></tr>
+      <tr><td>MSS · <code>Tests/SwiftInterfaceTests/CImportedTypeNameSpellingTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>第 1–3 步的行为</td><td>回归</td><td class="numeric">1–3</td></tr>
+      <tr><td>MSS · 受新默认拼写影响的快照测试</td><td><span class="tag tag-changed">修改</span></td><td>只更新改了名的 C 类型那几行</td><td>默认输出变了</td><td class="numeric">2</td></tr>
+      <tr><td>MSS · <code>README.md</code>、插件 skill、两份插件清单</td><td><span class="tag tag-changed">修改</span></td><td>新参数与新默认拼写；<code>0.27.0</code> → <code>0.28.0</code></td><td>文档随代码</td><td class="numeric">3</td></tr>
+      <tr><td>MSS · <code>Documentations/Evolutions/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>登记本草案</td><td>索引</td><td class="numeric">0</td></tr>
+      <tr><td>RV · <code>Interfaces/SwiftGenerationOptions.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>拼写枚举与 <code>cImportedTypeNameSpelling</code></td><td>用户选项</td><td class="numeric">4</td></tr>
+      <tr><td>RV · <code>Interfaces/RuntimeObjectInterface+GenerationOptions.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>marksCImportedTypeNames</code></td><td>只有内容区要提示</td><td class="numeric">4</td></tr>
+      <tr><td>RV · <code>Interfaces/SwiftDeclarationPrintConfiguration+GenerationOptions.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>拼写映射进打印配置；不进 <code>applySwitches(of:)</code></td><td>显示跟选项，语料不跟</td><td class="numeric">4</td></tr>
+      <tr><td>RV · <code>Interfaces/RuntimeInterfaceCImportedTypeName.swift</code></td><td><span class="tag tag-added">新增</span></td><td>声明名的范围与两个名字</td><td>提示所需的数据</td><td class="numeric">4</td></tr>
+      <tr><td>RV · <code>RuntimeObjectInterface.swift</code> 及两处 <code>+AnnotationRegions</code></td><td><span class="tag tag-changed">修改</span></td><td>可选字段；分离时取出；注释结构忽略</td><td>照宏展开的路</td><td class="numeric">4</td></tr>
+      <tr><td>RV · <code>RuntimeSwiftSection.swift</code> · <code>updateConfiguration</code></td><td><span class="tag tag-changed">修改</span></td><td>设标注开关；<code>.cName</code> 下不请求类型索引</td><td>C 名用不到索引</td><td class="numeric">4</td></tr>
+      <tr><td>RV · <code>SourceEditorBridging.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>SourceEditorBridgingLineAnnotation</code>、<code>showLineAnnotations(_:)</code>、代理回调</td><td>bridge 接口</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>SourceEditorBridge.swift</code>（或新的 <code>LineAnnotationController.swift</code>）</td><td><span class="tag tag-changed">修改</span></td><td>清掉旧标注、插入 <code>SourceEditorLineAnnotation</code>、动作回调代理</td><td>接上框架的行尾标注</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>RuntimeViewerSourceEditorBridgeTests/LineAnnotationTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>第 5 步的行为</td><td>回归</td><td class="numeric">5</td></tr>
+      <tr><td>RV · <code>RuntimeViewerAppCore/Content/ContentInterface.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>提示的值（范围、消息、动作标题）</td><td>AppCore 描述、App 只画</td><td class="numeric">6</td></tr>
+      <tr><td>RV · <code>RuntimeViewerAppCore/Content/ContentTextViewModel.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>合并标注开关；新输入翻转拼写</td><td>切换即改全局选项</td><td class="numeric">6</td></tr>
+      <tr><td>RV · <code>RuntimeViewerAppCore/Base/ViewModel.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>currentMergedGenerationOptions</code> 同样合并</td><td>缓存键对齐</td><td class="numeric">6</td></tr>
+      <tr><td>RV · <code>Content/ContentSourceEditorViewController.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>setSource</code> 之后放标注；回调进 relay</td><td>接上 ViewModel</td><td class="numeric">6</td></tr>
+      <tr><td>RV · <code>Generation Options/GenerationOptionsViewController.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>Imported Type Names: Swift | C</code></td><td>面板入口</td><td class="numeric">6</td></tr>
+      <tr><td>RV · Core 与 AppCore 测试</td><td><span class="tag tag-added">新增</span></td><td>第 4、6 步的行为</td><td>回归</td><td class="numeric">4、6</td></tr>
+      <tr><td>RV · 命令行插件 skill 与清单</td><td><span class="tag tag-changed">修改</span></td><td>补上描述符的 Swift 名与 C 名选项；<code>1.4.0</code> 已发布就抬到 <code>1.4.1</code></td><td>输出变了</td><td class="numeric">7</td></tr>
+      <tr><td>RV · <code>RuntimeViewerCore/Package.swift</code> 与锁文件</td><td><span class="tag tag-changed">修改</span></td><td>抬 MSS 的 pin</td><td>取上游改动</td><td class="numeric">7</td></tr>
+      <tr><td>RV · <code>Documentations/Evolutions/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>cross-repository draft 一行</td><td>索引</td><td class="numeric">0</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details>
+    <summary>一个 <code>__C</code> 引用怎么印</summary>
+    <div class="details-body">
+<pre><code>printType(reference rooted in __C)
+├─ spelling == .cName                       -&gt; "__C." + ABI name       (no resolver asked)
+└─ spelling == .swiftName
+   ├─ a resolver resolves the module        -&gt; Module + Swift spelling (existing path)
+   ├─ name table has a trusted entry        -&gt; bare Swift name          AnyWeakAttribute
+   └─ otherwise                             -&gt; "__C." + ABI name        __C.NSAttributedStringKey
+
+declared name of a C-imported descriptor
+├─ .cName                                   -&gt; ABI name                 AGWeakAttribute
+└─ .swiftName                               -&gt; resolver's spelling ?? trusted name ?? ABI name</code></pre>
+    </div>
+  </details>
+  <details>
+    <summary>MachOSwiftSection 的公开 API</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">public enum</span> <span class="token-type">CImportedTypeNameSpelling</span>: <span class="token-type">String</span>, <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span>, <span class="token-type">CaseIterable</span> {
+    <span class="token-keyword">case</span> swiftName
+    <span class="token-keyword">case</span> cName
+}
+
+<span class="token-comment">// SwiftDeclarationPrintConfiguration</span>
+<span class="token-keyword">public var</span> cImportedTypeNameSpelling: <span class="token-type">CImportedTypeNameSpelling</span> = .swiftName
+<span class="token-keyword">public var</span> marksCImportedTypeNames: <span class="token-type">Bool</span> = <span class="token-keyword">false</span>
+
+<span class="token-keyword">public struct</span> <span class="token-type">CImportedTypeNames</span>: <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
+    <span class="token-keyword">public let</span> swiftName: <span class="token-type">String</span>
+    <span class="token-keyword">public let</span> cName: <span class="token-type">String</span>
+    <span class="token-keyword">public init</span>(swiftName: <span class="token-type">String</span>, cName: <span class="token-type">String</span>)
+}
+
+<span class="token-keyword">extension</span> <span class="token-type">AnnotationRegion.Kind</span> {
+    <span class="token-keyword">public static func</span> cImportedTypeName(<span class="token-keyword">_</span> names: <span class="token-type">CImportedTypeNames</span>) -&gt; <span class="token-type">Self</span>
+    <span class="token-keyword">public var</span> cImportedTypeNames: <span class="token-type">CImportedTypeNames</span>? { <span class="token-keyword">get</span> }
+}</code></pre>
+      <p>kind 的编码是 <code>"cImportedTypeName" + "\u{1F}" + swiftName + "\u{1F}" + cName</code>；U+001F 不会出现在标识符里，Swift 名里可以照常带点号。</p>
+    </div>
+  </details>
+  <details>
+    <summary>名字表与可信规则（模块内部）</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">struct</span> <span class="token-type">CImportedTypeSwiftNameTable</span>: <span class="token-type">Sendable</span> {
+    <span class="token-keyword">init</span>(typeContextDescriptors: [<span class="token-type">TypeContextDescriptorWrapper</span>], in context: <span class="token-keyword">some</span> <span class="token-type">ReadingContext</span>)
+    <span class="token-keyword">func</span> swiftName(forIdentity identity: <span class="token-type">Node</span>) -&gt; <span class="token-type">String</span>?
+
+    <span class="token-keyword">static func</span> trustsUserFacingName(<span class="token-keyword">_</span> userFacingName: <span class="token-type">String</span>, importInfo: <span class="token-type">TypeImportInfo</span>) -&gt; <span class="token-type">Bool</span> {
+        <span class="token-keyword">guard let</span> abiName = importInfo.abiName, abiName != userFacingName, !importInfo.isRelatedEntity <span class="token-keyword">else</span> { <span class="token-keyword">return false</span> }
+        <span class="token-keyword">return</span> !abiName.hasSuffix(userFacingName)
+    }
+}</code></pre>
+      <ul>
+        <li>键是 mangled 身份节点（<code>SymbolicDemangler.demangleContext(for:in:)</code>）的结构，照 <code>ExtensionName</code> 的结构化 <code>Hashable</code>。</li>
+        <li>只遍历 C 导入的描述符，读名字与 <code>typeImportInfo(in:)</code>；第一次需要时才建，配置怎么变都不重建；读出错的条目跳过。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>打印规则的落点</summary>
+    <div class="details-body">
+      <ul>
+        <li><code>printType(_:)</code>：<code>.cName</code> 写原模块名与标识符；<code>.swiftName</code> 先走现有路径，模块没解析出来但名字表有答案时，不写模块与分隔符，把 Swift 名写成标识符（语义仍是这个类型的 <code>printIdentifier</code> 上下文，跳转不受影响）。嵌套类型的父段递归回 <code>printType</code>，套用同一规则。</li>
+        <li><code>printModuleSelector(ofNestedType:)</code>：父段是改了名的裸名时不写模块选择器。</li>
+        <li><code>renderTypeDeclarationHeader</code>：C 导入的描述符按方案第 5 条取名；解析器那一路用 ABI 名去问，与引用处的查询相同，声明与引用必然一致。<code>displayParentName == true</code> 那条路不变。</li>
+        <li><code>renderExtendedTypeName</code> 改成 <code>async</code>：根在 <code>__C</code> 时走 <code>typeDemangleResolver.resolve(for:)</code> 再 <code>.replacingTypeNameOrOtherToTypeDeclaration()</code>；其余分支原样。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>RuntimeViewer 的类型与 bridge 接口</summary>
+    <div class="details-body">
+<pre><code><span class="token-comment">// SwiftGenerationOptions</span>
+<span class="token-keyword">public enum</span> <span class="token-type">CImportedTypeNameSpelling</span>: <span class="token-type">String</span>, <span class="token-type">Codable</span>, <span class="token-type">Sendable</span>, <span class="token-type">Equatable</span>, <span class="token-type">Hashable</span>, <span class="token-type">CaseIterable</span> { <span class="token-keyword">case</span> swiftName, cName }
+<span class="token-macro">@Default</span>(<span class="token-type">CImportedTypeNameSpelling</span>.swiftName)
+<span class="token-keyword">public var</span> cImportedTypeNameSpelling: <span class="token-type">CImportedTypeNameSpelling</span>
+
+<span class="token-comment">// RuntimeObjectInterface.GenerationOptions</span>
+<span class="token-macro">@Default</span>(<span class="token-keyword">false</span>)
+<span class="token-keyword">public var</span> marksCImportedTypeNames: <span class="token-type">Bool</span>
+
+<span class="token-keyword">public struct</span> <span class="token-type">RuntimeInterfaceCImportedTypeName</span>: <span class="token-type">Codable</span>, <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
+    <span class="token-keyword">public let</span> nameUTF8Range: <span class="token-type">Range</span>&lt;<span class="token-type">Int</span>&gt;
+    <span class="token-keyword">public let</span> swiftName: <span class="token-type">String</span>
+    <span class="token-keyword">public let</span> cName: <span class="token-type">String</span>
+}
+<span class="token-comment">// RuntimeObjectInterface</span>
+<span class="token-keyword">public let</span> cImportedTypeNames: [<span class="token-type">RuntimeInterfaceCImportedTypeName</span>]?
+
+<span class="token-macro">@objc</span>(RuntimeViewerSourceEditorBridgingLineAnnotation)
+<span class="token-keyword">public final class</span> <span class="token-type">SourceEditorBridgingLineAnnotation</span>: <span class="token-type">NSObject</span> {
+    <span class="token-keyword">public let</span> characterRange: <span class="token-type">NSRange</span>
+    <span class="token-keyword">public let</span> message: <span class="token-type">String</span>
+    <span class="token-keyword">public let</span> actionTitle: <span class="token-type">String</span>
+    <span class="token-keyword">public let</span> identifier: <span class="token-type">String</span>
+}
+<span class="token-comment">// SourceEditorBridging</span>
+<span class="token-keyword">func</span> showLineAnnotations(<span class="token-keyword">_</span> annotations: [<span class="token-type">SourceEditorBridgingLineAnnotation</span>])
+<span class="token-comment">// SourceEditorBridgingNavigationDelegate</span>
+<span class="token-keyword">func</span> sourceEditorBridge(<span class="token-keyword">_</span> bridge: <span class="token-type">SourceEditorBridging</span>, didPerformActionOfLineAnnotationWithIdentifier identifier: <span class="token-type">String</span>)</code></pre>
+      <ul>
+        <li>线上兼容：旧版对端不认这两个选项，不带 <code>cImportedTypeNames</code>，内容区就没有提示；新版对端收到旧版请求时取默认值。</li>
+        <li>Bridge 实现照复刻版 tag <code>27.2.0-alpha.2</code> 的源码：<code>lineIdentifier</code> 取 <code>dataSource.identifierForLine(_:)</code>；动作进 <code>actions</code>，<code>revealAction</code> 用同一个标题；不可拖动、不可最小化、不画滚动条标记。</li>
+        <li>类别的图标与颜色不凭猜：Xcode 的 note 类别在 IDESourceEditor 里、不在复刻范围，实现前读 <code>/Volumes/RE/Xcode/26.6/</code> 的导出确认，没有就停下来问。</li>
+        <li>AppCore 按当前拼写生成文字：<code>.swiftName</code> 写 <code>Imported from C as &lt;cName&gt;</code> / <code>Show C Names</code>，<code>.cName</code> 写 <code>Imported to Swift as &lt;swiftName&gt;</code> / <code>Show Swift Names</code>；ViewModel 的新输入在主线程翻转 <code>appDefaults.options</code> 里的拼写。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <details>
+    <summary>11 条查证过的事实</summary>
+    <div class="details-body">
+      <ol>
+        <li><strong>复现</strong>：<code>swift-section 0.24.0 interface --show-c-imported-types</code> 打 macOS 27.2 的 AttributeGraph，得到 <code>struct AnyAttribute</code>、<code>struct AnyWeakAttribute { … var _details: __C.AGWeakAttribute.__Unnamed_struct__details }</code> 与 <code>struct WeakAttribute&lt;A&gt; { var base: __C.AGWeakAttribute }</code>。</li>
+        <li><strong>两套名字从哪来</strong>：声明行取 <code>descriptor.name(in:)</code>（<code>SwiftDeclarationPrinter+Headers.swift:47/56/73</code>）；引用来自 mangled 名，Swift 按 Clang 名 mangling（<code>ASTMangler::tryAppendClangName</code>），<code>SymbolicDemangler.cImportedTypeIdentity</code>（<code>SymbolicDemangler.swift:982</code>）是反方向的映射。</li>
+        <li><strong>描述符里存的是什么</strong>：IRGen <code>computeIdentity</code>（<code>GenMeta.cpp:1568</code>）写的是 Swift 名的叶子，名字不同时追加 <code>N&lt;ABI 名&gt;</code>。shared cache 实测：<code>AnyAttribute</code>/<code>AGAttribute</code> ×9、<code>AnyWeakAttribute</code>/<code>AGWeakAttribute</code> ×4、<code>CGColor</code>/<code>CGColorRef</code> ×142、<code>Decimal</code>/<code>NSDecimal</code> ×47、<code>Key</code>/<code>NSAttributedStringKey</code> ×158、<code>Name</code>/<code>NSNotificationName</code> ×68。导入成成员的类型只剩叶子。</li>
+        <li><strong>父上下文</strong>：<code>getAddrOfParentContextDescriptor</code>（<code>GenDecl.cpp:885</code>）把 Clang 导入的名义类型一律挂到 <code>__C</code> 下，父路径不在二进制里。</li>
+        <li><strong>现有改名的条件</strong>：<code>printType</code>（<code>TypeNodePrintable.swift:170-262</code>）只在模块解析成功后才改标识符。</li>
+        <li><strong>扩展头不经解析器</strong>（读代码得出，未实测）：<code>renderExtendedTypeName</code> 调同步的 <code>ExtensionName.print</code>，四个调用点。</li>
+        <li><strong>可用的 API</strong>：<code>machO.swift.typeContextDescriptors</code>、<code>isCImportedContextDescriptor(in:)</code>、<code>typeImportInfo(in:)</code>、<code>SymbolicDemangler.demangleContext(for:in:)</code>；打印器已有按需建一次的状态写法。</li>
+        <li><strong>标注区域只有 kind 和内容</strong>；名字编进 kind 有先例（<code>attachedMacroTrackedProperty(_:named:)</code>）。</li>
+        <li><strong>命令行</strong>：<code>InterfaceCommand.swift</code>、<code>InterfaceRequest.swift</code>；插件 skill §8，清单 <code>0.27.0</code>。</li>
+        <li><strong>RuntimeViewer</strong>：生成选项在 <code>appDefaults.options</code>，内容区随它重取；面板有 <code>.enumOption</code>；注释结构与宏展开都是「标区域 → 分离 → 接口带可选字段」；bridge 是 Objective-C 协议，从未用过行尾标注；命令行插件 <code>1.4.0</code> 尚未发布。</li>
+        <li><strong>复刻版 SourceEditor 的行尾标注</strong>（tag <code>27.2.0-alpha.2</code>）：<code>insertLineAnnotation(_:)</code> 等公开入口齐全；横幅本身不带按钮，点横幅弹下拉框（<code>handleLeftMouseUpEvent</code>），右键菜单只有 <code>revealAction</code>；交互代理没有「点了横幅」的回调。</li>
+      </ol>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>6 条被否的路径</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>模块未知时写 <code>__C.AnyWeakAttribute</code></strong>：与声明行仍不一致，且是打印器以前特意避开的半翻译写法；用户选了裸名。</li>
+        <li><strong>默认按 C 名统一</strong>：读的是 Swift interface，Swift 名更贴合；C 名作为可切换的拼写保留。</li>
+        <li><strong>按前缀推断成员导入的父类型</strong>：二进制里没有父路径，前缀切分会切出 <code>NS.Decimal</code> 这种错误结果。</li>
+        <li><strong>类型名后面的胶囊标签</strong>：要多输出一段注释，复制与导出会带上它，还要给标签加点击；用户选了行尾标注。</li>
+        <li><strong>只切换当前编辑栏</strong>：要另存一份不进设置的状态，缓存键多一维；用户选了全局生成选项。</li>
+        <li><strong>拼写与 <code>resolvesImportedTypeNames</code> 合成三档</strong>：类型索引功能还在验收，合并就要改它的设置与测试；两个开关各管各的更简单。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+  <h3>源码兼容性</h3>
+  <ul>
+    <li><strong>纯新增</strong>：两个类型、两个配置属性、kind 的构造与解析。<code>renderExtendedTypeName</code> 是 <code>package</code>，改 async 只影响本包四处调用。</li>
+    <li><strong>输出有变化</strong>：改了名的 C 类型的引用与扩展头变成 Swift 名；不可信条目的声明行从叶子名变成 C 名（<code>struct Key</code> → <code>struct NSAttributedStringKey</code>、<code>struct Decimal</code> → <code>struct NSDecimal</code>）；注册了解析器时 SDK 类型的扩展头变成 <code>模块.名字</code>。</li>
+  </ul>
+  <h3>ABI 兼容性</h3>
+  <p>不适用 —— 本库以 SPM 源码分发，使用方每次重新编译。</p>
+  <h3>下游影响</h3>
+  <ul>
+    <li><strong>本仓库</strong>：<code>SwiftInterfaceBuilder</code>、<code>diff --interface</code> 的渲染、<code>swift-section interface</code> 的默认输出跟着变；ABI diff 的键不变。</li>
+    <li><strong>MachOKitUI、SymbolViewer</strong>：输出变化同上，不需要改代码。</li>
+    <li><strong>RuntimeViewer · 用户可见</strong>：SourceEditor 下改了名的声明行末尾多一条灰色行尾标注；Generation Options 多一行；默认接口统一成 Swift 名；MCP、App 充当 host 时的命令行与导出跟着选项；Find 结果始终是 Swift 名。</li>
+    <li><strong>RuntimeViewer · 兼容</strong>：旧设置取 <code>.swiftName</code>，标注开关存下来永远是 false，不需要迁移；提示只在 macOS 的 SourceEditor 路径；不涉及权限、公证与 Sparkle；Find 语料的旧文件因产出者身份改变自然失效，不必改 variant。</li>
+    <li><strong>顺序约束</strong>：两边都叠在 <code>swift-type-indexing-package</code> 上（它还在两个仓库的本地 <code>next</code>、没推送），要等它先收尾，或在它的功能分支之上开分支。</li>
+  </ul>
+  <h3>文档与示例</h3>
+  <ul>
+    <li>本仓库 README 与 swift-section 插件 skill（§4、§8、§9），插件清单抬到 <code>0.28.0</code>。</li>
+    <li>RuntimeViewer 命令行插件 skill 的「Imported types」一段。</li>
+    <li>落地时判断要不要在两边术语表登记「C 导入类型名拼写」。</li>
+  </ul>
+  <h3>API 演进与废弃策略</h3>
+  <p>没有被替代的旧 API。默认输出变化按 minor 版本发布并写进 release note；<code>CImportedTypeNameSpelling</code> 用 enum，因为只有两种拼写、调用方需要穷举。</p>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+  <ol start="0">
+    <li><strong>登记草案</strong> —— 两边的提案索引。</li>
+    <li><strong>名字表与可信规则</strong> —— <code>trustsUserFacingNameWhenABINameDiffers</code>、<code>refusesLeafNameOfTypeImportedAsMember</code>、<code>refusesRelatedEntityName</code>、<code>refusesNameWithoutABIName</code>、<code>nameTableReadsAttributeGraphDescriptors</code>。</li>
+    <li><strong>打印规则</strong> —— <code>swiftSpellingPrintsBareSwiftNameWhenModuleIsUnknown</code>、<code>swiftSpellingKeepsModuleThatResolverFinds</code>、<code>cSpellingPrintsMangledNamesAndAsksNoResolver</code>、<code>untrustedDeclaredNamePrintsCName</code>、<code>extensionHeaderSpellsLikeMemberTypes</code>、<code>nonCImportedExtensionHeadersAreByteIdentical</code>、<code>abiDiffKeysAreUnchanged</code>。</li>
+    <li><strong>标注与命令行</strong> —— <code>markedDeclaredNameCarriesBothSpellings</code>、<code>separatedMarkedPrintEqualsUnmarkedPrint</code>、<code>regionKindRoundTripsDottedSwiftName</code>、<code>sameSpellingsAreNotMarked</code>、<code>interfaceCommandParsesCNameSpelling</code>；推送 MSS 功能分支，RuntimeViewer 临时按分支钉。</li>
+    <li><strong>RuntimeViewer Core</strong> —— <code>spellingDefaultsToSwiftNameInOlderPayload</code>、<code>marksCImportedTypeNamesIsNeverStoredTrue</code>、<code>interfaceCarriesCImportedTypeNamesWhenMarked</code>、<code>commentStructureIgnoresCImportedTypeNameRegions</code>、<code>cNameSpellingRequestsNoTypeIndex</code>、<code>changingSpellingClearsInterfaceCache</code>、<code>corpusPrintsSwiftNamesWhateverTheSpelling</code>。</li>
+    <li><strong>Bridge 的行尾标注</strong> —— <code>lineAnnotationSitsOnFirstLineOfItsRange</code>、<code>setSourceRemovesLineAnnotations</code>、<code>performingActionNotifiesDelegateWithIdentifier</code>、<code>contextualMenuOffersTheSameAction</code>。</li>
+    <li><strong>AppCore 与 App</strong> —— <code>notesNameCDeclarationUnderSwiftSpelling</code>、<code>notesNameSwiftTypeUnderCSpelling</code>、<code>togglingFlipsStoredSpelling</code>、<code>mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns</code>；用 SourceEditor 打开 <code>AnyWeakAttribute</code> 的目视交给用户。</li>
+    <li><strong>收尾</strong> —— 插件 skill 与版本、抬 MSS pin、重解析锁文件、两边索引与提案状态；判断配套实现说明与术语。</li>
+  </ol>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>12 条，最近一条：两边都从远端的类型索引功能分支切</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-24</td><td>Created as Draft</td><td>RuntimeViewer 显示 AttributeGraph 的 <code>AGWeakAttribute</code> 时，声明行是 Swift 名，扩展头与成员类型是 C 名；用户要求统一，并在 SourceEditor 里给一个能点击切换的提示。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>提示用 Xcode 式的行尾标注</td><td>用户选了行尾标注，不选胶囊标签：不改接口文本，复制与导出不受影响。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>模块未知时写裸名</td><td>用户选了 <code>AnyWeakAttribute</code>，与声明行完全一致。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>切换是全局生成选项</td><td>用户选了全局：存进设置、所有窗口一起变、面板里有同名开关。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>提案放在 MachOSwiftSection</td><td>照 RuntimeViewer 索引里 cross-repository draft 的做法，由最底层的仓库维护唯一提案。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>导入成成员的类型不用描述符的名字</td><td>实测描述符只存叶子（<code>Key</code>、<code>Name</code>）；ABI 名以描述符名字结尾的一律不信，代价是 <code>NSDecimal</code> → <code>Decimal</code> 也退回 C 名。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>C 名模式等于 mangled 拼写</td><td>不解析模块，避免与同名 Swift 结构体混淆。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>扩展头一并修</td><td>扩展头不经解析器，和本提案改的是同一条路径；只改根在 <code>__C</code> 的扩展。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>两次点击待用户确认</td><td>复刻版框架的横幅没有按钮；先按原生两步加右键菜单做，要一次点击就得改 <code>Mx-Iris/SourceEditor</code>。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>Accepted</td><td>用户批准，开始实现。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>交互定为两次点击</td><td>用户确认按 Xcode 原生的两步做（横幅 → 下拉里的按钮，右键菜单也有），不改复刻版框架。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>两边都从远端的 <code>feature/swift-type-indexing-package</code> 切</td><td>远端比两边本地 <code>next</code> 多了验收时的修复；提案随功能分支的第一个提交走。</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>

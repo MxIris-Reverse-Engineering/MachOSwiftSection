@@ -44,6 +44,8 @@ struct InterfaceNodePrinterContext<Target: NodePrinterTarget>: InterfaceNodePrin
 
     var usesExistentialAny = false
 
+    var cImportedTypeNameSpelling: CImportedTypeNameSpelling = .swiftName
+
     /// How many `repeat` patterns enclose the node being printed. `each` is
     /// only ever written inside one.
     var packExpansionDepth = 0

@@ -98,7 +98,7 @@ extension SwiftDeclarationPrinter {
                         await DeclarationBlock(level: level) {
                             Keyword(.extension)
                             Space()
-                            renderExtendedTypeName(definition.className.extensionName)
+                            await renderExtendedTypeName(definition.className.extensionName)
                         } body: {
                             await MemberList(level: level) {
                                 comment(.note("Objective-C methods of the class that no member of the Swift class answers to. Swift names follow the ClangImporter's rules for these selectors."), as: .note)
@@ -262,7 +262,7 @@ extension SwiftDeclarationPrinter {
         try await DeclarationBlock(level: level) {
             Keyword(.extension)
             Space()
-            renderExtendedTypeName(definition.extendedClassName.extensionName)
+            await renderExtendedTypeName(definition.extendedClassName.extensionName)
             try await inheritanceClause(definition.protocolNames.map(\.node))
         } body: {
             try await objcImportedMemberList(definition.members, swiftMembers: swiftMembers, leadingNote: "The Objective-C category \(definition.uniqueName).", level: level)

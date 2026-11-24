@@ -165,7 +165,7 @@ extension SwiftDeclarationPrinter {
         try await DeclarationBlock(level: level) {
             Keyword(.extension)
             Space()
-            renderExtendedTypeName(conformance.extendedTypeName.extensionName)
+            await renderExtendedTypeName(conformance.extendedTypeName.extensionName)
             for (offset, protocolName) in conformance.protocolNames.offsetEnumerated() {
                 Standard(offset.isStart ? ":" : ",")
                 Space()

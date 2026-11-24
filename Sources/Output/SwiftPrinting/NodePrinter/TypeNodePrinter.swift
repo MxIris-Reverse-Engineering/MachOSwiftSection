@@ -18,6 +18,7 @@ struct TypeNodePrinter<Target: NodePrinterTarget>: InterfaceNodePrintable {
         self.delegate = delegate
         context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
         context.usesExistentialAny = delegate?.usesExistentialAny ?? false
+        context.cImportedTypeNameSpelling = delegate?.cImportedTypeNameSpelling ?? .swiftName
         context.isProtocol = isProtocol
     }
 

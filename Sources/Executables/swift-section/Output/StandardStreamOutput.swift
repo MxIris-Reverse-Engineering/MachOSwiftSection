@@ -102,6 +102,11 @@ extension String {
                 return "#56606B"
             case .keyword:
                 return "#C33381"
+            case .macro:
+                // Xcode's Default (Light) preprocessor-macro colour, which
+                // `objc interface --mark-sdk-swift-names` prints its
+                // NS_SWIFT_NAME / NS_REFINED_FOR_SWIFT in.
+                return "#643820"
             case .type(_, .name):
                 return "#2E0D6E"
             case .type(_, .declaration):
@@ -124,6 +129,9 @@ extension String {
                 return "#6C7987"
             case .keyword:
                 return "#F2248C"
+            case .macro:
+                // Xcode's Default (Dark) preprocessor-macro colour.
+                return "#FD8F3F"
             case .type(_, .name):
                 return "#D0A8FF"
             case .type(_, .declaration):

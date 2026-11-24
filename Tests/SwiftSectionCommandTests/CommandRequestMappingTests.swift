@@ -166,6 +166,16 @@ struct CommandRequestMappingTests {
         #expect(try InterfaceCommand.parse(["/tmp/Sample", "--no-existential-any"]).makeRequest().usesExistentialAny == false)
     }
 
+    @Test("interface spells C-imported types by their Swift names unless --c-imported-type-name-spelling c-name")
+    func interfaceCImportedTypeNameSpelling() throws {
+        let defaultRequest = try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest()
+        #expect(defaultRequest.cImportedTypeNameSpelling == .swiftName)
+        #expect(InterfaceRequest(source: defaultRequest.source).cImportedTypeNameSpelling == .swiftName)
+        #expect(try InterfaceCommand.parse(["/tmp/Sample", "--c-imported-type-name-spelling", "c-name"]).makeRequest().cImportedTypeNameSpelling == .cName)
+        #expect(try InterfaceCommand.parse(["/tmp/Sample", "--c-imported-type-name-spelling", "swift-name"]).makeRequest().cImportedTypeNameSpelling == .swiftName)
+        #expect(throws: (any Error).self) { try InterfaceCommand.parse(["/tmp/Sample", "--c-imported-type-name-spelling", "cName"]) }
+    }
+
     @Test("interface folds what an attached macro generated unless --expand-macros")
     func interfaceExpandMacros() throws {
         let defaultRequest = try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest()

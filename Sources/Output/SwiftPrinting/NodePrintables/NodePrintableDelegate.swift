@@ -22,4 +22,12 @@ protocol NodePrintableDelegate: AnyObject, Sendable {
     /// `SwiftDeclarationPrintConfiguration.usesExistentialAny`). A printer
     /// reads it once, when it is created.
     var usesExistentialAny: Bool { get }
+    /// How C-imported type names are spelled (see
+    /// `SwiftDeclarationPrintConfiguration.cImportedTypeNameSpelling`). A
+    /// printer reads it once, when it is created.
+    var cImportedTypeNameSpelling: CImportedTypeNameSpelling { get }
+    /// The Swift name the image's own descriptor gives the C-imported type
+    /// `identity` names, when that name is the type's whole Swift name
+    /// (`CImportedTypeSwiftNameTable`); nil otherwise.
+    func cImportedTypeSwiftName(forIdentity identity: Node) -> String?
 }
