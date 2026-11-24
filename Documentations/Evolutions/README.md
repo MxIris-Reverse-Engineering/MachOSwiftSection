@@ -119,5 +119,5 @@
 | [0102](0102-multiline-type-formatting.md) | 长类型拆行：放不下的类型按括号结构拆成多行 | Implemented |
 | [0103](0103-cross-reference-test-scan-load.md) | 跨引用测试的整份 cache 扫描限并发，Tuist 工作区里扫描模块在 Debug 下开优化 | Implemented |
 | [0104](0104-shared-macho-testing-support.md) | 测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport | Implemented |
-| draft | [类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer](draft-swift-type-indexing-package.md)（跨仓库唯一提案） | In Progress |
-| draft | [C 导入类型的名字统一成 Swift 名，并能切换回 C 名](draft-c-imported-type-name-spelling.md)（跨仓库唯一提案，RuntimeViewer 参与） | In Progress |
+| [0105](0105-swift-type-indexing-package.md) | 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer（跨仓库唯一提案） | Implemented |
+| [0106](0106-c-imported-type-name-spelling.md) | C 导入类型的名字统一成 Swift 名，并能切换回 C 名（跨仓库唯一提案，RuntimeViewer 参与） | Implemented |

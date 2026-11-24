@@ -3551,6 +3551,34 @@
 - **验证**：Ultra，Xcode 27.2。`swift test --skip IntegrationTests` 每一部分后都是 2,914 个通过、退出码 0（改动前 2,916：删 4 个随代码搬走的测试，加 2 个）；所有测试 target 与可执行文件都编过；`./TuistScript.sh test` 远程模式 `TEST SUCCEEDED`（2,953 个测试），编过 MachOKitExtensions 的 `MachOTestingSupport`；MachOKitExtensions 一侧全量测试与 TSTables、Espresso 普查通过。合进 `next` 前在合并了第 149 节的结果上重跑：`swift test --skip IntegrationTests` 2,971 个通过，`./TuistScript.sh test` 远程模式 3,003 个通过、0 失败、7 个跳过，退出码都是 0。
 - **对应版本**：未发布（0.26.0 之后）；依赖 MachOKitExtensions 3.2.0。
 
+## 151. 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer
+
+- **时间段**：2026-11-23 至 2026-11-24，六个仓库：新仓库 swift-type-indexing（`main`，0.1.0、0.1.1），swift-apinotes fork（0.3.0），swift-semantic-string（0.7.0），MachOObjCSection（0.8.209），本仓库与 RuntimeViewer 的 `feature/swift-type-indexing-package`。在 JHs-Mac-Studio 上写、在 JHs-Mac-Studio-Ultra 上编译与测试。
+- **动机**：RuntimeViewer 把 UIKit 的桥接类型显示成 `__C.UICellConfigurationState`。二进制只记 ObjC 运行时名，改名只在 SDK 的 API notes 里；本仓库已有的 `TypeIndexing` RuntimeViewer 用不上，而且 API notes 的改名规则有误。
+- **关键决策**：
+  - `TypeIndexing` 整体搬进独立包 swift-type-indexing，模块名不变；新包不依赖本仓库与 MachOObjCSection，补私有类归属的那一层改为协议 `DeclaredTypeNameSource`，由 MachOObjCSection 的 `ObjCTypeIndexing` 实现。本仓库只留适配层 `SwiftTypeNameResolution`（`TypeDatabaseTypeNameResolver`、`SwiftInterfaceBuilderTypeNameProvider`）。
+  - 搬家同时修两处：API notes 里只有 `SwiftPrivate` 的类型加 `__` 前缀、有 `SwiftName` 的直接用它；只装 Command Line Tools 时也找得到 sourcekitd。新增 `SDKPlatform.macCatalyst`，先搜 iOSSupport。
+  - MachOObjCSection 按 API notes 在头文件里标 `NS_SWIFT_NAME` / `NS_REFINED_FOR_SWIFT`；验收时两个宏改用 Xcode 的宏色，为此 swift-semantic-string 加 `SemanticType.macro`（冻结编码 22）。`swift-section objc` 加同类开关。
+  - 验收时发现 SourceKitService 涨到 80 GB：每个生成的模块接口从不 `editor.close`。swift-type-indexing 0.1.1 改为读完即关、同时最多 2 个，本仓库与 RuntimeViewer 的下限都抬到 0.1.1。
+- **落地模块**：`Package.swift`（删 `TypeIndexing` target 与其测试，加 swift-type-indexing）、`Sources/Output/SwiftTypeNameResolution/`、`Sources/Executables/swift-section/`（`interface` 与 `objc interface` 的开关）、`Sources/Commands/SwiftSectionKit/`。
+- **文档**：提案 [0105-swift-type-indexing-package](../Evolutions/0105-swift-type-indexing-package.md)；实现说明搬到 swift-type-indexing 的 `Documentations/Internal/TypeIndexingPipeline.md`；[SupplementaryTypeMappings.md](../SupplementaryTypeMappings.md)；术语表新增「type index（类型索引）」。
+- **验证**：实现时本仓库的相关测试与夹具测试通过，RuntimeViewer Core 与应用层整套测试在 Ultra 上跑过（红的都是已知基线或满载超时，单独重跑通过）。落地验证见提案决策日志最后一行。
+- **对应版本**：未发布（0.26.0 之后）；依赖 swift-type-indexing 0.1.1、MachOObjCSection 0.8.209、swift-semantic-string 0.7.0。
+
+## 152. C 导入类型的名字统一成 Swift 名，并能切换回 C 名
+
+- **时间段**：2026-11-24，本仓库与 RuntimeViewer 的 `feature/c-imported-type-name-spelling`，叠在第 151 节的分支上。在 JHs-Mac-Studio 上写、在 JHs-Mac-Studio-Ultra 上编译与测试。
+- **动机**：RuntimeViewer 显示 AttributeGraph 的 `AGWeakAttribute` 时，声明行是描述符给的 Swift 名 `AnyWeakAttribute`，扩展头与成员类型却是 mangled 的 `__C.AGWeakAttribute`。
+- **关键决策**：
+  - 新增 `CImportedTypeNameSpelling`（`.swiftName` 默认、`.cName`）：Swift 名模式让声明、成员类型与扩展头一致——解析器找得到模块就带模块，本镜像描述符改过名的写裸名；C 名模式一律照 mangling 写，不问解析器。
+  - 描述符的名字只在可信时采用（`CImportedTypeSwiftNameTable.trustsUserFacingName`）：ABI 名以描述符名字结尾的不信，导入成成员的类型（描述符只存 `Key`）由此退回 C 名。
+  - 扩展头一并修，只动根在 `__C` 的扩展，其余逐字节不变。
+  - `marksCImportedTypeNames` 在名字上标出另一种写法（注释结构的一种 kind，分隔符用 `|`，因为 swift-semantic-string 不许 kind 里有控制字符），RuntimeViewer 据此在声明行尾画可点击的标签。
+- **落地模块**：`Sources/Output/SwiftPrinting/`（`CImportedTypeNameSpelling`、`CImportedTypeSwiftNameTable`、`AnnotationRegionKind+CImportedTypeName`、`SwiftDeclarationPrinter+Headers` 等）、`Sources/Executables/swift-section/`（`--c-imported-type-name-spelling`）、`Sources/Commands/SwiftSectionKit/`、`Tests/SwiftInterfaceTests/CImportedTypeNameSpellingTests.swift`（现场编译的桥接头 dylib）。
+- **文档**：提案 [0106-c-imported-type-name-spelling](../Evolutions/0106-c-imported-type-name-spelling.md)；README 与 swift-section 插件 skill；术语表新增「C-imported type name spelling（C 导入类型名拼写）」，可信规则写在那里，不另写实现说明。
+- **验证**：相关测试 43 条全过；全量 22 个目标中只有 `IntegrationTests` 报读不到本机没有的文件（`Xcode-26.3.0.app`、iOS 18.5 模拟器运行时），与基线同类。落地验证见提案决策日志最后一行。
+- **对应版本**：未发布（0.26.0 之后）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

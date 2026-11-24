@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - C 导入类型的名字统一成 Swift 名，并能切换回 C 名</title>
+<title>0106 - C 导入类型的名字统一成 Swift 名，并能切换回 C 名</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -160,13 +160,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> C 导入类型的名字统一成 Swift 名，并能切换回 C 名</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0106</span></p>
+  <h1><span class="proposal-number">0106</span> C 导入类型的名字统一成 Swift 名，并能切换回 C 名</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-24</dd></div>
     <div><dt>项目类型</dt><dd>库（跨仓库唯一提案，RuntimeViewer 参与）</dd></div>
-    <div><dt>原文</dt><dd><code>draft-c-imported-type-name-spelling.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0106-c-imported-type-name-spelling.md</code></dd></div>
   </dl>
 </header>
 
@@ -550,7 +550,7 @@ declared name of a C-imported descriptor
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>21 条，最近一条：提示改成行尾标签</summary>
+    <summary>24 条，最近一条：落地验证，取号</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -577,6 +577,9 @@ declared name of a C-imported descriptor
           <tr><td class="numeric">2026-11-24</td><td>实现完成，待用户看过后收尾</td><td>相关测试全过；MSS 全量只有读不到本机没有的文件的 36 处，与基线同类；整个 App 编译通过；两个功能分支已在本地合进常驻 <code>next</code>，没推送。</td></tr>
           <tr><td class="numeric">2026-11-24</td><td>文档判断</td><td>提案、MSS 的 README 与插件 skill、RV 的命令行插件 skill 已同步；其余不需要改。</td></tr>
           <tr><td class="numeric">2026-11-24</td><td>提示改成行尾标签</td><td>用户看过行尾标注后不要这种像报错的横幅，要标签。改为声明行末尾一个与注释标签同样的胶囊，单击即切换，悬停变深、手形指针、工具提示；由 bridge 自己画胶囊与文字层，接口文本、复制与查找都不变，打印器不动。标签写法与位置是我们定的，目视后可调。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>收尾</td><td>用户看过行尾标签，批准收尾。本提案叠在 <a href="0105-swift-type-indexing-package.html">0105</a> 上，两份一起落地：本仓库的 <code>next</code> 推送；RuntimeViewer 对本仓库的钉从本功能分支改回 <code>branch: "next"</code>，锁文件随 0105 一起重解析，提交在 RuntimeViewer 的本地 <code>next</code>，等那里先合进来的别的功能收尾时一起推</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>文档与术语判断</td><td>不另写实现说明：可信规则（ABI 名以描述符名字结尾的不信）与「导入成成员的类型不改名」写进本仓库术语表的新条目「C-imported type name spelling（C 导入类型名拼写）」，指回本提案的详细设计；「可信的描述符名字」并入这一条，不单列。RuntimeViewer 的术语表登记同名条目，讲全局开关与行尾标签</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>落地验证，取号</td><td>与 <a href="0105-swift-type-indexing-package.html">0105</a> 同一次验证：钉改回发布版本后的本仓库 <code>next</code>，在 Ultra 上构建并跑两份提案相关的测试（5 个测试目标共 90 条，含 <code>CImportedTypeNameSpelling</code>），构建与测试的退出码都是 0。状态改为 Implemented，编号 0106，演进账本 §152</td></tr>
         </tbody>
       </table>
       </div>

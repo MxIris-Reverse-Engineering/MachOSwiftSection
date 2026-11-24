@@ -1,15 +1,15 @@
-# Draft - C 导入类型的名字统一成 Swift 名，并能切换回 C 名
+# 0106 - C 导入类型的名字统一成 Swift 名，并能切换回 C 名
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-24
 - **最后更新**: 2026-11-24
 - **所属愿景**: 无
-- **关联提案**: [`draft-swift-type-indexing-package`](draft-swift-type-indexing-package.md)（`__C` 类型名按 SDK 解析，本提案叠在它上面）；RuntimeViewer 的 0064（注释结构由打印器标出、引擎分离后随 interface 下发，本提案照这条路传名字）
+- **关联提案**: [0105 swift-type-indexing-package](0105-swift-type-indexing-package.md)（`__C` 类型名按 SDK 解析，本提案叠在它上面）；RuntimeViewer 的 0064（注释结构由打印器标出、引擎分离后随 interface 下发，本提案照这条路传名字）
 - **实现分支 / PR**: 两个仓库都是 `feature/c-imported-type-name-spelling`（worktree `.worktrees/MachOSwiftSection-CImportedTypeNameSpelling`、`.worktrees/RuntimeViewer-CImportedTypeNameSpelling`），叠在 `feature/swift-type-indexing-package` 上
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **配套文档**: 无单独文章；可信规则与「导入成成员的类型不改名」记在术语表的 [C-imported type name spelling](../Glossary.md) 条目，细节在本提案「详细设计」
 - **网页版**: 同目录同名的 `.html`
-- **涉及仓库**: MachOSwiftSection（本仓库，打印器与 `swift-section`）、RuntimeViewer（生成选项、内容区的行尾标签）。这是跨仓库的唯一提案，RuntimeViewer 的提案索引登记为 cross-repository draft
+- **涉及仓库**: MachOSwiftSection（本仓库，打印器与 `swift-section`）、RuntimeViewer（生成选项、内容区的行尾标签）。这是跨仓库的唯一提案，RuntimeViewer 的提案索引登记为 cross-repository 0106
 
 ## 摘要
 
@@ -509,7 +509,7 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didClickLineEndTagWithId
    - 行为（`CImportedTypeNameTagTests`）：`tagHoldsCNameUnderSwiftSpelling`、`tagHoldsSwiftNameUnderCSpelling`、`tagRangeIsInUTF16`、`noNamesNoTags`、`togglingFlipsStoredSpelling`
    - 原计划的 `mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns` 不写：取决于 `SourceEditorFrameworks.availability`，包级测试里框架不在，写出来只是重复实现。
    - 编完用 SourceEditor 打开 AttributeGraph 的 `AnyWeakAttribute`，人工看一次标签与切换（交给用户目视）。
-7. ✅（锁文件与插件 skill；取号与 Implemented 留给正式收尾）**收尾** —— RuntimeViewer 插件 skill（版本 `1.4.0` 是类型索引功能抬的、还没发布，不再抬）、抬 MSS pin、重解析五个锁文件、两边索引与本提案状态
+7. ✅ **收尾** —— RuntimeViewer 插件 skill（版本 `1.4.0` 是类型索引功能抬的、还没发布，不再抬）、抬 MSS pin、重解析五个锁文件、两边索引与本提案状态
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 
@@ -541,3 +541,6 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didClickLineEndTagWithId
 | 2026-11-24 | 实现完成，待用户看过后收尾 | 验证（都在 Ultra）：MachOSwiftSection 相关测试 43 条全过；全量 22 个目标中只有 `IntegrationTests` 报 36 处，全是读不到本机没有的文件（`Xcode-26.3.0.app`、iOS 18.5 模拟器运行时），与基线同类。RuntimeViewer Core 相关 55 条、AppCore 14 条全过；整个 App 经 Tuist 工作区编译通过；bridge 测试 78 条中 `LineAnnotation` 5 条全过，失败的是两条既有的滚动条测试，外加一条高负载下偶发的 `SymbolOccurrence`（单独重跑两次都过）。五个锁文件把 MachOSwiftSection 钉到 `feature/c-imported-type-name-spelling` 的同一提交。两个功能分支已在本地合进各自的常驻 `next`，没推送。 |
 | 2026-11-24 | 文档判断 | 已同步：本提案、MachOSwiftSection 的 README 与 swift-section 插件 skill（插件 `0.28.0`）、RuntimeViewer 的命令行插件 skill。RuntimeViewer 的 `AGENTS.md` 与使用指南没有讲到这两个开关的地方，不需要改。配套实现说明与术语登记留给正式收尾时判断。 |
 | 2026-11-24 | 提示改成行尾标签 | 用户看过行尾标注后不要这种像报错的横幅，要标签。改为声明行末尾一个与注释标签同样的胶囊（`C name AGWeakAttribute` / `Swift name AnyWeakAttribute`），单击即切换，悬停变深、手形指针、工具提示。注释标签的字来自文本，行尾没有文字，所以由 bridge 自己画胶囊与文字层，接口文本、复制与查找都不变；打印器与 `marksCImportedTypeNames` 不动。标签写法（`C name`、放在行尾而不是紧跟类型名）是我们定的，用户目视后可调。 |
+| 2026-11-24 | 收尾 | 用户看过行尾标签，批准收尾。本提案叠在 [0105](0105-swift-type-indexing-package.md) 上，两份一起落地：本仓库的 `next` 推送；RuntimeViewer 对本仓库的钉从本功能分支改回 `branch: "next"`，锁文件随 0105 一起重解析，提交在 RuntimeViewer 的本地 `next`，等那里先合进来的别的功能收尾时一起推 |
+| 2026-11-24 | 文档与术语判断 | 不另写实现说明：可信规则（ABI 名以描述符名字结尾的不信）与「导入成成员的类型不改名」写进本仓库术语表的新条目「C-imported type name spelling（C 导入类型名拼写）」，指回本提案的详细设计；「可信的描述符名字」并入这一条，不单列。RuntimeViewer 的术语表登记同名条目，讲全局开关与行尾标签 |
+| 2026-11-24 | 落地验证，取号 | 与 [0105](0105-swift-type-indexing-package.md) 同一次验证：钉改回发布版本后的本仓库 `next`，在 Ultra 上构建并跑两份提案相关的测试（5 个测试目标共 90 条，含 `CImportedTypeNameSpelling`），构建与测试的退出码都是 0。状态改为 Implemented，编号 0106，演进账本 §152 |

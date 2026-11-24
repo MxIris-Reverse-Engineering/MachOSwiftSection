@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer</title>
+<title>0105 - 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -160,14 +160,14 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> 类型索引独立成 <code>swift-type-indexing</code> 包，并接入 MachOObjCSection 与 RuntimeViewer</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0105</span></p>
+  <h1><span class="proposal-number">0105</span> 类型索引独立成 <code>swift-type-indexing</code> 包，并接入 MachOObjCSection 与 RuntimeViewer</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
-    <div><dt>最后更新</dt><dd>2026-11-23</dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-24</dd></div>
     <div><dt>项目类型</dt><dd>库（跨仓库唯一提案）</dd></div>
     <div><dt>跨仓库范围</dt><dd>新仓库 <code>swift-type-indexing</code>、swift-apinotes fork（实现中加入）、swift-semantic-string（验收中加入）、MachOObjCSection、MachOSwiftSection（持有本提案）、RuntimeViewer</dd></div>
-    <div><dt>原文</dt><dd><code>draft-swift-type-indexing-package.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0105-swift-type-indexing-package.md</code></dd></div>
   </dl>
 </header>
 
@@ -806,7 +806,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>29 条，最近一条：SourceKitService 不再涨到 80 GB</summary>
+    <summary>32 条，最近一条：落地验证，取号</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -841,6 +841,9 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-23</td><td>实现完成，待用户看过后收尾</td><td>新包 0.1.0 与 swift-apinotes 0.3.0 已发；MachOObjCSection、MachOSwiftSection、RuntimeViewer 的功能分支已推送并在本地合进各自的常驻检出（未推送）。验证：MachOSwiftSection 的相关测试与夹具测试通过；RuntimeViewer Core 与应用层的整套测试在 Ultra 上跑过，红的都是记忆中的基线红灯或满载超时，单独重跑通过（<code>TitleActivityIndicatorTests</code> 一条基线必红）；<code>./TuistScript.sh check</code> 通过，Tuist workspace 编出整个 App。收尾时发 MachOObjCSection 0.8.209、把临时分支钉改回去</td></tr>
           <tr><td class="numeric">2026-11-23</td><td><code>NS_SWIFT_NAME</code> / <code>NS_REFINED_FOR_SWIFT</code> 改用宏色，swift-semantic-string 加入范围</td><td>用户验收时发现两个宏与 <code>@interface</code>、<code>@end</code> 同为关键字色：MachOObjCSection 把它们打成了 <code>Keyword</code>。查证 Xcode 27.2：Objective-C 的 grammar 从 SourceModel 的 <code>KnownMacros.plist</code> 认出两者（<code>NS_REFINED_FOR_SWIFT</code> 属普通宏、<code>NS_SWIFT_NAME</code> 属函数宏），但只为让解析跳过它们，词法上标成 <code>xcode.syntax.plain</code>；SDK 头文件里的宏色来自索引给的 <code>xcode.syntax.identifier.macro.system</code>（Default (Light) <code>#643820</code>、Default (Dark) <code>#FD8F3F</code>，与预处理语句同色，常规字重）。用户选定完整方案：swift-semantic-string 加 <code>SemanticType.macro</code> 与 <code>Macro</code>（冻结编码 22，之前的读者当普通文本），MachOObjCSection 改用它，RuntimeViewer 主题加可编辑的宏色槽（默认取 Xcode 色，之前存下的自定义主题照样解码），SourceEditor 面板把宏标成 <code>identifier.macro.system</code>，搜索的 <code>RuntimeSemanticKind</code> 把宏归入关键字、线上格式不变；两个命令行的配色同步。收尾因此多两步，排在发 MachOObjCSection 0.8.209 之前：先发 swift-semantic-string 0.7.0，MachOObjCSection 与本仓库把它改回 <code>from: "0.7.0"</code>；RuntimeViewer 对它改回 <code>branch: "next"</code></td></tr>
           <tr><td class="numeric">2026-11-23</td><td>SourceKitService 不再涨到 80 GB：接口生成完就关闭，同时最多生成 2 个</td><td>用户验收时发现 RuntimeViewer 的两个服务进程各带一个 SourceKitService，各涨到 80 GB。复现：<code>swift-section interface --uses-system-dyld-shared-cache -n AppKit --resolve-c-module-names</code>（缓存清空），按秒采样新起的 SourceKitService，6 秒、27 个模块时到 27 GB，被设的上限掐断。原因在 SourceKit 源码里（<code>SwiftEditorInterfaceGen.cpp</code>、<code>SwiftEditor.cpp</code>）：每次 <code>editor.open.interface</code> 留一个 <code>SwiftInterfaceGenContext</code>（两个 <code>CompilerInstance</code>，载入模块及其全部导入），只有同名的 <code>editor.close</code> 才从 <code>IFaceGenContexts</code> 里删掉；<code>SourceKitManager</code> 每个模块用一个新 UUID 打开、从不关闭，<code>TypeDatabase.index</code> 又把一个镜像的模块一次全提交。用户选了「关闭 + 限并发」：读完响应即关（生成失败也关），同时最多 2 个。同一条复现峰值 413 MB，33 个模块 70 秒全部生成完，名字照常解析。收尾多一步：swift-type-indexing 发 0.1.1，RuntimeViewer 的下限抬到 0.1.1</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>收尾：发版，临时钉改回</td><td>用户看过、批准收尾，与叠在上面的 <a href="0106-c-imported-type-name-spelling.html">0106</a> 一起落地。swift-semantic-string 发 0.7.0（<code>SemanticType.macro</code>，连同它 <code>next</code> 上已有的 Swift 6 upcoming features），MachOObjCSection 发 0.8.209。MachOObjCSection 与本仓库对 swift-semantic-string 改回 <code>from: "0.7.0"</code>，本仓库对 MachOObjCSection 改回 <code>"0.8.209" ..&lt; "0.9.0"</code>，对 swift-type-indexing 的下限也抬到 0.1.1（复现那次膨胀用的就是 <code>swift-section interface --resolve-c-module-names</code>）；RuntimeViewer 对三个库改回 <code>branch: "next"</code>，swift-type-indexing 的下限抬到 0.1.1，五个锁文件只改这几条。MachOObjCSection 自带的锁文件原本就落后于清单（MachOKitExtensions 还在 1.3.0），这次重解析一并对齐。RuntimeViewer 的这些改动提交在它的本地 <code>next</code>：那里还有别的功能先合进来、在等用户看，等它们收尾时一起推</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>文档与术语判断</td><td>不另写专题文章：实现说明就是 swift-type-indexing 的 <code>TypeIndexingPipeline.md</code>，RuntimeViewer 的 <code>DerivedData.md</code> 已有类型索引缓存一段。术语：「类型索引（type index）」登记进本仓库与 RuntimeViewer 的术语表；「Swift 命名标注」就是 MachOObjCSection 术语表里已有的「Swift import notes（Swift 导入标注）」，只给它补了本提案的链接</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>落地验证，取号</td><td>钉改回发布版本后的本仓库 <code>next</code>，在 Ultra 上构建并跑两份提案相关的测试（<code>CImportedTypeNameSpelling</code>、<code>TypeDatabaseTypeNameResolver</code>、<code>TypeNameProvider</code>、<code>ObjCRequest</code>、<code>CommandRequestMapping</code>、<code>ObjCSectionCommand</code>，5 个测试目标共 90 条），构建与测试的退出码都是 0。MachOObjCSection 0.8.209 的 GitHub CI 没分到 macOS runner，超时判为失败；同样的构建与测试在 Ultra 上用 Xcode 26.6 跑过，退出码都是 0，358 条全过。状态改为 Implemented，编号 0105，演进账本 §151</td></tr>
         </tbody>
       </table>
       </div>

@@ -75,6 +75,13 @@
 - **主要出现在**：`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift`、MachOKitExtensions `Sources/MachOSymbols/SymbolRowBucket.swift`
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 
+### C-imported type name spelling（C 导入类型名拼写，`CImportedTypeNameSpelling`）
+
+C 导入类型（mangling 放在 `__C` / `__C_Synthesized` 里的 C 结构体、枚举、typedef、CF 类型与 ObjC 类）在打印里写哪个名字。它有两个名字：描述符记着 Swift 代码用的（`AnyWeakAttribute`），每处 mangled 引用记着 C 声明自己的（`__C.AGWeakAttribute`）。`.swiftName`（默认）让声明、成员类型与扩展头都写 Swift 名：解析器找得到模块就带模块，本镜像描述符改过名的写裸名，其余保留 mangled 拼写；`.cName` 一律照 mangling 写 C 名，不问解析器。描述符的名字只在**可信**时采用：ABI 名以描述符名字结尾的不信——导入成成员的类型（`NSAttributedStringKey` 的描述符只存 `Key`，父路径不在二进制里）由此退回 C 名，代价是 `NSDecimal` → `Decimal` 这类顶层改名也退回。`marksCImportedTypeNames` 打开时，打印器在每个这样的名字上标出另一种写法，宿主（RuntimeViewer 的行尾标签）据此显示与切换；`swift-section interface` 的开关是 `--c-imported-type-name-spelling`。
+
+- **主要出现在**：`Sources/Output/SwiftPrinting/CImportedTypeNameSpelling.swift`、`CImportedTypeSwiftNameTable.swift`（`trustsUserFacingName(_:importInfo:)`）、`AnnotationRegionKind+CImportedTypeName.swift`、`SwiftDeclarationPrintConfiguration`
+- **延伸阅读**：[提案 0106](Evolutions/0106-c-imported-type-name-spelling.md)、[TypeImportInfo](#typeimportinfoc-导入类型身份)
+
 ### cache scope（缓存范围，`ReadingContextCacheScope`）
 
 一个 `ReadingContext` 声明的「按它读出来的东西，memo 缓存该存到哪一层」：`.image(identifier:)` 按镜像存（键就是 reader 的 `identifier`，与其它按镜像缓存同一个键，随镜像一起驱逐），`.process` 存进全进程共享的一层（地址是绝对地址，两个镜像不会撞），`.uncached` 不缓存。`MachOContext` 声明 `.image`，`InProcessContext` 声明 `.process`，其余实现默认 `.uncached`——以文件偏移为地址的第三方 context 如果落进全进程那层，两个镜像的偏移会互相串结果。反混淆 memo（`SymbolicDemanglerCache`）与节点驻留池（`InternedNodeReferenceCache`）按它选层。
@@ -513,6 +520,13 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 - **不要混淆**：「原生 workspace」指 `MachOSwiftSection.xcworkspace`（SwiftPM 包直接放进 Xcode），与它无关。
 - **主要出现在**：`TuistScript.sh`、`Tuist/`、`Workspace.swift`、`Tuist.swift`
 - **延伸阅读**：[TuistDevelopment.md](Internal/TuistDevelopment.md)、[提案 0099](Evolutions/0099-tuist-workspace.md)
+
+### type index（类型索引）
+
+swift-type-indexing 的 `TypeIndexing`（原是本仓库的同名 target）从 SDK 建的索引：每个平台的模块接口与 API notes，回答一个 `__C` 类型属于哪个模块、Swift 里叫什么（`__C.UICellConfigurationState` → `UIKit.__UICellConfigurationState`），按 SDK 版本缓存在盘上。本仓库只留适配层 `SwiftTypeNameResolution`，`swift-section interface --resolve-c-module-names` 经它解析；MachOObjCSection 的 `ObjCTypeIndexing` 是 ObjC 一侧的接入。
+
+- **主要出现在**：`Sources/Output/SwiftTypeNameResolution/`；swift-type-indexing 的 `Sources/TypeIndexing/`
+- **延伸阅读**：[提案 0105](Evolutions/0105-swift-type-indexing-package.md)、[TypeIndexingPipeline.md](https://github.com/MxIris-Reverse-Engineering/swift-type-indexing/blob/main/Documentations/Internal/TypeIndexingPipeline.md)
 
 ### type-construction evaluation（类型构造求值）
 

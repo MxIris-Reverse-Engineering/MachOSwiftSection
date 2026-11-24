@@ -1,14 +1,14 @@
-# Draft - 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer
+# 0105 - 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-23
-- **最后更新**: 2026-11-23
+- **最后更新**: 2026-11-24
 - **所属愿景**: 无
 - **关联提案**: [0009 TypeIndexing 重启](0009-type-indexing-revival.md)、[0010 补充类型映射](0010-community-type-mapping-bundles.md)、[0096 Swift 优先的导入声明](0096-swift-first-imported-declarations.md)（`ObjCSwiftImportNotes` 的来历）
 - **跨仓库范围**: 新仓库 `MxIris-Reverse-Engineering/swift-type-indexing`、swift-apinotes fork（`MxIris-DeveloperTool-Forks/swift-apinotes`，实现中加入，见决策日志）、swift-semantic-string（`SemanticType.macro`，验收中加入，见决策日志）、MachOObjCSection、MachOSwiftSection（本仓库，持有这份唯一的提案）、RuntimeViewer。另外三个仓库的提案索引各加一行「cross-repository」链接指回这里
 - **实现分支 / PR**: 新仓库 `swift-type-indexing` 的 `main`；MachOObjCSection、MachOSwiftSection、RuntimeViewer 各自的 `feature/swift-type-indexing-package`（各从 `next` 切）
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **配套文档**: 实现说明 [TypeIndexingPipeline.md](https://github.com/MxIris-Reverse-Engineering/swift-type-indexing/blob/main/Documentations/Internal/TypeIndexingPipeline.md)（swift-type-indexing）；RuntimeViewer 的 `Documentations/DerivedData.md` 讲类型索引缓存放在哪、归谁清理
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -685,3 +685,6 @@ MachOObjCSection 为纯新增：`Note` 加字段带默认值、`declarationNote`
 | 2026-11-23 | 实现完成，待用户看过后收尾 | 新包 0.1.0 与 swift-apinotes 0.3.0 已发；MachOObjCSection、MachOSwiftSection、RuntimeViewer 的功能分支已推送并在本地合进各自的常驻检出（未推送）。验证：MachOSwiftSection 的相关测试与夹具测试通过；RuntimeViewer Core 与应用层的整套测试在 Ultra 上跑过，红的都是记忆中的基线红灯或满载超时，单独重跑通过（`TitleActivityIndicatorTests` 一条基线必红）；`./TuistScript.sh check` 通过，Tuist workspace 编出整个 App。收尾时发 MachOObjCSection 0.8.209、把临时分支钉改回去 |
 | 2026-11-23 | `NS_SWIFT_NAME` / `NS_REFINED_FOR_SWIFT` 改用宏色，swift-semantic-string 加入范围 | 用户验收时发现两个宏与 `@interface`、`@end` 同为关键字色：MachOObjCSection 把它们打成了 `Keyword`。查证 Xcode 27.2：Objective-C 的 grammar 从 SourceModel 的 `KnownMacros.plist` 认出两者（`NS_REFINED_FOR_SWIFT` 属普通宏、`NS_SWIFT_NAME` 属函数宏），但只为让解析跳过它们，词法上标成 `xcode.syntax.plain`；SDK 头文件里的宏色来自索引给的 `xcode.syntax.identifier.macro.system`（Default (Light) `#643820`、Default (Dark) `#FD8F3F`，与预处理语句同色，常规字重）。用户选定完整方案：swift-semantic-string 加 `SemanticType.macro` 与 `Macro`（冻结编码 22，之前的读者当普通文本），MachOObjCSection 改用它，RuntimeViewer 主题加可编辑的宏色槽（默认取 Xcode 色，之前存下的自定义主题照样解码），SourceEditor 面板把宏标成 `identifier.macro.system`，搜索的 `RuntimeSemanticKind` 把宏归入关键字、线上格式不变；两个命令行的配色同步。收尾因此多两步，排在发 MachOObjCSection 0.8.209 之前：先发 swift-semantic-string 0.7.0，MachOObjCSection 与本仓库把它改回 `from: "0.7.0"`；RuntimeViewer 对它改回 `branch: "next"` |
 | 2026-11-23 | SourceKitService 不再涨到 80 GB：接口生成完就关闭，同时最多生成 2 个 | 用户验收时发现 RuntimeViewer 的两个服务进程各带一个 SourceKitService，各涨到 80 GB。复现：`swift-section interface --uses-system-dyld-shared-cache -n AppKit --resolve-c-module-names`（缓存清空），按秒采样新起的 SourceKitService，6 秒、27 个模块时到 27 GB，被设的上限掐断。原因在 SourceKit 源码里（`SwiftEditorInterfaceGen.cpp`、`SwiftEditor.cpp`）：每次 `editor.open.interface` 留一个 `SwiftInterfaceGenContext`（两个 `CompilerInstance`，载入模块及其全部导入），只有同名的 `editor.close` 才从 `IFaceGenContexts` 里删掉；`SourceKitManager` 每个模块用一个新 UUID 打开、从不关闭，`TypeDatabase.index` 又把一个镜像的模块一次全提交。用户选了「关闭 + 限并发」：读完响应即关（生成失败也关），同时最多 2 个。同一条复现峰值 413 MB，33 个模块 70 秒全部生成完，名字照常解析。收尾多一步：swift-type-indexing 发 0.1.1，RuntimeViewer 的下限抬到 0.1.1 |
+| 2026-11-24 | 收尾：发版，临时钉改回 | 用户看过、批准收尾，与叠在上面的 [0106](0106-c-imported-type-name-spelling.md) 一起落地。swift-semantic-string 发 0.7.0（`SemanticType.macro`，连同它 `next` 上已有的 Swift 6 upcoming features），MachOObjCSection 发 0.8.209。MachOObjCSection 与本仓库对 swift-semantic-string 改回 `from: "0.7.0"`，本仓库对 MachOObjCSection 改回 `"0.8.209" ..< "0.9.0"`，对 swift-type-indexing 的下限也抬到 0.1.1（复现那次膨胀用的就是 `swift-section interface --resolve-c-module-names`）；RuntimeViewer 对三个库改回 `branch: "next"`，swift-type-indexing 的下限抬到 0.1.1，五个锁文件只改这几条。MachOObjCSection 自带的锁文件原本就落后于清单（MachOKitExtensions 还在 1.3.0），这次重解析一并对齐。RuntimeViewer 的这些改动提交在它的本地 `next`：那里还有别的功能先合进来、在等用户看，等它们收尾时一起推 |
+| 2026-11-24 | 文档与术语判断 | 不另写专题文章：实现说明就是 swift-type-indexing 的 `TypeIndexingPipeline.md`，RuntimeViewer 的 `DerivedData.md` 已有类型索引缓存一段。术语：「类型索引（type index）」登记进本仓库与 RuntimeViewer 的术语表；「Swift 命名标注」就是 MachOObjCSection 术语表里已有的「Swift import notes（Swift 导入标注）」，只给它补了本提案的链接 |
+| 2026-11-24 | 落地验证，取号 | 钉改回发布版本后的本仓库 `next`，在 Ultra 上构建并跑两份提案相关的测试（`CImportedTypeNameSpelling`、`TypeDatabaseTypeNameResolver`、`TypeNameProvider`、`ObjCRequest`、`CommandRequestMapping`、`ObjCSectionCommand`，5 个测试目标共 90 条），构建与测试的退出码都是 0。MachOObjCSection 0.8.209 的 GitHub CI 没分到 macOS runner，超时判为失败；同样的构建与测试在 Ultra 上用 Xcode 26.6 跑过，退出码都是 0，358 条全过。状态改为 Implemented，编号 0105，演进账本 §151 |
