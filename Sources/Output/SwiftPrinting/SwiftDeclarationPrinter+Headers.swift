@@ -183,7 +183,11 @@ extension SwiftDeclarationPrinter {
     /// asked the way a reference to it asks: only once a resolver finds its
     /// module, by its C name and the category its mangling spells.
     private func resolvedSwiftName(ofCImportedDescriptor descriptorWrapper: TypeContextDescriptorWrapper, cName: String) async -> String? {
-        guard await moduleName(forTypeName: cName) != nil || moduleName(forTypeName: cName.strippedRefSuffix) != nil,
+        var resolvedModuleName = await moduleName(forTypeName: cName)
+        if resolvedModuleName == nil {
+            resolvedModuleName = await moduleName(forTypeName: cName.strippedRefSuffix)
+        }
+        guard resolvedModuleName != nil,
               var identity = try? SymbolicDemangler.demangleContext(for: descriptorWrapper.asContextDescriptorWrapper, in: machO.context)
         else { return nil }
         while identity.kind == .type, let wrapped = identity.children.first {
