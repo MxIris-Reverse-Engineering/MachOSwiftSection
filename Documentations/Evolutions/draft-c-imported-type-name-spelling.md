@@ -489,13 +489,13 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
    - 行为（`CImportedTypeNameSpellingEngineTests`，对系统的 AttributeGraph）：`spellingDefaultsToSwiftNameInOlderPayload`、`spellingRawValuesAreStable`、`corpusPrintsSwiftNamesWhateverTheSpelling`、`swiftSpellingIsUniform`、`cSpellingIsUniform`、`interfaceCarriesCImportedTypeNamesWhenMarked`、`commentStructureIgnoresCImportedTypeNameRegions`
    - 行为（`SwiftSectionPrinterConfigurationTests`）：`changedSpellingReconfiguresOnce`（打印器只重配一次，接口缓存随之清掉）
    - 原计划的 `cNameSpellingRequestsNoTypeIndex` 不写：测试进程不打开类型索引（`RuntimeTypeNames.enableInThisProcess()` 只在服务进程调用），无从观察，代码是 `updateConfiguration(for:)` 里一行条件。`marksCImportedTypeNamesIsNeverStoredTrue` 改由第 6 步的 `togglingFlipsStoredSpelling` 一并断言。
-5. **Bridge 的行尾标注** —— `SourceEditorBridging.swift`、`SourceEditorBridge.swift`、`LineAnnotationTests.swift`
+5. ✅ **Bridge 的行尾标注** —— `SourceEditorBridging.swift`、`SourceEditorBridge.swift`、`LineAnnotationTests.swift`
    - 行为：`lineAnnotationSitsOnFirstLineOfItsRange`、`showingAgainReplaces`、`setSourceRemovesLineAnnotations`、`performingActionNotifiesDelegateWithIdentifier`、`contextualMenuOffersTheSameAction`
-6. **AppCore 与 App** —— `ContentInterface`、`ContentTextViewModel`、`ViewModel.currentMergedGenerationOptions`、`ContentSourceEditorViewController`、面板
+6. ✅ **AppCore 与 App** —— `ContentInterface`、`ContentTextViewModel`、`ViewModel.currentMergedGenerationOptions`、`ContentSourceEditorViewController`、面板
    - 行为（`CImportedTypeNameNoteTests`）：`notesNameCDeclarationUnderSwiftSpelling`、`notesNameSwiftTypeUnderCSpelling`、`noteRangeIsInUTF16`、`noNamesNoNotes`、`togglingFlipsStoredSpelling`
    - 原计划的 `mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns` 不写：取决于 `SourceEditorFrameworks.availability`，包级测试里框架不在，写出来只是重复实现。
    - 编完用 SourceEditor 打开 AttributeGraph 的 `AnyWeakAttribute`，人工看一次提示与切换（交给用户目视）。
-7. **收尾** —— RuntimeViewer 插件 skill（版本 `1.4.0` 是类型索引功能抬的、还没发布，不再抬）、抬 MSS pin、重解析五个锁文件、两边索引与本提案状态
+7. ✅（锁文件与插件 skill；取号与 Implemented 留给正式收尾）**收尾** —— RuntimeViewer 插件 skill（版本 `1.4.0` 是类型索引功能抬的、还没发布，不再抬）、抬 MSS pin、重解析五个锁文件、两边索引与本提案状态
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
 
@@ -524,3 +524,5 @@ func sourceEditorBridge(_ bridge: SourceEditorBridging, didPerformActionOfLineAn
 | 2026-11-24 | MSS 测试用现场编译的 fixture | 原计划读系统 shared cache 的 AttributeGraph 与 SwiftUICore；改用 `CImportedTypeConformanceInterfaceTests` 那种测试里现场编译的桥接头 dylib，三种形状（顶层改名、`swift_wrapper` typedef 改名、导入成成员）都能精确构造，也不随系统版本变。RuntimeViewer Core 的引擎测试仍用系统的 AttributeGraph，那是报告的现场。 |
 | 2026-11-24 | 两条行为测试并入全量与别的测试 | `nonCImportedExtensionHeadersAreByteIdentical`、`abiDiffKeysAreUnchanged` 由 MachOSwiftSection 全量测试覆盖；`marksCImportedTypeNamesIsNeverStoredTrue` 并入 `togglingFlipsStoredSpelling`；`cNameSpellingRequestsNoTypeIndex` 与 `mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns` 在测试进程里无从观察（类型索引只在服务进程打开，SourceEditor 框架只在 App 里），不写。 |
 | 2026-11-24 | 行尾标注的外观是我们自己的类别 | Xcode 的 issue 与 note 类别在 IDESourceEditor 里，不在复刻范围；取灰色、`info.circle.fill`、整行 8% 的淡灰，交给用户目视验收时再调。 |
+| 2026-11-24 | 实现完成，待用户看过后收尾 | 验证（都在 Ultra）：MachOSwiftSection 相关测试 43 条全过；全量 22 个目标中只有 `IntegrationTests` 报 36 处，全是读不到本机没有的文件（`Xcode-26.3.0.app`、iOS 18.5 模拟器运行时），与基线同类。RuntimeViewer Core 相关 55 条、AppCore 14 条全过；整个 App 经 Tuist 工作区编译通过；bridge 测试 78 条中 `LineAnnotation` 5 条全过，失败的是两条既有的滚动条测试，外加一条高负载下偶发的 `SymbolOccurrence`（单独重跑两次都过）。五个锁文件把 MachOSwiftSection 钉到 `feature/c-imported-type-name-spelling` 的同一提交。两个功能分支已在本地合进各自的常驻 `next`，没推送。 |
+| 2026-11-24 | 文档判断 | 已同步：本提案、MachOSwiftSection 的 README 与 swift-section 插件 skill（插件 `0.28.0`）、RuntimeViewer 的命令行插件 skill。RuntimeViewer 的 `AGENTS.md` 与使用指南没有讲到这两个开关的地方，不需要改。配套实现说明与术语登记留给正式收尾时判断。 |

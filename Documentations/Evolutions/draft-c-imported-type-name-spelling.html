@@ -221,7 +221,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       </ul>
     </li>
     <li><strong><code>.swiftName</code> 下一个 <code>__C</code> 引用怎么印</strong>（按顺序取第一个成立的）：解析器把模块解析出来了 → 照旧 <code>模块.Swift拼写</code>；名字表里有它 → <strong>只写 Swift 名，不写模块</strong>（<code>AnyWeakAttribute</code>）；都没有 → 照旧 <code>__C.ABI名</code>。嵌在 C 类型里的类型，父类型那一段按同样的规则印（<code>AnyWeakAttribute.__Unnamed_struct__details</code>）。</li>
-    <li><strong><code>.cName</code></strong>：引用一律按 mangled 的样子印 <code>__C.ABI名</code>，不问任何解析器——模块也不解析，因为 <code>UIKit.UICellConfigurationState</code> 会和同名的 Swift 结构体混淆。</li>
+    <li><strong><code>.cName</code></strong>：引用一律按 mangled 的样子印 <code>__C.ABI名</code>，打印时不问任何解析器——模块也不解析，因为 <code>UIKit.UICellConfigurationState</code> 会和同名的 Swift 结构体混淆。只有打开标注时，声明名会去问解析器要标注里的 Swift 名，打印的文字不变。</li>
     <li><strong>声明行与引用走同一套规则</strong>：<code>.cName</code> 下是 ABI 名；<code>.swiftName</code> 下依次取解析器给的 Swift 拼写（可以带点号，<code>struct NSAttributedString.Key</code>）、名字表里的名字、ABI 名。不可信的条目因此从 <code>struct Key</code> 变成 <code>struct NSAttributedStringKey</code>。</li>
     <li><strong>扩展头改走异步的类型打印路径</strong>：只改扩展类型根在 <code>__C</code> / <code>__C_Synthesized</code> 的扩展，仍包成同一种 <code>TypeDeclaration</code>。其余扩展一个字节都不变。</li>
     <li><strong>标注</strong>：<code>marksCImportedTypeNames</code>（默认关）打开时，两种拼写不同的声明名外面包一个 <code>AnnotationRegion</code>，kind 里带着两个名字。文本不变，分离之后与不标注时逐字节相同。</li>
@@ -388,7 +388,7 @@ declared name of a C-imported descriptor
     <span class="token-keyword">public static func</span> cImportedTypeName(<span class="token-keyword">_</span> names: <span class="token-type">CImportedTypeNames</span>) -&gt; <span class="token-type">Self</span>
     <span class="token-keyword">public var</span> cImportedTypeNames: <span class="token-type">CImportedTypeNames</span>? { <span class="token-keyword">get</span> }
 }</code></pre>
-      <p>kind 的编码是 <code>"cImportedTypeName" + "\u{1F}" + swiftName + "\u{1F}" + cName</code>；U+001F 不会出现在标识符里，Swift 名里可以照常带点号。</p>
+      <p>kind 的编码是 <code>"cImportedTypeName|" + swiftName + "|" + cName</code>；<code>|</code> 不会出现在 Swift 或 C 的名字里，Swift 名里可以照常带点号。原设计用 U+001F，被 swift-semantic-string 拒绝（kind 里不许有控制字符），实现时改成了 <code>|</code>。</p>
     </div>
   </details>
   <details>
@@ -530,21 +530,21 @@ declared name of a C-imported descriptor
 <section id="steps">
   <h2>落地步骤</h2>
   <ol start="0">
-    <li><strong>登记草案</strong> —— 两边的提案索引。</li>
-    <li><strong>名字表与可信规则</strong> —— <code>trustsUserFacingNameWhenABINameDiffers</code>、<code>refusesLeafNameOfTypeImportedAsMember</code>、<code>refusesRelatedEntityName</code>、<code>refusesNameWithoutABIName</code>、<code>nameTableReadsAttributeGraphDescriptors</code>。</li>
-    <li><strong>打印规则</strong> —— <code>swiftSpellingPrintsBareSwiftNameWhenModuleIsUnknown</code>、<code>swiftSpellingKeepsModuleThatResolverFinds</code>、<code>cSpellingPrintsMangledNamesAndAsksNoResolver</code>、<code>untrustedDeclaredNamePrintsCName</code>、<code>extensionHeaderSpellsLikeMemberTypes</code>、<code>nonCImportedExtensionHeadersAreByteIdentical</code>、<code>abiDiffKeysAreUnchanged</code>。</li>
-    <li><strong>标注与命令行</strong> —— <code>markedDeclaredNameCarriesBothSpellings</code>、<code>separatedMarkedPrintEqualsUnmarkedPrint</code>、<code>regionKindRoundTripsDottedSwiftName</code>、<code>sameSpellingsAreNotMarked</code>、<code>interfaceCommandParsesCNameSpelling</code>；推送 MSS 功能分支，RuntimeViewer 临时按分支钉。</li>
-    <li><strong>RuntimeViewer Core</strong> —— <code>spellingDefaultsToSwiftNameInOlderPayload</code>、<code>marksCImportedTypeNamesIsNeverStoredTrue</code>、<code>interfaceCarriesCImportedTypeNamesWhenMarked</code>、<code>commentStructureIgnoresCImportedTypeNameRegions</code>、<code>cNameSpellingRequestsNoTypeIndex</code>、<code>changingSpellingClearsInterfaceCache</code>、<code>corpusPrintsSwiftNamesWhateverTheSpelling</code>。</li>
-    <li><strong>Bridge 的行尾标注</strong> —— <code>lineAnnotationSitsOnFirstLineOfItsRange</code>、<code>setSourceRemovesLineAnnotations</code>、<code>performingActionNotifiesDelegateWithIdentifier</code>、<code>contextualMenuOffersTheSameAction</code>。</li>
-    <li><strong>AppCore 与 App</strong> —— <code>notesNameCDeclarationUnderSwiftSpelling</code>、<code>notesNameSwiftTypeUnderCSpelling</code>、<code>togglingFlipsStoredSpelling</code>、<code>mergedOptionsMarkCImportedTypeNamesWhereSourceEditorRuns</code>；用 SourceEditor 打开 <code>AnyWeakAttribute</code> 的目视交给用户。</li>
-    <li><strong>收尾</strong> —— 插件 skill 与版本、抬 MSS pin、重解析锁文件、两边索引与提案状态；判断配套实现说明与术语。</li>
+    <li>✅ <strong>登记草案</strong> —— 两边的提案索引；提案随两个功能分支的第一个提交走。</li>
+    <li>✅ <strong>名字表与可信规则</strong> —— <code>trustsUserFacingNameWhenABINameDiffers</code>、<code>refusesLeafNameOfTypeImportedAsMember</code>、<code>refusesRelatedEntityName</code>、<code>refusesNameWithoutABIName</code>、<code>nameTableReadsTheFixturesDescriptors</code>（测试里现场编译的桥接头 fixture）。</li>
+    <li>✅ <strong>打印规则</strong> —— <code>swiftSpellingPrintsBareSwiftNameWhenModuleIsUnknown</code>、<code>untrustedDeclaredNamePrintsCName</code>、<code>swiftSpellingKeepsModuleThatResolverFinds</code>、<code>extensionHeaderSpellsLikeMemberTypes</code>、<code>cSpellingPrintsMangledNamesAndAsksNoResolver</code>；扩展头逐字节不变与 diff 的键由全量测试覆盖。</li>
+    <li>✅ <strong>标注与命令行</strong> —— <code>markedDeclaredNameCarriesBothSpellings</code>、<code>markedCSpellingCarriesTheSameNames</code>、<code>sameSpellingsAreNotMarked</code>、<code>regionKindRoundTripsDottedSwiftName</code>、<code>interfaceCImportedTypeNameSpelling</code>；README 与插件 skill（<code>0.28.0</code>）。</li>
+    <li>✅ <strong>RuntimeViewer Core</strong> —— 对系统 AttributeGraph 的引擎测试 7 条与 <code>changedSpellingReconfiguresOnce</code>；类型索引那条在测试进程里无从观察，不写。</li>
+    <li>✅ <strong>Bridge 的行尾标注</strong> —— <code>lineAnnotationSitsOnFirstLineOfItsRange</code>、<code>showingAgainReplaces</code>、<code>setSourceRemovesLineAnnotations</code>、<code>performingActionNotifiesDelegateWithIdentifier</code>、<code>contextualMenuOffersTheSameAction</code>。</li>
+    <li>✅ <strong>AppCore 与 App</strong> —— <code>notesNameCDeclarationUnderSwiftSpelling</code>、<code>notesNameSwiftTypeUnderCSpelling</code>、<code>noteRangeIsInUTF16</code>、<code>noNamesNoNotes</code>、<code>togglingFlipsStoredSpelling</code>；界面目视交给用户。</li>
+    <li>✅ <strong>收尾的一部分</strong> —— 五个锁文件钉到 MachOSwiftSection 功能分支的同一提交、命令行插件 skill；取号与 Implemented 留给正式收尾。</li>
   </ol>
 </section>
 
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>12 条，最近一条：两边都从远端的类型索引功能分支切</summary>
+    <summary>20 条，最近一条：文档判断</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -562,6 +562,14 @@ declared name of a C-imported descriptor
           <tr><td class="numeric">2026-11-24</td><td>Accepted</td><td>用户批准，开始实现。</td></tr>
           <tr><td class="numeric">2026-11-24</td><td>交互定为两次点击</td><td>用户确认按 Xcode 原生的两步做（横幅 → 下拉里的按钮，右键菜单也有），不改复刻版框架。</td></tr>
           <tr><td class="numeric">2026-11-24</td><td>两边都从远端的 <code>feature/swift-type-indexing-package</code> 切</td><td>远端比两边本地 <code>next</code> 多了验收时的修复；提案随功能分支的第一个提交走。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>In Progress</td><td>第 1–4 步做完。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>kind 的分隔符改成 <code>|</code></td><td>swift-semantic-string 不允许 kind 里出现控制字符。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>C 名模式在标注时才问解析器</td><td>打印的文字不受影响，C 名模式下的提示仍能写出 SDK 给的 Swift 名。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>MSS 测试用现场编译的 fixture</td><td>三种形状都能精确构造，不随系统版本变；RuntimeViewer 的引擎测试仍用系统的 AttributeGraph。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>两条行为测试并入全量与别的测试</td><td>其余两条在测试进程里无从观察，不写。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>行尾标注的外观是我们自己的类别</td><td>灰色、<code>info.circle.fill</code>、整行 8% 淡灰，交给用户目视验收时再调。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>实现完成，待用户看过后收尾</td><td>相关测试全过；MSS 全量只有读不到本机没有的文件的 36 处，与基线同类；整个 App 编译通过；两个功能分支已在本地合进常驻 <code>next</code>，没推送。</td></tr>
+          <tr><td class="numeric">2026-11-24</td><td>文档判断</td><td>提案、MSS 的 README 与插件 skill、RV 的命令行插件 skill 已同步；其余不需要改。</td></tr>
         </tbody>
       </table>
       </div>
