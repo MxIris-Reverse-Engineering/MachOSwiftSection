@@ -18,8 +18,10 @@ public enum CImportedTypeNameSpelling: String, Sendable, Hashable, CaseIterable 
 
     /// The C declaration's own name, exactly as the mangling spells it:
     /// `__C.AGWeakAttribute` in a reference, `AGWeakAttribute` on its
-    /// declaration. No resolver is asked, not even for the module: a C name
-    /// under the Swift module (`UIKit.UICellConfigurationState`) could read as
-    /// a Swift type of the same name.
+    /// declaration. No resolver is asked for what it prints, not even for the
+    /// module: a C name under the Swift module (`UIKit.UICellConfigurationState`)
+    /// could read as a Swift type of the same name. A print marking declared
+    /// names (`marksCImportedTypeNames`) still asks for the Swift name the mark
+    /// carries.
     case cName
 }

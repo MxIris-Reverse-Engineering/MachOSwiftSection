@@ -162,8 +162,11 @@ extension SwiftDeclarationPrinter {
         else {
             return DeclaredTypeName(name: userFacingName, cImportedTypeNames: nil)
         }
+        // Spelling C names prints the C name whatever the resolvers say; they are asked only for
+        // the Swift name a marked declaration carries.
+        let asksResolvers = configuration.cImportedTypeNameSpelling == .swiftName || configuration.marksCImportedTypeNames
         let swiftName: String?
-        if let resolvedSwiftName = await resolvedSwiftName(ofCImportedDescriptor: descriptorWrapper, cName: cName) {
+        if asksResolvers, let resolvedSwiftName = await resolvedSwiftName(ofCImportedDescriptor: descriptorWrapper, cName: cName) {
             swiftName = resolvedSwiftName
         } else if CImportedTypeSwiftNameTable.trustsUserFacingName(userFacingName, importInfo: importInfo) {
             swiftName = userFacingName
