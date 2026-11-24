@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import SwiftSectionKit
+import SwiftPrinting
 
 // The library's enums, spelled on the command line by their raw values. The
 // library is in this package, so the conformances are not retroactive.
@@ -8,6 +9,29 @@ extension Architecture: ExpressibleByArgument {}
 extension DumpSection: ExpressibleByArgument {}
 extension TransformerModule: ExpressibleByArgument {}
 extension ObjCDeclarationKind: ExpressibleByArgument {}
+
+// Spelled in the command line's kebab case rather than by its raw value.
+extension CImportedTypeNameSpelling: ExpressibleByArgument {
+    public init?(argument: String) {
+        guard let spelling = Self.allCases.first(where: { $0.argumentValue == argument }) else { return nil }
+        self = spelling
+    }
+
+    public var defaultValueDescription: String {
+        argumentValue
+    }
+
+    public static var allValueStrings: [String] {
+        allCases.map(\.argumentValue)
+    }
+
+    private var argumentValue: String {
+        switch self {
+        case .swiftName: "swift-name"
+        case .cName: "c-name"
+        }
+    }
+}
 
 extension SwiftSectionEnvironment {
     /// What the command line stamps into headers and provenance.

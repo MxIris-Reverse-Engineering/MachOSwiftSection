@@ -44,7 +44,7 @@ extension SwiftDeclarationPrinter {
             if let boundTypeNode {
                 try await BoundDumpedTypeNameRenderer.render(boundTypeNode, using: resolver)
             } else {
-                try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), name: dumped.descriptor.name(in: machO.context), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
+                try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), declaredName: declaredTypeName(of: .struct(dumped.descriptor)), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             }
             try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, ownedBy: .type(.struct(dumped.descriptor)), invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .enum(let dumped):
@@ -53,7 +53,7 @@ extension SwiftDeclarationPrinter {
             if let boundTypeNode {
                 try await BoundDumpedTypeNameRenderer.render(boundTypeNode, using: resolver)
             } else {
-                try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), name: dumped.descriptor.name(in: machO.context), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
+                try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), declaredName: declaredTypeName(of: .enum(dumped.descriptor)), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             }
             try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, ownedBy: .type(.enum(dumped.descriptor)), invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .class(let dumped):
@@ -70,7 +70,7 @@ extension SwiftDeclarationPrinter {
             if let boundTypeNode {
                 try await BoundDumpedTypeNameRenderer.render(boundTypeNode, using: resolver)
             } else {
-                try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO.context), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
+                try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), declaredName: declaredTypeName(of: .class(dumped.descriptor)), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             }
             let superclass = try await renderClassInheritanceClause(dumped, objcProtocolNames: objcProtocolNames, resolver: resolver)
             if boundTypeNode == nil, let genericContext = dumped.genericContext {
@@ -115,12 +115,81 @@ extension SwiftDeclarationPrinter {
     }
 
     @SemanticStringBuilder
-    private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, name: String, displayParentName: Bool, leafNameNode: Node?, resolver: DemangleResolver) async throws -> SemanticString {
+    private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, declaredName: DeclaredTypeName, displayParentName: Bool, leafNameNode: Node?, resolver: DemangleResolver) async throws -> SemanticString {
         if displayParentName {
             try await resolver.resolve(for: SymbolicDemangler.demangleContext(for: descriptorWrapper, in: machO.context)).replacingTypeNameOrOtherToTypeDeclaration()
+        } else if configuration.marksCImportedTypeNames, let cImportedTypeNames = declaredName.cImportedTypeNames {
+            // The declared name of a C-imported type known by two names
+            // (evolution proposal `c-imported-type-name-spelling`): the region
+            // tells a host the other one, the text stays what it prints.
+            AnnotationRegion(.cImportedTypeName(cImportedTypeNames)) {
+                renderLeafName(kind: kind, bareName: declaredName.name, leafNameNode: leafNameNode)
+            }
         } else {
-            renderLeafName(kind: kind, bareName: name, leafNameNode: leafNameNode)
+            renderLeafName(kind: kind, bareName: declaredName.name, leafNameNode: leafNameNode)
         }
+    }
+
+    /// The name a type's declaration prints, and the two names of a C-imported
+    /// type that has two (evolution proposal `c-imported-type-name-spelling`).
+    struct DeclaredTypeName {
+        let name: String
+        /// Both names of a C-imported type whose Swift and C names differ and
+        /// are both known; nil for any other type.
+        let cImportedTypeNames: CImportedTypeNames?
+    }
+
+    /// The name `descriptorWrapper`'s declaration prints.
+    ///
+    /// Any type but a C-imported one whose descriptor carries a C name other
+    /// than its own prints its descriptor name. Such a C-imported type follows
+    /// the rule its references follow (`TypeNodePrintable.printType`):
+    /// spelling C names, its C name; spelling Swift names, the Swift spelling
+    /// a registered resolver gives once it finds the module, else the
+    /// descriptor name when that is the whole Swift name
+    /// (`CImportedTypeSwiftNameTable.trustsUserFacingName(_:importInfo:)`),
+    /// else its C name — a type imported as a member keeps only its leaf
+    /// (`Key`) in the descriptor, which would read as a type of its own.
+    func declaredTypeName(of descriptorWrapper: TypeContextDescriptorWrapper) async throws -> DeclaredTypeName {
+        let userFacingName = try descriptorWrapper.namedContextDescriptor.name(in: machO.context)
+        let descriptor = descriptorWrapper.typeContextDescriptor
+        guard descriptor.hasImportInfo,
+              (try? descriptor.isCImportedContextDescriptor(in: machO.context)) == true,
+              let importInfo = try? descriptor.typeImportInfo(in: machO.context),
+              let cName = importInfo.abiName,
+              cName != userFacingName,
+              !importInfo.isRelatedEntity
+        else {
+            return DeclaredTypeName(name: userFacingName, cImportedTypeNames: nil)
+        }
+        let swiftName: String?
+        if let resolvedSwiftName = await resolvedSwiftName(ofCImportedDescriptor: descriptorWrapper, cName: cName) {
+            swiftName = resolvedSwiftName
+        } else if CImportedTypeSwiftNameTable.trustsUserFacingName(userFacingName, importInfo: importInfo) {
+            swiftName = userFacingName
+        } else {
+            swiftName = nil
+        }
+        let cImportedTypeNames = swiftName.map { CImportedTypeNames(swiftName: $0, cName: cName) }
+        switch configuration.cImportedTypeNameSpelling {
+        case .swiftName:
+            return DeclaredTypeName(name: swiftName ?? cName, cImportedTypeNames: cImportedTypeNames)
+        case .cName:
+            return DeclaredTypeName(name: cName, cImportedTypeNames: cImportedTypeNames)
+        }
+    }
+
+    /// The Swift spelling the registered resolvers give a C-imported type,
+    /// asked the way a reference to it asks: only once a resolver finds its
+    /// module, by its C name and the category its mangling spells.
+    private func resolvedSwiftName(ofCImportedDescriptor descriptorWrapper: TypeContextDescriptorWrapper, cName: String) async -> String? {
+        guard await moduleName(forTypeName: cName) != nil || moduleName(forTypeName: cName.strippedRefSuffix) != nil,
+              var identity = try? SymbolicDemangler.demangleContext(for: descriptorWrapper.asContextDescriptorWrapper, in: machO.context)
+        else { return nil }
+        while identity.kind == .type, let wrapped = identity.children.first {
+            identity = wrapped
+        }
+        return await swiftName(forCName: cName, category: CImportedTypeNameCategory(nodeKind: identity.kind))
     }
 
     /// Renders a declaration's own leaf name. For an ordinary type this is just
@@ -739,14 +808,36 @@ extension SwiftDeclarationPrinter {
     /// would read `Holder.Visitor`, a member type the source never declared,
     /// and alike for every unnamed `Visitor` of `Holder`. Both spellings carry
     /// module selectors when the configuration asks for them.
+    ///
+    /// The extended type of an extension of a C-imported type prints through
+    /// the type printer, spelled the way its references and its declaration
+    /// are (evolution proposal `c-imported-type-name-spelling`): spelling Swift
+    /// names, `extension AnyWeakAttribute`, or `extension CoreFoundation.CGRect`
+    /// once a resolver finds the module. Spelling C names it prints as the
+    /// mangling spells it, which the plain spelling below already does.
     @SemanticStringBuilder
-    package func renderExtendedTypeName(_ extensionName: ExtensionName) -> SemanticString {
+    package func renderExtendedTypeName(_ extensionName: ExtensionName) async -> SemanticString {
         if spellsPositionNamedLocalType(extensionName.node) {
             let positionBasedNameOptions = DemangleOptions.interfaceTypeBuilderOnly.union(.showPrivateDiscriminators)
             TypeDeclaration(kind: extensionName.kind.semanticTypeKind, extensionName.name(using: configuration.usesModuleSelectors ? positionBasedNameOptions.union(.useModuleSelectors) : positionBasedNameOptions))
+        } else if configuration.cImportedTypeNameSpelling == .swiftName,
+                  isCImportedTypeReference(extensionName.node),
+                  let spelledName = try? await typeDemangleResolver.resolve(for: extensionName.node) {
+            spelledName.replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             extensionName.print(usesModuleSelectors: configuration.usesModuleSelectors)
         }
+    }
+
+    /// Whether `name`, with any `type` wrapper taken off, is a nominal type
+    /// directly in `__C` / `__C_Synthesized`.
+    private func isCImportedTypeReference(_ name: NodeReference) -> Bool {
+        var current = name
+        while current.kind == .type, let wrapped = current.children.first {
+            current = wrapped
+        }
+        guard let contextNode = current.children.first, contextNode.kind == .module else { return false }
+        return contextNode.text == objcModule || contextNode.text == cModule
     }
 
     /// Whether `name` or a type it is nested in is a position-based local

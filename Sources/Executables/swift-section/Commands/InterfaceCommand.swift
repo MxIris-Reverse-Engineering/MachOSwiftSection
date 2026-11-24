@@ -33,6 +33,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Resolve __C/__ObjC type module names to their real modules (__C.NSString -> Foundation.NSString) by indexing the SDK modules the binary links, its APINotes, and its dependencies' ObjC metadata. Requires Xcode; the first run per SDK generates module interfaces through sourcekitd and caches the extraction.")
     var resolveCModuleNames: Bool = false
 
+    @Option(name: .customLong("c-imported-type-name-spelling"), help: "How imported C and Objective-C types are spelled. swift-name (the default) prints the name Swift code uses: a type the binary's own descriptors rename prints under that name (__C.AGWeakAttribute -> AnyWeakAttribute), under its module when --resolve-c-module-names finds it. c-name prints every one as the binary mangles it (__C.AGWeakAttribute), declarations included, and resolves nothing.")
+    var cImportedTypeNameSpelling: CImportedTypeNameSpelling = .swiftName
+
     @Option(name: .customLong("supplementary-apinotes"), help: "A supplementary .apinotes file (or a directory of them) of user-provided type mappings for frameworks with no SDK module (e.g. AttributeGraph), loaded on top of the SDK's own APINotes. Repeatable; later paths override earlier ones. Only used with --resolve-c-module-names.", completion: .file())
     var supplementaryAPINotesPaths: [String] = []
 
@@ -104,6 +107,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             infersObjCOverridesFromSelectorNames: objcMemberOptions.infersOverridesFromSelectorNames,
             usesModuleSelectors: moduleSelectors,
             usesExistentialAny: existentialAny,
+            cImportedTypeNameSpelling: cImportedTypeNameSpelling,
             expandsMacros: expandMacros,
             protocolRequirementPlacement: requirementsOnAssociatedTypes ? .associatedTypes : .protocolWhereClause,
             emitsHeader: emitHeader,
@@ -118,6 +122,9 @@ struct InterfaceCommand: AsyncParsableCommand {
         // Progress lines have always gone to stdout here, mixed into the
         // product unless `-o` is given.
         let output = StandardStreamOutput(colorScheme: colorScheme, standardOutputSeverities: [.progress])
+        if resolveCModuleNames, cImportedTypeNameSpelling == .cName {
+            output.report(SwiftSectionDiagnostic(severity: .warning, message: "warning: --resolve-c-module-names has no effect with --c-imported-type-name-spelling c-name"))
+        }
         if !resolveCModuleNames, !supplementaryAPINotesPaths.isEmpty {
             output.report(SwiftSectionDiagnostic(severity: .warning, message: "warning: --supplementary-apinotes has no effect without --resolve-c-module-names"))
         }

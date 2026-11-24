@@ -35,6 +35,7 @@ struct FunctionNodePrinter<Target: NodePrinterTarget>: MemberDeclarationNodePrin
         self.delegate = delegate
         context.usesModuleSelectors = delegate?.usesModuleSelectors ?? false
         context.usesExistentialAny = delegate?.usesExistentialAny ?? false
+        context.cImportedTypeNameSpelling = delegate?.cImportedTypeNameSpelling ?? .swiftName
     }
 
     mutating func printDeclaration(_ node: Node) async throws {

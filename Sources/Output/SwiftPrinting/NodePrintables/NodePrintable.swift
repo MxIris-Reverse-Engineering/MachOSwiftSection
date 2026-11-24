@@ -29,6 +29,11 @@ protocol NodePrintableContext {
     /// Spell existential types with the `any` keyword. Fixed for a printer's
     /// lifetime, like `usesModuleSelectors`.
     var usesExistentialAny: Bool { get }
+
+    /// How the types a mangling places in `__C` / `__C_Synthesized` are
+    /// spelled (evolution proposal `c-imported-type-name-spelling`). Fixed for
+    /// a printer's lifetime, like `usesModuleSelectors`.
+    var cImportedTypeNameSpelling: CImportedTypeNameSpelling { get }
 }
 
 /// Per-call hints for one `printName`.
@@ -175,10 +180,13 @@ extension NodePrintable {
 
     /// The module a `module` node names, with a C-imported module spelling
     /// (`__C` / `__ObjC`) resolved to its real module through the delegate
-    /// when the sibling identifier finds one.
+    /// when the sibling identifier finds one. A printer spelling C names
+    /// (`CImportedTypeNameSpelling.cName`) asks nothing and keeps the
+    /// mangling's module.
     func resolvedModuleName(of node: Node, siblingIdentifier: String?) async -> (text: String, isResolvedCImportedModule: Bool) {
         let moduleName = node.text ?? ""
-        if moduleName == objcModule || moduleName == cModule,
+        if context.cImportedTypeNameSpelling == .swiftName,
+           moduleName == objcModule || moduleName == cModule,
            let identifier = siblingIdentifier,
            let delegate,
            let updatedModuleName = await or(await delegate.moduleName(forTypeName: identifier), await delegate.moduleName(forTypeName: identifier.strippedRefSuffix)) {
@@ -231,7 +239,9 @@ extension NodePrintable {
 }
 
 extension String {
-    fileprivate var strippedRefSuffix: String {
+    /// A CF type's name without the `Ref` its C typedef carries
+    /// (`CFStringRef` → `CFString`), the name a module resolver knows it by.
+    var strippedRefSuffix: String {
         if hasSuffix("Ref") {
             return String(dropLast(3))
         }

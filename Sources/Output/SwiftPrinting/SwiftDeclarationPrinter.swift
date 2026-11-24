@@ -119,6 +119,27 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         case computed([SwiftDeclaration.TypeName: RawLayoutBuiltinStorage])
     }
 
+    /// The Swift names this image's own C-imported type descriptors give
+    /// (`CImportedTypeSwiftNameTable`), built once on first use. It depends
+    /// on the image alone, so no configuration change rebuilds it.
+    @Mutex
+    private var memoizedCImportedTypeSwiftNames: CImportedTypeSwiftNameTable? = nil
+
+    func cImportedTypeSwiftNames() -> CImportedTypeSwiftNameTable {
+        if let table = memoizedCImportedTypeSwiftNames {
+            return table
+        }
+        return _memoizedCImportedTypeSwiftNames.withLock { memoizedTable in
+            if let table = memoizedTable {
+                return table
+            }
+            let typeContextDescriptors = (try? machO.swift.typeContextDescriptors) ?? []
+            let table = CImportedTypeSwiftNameTable(typeContextDescriptors: typeContextDescriptors, in: machO.context)
+            memoizedTable = table
+            return table
+        }
+    }
+
     func rawLayoutBuiltinStorageByTypeName() -> [SwiftDeclaration.TypeName: RawLayoutBuiltinStorage] {
         if case .computed(let storage) = memoizedRawLayoutBuiltinStorage {
             return storage
@@ -685,7 +706,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
         }
         Keyword(.extension)
         Space()
-        renderExtendedTypeName(extensionDefinition.extensionName)
+        await renderExtendedTypeName(extensionDefinition.extensionName)
 
         // This print operation's single conformance materialization
         // (proposal 0002). Propagates on failure: a public entry must not
@@ -1304,5 +1325,13 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
 
     var usesExistentialAny: Bool {
         configuration.usesExistentialAny
+    }
+
+    var cImportedTypeNameSpelling: CImportedTypeNameSpelling {
+        configuration.cImportedTypeNameSpelling
+    }
+
+    func cImportedTypeSwiftName(forIdentity identity: Node) -> String? {
+        cImportedTypeSwiftNames().swiftName(forIdentity: identity)
     }
 }

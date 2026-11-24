@@ -128,6 +128,26 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// be written `any Collection`.
     public var usesExistentialAny: Bool = true
 
+    /// How the types a mangling places in `__C` / `__C_Synthesized` are
+    /// spelled — declarations, member types and extension headers alike
+    /// (evolution proposal `c-imported-type-name-spelling`).
+    ///
+    /// `.swiftName` by default: a type the image's own descriptors rename
+    /// prints under its Swift name (`AnyWeakAttribute`), under the module a
+    /// registered resolver finds for it when one does. `.cName` prints every
+    /// one as the mangling spells it (`__C.AGWeakAttribute`) and asks no
+    /// resolver.
+    public var cImportedTypeNameSpelling: CImportedTypeNameSpelling = .swiftName
+
+    /// Mark the declared name of every C-imported type whose Swift and C names
+    /// differ with a ``AnnotationRegion/Kind/cImportedTypeName(_:)`` region
+    /// carrying both, so a host can say what the type's other name is.
+    ///
+    /// `FrozenSemanticString.separatingAnnotationRegions()` of the frozen
+    /// print gives exactly the string printed with this off. Off by default,
+    /// and off the output is unchanged byte for byte.
+    public var marksCImportedTypeNames: Bool = false
+
     /// Print what an attached macro the type was declared with generated, as
     /// the binary has it, instead of the macro attribute and the
     /// declarations the source wrote (evolution proposal
