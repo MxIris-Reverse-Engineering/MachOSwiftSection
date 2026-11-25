@@ -13,7 +13,7 @@
 
 ## 摘要
 
-`swift-section interface --resolve-c-module-names` 能把公开的 C 导入类型写到真实模块下（`__C.CGColorRef` → `CoreGraphics.CGColor`），私有的 CF 类型却查不到模块：SDK 里没有它们的头文件，依赖镜像的 Objective-C 元数据也不列 CF 类型，于是按 0106 的规则只印描述符给的裸名（`CGSVGDocument`）。本提案在 `SwiftTypeNameResolution` 里新增 `CFDeclaredTypeNames`，它是 swift-type-indexing 的 `DeclaredTypeNameSource` 的又一个实现：从镜像的导出表里找出每个 `…GetTypeID` 函数，列出它定义的 CF 类型（`_CGSVGDocumentGetTypeID` → `CGSVGDocumentRef`）。`SwiftInterfaceBuilderTypeNameProvider` 为根镜像登记它；每个直接依赖改登记新的 `ImageDeclaredTypeNames`，把这个镜像的 Objective-C 名字和 CF 类型合成一个来源，因为 `TypeDatabase` 每个镜像路径只收一个来源。之后 `CGSVGDocumentRef` 归到 CoreSVG，引用印成 `CoreSVG.CGSVGDocument`。打印器、swift-type-indexing 和 CLI 参数都不改。
+`swift-section interface --resolve-c-module-names` 能把公开的 C 导入类型写到真实模块下（`__C.CGColorRef` → `CoreGraphics.CGColor`），私有的 CF 类型却查不到模块：SDK 里没有它们的头文件，依赖镜像的 Objective-C 元数据也不列 CF 类型，于是按 0106 的规则只印描述符给的裸名（`CGSVGDocument`）。本提案在 `SwiftTypeNameResolution` 里新增 `CFDeclaredTypeNames`，它是 swift-type-indexing 的 `DeclaredTypeNameSource` 的又一个实现：从镜像的导出表里找出每个 `…GetTypeID` 函数，列出它定义的 CF 类型（`_CGSVGDocumentGetTypeID` → `CGSVGDocumentRef`）。`SwiftInterfaceBuilderTypeNameProvider` 为根镜像登记它；每个直接依赖改登记新的 `ImageDeclaredTypeNames`，把这个镜像的 Objective-C 名字和 CF 类型合成一个来源，因为 `TypeDatabase` 每个镜像路径只收一个来源。`GetTypeID` 只负责定位：一个名字是不是 CF 类型，由根镜像自己的 foreign class 描述符决定，CF 来源只给出被它证实的名字。之后 `CGSVGDocumentRef` 归到 CoreSVG，引用印成 `CoreSVG.CGSVGDocument`。打印器、swift-type-indexing 和 CLI 参数都不改。
 
 ## 动机
 
@@ -44,14 +44,14 @@
 6. **TypeDatabase 的 CF 去 `Ref` 规则只认 SDK 里有的名字。** `TypeDatabase.swiftName(forCName:category:)` 在 API notes 没有改名时，只有去掉 `Ref` 的名字出现在模块接口或 API notes 的归属表里才返回它，运行时登记的名字不算。私有 CF 类型因此拿不到解析器给的 Swift 名，走第 4 条里描述符那一档，`AGGraphRef` 正确地印成 `Graph` 而不是 `AGGraph`。
 7. **现在谁被登记。** `SwiftInterfaceBuilderTypeNameProvider.setup()`（`Sources/Output/SwiftTypeNameResolution/SwiftInterfaceBuilderTypeNameProvider.swift:81-98`）只给每个**直接**依赖登记一个 `ObjCDeclaredTypeNames`，根镜像自己不登记。只取直接依赖是有意的（`Sources/Output/SwiftInterface/SwiftInterfaceBuilderDependencies.swift:9-19`：每个依赖模块都要生成一份 SourceKit 接口，传递闭包有几百个镜像）。CLI 里只有 `interface --resolve-c-module-names` 会接上它（`Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift:273-320`），依赖按本机 dyld cache 解析。RuntimeViewer 不经这个 provider，它在 `RuntimeViewerCore/Sources/RuntimeViewerCore/Sections/Swift/RuntimeSwiftSection.swift:2013` 给自己打开的每个镜像登记一个 `ObjCDeclaredTypeNames`。
 8. **按这个设计能覆盖多少。** 对「动机」表里的 20 个查使用方的直接依赖（`dyld_info -dependents`）：CoreSVG、CoreGraphics、AttributeGraph、CoreRealityIO 都是使用方的直接依赖，覆盖 14 个；`CAXUIElementRef` 由使用方自己定义，登记根镜像后覆盖，共 15 个。剩下 5 个：`LSASNRef` 的导出在 LaunchServices，使用方只直接链接重新导出它的 CoreServices；`CFPhoneNumberRef` 的 CorePhoneNumbers 不是 IDSFoundation 的直接依赖；另外 3 个没有对应的导出。
-9. **带 `Ref` 的名字在 Swift 里不能用。** ClangImporter 只在 Swift 3 及以后的名字里去掉 `Ref`（`swift/lib/ClangImporter/ImportName.cpp:2269-2277` 的 `swift3OrLaterName`），带 `Ref` 的拼写只剩一个改名用的兼容别名。所以一个私有 CF 类型如果在本镜像里没有描述符（只出现在符号签名里），模块解析出来以后会印成 `CoreSVG.CGSVGDocumentRef`，能读懂，但不是能编译的写法。去掉 `Ref` 时还要避开重名：`IOSurfaceRef` 的描述符名字就是 `IOSurfaceRef`，因为 IOSurface 里已有同名的 Objective-C 类 `IOSurface`（`hasNamingConflict`）。
-10. **顺带发现、未验证（推测）**：第 6 条的去 `Ref` 规则不看重名，而打印器先问解析器、后用描述符。若一个二进制链接了 IOSurface，`__C.IOSurfaceRef` 在 `--resolve-c-module-names` 下可能被印成 `IOSurface.IOSurface`，正确写法是 `IOSurface.IOSurfaceRef`。这与本提案无关，要在 Ultra 上复现后另行处理。
+9. **带 `Ref` 的名字在 Swift 里不能用。** ClangImporter 只在 Swift 3 及以后的名字里去掉 `Ref`（`swift/lib/ClangImporter/ImportName.cpp:2269-2277` 的 `swift3OrLaterName`），带 `Ref` 的拼写只剩一个改名用的兼容别名。所以一个私有 CF 类型如果在本镜像里没有描述符（只出现在符号签名里），即使模块解析出来，也只能印成 `CoreSVG.CGSVGDocumentRef`，能读懂，但不是能编译的写法；加了 foreign 描述符闸门以后（提议方案第 3 条），这种引用不再认领模块，保持 `__C.CGSVGDocumentRef`。去掉 `Ref` 时还要避开重名：`IOSurfaceRef` 的描述符名字就是 `IOSurfaceRef`，因为 IOSurface 里已有同名的 Objective-C 类 `IOSurface`（`hasNamingConflict`）。
+10. **顺带怀疑过、复现后没有出现**：曾推测第 6 条的去 `Ref` 规则不看重名，会把 `__C.IOSurfaceRef` 印成 `IOSurface.IOSurface`。在 Ultra 上对直接链接 IOSurface、用到 `IOSurfaceRef` 的 TextRecognition 跑 `interface --resolve-c-module-names`，改动前后都印成 `CoreGraphics.IOSurfaceRef`（9 处），名字没被改。模块落在 CoreGraphics，是因为 CoreGraphics 的头文件里也有一份 `IOSurfaceRef` 的 typedef；swiftc 6.4.2 探针确认 `CoreGraphics.IOSurfaceRef` 能编过。同一探针还确认 `IOSurface.IOSurfaceRef` 与 `IOSurface.IOSurface` 都编不过（模块名 `IOSurface` 被同名的 Objective-C 类遮住，报 `'IOSurfaceRef' is not a member type of class 'IOSurface.IOSurface'`），要写成模块选择器 `IOSurface::IOSurfaceRef`、`IOSurface::IOSurface`；`--module-selectors` 下 TextRecognition 印成 `CoreGraphics::IOSurfaceRef`。后者是打印器在「模块名与它里面的类型同名」时的通用问题，不属于本提案。
 
 ## 提议方案
 
 1. **新增 `CFDeclaredTypeNames`**（`Sources/Output/SwiftTypeNameResolution/`），实现 `DeclaredTypeNameSource`，与 `ObjCDeclaredTypeNames` 同形：`init(machO:imagePath:)`，`declaredTypeNames()` 读 `machO.exportedSymbols`，每个名为 `_<名字>GetTypeID` 的导出给出 `<名字>Ref`；`<名字>` 以下划线开头的私有函数（`__LSASNGetTypeID`）同时给出去掉前导下划线的拼写（`LSASNRef`）。
 2. **新增 `ImageDeclaredTypeNames`**（同一目录），也实现 `DeclaredTypeNameSource`：一个镜像的 `ObjCDeclaredTypeNames` 名字在前、`CFDeclaredTypeNames` 名字在后，合成一个来源。`TypeDatabase` 每个镜像路径只收第一个来源（调研第 5 条），把两种来源分开登记，后登记的那个永远读不到。
-3. **provider 登记它们**：`setup()` 交给 `TypeDatabase.index(dependencies:moduleFilter:)` 的来源变成「根镜像的 `CFDeclaredTypeNames`，然后每个直接依赖一个 `ImageDeclaredTypeNames`」，取代原来每个依赖一个 `ObjCDeclaredTypeNames`。根镜像排第一，因为它自己定义的类型由它自己说了算；根镜像不进 `moduleFilter`，不触发 SourceKit 接口生成，它的 Objective-C 名字照旧不登记。来源的排列抽成一个内部静态函数。
+3. **provider 登记它们**：`setup()` 交给 `TypeDatabase.index(dependencies:moduleFilter:)` 的来源变成「根镜像的 `CFDeclaredTypeNames`，然后每个直接依赖一个 `ImageDeclaredTypeNames`」，取代原来每个依赖一个 `ObjCDeclaredTypeNames`。根镜像排第一，因为它自己定义的类型由它自己说了算；根镜像不进 `moduleFilter`，不触发 SourceKit 接口生成，它的 Objective-C 名字照旧不登记。来源的排列抽成一个内部静态函数。**`GetTypeID` 只负责定位，「是不是 CF 类型」由 foreign 描述符决定**：provider 先从根镜像收集 C 导入、从 C typedef 升格来的 class 描述符（ClangImporter 给 CF 类型生成的 foreign class）的 typedef 名，所有 CF 来源只给出这个集合里的名字。这样 `CFGetTypeID` 给出的 `CFRef` 这类非类型名字，以及恰好与某个导出同名的 `swift_wrapper` typedef，都不会被认领。
 4. **打印器、swift-type-indexing、CLI 参数都不改**。效果全部经现有路径体现：`moduleName(forTypeName:)` 多答出一些名字，打印器按调研第 4 条的规则写成 `模块.描述符名`。`--resolve-c-module-names` 的帮助文字和 swift-section skill 的说明补一句来源。
 
 ### 非目标
@@ -59,7 +59,8 @@
 - **跟着重新导出找子框架**（`LSASNRef` → CoreServices）：`ObjCDeclaredTypeNames` 同样不跟重新导出，两种来源应该一起做；MachOKitExtensions 3.3.0 的 `DependencyTraversal` 也只有 `direct` / `transitive`（`DependencyClosure.swift:6-11`）。另开提案。
 - **间接依赖**（`CFPhoneNumberRef`）：放宽到传递闭包会让 SourceKit 接口生成回到几百个模块（调研第 7 条）。要做也应该只给运行时来源放宽、不动 `moduleFilter`，另开提案。
 - **没有 `GetTypeID` 导出的类型**（`CFXGPUDeviceRef` 等 3 个），以及非 CF 的私有 C 类型（struct、enum、`swift_wrapper` typedef，如 `AGTreeElement`）：二进制里没有可靠的模块证据。
-- **没有描述符时给出 Swift 名**：仍印 `模块.XRef`（调研第 9 条）。要改得让 TypeDatabase 的去 `Ref` 规则认运行时名表，会碰上重名与 `swift_name` 改名（见「替代方案」第 5 条）。
+- **本镜像没有描述符的引用**：foreign 描述符闸门把它挡在外面，仍印 `__C.XRef`（调研第 9 条）。要在没有描述符时也给出模块和 Swift 名，就得让 TypeDatabase 的去 `Ref` 规则认运行时名表，会碰上重名与 `swift_name` 改名（见「替代方案」第 5 条）。
+- **自己定义、却没导出 `GetTypeID` 的 CF 桥接类型**：foreign 描述符能证实它是 CF 类，但没有任何二进制证据说明它属于哪个模块（桥接到哪个类不进二进制），印描述符给的裸名。端到端测试里的 `ProbeLonelyRef` 钉住了这一点。
 - **根镜像自己的 Objective-C 类**：现在也没登记，是另一个问题，本提案不顺手改，免得 ObjC 输出跟着变。
 - **`dump`**：`dump` 不做 `__C` 模块解析，本提案不引入。
 - **RuntimeViewer 接入**：本库发版后，把 `RuntimeSwiftSection.swift:2013` 的 `metadataSources` 里的 `ObjCDeclaredTypeNames` 换成 `ImageDeclaredTypeNames`，属于 RuntimeViewer 的改动。不能另加一个 `CFDeclaredTypeNames`：同一路径的第二个来源会被丢掉。
@@ -92,6 +93,8 @@ SwiftTypeNameResolution/
 + ImageDeclaredTypeNames<MachO: ObjCMetadataSource>              DeclaredTypeNameSource, one per image
 +     declaredTypeNames()   ObjCDeclaredTypeNames names + CFDeclaredTypeNames names
 ~ SwiftInterfaceBuilderTypeNameProvider.setup()
++     cfTypedefNames(referencedBy: root)   root's foreign class descriptors -> the CF typedef names it uses
++                                          every CF source below gives only these names
 ~     TypeDatabase.index(dependencies:
 +         [CFDeclaredTypeNames(root),
 -          ObjCDeclaredTypeNames(dependency1),
@@ -205,7 +208,7 @@ public struct ImageDeclaredTypeNames<MachO: ObjCMetadataSource>: DeclaredTypeNam
 1. 导出名必须以一个 `_` 开头（C 符号的 Mach-O 前缀），去掉它得到 C 函数名；Swift 符号（`_$s…`）和 Objective-C 符号（`_OBJC_…`）因为不以 `GetTypeID` 结尾自然落选。
 2. C 函数名以 `GetTypeID` 结尾，去掉后缀的部分非空、由字母数字和下划线组成、不以数字开头，记为 `base`。
 3. 给出 `base + "Ref"`；`base` 以下划线开头时，再给出去掉全部前导下划线后的 `+ "Ref"`（非空才给）。
-4. 会产生一些不是类型的名字，例如 `CFGetTypeID` 给出 `CFRef`。它们只在某个查询恰好问到这个名字时才会命中，而那时 SDK 的归属已经先问过了，所以无害，不做过滤。
+4. 规则本身会产生一些不是类型的名字，例如 `CFGetTypeID` 给出 `CFRef`。provider 登记的来源都带 foreign 描述符闸门（下一节），只给出根镜像证实是 CF 类的名字；公开的 `init(machO:imagePath:)` 不带闸门，给需要全部名字的调用方（RuntimeViewer 那种为整个进程登记镜像、没有单一根镜像的场合）。
 
 ### 来源的排列
 
@@ -216,14 +219,30 @@ extension SwiftInterfaceBuilderTypeNameProvider {
     /// dependency's Objective-C names and CF types, one `ImageDeclaredTypeNames` per image, in
     /// dependency order.
     static func declaredTypeNameSources(root: MachO, dependencies: [MachO]) -> [any DeclaredTypeNameSource]
+
+    /// The typedef names of the CF types `image`'s Swift metadata refers to: its C-imported
+    /// class descriptors promoted from a C typedef — the foreign class ClangImporter makes of a
+    /// CF type. Named by the ABI name, or by the descriptor's own name when ClangImporter kept
+    /// the C spelling (`IOSurfaceRef`).
+    static func cfTypedefNames(referencedBy image: MachO) -> Set<String>
+}
+
+extension CFDeclaredTypeNames {
+    /// A source giving only the names in `admittedTypedefNames`.
+    init(machO: MachO, imagePath: String, restrictedTo admittedTypedefNames: Set<String>?)
+}
+
+extension ImageDeclaredTypeNames {
+    /// A source whose CF part gives only the names in `admittedTypedefNames`.
+    init(machO: MachO, imagePath: String, restrictingCFTypesTo admittedTypedefNames: Set<String>?)
 }
 ```
 
-`setup()` 只把 `dependencies:` 参数换成这个函数的结果，`moduleFilter` 不变。
+`setup()` 只把 `dependencies:` 参数换成这个函数的结果，`moduleFilter` 不变。带闸门的两个构造器是 internal：闸门的集合取决于一个根镜像，只有 provider 这种「为一个根镜像登记依赖」的调用方有它；公开接口因此不变。判定只看描述符：种类是 class、`isCImportedContextDescriptor` 为真、import info 的 `isCTypedef` 为真且不是相关实体。只有 CF 类型会被升格成 class 而又来自 C typedef（`swift_wrapper` 给的是 struct / enum，C++ 的 foreign reference type 来自 tag namespace），所以这四条合起来就是「ClangImporter 给 CF 类型生成的 foreign class」。
 
 ### 性能
 
-`TypeDatabase` 只在一个名字查不到时才按顺序读下一个来源，读过的来源不再读。根镜像排第一，所以第一次未命中就会读一遍根镜像的导出表：SwiftUICore 这样的大镜像有数十万个导出，`exportedSymbols` 要建一个同样大的数组。第 3 步在 Ultra 上量一次 `interface --resolve-c-module-names` 的耗时变化；如果明显，改成直接遍历导出 trie、只取以 `GetTypeID` 结尾的名字。
+`TypeDatabase` 只在一个名字查不到时才按顺序读下一个来源，读过的来源不再读。根镜像排第一，所以第一次未命中就会读一遍根镜像的导出表：SwiftUICore 这样的大镜像有数十万个导出，`exportedSymbols` 要建一个同样大的数组。第 3 步在 Ultra 上量了 `interface --resolve-c-module-names` 的耗时：SwiftUICore 热缓存下 17.22 → 17.28 秒，测不出差别，所以不改成直接遍历导出 trie。
 
 ## 替代方案考量
 
@@ -272,9 +291,20 @@ extension SwiftInterfaceBuilderTypeNameProvider {
    - 夹具：C 库 `ProbeCF` 导出 `ProbeWidgetGetTypeID`；Swift 库 `ProbeKit` 用桥接头声明两个 `CF_BRIDGED_TYPE(id)` 的 typedef，链接 `ProbeCF`，并用 `@_cdecl` 自己导出 `ProbeGadgetGetTypeID`。`FixtureCompiler` 把 install name 固定成 `@rpath/lib<名字>.dylib`，所以模块名是 `libProbeCF`、`libProbeKit`
    - 行为：`aPrivateCFTypePrintsUnderTheImageExportingItsTypeID`（字段类型印成 `libProbeCF.ProbeWidget`）
    - 行为：`aCFTypeTheRootDefinesPrintsUnderTheRootsModule`（根镜像自己定义的印成 `libProbeKit.ProbeGadget`）
+   - 行为：`aBridgedTypeWithoutATypeIDFunctionKeepsItsBareSwiftName`（`ProbeLonelyRef` 只有 `CF_BRIDGED_TYPE(id)`、没有任何镜像导出它的 `GetTypeID`，印裸名 `ProbeLonely`）
+   - 行为：`aGetTypeIDExportDoesNotClaimATypedefThatIsNoCFClass`（`ProbeCF` 导出 `ProbeDecoyGetTypeID`，`ProbeKit` 的 `ProbeDecoyRef` 却是 `swift_wrapper` 结构体，不被印成 `libProbeCF.ProbeDecoyRef`；加 foreign 描述符闸门之前它是红的）
    - 行为：`withoutTheProviderAPrivateCFTypeKeepsItsBareSwiftName`（不挂 provider 时仍是 0106 的 `ProbeWidget`）
-3. **文档与系统镜像验证** —— 改动地图第 5–9 行
-   - 在 Ultra 上对本机 cache 的 SwiftUICore、AppKit、RealityIO 跑 `interface --resolve-c-module-names`，确认 `CoreSVG.CGSVGDocument`、`AttributeGraph.Graph`、`CoreGraphics.CGColorTransform`、`CoreRealityIO.RIOPxrSdfLayer`，并量耗时变化（详细设计「性能」），结果记进本提案
+3. ✅ **文档与系统镜像验证** —— 改动地图第 7–11 行
+   - 在 Ultra（macOS 27.2 26B131，Xcode 26.6 release 构建）上，对本机 cache 的四个镜像各跑一遍 `interface --resolve-c-module-names`，改动前用第 1 步那个提交（provider 还没改）编出的 `swift-section`，改动后用最终提交编出的：
+
+     | 镜像 | 改动前后不同的行 | 新增的模块限定（出现次数） | 改动后耗时 |
+     |---|---|---|---|
+     | SwiftUICore | 300 | `AttributeGraph.Subgraph` 134、`AttributeGraph.Graph` 13、`CoreSVG.CGSVGDocument` 7 | 17.28 秒（改动前热缓存 17.22 秒） |
+     | AppKit | 16 | `CoreGraphics.CGColorTransform` 4、`CoreGraphics.CGContextDelegate` 3、`CoreGraphics.CGDisplayList` 1 | 8.17 秒 |
+     | RealityIO | 976 | `CoreRealityIO.RIOPxrUsdObject`、`RIOPxrVtValue`、`RIOBuilder…` 等二十多种 | 2.24 秒 |
+     | TextRecognition | 0 | 无（只用公开的 CF 类型） | 2.62 秒 |
+
+   - 所有变化都是原本没有模块的私有 CF 类型带上了定义它的模块，没有归错的；实际覆盖比「动机」里按一致性表估计的多（AppKit 的 `CGDisplayList`、RealityIO 的 `RIOBuilder…` 一批不在那张表里，它们有描述符但没有一致性记录）。加 foreign 描述符闸门前后，这四个镜像的输出逐字节相同。耗时看 SwiftUICore 的热缓存对比，没有可测出的变化，所以「性能」一节说的「改成遍历导出 trie」不做
    - 测试一律在 Ultra 上跑（公司那台不跑本库的测试），`--filter` 同时带 `--skip IntegrationTests`
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
@@ -292,3 +322,7 @@ extension SwiftInterfaceBuilderTypeNameProvider {
 | 2026-11-25 | 用户批准，开始实现 | 轻量档，用户看过简报后批准。功能分支从本地 `next` 切，因为 moved-swift-type-modules 的本地合并也改了 provider 的 `setup()`，从 `origin/next` 切会在合回时冲突。 |
 | 2026-11-25 | 测试都放在公开 seam 上 | 命名规则不单独测内部静态函数，改由现场编译的 C 库的导出覆盖各种写法；来源顺序不单独测内部函数，改由端到端测试证明根镜像与依赖各自归属。`declaredTypeNameSources(root:dependencies:)` 仍按设计抽成内部静态函数。 |
 | 2026-11-25 | 新增 `ImageDeclaredTypeNames`，一个依赖只登记一个来源 | 偏离原方案。端到端测试发现依赖定义的私有 CF 类型仍印裸名：`TypeDatabase.register(dependencies:)` 按镜像路径去重，同一依赖先登记的 `ObjCDeclaredTypeNames` 占了位置，随后的 `CFDeclaredTypeNames` 被丢掉；根镜像只有一个来源，所以那条通过了。改为每个依赖登记一个合成两种名字的 `ImageDeclaredTypeNames`，方案方向不变，多一个纯新增的公开类型；RuntimeViewer 的后续接入也要用它。 |
+| 2026-11-25 | 加 foreign 描述符闸门 | 用户指出判断「是不是 CF 类型」要靠 foreign metadata 才可靠。改为：`GetTypeID` 只负责定位，provider 先从根镜像的 foreign class 描述符（C 导入、从 C typedef 升格来的 class）收集 CF typedef 名，CF 来源只给出这些名字。诱饵测试 `aGetTypeIDExportDoesNotClaimATypedefThatIsNoCFClass` 加闸前红、加闸后绿。代价是本镜像没有描述符的引用不再认领模块，保持 `__C.XRef`（原来会印成不能编译的 `模块.XRef`）。带闸门的构造器是 internal，公开接口不变。 |
+| 2026-11-25 | 自己定义、不导出 `GetTypeID` 的 CF 桥接类型印裸名 | 应用户要求实测：`ProbeLonelyRef` 只有 `CF_BRIDGED_TYPE(id)`，foreign 描述符证实它是 CF 类，但没有模块证据，印 `ProbeLonely`。写成测试钉住，列入非目标。 |
+| 2026-11-25 | `IOSurfaceRef` 疑似问题未复现 | TextRecognition 改动前后都印 `CoreGraphics.IOSurfaceRef`，能编过；没有被改成 `IOSurface`。复现中确认的另一件事——`IOSurface.IOSurfaceRef` / `IOSurface.IOSurface` 因模块名被同名类遮住而编不过、要用 `IOSurface::…`——是打印器的通用拼写问题，记为后续项。 |
+| 2026-11-25 | 不改成遍历导出 trie | 第 3 步实测 SwiftUICore 热缓存下耗时 17.22 → 17.28 秒，`exportedSymbols` 的开销测不出来。 |
