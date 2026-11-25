@@ -306,8 +306,16 @@ extension TypeNodePrintable {
     /// scopes, so the compiler writes none either), nor for a C-imported
     /// module spelling that does not resolve to a real module.
     mutating func printModuleSelector(ofNestedType name: Node) async {
-        guard context.usesModuleSelectors, let module = name.declaringModuleForModuleSelector else { return }
-        let moduleName = await resolvedModuleName(of: module, siblingIdentifier: name.children.at(1)?.text)
+        guard context.usesModuleSelectors, let (module, outermostTypeName) = name.declaringModuleForModuleSelector else { return }
+        // A C-imported module resolves by the nested type's own name; a Swift
+        // module by the outermost type's, the only name a move
+        // (`@_originallyDefinedIn`) is recorded under — a nested type moves
+        // with it (evolution proposal `moved-swift-type-modules`). An
+        // extension's module has no such name and is not asked about.
+        let moduleText = module.text ?? ""
+        let isCImportedModule = moduleText == objcModule || moduleText == cModule
+        let siblingIdentifier = isCImportedModule ? name.children.at(1)?.text : outermostTypeName
+        let moduleName = await resolvedModuleName(of: module, siblingIdentifier: siblingIdentifier)
         guard !moduleName.text.isEmpty, moduleName.text != objcModule, moduleName.text != cModule else { return }
         target.write(moduleName.text, context: .context(for: module, state: .printModule))
         target.write("::")
@@ -630,9 +638,13 @@ extension Node {
     /// of its own. The same rule as the `useModuleSelectors` option of
     /// swift-demangling's `NodePrinter`.
     ///
+    /// With the module at the root comes the name of the outermost type, the
+    /// one the module node is the context of; with an extension's module,
+    /// `nil`.
+    ///
     /// Iterative: the chain is as long as the nesting, and this walk sits
     /// outside the depth-checked `printName` recursion.
-    fileprivate var declaringModuleForModuleSelector: Node? {
+    fileprivate var declaringModuleForModuleSelector: (module: Node, outermostTypeName: String?)? {
         switch kind {
         case .class, .structure, .enum, .protocol, .otherNominalType, .typeAlias:
             break
@@ -640,18 +652,20 @@ extension Node {
             return nil
         }
         var context = children.first
+        var contextOwner: Node = self
         while let current = context {
             switch current.kind {
             case .module:
-                return current
+                return (current, contextOwner.children.at(1)?.text)
             case .extension:
                 guard let extensionModule = current.children.first, extensionModule.kind == .module else { return nil }
-                return extensionModule
+                return (extensionModule, nil)
             case .type,
                  .class, .structure, .enum, .protocol, .otherNominalType, .typeAlias,
                  .boundGenericClass, .boundGenericStructure, .boundGenericEnum, .boundGenericProtocol, .boundGenericOtherNominalType, .boundGenericTypeAlias:
                 // A type's first child is the type it wraps; a nominal's is its
                 // own context; a bound generic's is its unbound type.
+                contextOwner = current
                 context = current.children.first
             default:
                 return nil

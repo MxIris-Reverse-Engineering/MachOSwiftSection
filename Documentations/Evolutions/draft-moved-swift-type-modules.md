@@ -1,6 +1,6 @@
 # Draft - 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-25
 - **最后更新**: 2026-11-25
@@ -65,7 +65,7 @@ Apple 把一些 Swift 类型从一个模块搬进另一个模块时，会给声�
    - `SwiftSectionKit` 的 `InterfaceRequest`（`Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift:224`）只在 `cModuleNameResolution == .enabled` 时挂上 provider；`dump`、`diff`、`snapshot`、`evolution` 都不挂任何类型名解析器。
    - interface 头部的 `import` 行来自符号里出现的 mangling 模块名（`SwiftInterfaceBuilder.swift:357` 的 `collectModules()`），本提案不改它。
 4. **swift-type-indexing 的现状**（`../swift-type-indexing`，0.1.1）：`TypeDatabase` 只回答 `__C` 类型的归属（`moduleName(forTypeName:)`）与 C 名 → Swift 名（`swiftName(forCName:category:)`）。模块接口一层经 sourcekitd `editor.open.interface` 生成，`InterfaceDeclarationNode` 只留种类、名字与嵌套，不留属性；`Documentations/Internal/TypeIndexingPipeline.md` 明确说不读文本 `.swiftinterface`，因为它只含 Swift 声明，而那一层要的是 ObjC 导入类型。本提案要的恰好是 Swift 声明。`SDKIndexer.discover` 已经列出每个 `.swiftmodule` 目录（`SwiftModuleDescriptor.path`）。第一次 `index` 在 `discoverSDK()` 里登记 API notes；只要 ObjC 标注的调用方用一个不选任何模块的 `moduleFilter` 调一次 `index`，这个用法已有先例。
-5. **成本**：macOS 27.2 SDK 有 368 个 `.swiftmodule`，`arm64e-apple-macos.swiftinterface` 共 266 份（另有 `arm64e.x1-apple-macos` 12 份、`x86_64` 与 `ios-macabi` 各一套）。`grep -A12 '^@_originallyDefinedIn'` 扫完全部 macOS 份用时 0.38 秒。Swift 逐行解析会慢一些，落地时实测并记入本节。
+5. **成本**：macOS 27.2 SDK 有 368 个 `.swiftmodule`，`arm64e-apple-macos.swiftinterface` 共 266 份（另有 `arm64e.x1-apple-macos` 12 份、`x86_64` 与 `ios-macabi` 各一套）。`grep -A12 '^@_originallyDefinedIn'` 扫完全部 macOS 份用时 0.38 秒。实现后实测：带上扫描，一次只读 API notes 的 macOS 索引（`moduleFilter` 不选任何模块：发现 SDK、解析 API notes、扫描搬家记录）在公司那台 10 核 Mac Studio 上单独跑约 1.7 秒（`SDKIntegrationTests.cgFloatMovedFromCoreGraphicsToCoreFoundation`，两次 1.67 / 1.73 秒）。
 6. **现在的输出能编过**：SE-0491（模块选择器）第 421 行规定 `Module::Name` 的候选包括「声明在该模块或被该模块重新导出的」声明；点号限定的写法同样会查到重新导出的声明。CoreGraphics 的接口头部有 `@_exported public import CoreFoundation`，SwiftUI 的接口第 19 行有 `@_exported import SwiftUICore`，所以 `CoreGraphics.CGFloat`、`SwiftUI.View` 都合法。本提案改的只是写法与 SDK 是否一致，不是正确性。
 7. **使用方**：RuntimeViewer 按平台共用一个 `TypeDatabase`，经 `TypeDatabaseTypeNameResolver(typeDatabase:)` 注册（`RuntimeViewerCore/Sources/RuntimeViewerCore/TypeNames/RuntimeTypeIndex.swift:145`）。本提案不改这个类型的行为，RuntimeViewer 的输出不会因为升级而悄悄改变。
 
@@ -348,7 +348,7 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
 
 ## 落地步骤
 
-1. **扫描器** —— 改动地图 swift-type-indexing 的 `MovedTypeIndex.swift`、`SDKPlatform.swift`、`MovedTypeIndexTests.swift`
+1. ✅ **扫描器** —— 改动地图 swift-type-indexing 的 `MovedTypeIndex.swift`、`SDKPlatform.swift`、`MovedTypeIndexTests.swift`
    - 行为：`structMovedFromAnotherModuleIsRecorded`
    - 行为：`protocolClassEnumActorAndTypealiasAreRecorded`
    - 行为：`extensionsFunctionsAndVariablesAreNotRecorded`
@@ -358,7 +358,7 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
    - 行为：`moveWithinTheSameModuleIsNotRecorded`
    - 行为：`indentedAttributesAreIgnored`
    - 行为：`interfaceFileMatchingThePlatformIsChosen`
-2. **数据库与查询** —— 改动地图 swift-type-indexing 的 `TypeDatabase.swift`、`TypeDatabaseMovedTypeTests.swift`、`SDKIntegrationTests.swift` 与文档三行；完成后发 swift-type-indexing 0.2.0
+2. ✅ **数据库与查询** —— 改动地图 swift-type-indexing 的 `TypeDatabase.swift`、`TypeDatabaseMovedTypeTests.swift`、`SDKIntegrationTests.swift` 与文档三行；完成后发 swift-type-indexing 0.2.0
    - 行为：`answersTheDeclaringModuleWhenTheSDKIsNotOlderThanTheMove`
    - 行为：`answersNothingForAnSDKOlderThanTheMove`
    - 行为：`answersNothingForATypeThatNeverMoved`
@@ -367,7 +367,7 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
    - 行为：`visionOSMapsTheIOSVersion`
    - 行为：`firstDiscoveredModuleWinsATiedKey`
    - 行为（SDK 集成，默认关闭）：`cgFloatMovedFromCoreGraphicsToCoreFoundation`、`swiftUIViewMovedToSwiftUICoreInMacOS15`
-   - 落地时把扫描全部 SDK 模块的实测耗时写进前期调研 5。
+   - 落地时把扫描全部 SDK 模块的实测耗时写进前期调研 5（已写入）。
 3. **打印器** —— 改动地图 `TypeNameResolving.swift`、`NodePrintableDelegate.swift`、`SwiftDeclarationPrinter.swift`、`NodePrintable.swift`、`TypeNodePrintable.swift`、`MovedTypeModuleTests.swift`
    - 行为：`movedTopLevelTypePrintsUnderItsDeclaringModule`
    - 行为：`nestedTypeFollowsItsOutermostType`
@@ -402,3 +402,4 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
 | 2026-11-25 | Created as Draft | 用户发现 `CGFloat` 在 SDK 里由 CoreFoundation 声明、二进制里却叫 CoreGraphics，问 swift-type-indexing 能否让输出与 SDK 一致；调研确认能做，用户要求写提案。 |
 | 2026-11-25 | 方案取舍 | 独立开关、默认关闭；按二进制的 SDK 版本判断是否改写；`dump` 与 diff 类命令不改；RuntimeViewer 不随升级改变行为。用户确认开关做成独立的 `--resolve-moved-type-modules`。 |
 | 2026-11-25 | Accepted | 用户批准，开始实现。 |
+| 2026-11-25 | 第 1–2 步完成（swift-type-indexing） | 扫描器与查询落在 swift-type-indexing 的 `feature/moved-swift-type-modules`；单元测试 103 个、SDK 集成测试 7 个全部通过（公司那台本机，swift-type-indexing 不在远程编译清单里）。版本比较用内部类型 `PlatformVersion`（按数值比较、补零），公开 API 仍收 `OperatingSystemVersion`。扫描器另认 `#if` / `#else` / `#endif` 让属性组作废、限定名属性（`@_Concurrency.MainActor`）算一个属性，测试 `conditionalCompilationDirectivesEndTheAttributes`、`versionsCompareNumerically`、`answersNothingOnAPlatformTheAttributeDoesNotName` 是在提案清单之外加的。swift-type-indexing 0.2.0 尚未发版：发版不在本次授权内，本库在此之前经本地兄弟依赖构建。 |
