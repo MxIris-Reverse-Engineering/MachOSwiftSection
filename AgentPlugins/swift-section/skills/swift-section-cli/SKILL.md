@@ -367,9 +367,10 @@ alongside it.
 `CGSVGDocumentRef`, but CoreSVG exports `CGSVGDocumentGetTypeID`, so SwiftUICore's reference prints
 as `CoreSVG.CGSVGDocument`. Only the binary itself and its direct dependencies are read: a type whose
 function lives in a re-exported sub-framework (LaunchServices under CoreServices) or a transitive
-dependency keeps the bare Swift name. A reference with no descriptor in the binary keeps the C
-spelling under the module (`CoreSVG.CGSVGDocumentRef`) — readable, though Swift spells it without
-`Ref`.
+dependency keeps the bare Swift name. The export only says where a type lives: a name is attributed
+this way only when the binary's own metadata shows it is a CF class (a C-imported class descriptor
+promoted from a typedef), so a reference with no such descriptor stays `__C.CGSVGDocumentRef`, and a
+bridged type nobody exports a `GetTypeID` for keeps its bare name.
 
 **Swift names come first, with or without the SDK.** A C type has two names: its descriptor carries
 the one Swift code uses, every mangled reference the C one. `interface` prints the Swift one everywhere
