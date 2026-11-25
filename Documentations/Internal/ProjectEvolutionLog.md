@@ -3607,6 +3607,20 @@
 - **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2978 个测试全过；两条回归测试（去重、foreign 描述符闸门）都先红后绿。macOS 27.2 系统镜像前后对照：SwiftUICore 300 行、AppKit 16 行、RealityIO 976 行变化，全是私有 CF 类型带上了模块，耗时测不出变化。
 - **对应版本**：未发布。RuntimeViewer 发版后接入（把 `ObjCDeclaredTypeNames` 换成 `ImageDeclaredTypeNames`）。
 
+## 2026-11-25 C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写
+
+- **时间段**：2026-11-25，本仓库的 `feature/consistent-c-imported-type-spelling`，在 JHs-Mac-Studio-Ultra 上写、编译与测试。
+- **动机**：打 macOS 27.2 的 AttributeGraph（显示 C 导入类型、模块选择器、展开字段偏移）时，同一个类型写法混用：`struct AGDescriptionOption {` 的扩展头是 `extension __C::AGDescriptionOption`；`var base: AnyWeakAttribute` 下面的注释写 `identifier (__C.AGAttribute)`，也不带 `::`。
+- **关键决策**：
+  - 名字表收「没有 ABI 名」的描述符：编译器只在 Swift 名与 C 名不同时才写 ABI 名（IRGen `computeIdentity`），所以这样的描述符证明两个名字是同一个。只收直接位于 `__C` / `__C_Synthesized` 的、非相关实体的；import info 读不出来的不收。
+  - 本镜像没有描述符的类型（只在签名里出现、没人要它的 metadata）照旧写 `__C::`。查别的镜像的描述符（`AGSubgraphRef` 在 SwiftUICore 里记作 `Subgraph`）另开提案。改了名但不可信的（`AGTreeValue` → `TreeValue`）不动。
+  - 展开字段偏移树的行存类型节点，interface 打印器经自己的 `typeDemangleResolver` 印它，与字段声明同拼写（C 名开关、模块选择器、`any`、语法糖、私有类型不带判别符）；dump 不打开开关，照旧 `.default`。离线与进程内两条后端一起改，进程内的全进程缓存行也带节点，渲染时不再 demangle。
+- **落地模块**：`Sources/Output/SwiftPrinting/`（`CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed:importInfo:isDirectlyInImportedModule:)`、`SwiftDeclarationPrinter+Headers` 打开开关）、`Sources/Output/SwiftDeclarationRendering/`（`DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`、两条后端改成异步渲染、`NestedFieldOffsetLevel` 带节点）、`Sources/Analysis/SwiftLayout/NestedFieldOffsetTree.swift`（`NestedFieldOffset.typeNode`）、`swift-section interface --c-imported-type-name-spelling` 的帮助文字。
+- **文档**：提案 [draft-consistent-c-imported-type-spelling](../Evolutions/draft-consistent-c-imported-type-spelling.md)；术语表「C-imported type name spelling」；插件 skill 第 8 节；SwiftLayout 模块文档的关键契约、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md)。
+- **顺带发现**：符号索引的建索引死锁（同一镜像 15 个以上并发建索引时占满大栈线程池），`next` 上就有，记在提案后续项，没在本分支修。
+- **验证**：见提案决策日志最后几行。
+- **对应版本**：未发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

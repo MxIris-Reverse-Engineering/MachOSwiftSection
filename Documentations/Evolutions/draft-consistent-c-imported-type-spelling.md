@@ -317,10 +317,10 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
    - 行为：C 名模式下布局注释写 mangled 的 C 名（`__C.AGFooIdentifier`）
    - 行为：开了模块选择器时布局注释写 `Swift::UInt32`
    - 行为：dump 的布局注释仍是 `.default` 拼写
-3. **进程内路径的布局注释经打印器拼写** —— 改动地图第 11、13、14 行
+3. **进程内路径的布局注释经打印器拼写**（已完成：行为测试先红后绿；两个审查 agent 各一轮，补了三条测试——打印器提前释放会让对照测试两边都退回 `.default` 而假绿，现在保住它的生命周期并要求行里出现 `::`；对照从子集改成逐行相同；缓存测试补上开关打开的一轮；受波及的六个测试目标 1086 个测试全过） —— 改动地图第 11、13、14 行
    - 行为：进程内路径的布局注释同样写 Swift 名与模块选择器
-   - 行为：进程内与离线两条路径的布局注释逐字相同
-   - 行为：带缓存与不带缓存的进程内展开逐字相同（既有 `NestedFieldOffsetMemoizationTests`）
+   - 行为：进程内与离线两条路径对非泛型字段的布局注释逐行相同（且进程内的行里必须出现只有打印器才写的 `::`，防止两边都退回 `.default` 时空过）
+   - 行为：带缓存与不带缓存的进程内展开逐字相同，开关关着（既有测试）与开着、用另一种拼写（新增）都一样
 4. **文档** —— 改动地图第 15–19 行，以及第 4、5 行在第 3 步之后的补全
 
 **收尾时必须判断两件事**：要不要配套专题文章；有没有引入新术语。结论写进决策日志。
@@ -333,6 +333,8 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 - 同类排查：渲染层里另一处用 `.default` 印类型名进 interface 文本的是 `OpaqueReferenceSpelling`（`Sources/Output/SwiftDeclarationRendering/OpaqueReferenceSpelling.swift:142`、`:145`，没展开的 opaque 引用的泛型实参与所属声明的注释），同样不带模块选择器、`any` 与名字表。它走的是另一套拼写（`textualInterface`），单独处理。
 - 0106 的疑似遗留（第 1 步审查按编译器源码推断，未实测；若属实，`next` 上就有）：`NS_ERROR_ENUM` 生成的 `Code` 枚举 descriptor 的名字是 `Code`、ABI 名是错误类型自己的 C 名（如 `MTLLibraryError`），不以 `Code` 结尾，于是被当成可信的顶层改名，引用印成裸的 `Code`，而 Swift 的拼写是 `MTLLibraryError.Code`。要另修 `trustsUserFacingName`。
 - 嵌套字段是 opaque 类型的行：经打印器后写成没展开的 `textualInterface` 拼写，而那个类型自己的声明是 `OpaqueTypeRewriter` 展开过的，两者仍不一致（改前的 `.default` 也不一致）。打印器给注释行印类型时没有 `targetNode`，展开不了。
+- 两条路径的对照还没覆盖的嵌套行形状：variadic 泛型的 pack 实参、整数泛型参数（`InlineArray<3, UInt8>`）、按层里自己的 metadata 绑定的关联类型成员（进程内可能印 `[Int].Element`，离线投影成 `Int`）；位置命名的局部类型（`(Visitor in $<地址>)`）进程内与离线的地址不同。都是改前就有的差别，本提案没有让它变好或变坏。
+- **符号索引的建索引死锁**（第 3 步写测试时撞上，`next` 上就有；栈里没有本分支改过的代码）：`SwiftSymbolIndexStore.Storage.demangledIndex(reportingProgressTo:)`（`Sources/Symbols/SwiftSymbols/SwiftSymbolIndexStore.swift:265`）先切到大栈线程、再取这个镜像的建索引锁；持锁的那个线程在 `DemanglingWave.waitUntilDemangled()`（`:1771`）等一批 demangle，而每一批也要先切到大栈线程（`:1760`）。同一 QoS 的大栈池只有 16 个线程，当 15 个以上的调用方同时为同一个镜像建索引、都切到大栈后在锁上排队时，池子被占满，持锁者的那批 demangle 永远分不到线程。观测到的触发方式：同一个测试进程里两个测试各自对 dlopen 进来的 fixture 做进程内的 `SwiftInterfaceBuilder.prepare()`（`prepareWithProgress` 从 `DispatchQueue.global(qos: .userInitiated)` 并发进入，共 20 个线程），同时还有别的套件在跑。修法方向：等锁不占大栈线程（先取锁、或把等待者挡在切大栈之前），或者让 wave 的批次不走同一个池子。当时的线程采样只留在 agent 的日志目录，没进仓库；要修时先照上面的触发方式造一条能卡住的测试（带看门狗）。本分支的进程内测试因此改在渲染器接缝上测，不建索引。
 - C++ 类模板特化（顶层、无命名空间）的 descriptor 的名字带尖括号（`Box<CInt>`），按 IRGen 的规则不写 ABI 名，本提案后它的引用从 `__C.Box<CInt>` 变成 `Box<CInt>`。两种写法都不是可声明的 Swift 拼写，没有变坏；要不要单独处理留给 C++ interop 的提案。
 
 ## 决策日志
@@ -347,4 +349,6 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 | 2026-11-25 | 两条后端一起改 | `OfflineSpecializationParityTests` 要求两条路径逐字节一致 |
 | 2026-11-25 | 进程内缓存存节点 | 渲染时重算会带回 0067 去掉的 demangle 成本 |
 | 2026-11-25 | 第 1 步审查（两个审查 agent） | 文档里「只有没有 descriptor 的保留 `__C.`」说错了：改名不可信的（`ProbeOwnerKey`、`AGTreeValue`）也保留，CLI 帮助、插件 skill 与 `CImportedTypeNameSpelling` 的注释已改。名字表在锁内 demangle：A61 第一处已裁决「打印器的一次性建表不改锁」，理由（入口已切到大栈）对 0106 的名字表同样成立，不改，第 5 步登记。`Code` 枚举与 C++ 模板特化记为后续项。`Documentations/README.md` 缺登记是误报：项目惯例是 draft 落地时才登记 |
+| 2026-11-25 | 进程内测试改在渲染器接缝上 | 最初用进程内 `SwiftInterfaceBuilder` 打 dlopen 进来的 fixture，撞上符号索引的建索引死锁（后续项有详情，是 `next` 上的旧问题）。改为用打印器自己的 `typeDemangleResolver` 直接驱动 `FieldLayoutRenderer`，与打印器构造渲染配置的方式相同、但不建索引；离线与进程内的逐行对照照样做，以进程内的行是离线行的子集为准（进程内从活的 metadata 读偏移，可能更早停下） |
+| 2026-11-25 | 第 3 步审查（两个审查 agent） | 测试有三处证明力不够，已补（见落地步骤 3）。`SpecializedRuntimeTypeNameTests` 改了期望：注释行和字段声明一样写 `SwiftSpecializationTests.RuntimeNamedPrivateArgument`，测试要证明的「保留模块」不变；运行时名字里判别符的恢复另有 `RuntimeTypeNamePrivateDiscriminatorTests` 守着，不另加 dump 侧的孪生测试。pack、整数泛型参数、关联类型成员这几种嵌套行的两条路径对照、位置命名的局部类型在两条路径地址不同，都是改前就没覆盖的，记为后续项。进程内缓存多存节点的内存成本，交付前实测 |
 | 2026-11-25 | 第 2 步审查（两个审查 agent） | 两条测试证明不了它声称的：dump 守护测试改成用一个把所有类型都印成固定字样的解析器，开关关着不生效、开着才生效；C 名测试加开模块选择器。注释行跟着声明不带私有判别符、带语法糖，是这次有意的一致，写进「提议方案」与「影响」；opaque 行记为后续项。每行一次异步打印的开销，交付前在大框架上实测 |

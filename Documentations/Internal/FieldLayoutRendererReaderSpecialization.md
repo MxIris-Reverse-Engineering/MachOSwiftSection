@@ -93,6 +93,7 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
 - `nestedFieldOffsetTree(forMangledTypeName:baseOffset:depthLimit:) -> [NestedFieldOffset]`：expanded
   嵌套树。在 SwiftLayout 内完成解析（多镜像 universe、按 mangled name 跨闭包定位 descriptor、逐层重建泛型环境、
   在解析所得 image 上算偏移），renderer 只负责树 → `// ├──` 注释的呈现。
+  每一行的类型名两条后端走同一个入口 `DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`：interface 打印器打开 `spellsFieldLayoutTypeNamesThroughResolver`，行经它的 `typeDemangleResolver` 印出、与字段声明同拼写；dump 不打开，行保持 `.default`。进程内的 `NestedFieldOffsetLevel` 缓存的行同样带着节点，渲染时不再 demangle（提案 [draft-consistent-c-imported-type-spelling](../Evolutions/draft-consistent-c-imported-type-spelling.md)）。
 - `fieldLayout(ofStruct:/ofClass:)` 抽出 `in image:` 参数，使嵌套树能在依赖镜像里计算。
 
 ### 4. 渲染细节

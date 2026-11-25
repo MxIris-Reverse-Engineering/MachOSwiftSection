@@ -121,17 +121,17 @@ struct RuntimeFieldLayoutBackend {
             } else {
                 endOffset = nil
             }
-            configuration.optionalContent(.printFieldOffset) {
+            await configuration.optionalContent(.printFieldOffset) {
                 // The tree belongs to the field offset's region, so a host
                 // folds it under that line.
-                configuration.commentRegion(.fieldOffset) {
+                await configuration.commentRegion(.fieldOffset) {
                     configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
                     // Expanded offsets hang off the field offset: printed only
                     // when both are on. A field whose specialized resolution
                     // failed may still resolve by its bare name, so the expansion
                     // keeps that second try.
-                    configuration.optionalContent(.printExpandedFieldOffsets) {
-                        expandedFieldOffsets(
+                    await configuration.optionalContent(.printExpandedFieldOffsets) {
+                        await expandedFieldOffsets(
                             of: fieldMetatype ?? (try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO)),
                             baseOffset: startOffset,
                             baseIndentation: configuration.indentation,
@@ -224,9 +224,9 @@ struct RuntimeFieldLayoutBackend {
     // rationale on the PAC-fault-avoiding static substitution.
 
     @SemanticStringBuilder
-    func expandedFieldOffsets(of topMetatype: Any.Type?, baseOffset: Int, baseIndentation: Int, ancestors: [Bool]) -> SemanticString {
+    func expandedFieldOffsets(of topMetatype: Any.Type?, baseOffset: Int, baseIndentation: Int, ancestors: [Bool]) async -> SemanticString {
         if let topMetatype {
-            walkNestedExpandedFieldOffsets(of: topMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, enclosingMetatypes: [])
+            await walkNestedExpandedFieldOffsets(of: topMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, enclosingMetatypes: [])
         }
     }
 
@@ -251,9 +251,11 @@ struct RuntimeFieldLayoutBackend {
     /// What one level reads about its metatype comes from
     /// `nestedFieldOffsetLevel(of:)`, built once per metatype; the walk itself
     /// — the rows, their offsets and tree prefixes, the cycle and depth guards
-    /// and their log lines — is the same either way.
+    /// and their log lines — is the same either way. A row's type is spelled
+    /// as the configuration asks (`fieldLayoutTypeName(printedName:typeNode:)`),
+    /// from the node the level kept.
     @SemanticStringBuilder
-    private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0, enclosingMetatypes: Set<ObjectIdentifier>) -> SemanticString {
+    private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0, enclosingMetatypes: Set<ObjectIdentifier>) async -> SemanticString {
         if enclosingMetatypes.contains(ObjectIdentifier(metatype)) {
             emitNestedFieldOffsetCycleWarning(for: metatype)
         } else if depth >= nestedFieldOffsetExpansionDepthLimit {
@@ -266,19 +268,21 @@ struct RuntimeFieldLayoutBackend {
             case .structFields(let fields):
                 for field in fields {
                     let absoluteOffset = baseOffset + field.relativeOffset
-                    configuration.commentRegion(.fieldLayoutNode) {
-                        configuration.expandedFieldOffsetComment(fieldName: field.fieldName, typeName: field.typeName, offset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: field.isLast)
+                    let typeName = await configuration.fieldLayoutTypeName(printedName: field.typeName, typeNode: field.typeNode)
+                    await configuration.commentRegion(.fieldLayoutNode) {
+                        configuration.expandedFieldOffsetComment(fieldName: field.fieldName, typeName: typeName, offset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: field.isLast)
                         if let childMetatype = field.childMetatype {
-                            walkNestedExpandedFieldOffsets(of: childMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [field.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                            await walkNestedExpandedFieldOffsets(of: childMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [field.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
                         }
                     }
                 }
             case .enumPayloads(let payloads):
                 for payload in payloads {
-                    configuration.commentRegion(.fieldLayoutNode) {
-                        configuration.expandedFieldOffsetComment(fieldName: payload.caseName, typeName: payload.typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: payload.isLast)
+                    let typeName = await configuration.fieldLayoutTypeName(printedName: payload.typeName, typeNode: payload.typeNode)
+                    await configuration.commentRegion(.fieldLayoutNode) {
+                        configuration.expandedFieldOffsetComment(fieldName: payload.caseName, typeName: typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: payload.isLast)
                         if payload.descends {
-                            walkNestedExpandedFieldOffsets(of: payload.payloadMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [payload.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
+                            await walkNestedExpandedFieldOffsets(of: payload.payloadMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [payload.isLast], depth: depth + 1, enclosingMetatypes: nestedEnclosingMetatypes)
                         }
                     }
                 }
@@ -336,9 +340,11 @@ struct RuntimeFieldLayoutBackend {
         for (fieldIndex, (nestedFieldRecord, nestedRelativeOffset)) in fieldEntries.enumerated() {
             guard let fieldName = try? nestedFieldRecord.fieldName(in: .inProcess) else { continue }
             let nestedMangledTypeName = try? nestedFieldRecord.mangledTypeName(in: .inProcess)
+            let fieldTypeNode = nestedTypeNode(for: nestedMangledTypeName, parentMetadata: metadata)
             fields.append(NestedFieldOffsetLevel.StructField(
                 fieldName: fieldName,
-                typeName: nestedTypeName(for: nestedMangledTypeName, parentMetadata: metadata),
+                typeName: Self.defaultTypeName(of: fieldTypeNode),
+                typeNode: fieldTypeNode,
                 relativeOffset: Int(nestedRelativeOffset),
                 childMetatype: nestedMangledTypeName.flatMap { resolveNestedMetatype(for: $0, parentMetadata: metadata) },
                 isLast: fieldIndex == fieldEntries.count - 1
@@ -359,9 +365,11 @@ struct RuntimeFieldLayoutBackend {
                   !mangledTypeName.isEmpty,
                   let payloadMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: metadata)
             else { continue }
+            let payloadTypeNode = nestedTypeNode(for: mangledTypeName, parentMetadata: metadata)
             payloads.append(NestedFieldOffsetLevel.EnumPayload(
                 caseName: (try? payloadRecord.fieldName(in: .inProcess)) ?? "payload",
-                typeName: nestedTypeName(for: mangledTypeName, parentMetadata: metadata),
+                typeName: Self.defaultTypeName(of: payloadTypeNode),
+                typeNode: payloadTypeNode,
                 payloadMetatype: payloadMetatype,
                 isLast: payloadIndex == payloadRecords.count - 1,
                 // An indirect case stores a `Builtin.NativeObject` box
@@ -392,12 +400,21 @@ struct RuntimeFieldLayoutBackend {
         return try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
     }
 
-    private func nestedTypeName(for mangledTypeName: MangledName?, parentMetadata: some ValueMetadataProtocol) -> String {
-        guard let mangledTypeName else { return "" }
+    /// A nested field's type with the parent's generic arguments substituted
+    /// where they can be read, else as the record names it; `nil` when the
+    /// record names nothing or its name does not demangle.
+    private func nestedTypeNode(for mangledTypeName: MangledName?, parentMetadata: some ValueMetadataProtocol) -> Node? {
+        guard let mangledTypeName else { return nil }
         if let substitutedNode = substitutedNestedTypeNode(for: mangledTypeName, parentMetadata: parentMetadata) {
-            return substitutedNode.printSemantic(using: .default).string
+            return substitutedNode
         }
-        return (try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName, in: .inProcess).printSemantic(using: .default).string) ?? ""
+        return try? SymbolicDemangler.demangleTypeUncached(for: mangledTypeName, in: .inProcess)
+    }
+
+    /// The `.default` spelling a row keeps beside its node: what the dump
+    /// prints, and what a printer that spells nothing itself prints.
+    private static func defaultTypeName(of typeNode: Node?) -> String {
+        typeNode?.printSemantic(using: .default).string ?? ""
     }
 
     // MARK: - Static generic-argument substitution (PAC-fault-avoiding)
@@ -479,9 +496,11 @@ struct RuntimeFieldLayoutBackend {
     /// `dependentGenericParamType`, whose enclosing `.type` wrapper is preserved
     /// by the recursion — so `.value` yields the canonical `type(integer)` shape
     /// and `.type` the canonical `type(<nominal>)`, exactly as the demangler
-    /// would. The result is print-only (`nestedTypeName` →
-    /// `printSemantic(using: .default)`); it is never remangled, so a bare
-    /// `pack` child (printed as `Pack{…}`) needs no further wrapping.
+    /// would. The result is print-only — a row's `.default` spelling, and the
+    /// node a printer spells its own way (`nestedTypeNode(for:parentMetadata:)`);
+    /// it is never remangled, so a bare `pack` child needs no further
+    /// wrapping: `.default` prints it as `Pack{…}`, the interface printer as
+    /// its bare elements.
     private func substitutingGenericParameters(in node: Node, parentMetadata: some ValueMetadataProtocol, layout: TopLevelGenericLayout) -> Node {
         if #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *),
            node.kind == .dependentGenericParamType,

@@ -78,6 +78,7 @@ libswiftCore 的 builtin 段还多一类记录：编译器 builtin 叶子类型�
 - **实参永远赢过推断**。签名挖出来的 same-type 约束、类约束参数都只是无实参时的兜底；一旦有真实实参，用实参。
 - **官方离线实现不是标准答案**。RemoteInspection 的 `TypeLowering.cpp` 在几处比本模块保守或直接错（spare bits 的 XI 不结构化推导、`unowned` 的 XI 声称继承引用的计数、packs 直接拒绝）。跟运行时对不上时以**活的 value witness table** 为准，不是以那份 C++ 为准。
 - **跨模块偏移按「这一次具体部署」算**。resilient 类的字段偏移是拿依赖的那个实际二进制算出来的，不是抽象的 ABI 契约。
+- **嵌套展开树的类型名有两份，本模块只给事实**。`NestedFieldOffset.typeName` 是 `.default` 拼写，同时是防环的键和 dump 印的文字；`typeNode` 是替换过泛型实参的节点，interface 的打印器用自己的拼写印它（C 导入类型的 Swift 名、模块选择器、`any`、语法糖），和字段声明一致（提案 [draft-consistent-c-imported-type-spelling](../Evolutions/draft-consistent-c-imported-type-spelling.md)）。本模块在打印层之下，拿不到打印器，所以不要在这里换 `typeName` 的拼写。
 
 ## 相关文档
 

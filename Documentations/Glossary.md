@@ -77,10 +77,10 @@
 
 ### C-imported type name spelling（C 导入类型名拼写，`CImportedTypeNameSpelling`）
 
-C 导入类型（mangling 放在 `__C` / `__C_Synthesized` 里的 C 结构体、枚举、typedef、CF 类型与 ObjC 类）在打印里写哪个名字。它有两个名字：描述符记着 Swift 代码用的（`AnyWeakAttribute`），每处 mangled 引用记着 C 声明自己的（`__C.AGWeakAttribute`）。`.swiftName`（默认）让声明、成员类型与扩展头都写 Swift 名：解析器找得到模块就带模块，本镜像描述符改过名的写裸名，其余保留 mangled 拼写；`.cName` 一律照 mangling 写 C 名，不问解析器。描述符的名字只在**可信**时采用：ABI 名以描述符名字结尾的不信——导入成成员的类型（`NSAttributedStringKey` 的描述符只存 `Key`，父路径不在二进制里）由此退回 C 名，代价是 `NSDecimal` → `Decimal` 这类顶层改名也退回。`marksCImportedTypeNames` 打开时，打印器在每个这样的名字上标出另一种写法，宿主（RuntimeViewer 的行尾标签）据此显示与切换；`swift-section interface` 的开关是 `--c-imported-type-name-spelling`。
+C 导入类型（mangling 放在 `__C` / `__C_Synthesized` 里的 C 结构体、枚举、typedef、CF 类型与 ObjC 类）在打印里写哪个名字。它有两个名字：描述符记着 Swift 代码用的（`AnyWeakAttribute`），每处 mangled 引用记着 C 声明自己的（`__C.AGWeakAttribute`）。`.swiftName`（默认）让声明、成员类型、扩展头与 interface 的展开字段偏移注释都写 Swift 名：解析器找得到模块就带模块；本镜像有描述符、且描述符的名字已知就是 Swift 名的写裸名——改过名的（`AnyWeakAttribute`），以及没有 ABI 名、即 Swift 名就是 C 名的（`AGDescriptionOption`，编译器只在两个名字不同时才写 ABI 名）；其余保留 mangled 拼写（本镜像没有它的描述符，或描述符的名字可能只是成员导入的叶子）。`.cName` 一律照 mangling 写 C 名，不问解析器。改过名的描述符名字只在**可信**时采用：ABI 名以描述符名字结尾的不信——导入成成员的类型（`NSAttributedStringKey` 的描述符只存 `Key`，父路径不在二进制里）由此退回 C 名，代价是 `NSDecimal` → `Decimal` 这类顶层改名也退回。`marksCImportedTypeNames` 打开时，打印器在每个这样的名字上标出另一种写法，宿主（RuntimeViewer 的行尾标签）据此显示与切换；`swift-section interface` 的开关是 `--c-imported-type-name-spelling`。
 
-- **主要出现在**：`Sources/Output/SwiftPrinting/CImportedTypeNameSpelling.swift`、`CImportedTypeSwiftNameTable.swift`（`trustsUserFacingName(_:importInfo:)`）、`AnnotationRegionKind+CImportedTypeName.swift`、`SwiftDeclarationPrintConfiguration`
-- **延伸阅读**：[提案 0106](Evolutions/0106-c-imported-type-name-spelling.md)、[TypeImportInfo](#typeimportinfoc-导入类型身份)
+- **主要出现在**：`Sources/Output/SwiftPrinting/CImportedTypeNameSpelling.swift`、`CImportedTypeSwiftNameTable.swift`（`knownSwiftName(ofDescriptorNamed:importInfo:isDirectlyInImportedModule:)`、`trustsUserFacingName(_:importInfo:)`）、`AnnotationRegionKind+CImportedTypeName.swift`、`SwiftDeclarationPrintConfiguration`；展开字段偏移注释经 `DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`
+- **延伸阅读**：[提案 0106](Evolutions/0106-c-imported-type-name-spelling.md)、[提案 draft-consistent-c-imported-type-spelling](Evolutions/draft-consistent-c-imported-type-spelling.md)、[TypeImportInfo](#typeimportinfoc-导入类型身份)
 
 ### cache scope（缓存范围，`ReadingContextCacheScope`）
 

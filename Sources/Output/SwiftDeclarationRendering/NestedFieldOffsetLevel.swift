@@ -1,5 +1,6 @@
 import Foundation
 import FoundationToolbox
+import Demangling
 
 /// What the in-process nested field-offset walk reads about one metatype:
 /// everything it prints for that metatype's rows and everything it needs to
@@ -26,7 +27,13 @@ enum NestedFieldOffsetLevel: @unchecked Sendable {
 
     struct StructField {
         let fieldName: String
+        /// The field type printed with `.default`: what the row prints unless
+        /// the printer spells it (`DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`).
         let typeName: String
+        /// The node `typeName` was printed from, kept so a printer can spell
+        /// it its own way without demangling the field type again (evolution
+        /// proposal `consistent-c-imported-type-spelling`).
+        let typeNode: Node?
         let relativeOffset: Int
         /// The field's metatype, or `nil` when the walk does not descend.
         let childMetatype: Any.Type?
@@ -38,7 +45,10 @@ enum NestedFieldOffsetLevel: @unchecked Sendable {
 
     struct EnumPayload {
         let caseName: String
+        /// As ``StructField/typeName``.
         let typeName: String
+        /// As ``StructField/typeNode``.
+        let typeNode: Node?
         let payloadMetatype: Any.Type
         /// Counted over every payload case, including one whose payload did
         /// not resolve and so has no entry.

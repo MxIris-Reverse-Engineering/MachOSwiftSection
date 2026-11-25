@@ -82,9 +82,11 @@ struct CImportedTypeNameSpellingTests {
 
     public struct PlainBox {
         public var plain: ProbePlainValue
+        public var count: Int
 
-        public init(plain: ProbePlainValue) {
+        public init(plain: ProbePlainValue, count: Int) {
             self.plain = plain
+            self.count = count
         }
     }
 
@@ -168,6 +170,15 @@ struct CImportedTypeNameSpellingTests {
 
     private func loadFixtureMachOFile() throws -> MachOFile {
         try HostSlice.machOFile(at: Self.fixtureCompilationResult.get())
+    }
+
+    /// The fixture loaded into the test process, for the in-process layout
+    /// backend.
+    private func loadFixtureMachOImage() throws -> MachOImage {
+        let libraryURL = try Self.fixtureCompilationResult.get()
+        _ = libraryURL.path.withCString { dlopen($0, RTLD_NOW) }
+        let imageName = libraryURL.deletingPathExtension().lastPathComponent
+        return try #require(MachOImage(name: imageName), "the fixture dylib did not load in-process")
     }
 
     /// Records every query, and answers the ones it was set up to answer.
@@ -386,27 +397,47 @@ struct CImportedTypeNameSpellingTests {
         #expect(!interface.contains("(Swift.UInt32)"), "\(interface)")
     }
 
-    /// The comments `Holder.thing` renders with, offline, through
-    /// `demangleResolver`, with or without asking for its spelling.
-    private func renderHolderThingComments(demangleResolver: DemangleResolver, spellsThroughResolver: Bool) async throws -> String {
-        let machOFile = try loadFixtureMachOFile()
+    /// The comments `Holder.<fieldName>` renders with through
+    /// `demangleResolver`, with or without asking for its spelling — offline
+    /// from a `MachOFile`, in process from a `MachOImage`. Drives the field
+    /// layout renderer directly, the way the printer does, without indexing
+    /// the image.
+    private func renderHolderFieldComments<MachO: MachOFieldLayoutRenderable>(named fieldName: String, in machO: MachO, demangleResolver: DemangleResolver, spellsThroughResolver: Bool) async throws -> String {
         var configuration = DeclarationRenderConfiguration(demangleResolver: demangleResolver)
         configuration.printFieldOffset = true
         configuration.printExpandedFieldOffsets = true
-        configuration.staticFieldLayoutProvider = MachOFile.makeStaticFieldLayoutProvider(machO: machOFile, resolution: .default)
+        configuration.staticFieldLayoutProvider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: .default)
         configuration = configuration.spellingFieldLayoutTypeNamesThroughResolver(spellsThroughResolver)
         var holderType: TypeContextWrapper?
         var holderDescriptor: StructDescriptor?
-        for type in try machOFile.swift.types {
-            guard case .struct(let structType) = type, try structType.descriptor.name(in: machOFile.context) == "Holder" else { continue }
+        for type in try machO.swift.types {
+            guard case .struct(let structType) = type, try structType.descriptor.name(in: machO.context) == "Holder" else { continue }
             holderType = type
             holderDescriptor = structType.descriptor
         }
         let type = try #require(holderType)
         let descriptor = try #require(holderDescriptor)
-        let renderer = FieldLayoutRenderer(type: type, metadata: nil, machO: machOFile, configuration: configuration)
-        let thingRecord = try #require(try descriptor.fieldDescriptor(in: machOFile.context).records(in: machOFile.context).first)
-        return try await renderer.storedFieldComments(forFieldAtIndex: 0, mangledTypeName: thingRecord.mangledTypeName(in: machOFile.context), fieldOffsets: renderer.fieldOffsets).string
+        let renderer = FieldLayoutRenderer(type: type, metadata: nil, machO: machO, configuration: configuration)
+        let records = try descriptor.fieldDescriptor(in: machO.context).records(in: machO.context)
+        let fieldIndex = try #require(try records.firstIndex { try $0.fieldName(in: machO.context) == fieldName })
+        return try await renderer.storedFieldComments(forFieldAtIndex: fieldIndex, mangledTypeName: records[fieldIndex].mangledTypeName(in: machO.context), fieldOffsets: renderer.fieldOffsets).string
+    }
+
+    private func renderHolderThingComments(demangleResolver: DemangleResolver, spellsThroughResolver: Bool) async throws -> String {
+        try await renderHolderFieldComments(named: "thing", in: loadFixtureMachOFile(), demangleResolver: demangleResolver, spellsThroughResolver: spellsThroughResolver)
+    }
+
+    /// The comments `Holder.<fieldName>` renders with through the interface
+    /// printer's own type spelling, with module selectors on.
+    private func renderHolderFieldCommentsAsInterface<MachO: MachOFieldLayoutRenderable>(named fieldName: String, in machO: MachO) async throws -> String {
+        var printConfiguration = SwiftDeclarationPrintConfiguration()
+        printConfiguration.usesModuleSelectors = true
+        let printer = SwiftDeclarationPrinter(configuration: printConfiguration, in: machO)
+        // The resolver holds the printer weakly and prints nothing once it is
+        // gone, which would leave every row on its `.default` spelling — on
+        // both sides of a comparison alike.
+        defer { withExtendedLifetime(printer) {} }
+        return try await renderHolderFieldComments(named: fieldName, in: machO, demangleResolver: printer.typeDemangleResolver, spellsThroughResolver: true)
     }
 
     /// A resolver that spells every type alike, so a row it spelled is
@@ -432,6 +463,45 @@ struct CImportedTypeNameSpellingTests {
 
     @Test func freshRenderConfigurationDoesNotSpellThroughResolver() {
         #expect(!DeclarationRenderConfiguration.demangleOptions(.default).spellsFieldLayoutTypeNamesThroughResolver)
+    }
+
+    // MARK: - Field layout comments (in process)
+
+    private func treeRows(of comments: String) -> [String] {
+        comments.split(separator: "\n").map(String.init).filter { $0.contains("── ") }
+    }
+
+    /// `Holder.box` expands, in process, into `PlainBox`'s two fields.
+    @Test func inProcessLayoutCommentSpellsTypesAsDeclared() async throws {
+        let comments = try await renderHolderFieldCommentsAsInterface(named: "box", in: loadFixtureMachOImage())
+        #expect(comments.contains("plain (ProbePlainValue): 0x"), "\(comments)")
+        #expect(comments.contains("count (Swift::Int): 0x"), "\(comments)")
+        #expect(!comments.contains("(__C.ProbePlainValue)"), "\(comments)")
+        #expect(!comments.contains("(Swift.Int)"), "\(comments)")
+    }
+
+    /// The in-process walk prints the offline walk's rows, row for row. These
+    /// fields are non-generic, so neither walk has a reason to stop before
+    /// the other (it does under a generic standard-library struct, see
+    /// `OfflineSpecializationParityTests`).
+    @Test(arguments: ["thing", "identifier", "plain", "box"])
+    func inProcessLayoutCommentRowsMatchOfflineOnes(fieldName: String) async throws {
+        let offline = try await renderHolderFieldCommentsAsInterface(named: fieldName, in: loadFixtureMachOFile())
+        let inProcess = try await renderHolderFieldCommentsAsInterface(named: fieldName, in: loadFixtureMachOImage())
+        let inProcessRows = treeRows(of: inProcess)
+        #expect(!inProcessRows.isEmpty, "\(inProcess)")
+        // Only the printer writes module selectors: rows on the `.default`
+        // spelling would match each other too, and prove nothing.
+        #expect(inProcessRows.contains { $0.contains("::") }, "\(inProcess)")
+        #expect(inProcessRows == treeRows(of: offline), "--- in process ---\n\(inProcess)\n--- offline ---\n\(offline)")
+    }
+
+    /// The headline case, in process: the renamed C type in `Holder.thing`'s
+    /// anonymous struct.
+    @Test func inProcessLayoutCommentSpellsRenamedTypeAsDeclared() async throws {
+        let comments = try await renderHolderFieldCommentsAsInterface(named: "thing", in: loadFixtureMachOImage())
+        #expect(comments.contains("identifier (AnyFooIdentifier): 0x0"), "\(comments)")
+        #expect(!comments.contains("__C"), "\(comments)")
     }
 
     // MARK: - Spelling Swift names
