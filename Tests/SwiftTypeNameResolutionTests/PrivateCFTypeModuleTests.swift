@@ -72,7 +72,7 @@ struct PrivateCFTypeModuleTests {
         let probeCFURL: URL
     }
 
-    private static let fixtureLibraries = Result<FixtureLibraries, any Error>(catching: {
+    private static let fixtureLibraries = Result<FixtureLibraries, any Swift.Error>(catching: {
         let probeCFURL = try FixtureCompiler.shared.dynamicLibrary(named: "ProbeCF", language: .c, source: probeCFSource)
         let headerDirectoryURL = FileManager.default.temporaryDirectory
             .appending(component: "PrivateCFTypeModuleTests-\(UUID().uuidString)")
