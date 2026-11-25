@@ -535,7 +535,11 @@ extension SwiftDeclarationPrinter {
             staticFieldLayoutProvider: staticFieldLayoutProvider(),
             staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution,
             marksOptionalContent: configuration.marksOptionalContent
-        ).markingCommentStructure(configuration.marksCommentStructure)
+        )
+        .markingCommentStructure(configuration.marksCommentStructure)
+        // The expanded tree names its types the way the fields below do
+        // (evolution proposal `consistent-c-imported-type-spelling`).
+        .spellingFieldLayoutTypeNamesThroughResolver(true)
         // An offline specialization carries its arguments instead of
         // metadata (evolution proposal `offline-generic-specialization`): the
         // static layout path computes the comments for them, and the fields

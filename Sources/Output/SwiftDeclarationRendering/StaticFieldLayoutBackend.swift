@@ -108,15 +108,15 @@ struct StaticFieldLayoutBackend {
             } else {
                 endOffset = nil
             }
-            configuration.optionalContent(.printFieldOffset) {
+            await configuration.optionalContent(.printFieldOffset) {
                 // The tree belongs to the field offset's region, so a host
                 // folds it under that line.
-                configuration.commentRegion(.fieldOffset) {
+                await configuration.commentRegion(.fieldOffset) {
                     configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
                     // Expanded offsets hang off the field offset: printed only
                     // when both are on.
-                    configuration.optionalContent(.printExpandedFieldOffsets) {
-                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
+                    await configuration.optionalContent(.printExpandedFieldOffsets) {
+                        await expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
                     }
                 }
             }
@@ -170,7 +170,7 @@ struct StaticFieldLayoutBackend {
     // MARK: - Expanded nested field offsets
 
     @SemanticStringBuilder
-    private func expandedFieldOffsets(for mangledTypeName: MangledName, baseOffset: Int) -> SemanticString {
+    private func expandedFieldOffsets(for mangledTypeName: MangledName, baseOffset: Int) async -> SemanticString {
         if let provider = configuration.staticFieldLayoutProvider {
             let tree = if let genericArgumentBinding {
                 provider.nestedFieldOffsetTree(
@@ -186,19 +186,20 @@ struct StaticFieldLayoutBackend {
                     depthLimit: nestedFieldOffsetExpansionDepthLimit
                 )
             }
-            renderNestedFieldOffsetTree(tree, ancestors: [])
+            await renderNestedFieldOffsetTree(tree, ancestors: [])
         }
     }
 
     @SemanticStringBuilder
-    private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors: [Bool]) -> SemanticString {
+    private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors: [Bool]) async -> SemanticString {
         for (index, node) in nodes.enumerated() {
             let isLast = index == nodes.count - 1
+            let typeName = await configuration.fieldLayoutTypeName(printedName: node.typeName, typeNode: node.typeNode)
             // A row's region holds the rows nested under it: the tree is the
             // regions' nesting.
-            configuration.commentRegion(.fieldLayoutNode) {
-                configuration.expandedFieldOffsetComment(fieldName: node.fieldName, typeName: node.typeName, offset: node.offset, baseIndentation: configuration.indentation, ancestors: ancestors, isLast: isLast)
-                renderNestedFieldOffsetTree(node.children, ancestors: ancestors + [isLast])
+            await configuration.commentRegion(.fieldLayoutNode) {
+                configuration.expandedFieldOffsetComment(fieldName: node.fieldName, typeName: typeName, offset: node.offset, baseIndentation: configuration.indentation, ancestors: ancestors, isLast: isLast)
+                await renderNestedFieldOffsetTree(node.children, ancestors: ancestors + [isLast])
             }
         }
     }

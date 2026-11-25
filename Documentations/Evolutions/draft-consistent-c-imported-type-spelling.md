@@ -85,7 +85,7 @@ struct WeakAttribute<A> {
 - 两条后端渲染树时改成异步：每一行先 `await` 取类型名，再递归渲染子行，最后套进 `commentRegion`（已有 async 版本）。树的形状、`isLast`、防环与深度判断、`#log` 告警都不动。
 - interface 打印器构造渲染配置时打开这个开关。dump 不开，输出逐字节不变。
 
-于是 interface 里注释的类型名与声明写法一致：`.swiftName` 下是 `AnyAttribute`，`.cName` 下是 `__C.AGAttribute`；开了模块选择器写 `Swift::UInt32`；存在类型带 `any`。`ExpandedFieldOffsetTransformer` 模板收到的也是这个拼写。
+于是 interface 里注释的类型名与声明写法一致：`.swiftName` 下是 `AnyAttribute`，`.cName` 下是 `__C.AGAttribute`；开了模块选择器写 `Swift::UInt32`；存在类型带 `any`；`Optional`、`Array`、`Dictionary` 写成语法糖（`Swift.Int?`）；私有类型不带判别符（`M.Foo`，`.default` 写 `M.(Foo in _ABC…)`），局部类型只写自己的名字——都和声明一样。`ExpandedFieldOffsetTransformer` 模板收到的也是这个拼写。注释行因此和声明一样分不清同名的私有类型；要分清，看声明上方 `--emit-private-source-files` 印的源文件注释。
 
 ### 没有询问就采用的假设
 
@@ -290,7 +290,7 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 
 ### 下游影响
 
-- 本仓库：`SwiftPrinting`、`SwiftDeclarationRendering`、`SwiftLayout`；interface 输出变化：同名 C 类型的引用与扩展头少了 `__C.`；开了展开字段偏移时注释的类型名与声明写法一致（C 类型 Swift 名、模块选择器、`any`）。dump、diff 键、snapshot 不变。
+- 本仓库：`SwiftPrinting`、`SwiftDeclarationRendering`、`SwiftLayout`；interface 输出变化：同名 C 类型的引用与扩展头少了 `__C.`；开了展开字段偏移时注释的类型名与声明写法一致（C 类型 Swift 名、模块选择器、`any`、语法糖、私有类型不带判别符、局部类型只写名字）。每一行多一次经打印器的异步打印，开销在交付前实测。dump、diff 键、snapshot 不变。
 - RuntimeViewer：用同一个打印器，内容区的接口文本跟着变；Imported Type Names 切到 C 名时注释也写 C 名。它的 `ExpandedFieldOffsetTransformer` 模板收到的 `typeName` 变成打印器拼写。不需要改 RuntimeViewer 代码。
 
 ### 文档与示例
@@ -311,7 +311,7 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
    - 行为：不可信的改名（`ProbeOwnerKey`）照旧写 `__C.ProbeOwnerKey`
    - 行为：名字表收同名类型、不收嵌在 C 类型里的匿名结构
    - 行为：同名类型的声明名不带 C 名标注
-2. **离线路径的布局注释经打印器拼写** —— 改动地图第 7–10、12 行
+2. **离线路径的布局注释经打印器拼写**（已完成：行为测试先红后绿；两个审查 agent 各一轮，修了两条测试——dump 守护测试原先用 `.default` 解析器、证明不了开关，C 名测试原先在旧代码上也会过；受波及的六个测试目标 1082 个测试全过，离线与进程内的对照测试在这一步仍是绿的，因为它的嵌套行只有标准库类型与 builtin） —— 改动地图第 7–10、12 行
    - 行为：离线路径的布局注释里，改了名的 C 类型写声明用的 Swift 名（`identifier (AnyFooIdentifier)`）
    - 行为：离线路径的布局注释里，同名 C 类型写裸名
    - 行为：C 名模式下布局注释写 mangled 的 C 名（`__C.AGFooIdentifier`）
@@ -332,6 +332,7 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 - `@retroactive` 按 mangling 的 `__C` 判定，模块解析出来后（`extension AttributeGraph::Graph: @retroactive …`）仍印。
 - 同类排查：渲染层里另一处用 `.default` 印类型名进 interface 文本的是 `OpaqueReferenceSpelling`（`Sources/Output/SwiftDeclarationRendering/OpaqueReferenceSpelling.swift:142`、`:145`，没展开的 opaque 引用的泛型实参与所属声明的注释），同样不带模块选择器、`any` 与名字表。它走的是另一套拼写（`textualInterface`），单独处理。
 - 0106 的疑似遗留（第 1 步审查按编译器源码推断，未实测；若属实，`next` 上就有）：`NS_ERROR_ENUM` 生成的 `Code` 枚举 descriptor 的名字是 `Code`、ABI 名是错误类型自己的 C 名（如 `MTLLibraryError`），不以 `Code` 结尾，于是被当成可信的顶层改名，引用印成裸的 `Code`，而 Swift 的拼写是 `MTLLibraryError.Code`。要另修 `trustsUserFacingName`。
+- 嵌套字段是 opaque 类型的行：经打印器后写成没展开的 `textualInterface` 拼写，而那个类型自己的声明是 `OpaqueTypeRewriter` 展开过的，两者仍不一致（改前的 `.default` 也不一致）。打印器给注释行印类型时没有 `targetNode`，展开不了。
 - C++ 类模板特化（顶层、无命名空间）的 descriptor 的名字带尖括号（`Box<CInt>`），按 IRGen 的规则不写 ABI 名，本提案后它的引用从 `__C.Box<CInt>` 变成 `Box<CInt>`。两种写法都不是可声明的 Swift 拼写，没有变坏；要不要单独处理留给 C++ interop 的提案。
 
 ## 决策日志
@@ -346,3 +347,4 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 | 2026-11-25 | 两条后端一起改 | `OfflineSpecializationParityTests` 要求两条路径逐字节一致 |
 | 2026-11-25 | 进程内缓存存节点 | 渲染时重算会带回 0067 去掉的 demangle 成本 |
 | 2026-11-25 | 第 1 步审查（两个审查 agent） | 文档里「只有没有 descriptor 的保留 `__C.`」说错了：改名不可信的（`ProbeOwnerKey`、`AGTreeValue`）也保留，CLI 帮助、插件 skill 与 `CImportedTypeNameSpelling` 的注释已改。名字表在锁内 demangle：A61 第一处已裁决「打印器的一次性建表不改锁」，理由（入口已切到大栈）对 0106 的名字表同样成立，不改，第 5 步登记。`Code` 枚举与 C++ 模板特化记为后续项。`Documentations/README.md` 缺登记是误报：项目惯例是 draft 落地时才登记 |
+| 2026-11-25 | 第 2 步审查（两个审查 agent） | 两条测试证明不了它声称的：dump 守护测试改成用一个把所有类型都印成固定字样的解析器，开关关着不生效、开着才生效；C 名测试加开模块选择器。注释行跟着声明不带私有判别符、带语法糖，是这次有意的一致，写进「提议方案」与「影响」；opaque 行记为后续项。每行一次异步打印的开销，交付前在大框架上实测 |
