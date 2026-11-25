@@ -215,7 +215,8 @@ switches).
 
 Only `interface` has: `--exported-only`, `--sort-members-by-offset`,
 `--parse-opaque-return-type`, `--show-c-imported-types`, `--resolve-c-module-names`,
-`--supplementary-apinotes`, `--c-imported-type-name-spelling`, `--infer-objc-overrides`,
+`--resolve-moved-type-modules`, `--supplementary-apinotes`, `--c-imported-type-name-spelling`,
+`--infer-objc-overrides`,
 `--requirements-on-associated-types`, `--expand-macros`.
 
 `--requirements-on-associated-types` changes where a protocol's requirements print, never which:
@@ -350,7 +351,7 @@ swift-section evolution 17.0.json 18.0.json /path/Foo --labels 17.0,18.0,26.0
   one as changed. Formats 8 through 12 only ever existed on the development branch, between those
   changes.
 
-## 8. `--resolve-c-module-names` (interface, macOS only)
+## 8. `--resolve-c-module-names` and `--resolve-moved-type-modules` (interface, macOS only)
 
 Turns `__C.NSString` into `Foundation.NSString`, and applies the SDK's Swift renames: a
 `SwiftPrivate` type prints with `__` (`UIKit.__UICellConfigurationState`), a `SwiftName` one under
@@ -368,6 +369,17 @@ the one Swift code uses, every mangled reference the C one. `interface` prints t
 resolves it and under its module when this flag does. `--c-imported-type-name-spelling c-name` prints
 every C-imported type as the binary mangles it (`struct AGWeakAttribute`, `__C.AGWeakAttribute`) and
 makes this flag do nothing.
+
+**`--resolve-moved-type-modules` is the Swift-type counterpart, and independent of it.** When the
+SDK moves a Swift type to another module it marks the declaration `@_originallyDefinedIn`, and the
+compiler keeps mangling the type — and every type nested in it — under the old module, so the binary
+only ever says `CoreGraphics.CGFloat` and `SwiftUI.View`. This flag prints them as the SDK declares
+them, `CoreFoundation.CGFloat` and `SwiftUICore.View`, references, module selectors and extension
+headers alike. It reads the SDK's textual `.swiftinterface` files (about two seconds, no sourcekitd),
+and only rewrites a type the binary's own SDK (`LC_BUILD_VERSION`'s `sdk`) already had moved: the
+macOS 14 SwiftUI keeps `SwiftUI.View`, since `View` moved in macOS 15. Off by default, because the
+result depends on the SDK installed on the machine. Both spellings compile — the old module
+re-exports the new one — so the `import` lines are left as they are.
 
 `objc interface --mark-sdk-swift-names` reads the same SDK's API notes for an Objective-C header:
 the class's or protocol's `NS_SWIFT_NAME(...)` / `NS_REFINED_FOR_SWIFT` on a line above

@@ -288,6 +288,13 @@ interface 把一个 attached macro 生成的东西收回成源码里的写法：
 
 - **延伸阅读**：[提案 0001](Evolutions/0001-symbol-name-offsetization.md)、[提案 0002](Evolutions/0002-declaration-model-descriptor-slimming.md)
 
+### moved type（搬家的类型，`@_originallyDefinedIn`）
+
+被 SDK 从一个模块搬进另一个模块的 Swift 类型：声明上带 `@_originallyDefinedIn(module: "旧模块", 平台 版本)`，编译器在每个部署目标上都继续按旧模块做 mangling，嵌套在它里面的类型也一样，所以二进制只写得出 `CoreGraphics.CGFloat`、`SwiftUI.View`，而 SDK 的接口写的是 `CoreFoundation::CGFloat`、`SwiftUICore.View`。swift-type-indexing 从 SDK 的文本 `.swiftinterface` 读出这些记录；打印器经 `MovedTypeModuleResolving` 角色按最外层类型的名字提问，`interface --resolve-moved-type-modules` 打开。是否改写看二进制编译所用的 SDK 版本（`LC_BUILD_VERSION` 的 `sdk`）是否不早于搬家版本，所以 macOS 14 的 SwiftUI 仍印 `SwiftUI.View`。只改显示：diff、snapshot、evolution 与一切查找键照旧用 mangling 的模块。
+
+- **主要出现在**：`Sources/Output/SwiftPrinting/NodePrintables/TypeNameResolving.swift`（`MovedTypeModuleResolving`）、`NodePrintable.resolvedModuleName(of:siblingIdentifier:)`、`SwiftDeclarationPrinter+Headers.swift`（扩展头）、`Sources/Output/SwiftTypeNameResolution/TypeDatabaseMovedTypeModuleResolver.swift`、swift-type-indexing 的 `MovedTypeIndex`
+- **延伸阅读**：[提案 moved-swift-type-modules](Evolutions/draft-moved-swift-type-modules.md)、swift-type-indexing 的 `Documentations/Internal/TypeIndexingPipeline.md`「搬家记录」一节
+
 ### 名字兜底（name fallback）
 
 opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中时，若它**自身声明**了与约束同名的关联类型、该名字候选约束**恰一条**、且候选的 anchor **不在组合成员之内**，则把参数挂给它——用于恢复被「等价类塌缩」吃掉的 sugar（`TestCollection<[A]>`）。「anchor 在组合外」的限定是防捏造判据：anchor 协议自己在组合里时，其余同名成员写没写 sugar 无从知道（塌缩与未 pin 同形），挂了就是编造。
@@ -523,7 +530,7 @@ Swift runtime 的 descriptor 布局惯例：固定头之后按 flags 跟着可�
 
 ### type index（类型索引）
 
-swift-type-indexing 的 `TypeIndexing`（原是本仓库的同名 target）从 SDK 建的索引：每个平台的模块接口与 API notes，回答一个 `__C` 类型属于哪个模块、Swift 里叫什么（`__C.UICellConfigurationState` → `UIKit.__UICellConfigurationState`），按 SDK 版本缓存在盘上。本仓库只留适配层 `SwiftTypeNameResolution`，`swift-section interface --resolve-c-module-names` 经它解析；MachOObjCSection 的 `ObjCTypeIndexing` 是 ObjC 一侧的接入。
+swift-type-indexing 的 `TypeIndexing`（原是本仓库的同名 target）从 SDK 建的索引：每个平台的模块接口与 API notes，回答一个 `__C` 类型属于哪个模块、Swift 里叫什么（`__C.UICellConfigurationState` → `UIKit.__UICellConfigurationState`），按 SDK 版本缓存在盘上；另外从各模块的文本 `.swiftinterface` 读出被 SDK 搬过家的 Swift 类型现在由哪个模块声明（见 moved type）。本仓库只留适配层 `SwiftTypeNameResolution`，`swift-section interface --resolve-c-module-names` 经它解析；MachOObjCSection 的 `ObjCTypeIndexing` 是 ObjC 一侧的接入。
 
 - **主要出现在**：`Sources/Output/SwiftTypeNameResolution/`；swift-type-indexing 的 `Sources/TypeIndexing/`
 - **延伸阅读**：[提案 0105](Evolutions/0105-swift-type-indexing-package.md)、[TypeIndexingPipeline.md](https://github.com/MxIris-Reverse-Engineering/swift-type-indexing/blob/main/Documentations/Internal/TypeIndexingPipeline.md)

@@ -3579,6 +3579,20 @@
 - **验证**：相关测试 43 条全过；全量 22 个目标中只有 `IntegrationTests` 报读不到本机没有的文件（`Xcode-26.3.0.app`、iOS 18.5 模拟器运行时），与基线同类。落地验证见提案决策日志最后一行。
 - **对应版本**：未发布（0.26.0 之后）。
 
+## 2026-11-25 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印
+
+- **时间段**：2026-11-25，本仓库与 swift-type-indexing 的 `feature/moved-swift-type-modules`。在 JHs-Mac-Studio 上写（swift-type-indexing 在本机编译测试）、在 JHs-Mac-Studio-Ultra 上编译与测试本仓库（沙盒里带 swift-type-indexing 功能分支的拷贝）。
+- **动机**：`CGFloat` 在 SDK 里由 CoreFoundation 声明，二进制里却叫 `CoreGraphics.CGFloat`；macOS 15 起约 370 个 SwiftUI 类型搬进 SwiftUICore，二进制仍写 `SwiftUI.View`。原因是 `@_originallyDefinedIn` 让 mangling 永远用旧模块。interface 照 ABI 印出的名字能编过，但和 SDK 对不上。
+- **关键决策**：
+  - 搬家记录来自 SDK 的文本 `.swiftinterface`（扫描全部模块、只看第 0 列），不经 sourcekitd：sourcekitd 的接口不留属性，也只覆盖二进制直接链接的模块。
+  - 是否改写看二进制编译所用的 SDK 版本，按平台取搬家版本（Catalyst 回退 iOS，visionOS 换算 iOS 版本），macOS 14 的 SwiftUI 不改。
+  - 打印器新角色 `MovedTypeModuleResolving`，按最外层类型提问，嵌套类型、模块选择器与扩展头都跟着最外层；`__C` 永不参与。
+  - 独立开关 `interface --resolve-moved-type-modules`，默认关闭（输出会随宿主 SDK 变化）；与 `--resolve-c-module-names` 同开时共用一个 provider 与一个数据库（`SDKTypeNameResolutions`）。dump、diff、snapshot、evolution 不改。
+- **落地模块**：swift-type-indexing 的 `MovedTypeIndex`、`TypeDatabase.declaringModuleName(ofMovedTypeNamed:originallyDefinedIn:builtAgainst:)`；本仓库 `Sources/Output/SwiftPrinting/`（`MovedTypeModuleResolving`、`NodePrintable`、`TypeNodePrintable`、`SwiftDeclarationPrinter+Headers`）、`Sources/Output/SwiftTypeNameResolution/`（`TypeDatabaseMovedTypeModuleResolver`、`SDKTypeNameResolutions`）、`Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift`、`Sources/Executables/swift-section/Commands/InterfaceCommand.swift`。
+- **文档**：提案 [moved-swift-type-modules](../Evolutions/draft-moved-swift-type-modules.md)；术语表新增「moved type」；swift-type-indexing 的 `TypeIndexingPipeline.md` 新增「搬家记录」一节；插件 skill 与 `Modules/SwiftInterface.md`。
+- **验证**：见提案决策日志。
+- **对应版本**：未发布；依赖 swift-type-indexing 0.2.0（未发版）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
