@@ -107,6 +107,8 @@ var dependencies: [Package.Dependency] = [
     // are all `#if os(macOS)`, so targets depend on it with a macOS-only
     // condition. 0.1.1 closes each module interface it generates once read:
     // with 0.1.0, `--resolve-c-module-names` grew SourceKitService to tens of GB.
+    // 0.2.0 answers which module declares a Swift type the SDK moved
+    // (`@_originallyDefinedIn`), for `--resolve-moved-type-modules`.
     .package(
         local: .package(
             path: "../swift-type-indexing",
@@ -114,7 +116,7 @@ var dependencies: [Package.Dependency] = [
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-type-indexing",
-            from: "0.1.1",
+            from: "0.2.0",
         ),
     ),
 

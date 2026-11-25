@@ -200,10 +200,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">一件事</p>
-    <ol>
-      <li>swift-type-indexing 发 0.2.0 吗？本库的版本下限要等它发版后才能抬到 <code>from: "0.2.0"</code>；在那之前本库只能经本地兄弟依赖构建。</li>
-    </ol>
+    <p class="callout-title">没有待定的事</p>
+    <p>swift-type-indexing 0.2.0 已发版，本库的版本下限已抬到 <code>from: "0.2.0"</code>。</p>
   </div>
   <div class="callout callout-note">
     <p class="callout-title">已定（用户批准）</p>
@@ -300,7 +298,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       <tr><td><code>SwiftSectionKit/Swift/InterfaceRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>resolvesMovedTypeModules</code> 字段、provider 接线与警告</td><td>子命令逻辑在请求里</td><td class="numeric">5</td></tr>
       <tr><td><code>swift-section/Commands/InterfaceCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--resolve-moved-type-modules</code> 与 <code>makeRequest()</code> 一行</td><td>CLI 只是外壳</td><td class="numeric">5</td></tr>
       <tr><td><code>Tests/SwiftSectionKitTests/…</code>、<code>CommandRequestMappingTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>请求两侧各一条</td><td>新开关两侧各一测</td><td class="numeric">5</td></tr>
-      <tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>两个测试目标加依赖；swift-type-indexing 版本下限待 0.2.0 发版后再抬</td><td>测试要现编小库；用上新 API</td><td class="numeric">4</td></tr>
+      <tr><td><code>Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>两个测试目标加依赖；swift-type-indexing 版本下限抬到 0.2.0</td><td>测试要现编小库；用上新 API</td><td class="numeric">4</td></tr>
       <tr><td><code>AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新开关的说明与陷阱</td><td>CLI 改动同批改 skill</td><td class="numeric">5</td></tr>
       <tr><td><code>Modules/SwiftInterface.md</code>、<code>Modules/SwiftSectionKit.md</code>、<code>Glossary.md</code>、<code>ProjectEvolutionLog.md</code>、<code>CLAUDE.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新角色、新开关、术语 moved type、账本一节</td><td>文档同批</td><td class="numeric">6</td></tr>
     </tbody>
@@ -474,7 +472,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>13 条，最近一条：实现完成，待用户看过后收尾</summary>
+    <summary>14 条，最近一条：swift-type-indexing 0.2.0 发版</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -491,7 +489,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-25</td><td>第 6 步：真机核对</td><td>27.2 的 TipKit：<code>SwiftUI.View</code> 全变 <code>SwiftUICore.View</code>（14 处）；14.6 的 TipKit 只差 6 行 <code>CGFloat</code>，<code>SwiftUI.View</code> 原样。DeveloperToolsSupport 的 <code>PreviewLayout</code> 改回它自己的模块（14.0 搬家）。插件校验通过。</td></tr>
           <tr><td class="numeric">2026-11-25</td><td>全量验证</td><td>Ultra（Xcode 26.6）2969 个测试、560 个套件全过，退出码 0。</td></tr>
           <tr><td class="numeric">2026-11-25</td><td>收尾判断</td><td>不另写专题文章；新术语 moved type 已登记。</td></tr>
-          <tr><td class="numeric">2026-11-25</td><td>实现完成，待用户看过后收尾</td><td>两边功能分支已推送；没有在本地合进 <code>next</code>，因为它按远端版本下限用 swift-type-indexing 0.1.1，合进去会编不过。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>实现完成，待用户看过后收尾</td><td>两边功能分支已推送；当时 <code>next</code> 按远端版本下限用 swift-type-indexing 0.1.1，先不合。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>swift-type-indexing 0.2.0 发版</td><td>用户同意发版；Xcode 26.6 测试与 CI 通过后打 tag，本库下限抬到 <code>from: "0.2.0"</code>。</td></tr>
         </tbody>
       </table>
       </div>

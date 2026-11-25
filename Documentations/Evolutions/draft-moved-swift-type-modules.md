@@ -124,7 +124,7 @@ Apple 把一些 Swift 类型从一个模块搬进另一个模块时，会给声�
 | `Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift` · `InterfaceRequest` | 修改 | `resolvesMovedTypeModules` 字段与 provider 接线、非 macOS 与无 build version 的警告 | 子命令逻辑在请求里 | 5 |
 | `Sources/Executables/swift-section/Commands/InterfaceCommand.swift` · `InterfaceCommand` | 修改 | `--resolve-moved-type-modules` 及 `makeRequest()` 一行 | CLI 只是外壳 | 5 |
 | `Tests/SwiftSectionKitTests/…`、`Tests/SwiftSectionCommandTests/CommandRequestMappingTests.swift` | 修改 | 请求两侧各一条 | 新开关两侧各一测（CLAUDE.md） | 5 |
-| `Package.swift` | 修改 | 测试目标依赖：`SwiftTypeNameResolutionTests` 加 `SwiftInterface` 与 `SwiftSectionFixtureSupport`，`SwiftSectionKitTests` 加 `SwiftSectionFixtureSupport`；swift-type-indexing 的版本下限待它发 0.2.0 后再抬（见决策日志） | 测试要现编小库；用上新 API | 4 |
+| `Package.swift` | 修改 | 测试目标依赖：`SwiftTypeNameResolutionTests` 加 `SwiftInterface` 与 `SwiftSectionFixtureSupport`，`SwiftSectionKitTests` 加 `SwiftSectionFixtureSupport`；swift-type-indexing 的版本下限抬到 `from: "0.2.0"` | 测试要现编小库；用上新 API | 4 |
 | `AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md` | 修改 | 第 8 节旁加新开关的说明与陷阱（版本判断、默认关闭） | CLI 改动同批改 skill | 5 |
 | `Documentations/Internal/Modules/SwiftInterface.md`、`Documentations/Internal/Modules/SwiftSectionKit.md`、`Documentations/Glossary.md`、`Documentations/Internal/ProjectEvolutionLog.md`、`CLAUDE.md` 的 SwiftTypeNameResolution 条 | 修改 | 新角色、新开关、术语「moved type」、账本一节 | 文档同批 | 6 |
 
@@ -413,3 +413,4 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
 | 2026-11-25 | 全量验证 | Ultra（macOS 27.2，Xcode 26.6），沙盒里本仓库功能分支加 swift-type-indexing 功能分支的拷贝、`USING_LOCAL_DEPENDENCIES=1`、现成的 Xcode 26.6 ad-hoc fixture：`swift test --skip IntegrationTests` 2969 个测试、560 个套件全部通过，退出码 0，用时 1112 秒。swift-type-indexing 在公司那台本机：单元测试 103 个、SDK 集成测试 7 个通过。 |
 | 2026-11-25 | 收尾判断 | 不另写专题文章：调用方契约在 swift-type-indexing 的 README 与 `TypeIndexingPipeline.md`「搬家记录」一节，打印器一侧在 `Modules/SwiftInterface.md`。新术语 moved type 已登记进 `Documentations/Glossary.md`，「type index」条目补了一句。`Modules/SwiftSectionKit.md` 与 `Documentations/SwiftSectionKit.md` 不列请求字段，不用改。 |
 | 2026-11-25 | 实现完成，待用户看过后收尾 | 两个仓库的功能分支都已推送。没有在本地合进 `next`：`next` 按远端版本下限用 swift-type-indexing 0.1.1，合进去后常驻检出编不过；等 swift-type-indexing 发 0.2.0、本库把下限抬到 `from: "0.2.0"` 后再合。 |
+| 2026-11-25 | swift-type-indexing 0.2.0 发版 | 用户同意发版。swift-type-indexing 用 Xcode 26.6 跑过测试（103 个全过），功能分支以合并提交 `Merge branch 'feature/moved-swift-type-modules'` 快进推上 `main`，CI（Xcode 26.6）通过后在合并提交上打注释 tag 0.2.0。本库 `Package.swift` 的下限抬到 `from: "0.2.0"`。 |
