@@ -49,7 +49,12 @@ struct CImportedTypeSwiftNameTable: Sendable {
             } else {
                 importInfo = nil
             }
-            guard let identity = try? SymbolicDemangler.demangleContext(for: descriptorWrapper.asContextDescriptorWrapper, in: context) else { continue }
+            // What the import info rules out — a related entity, a rename
+            // that is not trusted — is ruled out wherever the type sits, so it
+            // is settled before the demangle the key needs.
+            guard Self.knownSwiftName(ofDescriptorNamed: userFacingName, importInfo: importInfo, isDirectlyInImportedModule: true) != nil,
+                  let identity = try? SymbolicDemangler.demangleContext(for: descriptorWrapper.asContextDescriptorWrapper, in: context)
+            else { continue }
             let identityKey = Self.key(for: identity)
             let isDirectlyInImportedModule = identityKey.children.first?.kind == .module
             guard let swiftName = Self.knownSwiftName(ofDescriptorNamed: userFacingName, importInfo: importInfo, isDirectlyInImportedModule: isDirectlyInImportedModule) else { continue }

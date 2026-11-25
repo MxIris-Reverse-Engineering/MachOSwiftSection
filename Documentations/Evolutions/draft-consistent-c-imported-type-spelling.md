@@ -3,11 +3,11 @@
 - **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-25
-- **最后更新**: 2026-11-25
+- **最后更新**: 2026-11-26
 - **所属愿景**: 无
 - **关联提案**: [0106-c-imported-type-name-spelling](0106-c-imported-type-name-spelling.md)（本提案补齐它留下的两处：没改名的 C 类型、字段布局注释）；[0067-nested-field-offset-memoization](0067-nested-field-offset-memoization.md)（进程内每层展开的缓存，本提案往缓存的行里多存一个类型节点）；[0064-module-selectors](0064-module-selectors.md)、[0092-existential-any](0092-existential-any.md)（布局注释由此也带上模块选择器与 `any`）
 - **实现分支 / PR**: `feature/consistent-c-imported-type-spelling`（worktree `.worktrees/MachOSwiftSection-ConsistentCImportedTypeSpelling`）
-- **配套文档**: 待定 —— 落地时判断
+- **配套文档**: 无单独文档（见决策日志「收尾判断」）；规则在 [术语表](../Glossary.md)「C-imported type name spelling」，裁决在 [ReviewAdjudications](../Internal/ReviewAdjudications.md) A86–A91
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -121,11 +121,13 @@ struct WeakAttribute<A> {
 | `Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+Headers.swift` · `modelFieldBlock` | 修改 | 渲染配置加 `.spellingFieldLayoutTypeNamesThroughResolver(true)` | interface 打开开关 | 2 |
 | `Sources/Output/SwiftDeclarationRendering/NestedFieldOffsetLevel.swift` · `StructField` / `EnumPayload` | 修改 | 新增 `typeNode: Node?` | 进程内缓存带节点 | 3 |
 | `Sources/Output/SwiftDeclarationRendering/RuntimeFieldLayoutBackend.swift` · `RuntimeFieldLayoutBackend` | 修改 | `nestedTypeName` 拆出 `nestedTypeNode`；建层时存节点；`expandedFieldOffsets(of:…)` 与 `walkNestedExpandedFieldOffsets` 改成 async，每行经 `fieldLayoutTypeName` 取名字 | 进程内路径的注释跟拼写，与离线逐字节一致 | 3 |
-| `Tests/SwiftDeclarationRenderingTests/…` | 视情况修改 | 调用点随 async 化补 `await` | 编译 | 2、3 |
+| `Tests/SwiftDeclarationRenderingTests/NestedFieldOffsetMemoizationTests.swift` | 修改 | 加一轮开关打开、用 `.interface` 拼写的「带缓存与不带缓存逐字相同」 | 缓存里存的节点也要证明冷热一致 | 3 |
+| `Tests/SwiftSpecializationTests/SpecializedRuntimeTypeNameTests.swift` | 修改 | 布局注释的期望从 `(RuntimeNamedPrivateArgument in _…)` 改成和字段声明一样的 `SwiftSpecializationTests.RuntimeNamedPrivateArgument` | 注释行跟着声明拼写 | 3 |
 | `Documentations/Glossary.md` · C-imported type name spelling | 修改 | 补同名类型、布局注释 | 术语表跟上行为 | 4 |
-| `Documentations/Internal/Modules/SwiftLayout.md` | 修改 | `NestedFieldOffset` 多了 `typeNode` | 模块参考 | 4 |
-| `Documentations/Internal/Modules/SwiftDeclarationRendering.md`（若有相关段落）、`Documentations/Internal/Modules/SwiftPrinting.md` | 视情况修改 | 布局注释的拼写来源、名字表的收录规则 | 模块参考 | 4 |
-| `Documentations/Internal/ProjectEvolutionLog.md` | 修改 | 新增一节（节号落地时取） | 演进账本 | 4 |
+| `Documentations/Internal/Modules/SwiftLayout.md` | 修改 | 关键契约补一条：`typeName` 与 `typeNode` 两份，本模块不换拼写 | 模块参考 | 4 |
+| `Documentations/Internal/FieldLayoutRendererReaderSpecialization.md` | 修改 | 两条后端经同一个入口取行的类型名 | 渲染分叉的说明（`SwiftDeclarationRendering`、`SwiftPrinting` 没有单独的模块文档） | 4 |
+| `Documentations/Internal/ProjectEvolutionLog.md` | 修改 | 新增一节（落地前标题写日期，节号落地时取） | 演进账本 | 4 |
+| `Documentations/Internal/ReviewAdjudications.md` | 修改 | 登记 A86–A91（审查与自审判为不修、误报或有意的发现） | 「不修」与「误报」的裁决留档 | 4 |
 | `Documentations/Evolutions/README.md` | 修改 | 登记本提案（编号 `draft`）；`Documentations/README.md` 照项目惯例在落地取号时登记（进行中的 draft 都不在那里） | 索引 | 0 |
 
 ## 架构图
@@ -290,7 +292,7 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 
 ### 下游影响
 
-- 本仓库：`SwiftPrinting`、`SwiftDeclarationRendering`、`SwiftLayout`；interface 输出变化：同名 C 类型的引用与扩展头少了 `__C.`；开了展开字段偏移时注释的类型名与声明写法一致（C 类型 Swift 名、模块选择器、`any`、语法糖、私有类型不带判别符、局部类型只写名字）。每一行多一次经打印器的异步打印，开销在交付前实测。dump、diff 键、snapshot 不变。
+- 本仓库：`SwiftPrinting`、`SwiftDeclarationRendering`、`SwiftLayout`；interface 输出变化：同名 C 类型的引用与扩展头少了 `__C.`；开了展开字段偏移时注释的类型名与声明写法一致（C 类型 Swift 名、模块选择器、`any`、语法糖、私有类型不带判别符、局部类型只写名字）。每一行多一次经打印器的异步打印：SwiftUICore 打开展开字段偏移的 interface 从 7.10 秒到 7.39 秒（+4%）；进程内缓存每行多存一个节点，SwiftUICore 全部展开后多占约 2.1 MB（实测见 [A91](../Internal/ReviewAdjudications.md)）。没开 `--resolve-c-module-names` 时，镜像里有描述符的 SDK 类型（`CGRect`、`CGPoint`、RenderBox 的 `RBColor`）也从 `__C::CGRect` 变成裸的 `CGRect`。dump、diff 键、snapshot 不变。
 - RuntimeViewer：用同一个打印器，内容区的接口文本跟着变；Imported Type Names 切到 C 名时注释也写 C 名。它的 `ExpandedFieldOffsetTransformer` 模板收到的 `typeName` 变成打印器拼写。不需要改 RuntimeViewer 代码。
 
 ### 文档与示例
@@ -321,7 +323,7 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
    - 行为：进程内路径的布局注释同样写 Swift 名与模块选择器
    - 行为：进程内与离线两条路径对非泛型字段的布局注释逐行相同（且进程内的行里必须出现只有打印器才写的 `::`，防止两边都退回 `.default` 时空过）
    - 行为：带缓存与不带缓存的进程内展开逐字相同，开关关着（既有测试）与开着、用另一种拼写（新增）都一样
-4. **文档** —— 改动地图第 15–19 行，以及第 4、5 行在第 3 步之后的补全
+4. **文档**（已完成：术语表、插件 skill 第 8 节、`--c-imported-type-name-spelling` 帮助、SwiftLayout 模块文档、`FieldLayoutRendererReaderSpecialization.md`、演进账本、已裁决清单 A86–A91） —— 改动地图第 15–19 行，以及第 4、5 行在第 3 步之后的补全
 
 **收尾时必须判断两件事**：要不要配套专题文章；有没有引入新术语。结论写进决策日志。
 
@@ -349,6 +351,11 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 | 2026-11-25 | 两条后端一起改 | `OfflineSpecializationParityTests` 要求两条路径逐字节一致 |
 | 2026-11-25 | 进程内缓存存节点 | 渲染时重算会带回 0067 去掉的 demangle 成本 |
 | 2026-11-25 | 第 1 步审查（两个审查 agent） | 文档里「只有没有 descriptor 的保留 `__C.`」说错了：改名不可信的（`ProbeOwnerKey`、`AGTreeValue`）也保留，CLI 帮助、插件 skill 与 `CImportedTypeNameSpelling` 的注释已改。名字表在锁内 demangle：A61 第一处已裁决「打印器的一次性建表不改锁」，理由（入口已切到大栈）对 0106 的名字表同样成立，不改，第 5 步登记。`Code` 枚举与 C++ 模板特化记为后续项。`Documentations/README.md` 缺登记是误报：项目惯例是 draft 落地时才登记 |
-| 2026-11-25 | 进程内测试改在渲染器接缝上 | 最初用进程内 `SwiftInterfaceBuilder` 打 dlopen 进来的 fixture，撞上符号索引的建索引死锁（后续项有详情，是 `next` 上的旧问题）。改为用打印器自己的 `typeDemangleResolver` 直接驱动 `FieldLayoutRenderer`，与打印器构造渲染配置的方式相同、但不建索引；离线与进程内的逐行对照照样做，以进程内的行是离线行的子集为准（进程内从活的 metadata 读偏移，可能更早停下） |
-| 2026-11-25 | 第 3 步审查（两个审查 agent） | 测试有三处证明力不够，已补（见落地步骤 3）。`SpecializedRuntimeTypeNameTests` 改了期望：注释行和字段声明一样写 `SwiftSpecializationTests.RuntimeNamedPrivateArgument`，测试要证明的「保留模块」不变；运行时名字里判别符的恢复另有 `RuntimeTypeNamePrivateDiscriminatorTests` 守着，不另加 dump 侧的孪生测试。pack、整数泛型参数、关联类型成员这几种嵌套行的两条路径对照、位置命名的局部类型在两条路径地址不同，都是改前就没覆盖的，记为后续项。进程内缓存多存节点的内存成本，交付前实测 |
 | 2026-11-25 | 第 2 步审查（两个审查 agent） | 两条测试证明不了它声称的：dump 守护测试改成用一个把所有类型都印成固定字样的解析器，开关关着不生效、开着才生效；C 名测试加开模块选择器。注释行跟着声明不带私有判别符、带语法糖，是这次有意的一致，写进「提议方案」与「影响」；opaque 行记为后续项。每行一次异步打印的开销，交付前在大框架上实测 |
+| 2026-11-25 | 进程内测试改在渲染器接缝上 | 最初用进程内 `SwiftInterfaceBuilder` 打 dlopen 进来的 fixture，撞上符号索引的建索引死锁（后续项有详情，是 `next` 上的旧问题）。改为用打印器自己的 `typeDemangleResolver` 直接驱动 `FieldLayoutRenderer`，与打印器构造渲染配置的方式相同、但不建索引。离线与进程内的对照起初按「进程内的行是离线行的子集」比，第 3 步审查后改为逐行相同 |
+| 2026-11-25 | 第 3 步审查（两个审查 agent） | 测试有三处证明力不够，已补（见落地步骤 3）。`SpecializedRuntimeTypeNameTests` 改了期望：注释行和字段声明一样写 `SwiftSpecializationTests.RuntimeNamedPrivateArgument`，测试要证明的「保留模块」不变；运行时名字里判别符的恢复另有 `RuntimeTypeNamePrivateDiscriminatorTests` 守着，不另加 dump 侧的孪生测试。pack、整数泛型参数、关联类型成员这几种嵌套行的两条路径对照、位置命名的局部类型在两条路径地址不同，都是改前就没覆盖的，记为后续项。进程内缓存多存节点的内存成本，交付前实测 |
+| 2026-11-26 | 自审（`code-review` medium，整条分支） | 9 条：耗时与内存实测后不修（+4%、+2.1 MB，A91）；名字表在锁内 demangle 归入 A61，锁不改，但被 import info 排除的描述符改为先判定、不 demangle（A86）；同名 C 类型与同名 Swift 类型混淆是误报（A87）；注释行不带私有判别符是有意的（A88）；解析失败静默退回 `.default` 不修（A89）；依赖镜像的 C 类型按根镜像的名字表拼是已知限制，插件 skill 写明（A90）；插件 skill 补上布局注释与 dump 的区别；网页版随交付生成 |
+| 2026-11-26 | 真实镜像对照 | macOS 27.2 的 AttributeGraph（显示 C 导入类型、模块选择器、展开字段偏移、`--resolve-c-module-names`）：`__C` 从 73 处降到 60 处，`AGDescriptionOption` 的 6 个扩展头去掉 `__C::`，注释行改为 `AnyWeakAttribute.__Unnamed_struct__details`、`AnyAttribute`、`Swift::UInt32`。剩下的 60 处都是镜像里没有描述符的类型，或改名不可信的 `AGTreeElement`、`AGTreeValue`、`AGTypeSignature` |
+| 2026-11-26 | 全量验证 | JHs-Mac-Studio-Ultra，Xcode 26.6，`swift test --skip IntegrationTests`：2997 个测试只有 `BoundedConcurrentMapTests.cancellationStopsSubmittingPendingElements` 超时（全量时线程池满载的已知偶发），单独重跑该套件 9 个全过。第一次全量在 `DumpRequest` 里复制 `DeclarationRenderConfiguration` 时 SIGSEGV：给这个结构体加了存储属性后增量构建链接了旧目标文件，`swift package clean` 后重编即消失 |
+| 2026-11-26 | 收尾判断 | 不另写使用指南或实现说明：拼写规则写在术语表「C-imported type name spelling」，两份类型名的契约写在 SwiftLayout 模块文档，渲染入口写在 `FieldLayoutRendererReaderSpecialization.md`。没有新术语，更新了既有词条 |
+| 2026-11-26 | 实现完成，待用户看过后收尾 | 三步与文档都已提交到功能分支；在本地合进 `next` 的常驻检出，不推送 |

@@ -1028,3 +1028,81 @@
 - **既往修复**：无。
 - **代码锚点**：`Sources/Executables/reader-benchmark/ReaderBenchmark.swift`；体检报告 [CodebaseAudit20261116](Reviews/CodebaseAudits/CodebaseAudit20261116.md)。
 - **复审条件**：它被并进 `swift-section`，或开始输出诊断与进度信息。
+
+---
+
+## A86 — C 导入类型的名字表在锁内 demangle（提案 `consistent-c-imported-type-spelling` 的审查，归入 A61 第一处）
+
+- **裁决**：锁不改（2026-11-26）。本分支只把被 import info 排除的条目挪到 demangle 之前判定。
+- **发现**：`SwiftDeclarationPrinter.cImportedTypeSwiftNames()`（`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter.swift:129`）第一次用到时在 `@Mutex` 里建 `CImportedTypeSwiftNameTable`，每个收进表的描述符要 `SymbolicDemangler.demangleContext` 一次。本提案让没有 ABI 名的描述符也进表，持锁 demangle 的次数随之变多。
+- **复现 / 是否误报**：写法属实。结果不会错，只有「调用方在 512 KB 栈上、且另有线程在等这把锁」时多等；复现不出输出层面的问题。
+- **与 main 基线对比**：建表与锁来自提案 0106（`1e490500`，2026-11-24），main 上没有；本分支增加的是进表的条目数。
+- **为什么不修**：与 A61 第一处（打印器的另外两次一次性建表）同一种写法、同一个理由：建表只发生在打印入口里，入口已包 `LargeStackTaskExecution.run`，持锁期间不切线程。被相关实体、不可信改名排除的描述符现在先判定、不 demangle，持锁的工作只多出真正进表的那些。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Output/SwiftPrinting/CImportedTypeSwiftNameTable.swift` 的 `init(typeContextDescriptors:in:)`。
+- **复审条件**：与 A61 相同；另外，有宿主在没包执行器的同步入口上第一次打印 C 导入类型。
+
+---
+
+## A87 — 同名 C 类型写裸名，会不会和同名的 Swift 类型混淆（提案 `consistent-c-imported-type-spelling` 的自审，**误报**）
+
+- **裁决**：不修（2026-11-26）。
+- **发现**：本镜像有描述符、Swift 名就是 C 名的 C 导入类型（`CMTime`、`CGRect`、`std` 这类 C++ 命名空间）现在写裸名；镜像里若另有同名的 Swift 类型，审查担心两者在声明、扩展头与布局注释里无法区分。
+- **复现 / 是否误报**：误报。Swift 类型的引用与扩展头一律带模块（`M.CMTime`、`M::CMTime`），C 类型现在是裸的 `CMTime`，两者照样分得开；声明行本来就不带模块，C 导入类型的声明在 0106 之前就是裸名。改了名的 C 类型（`AnyWeakAttribute`）从 0106 起就是这种写法。
+- **与 main 基线对比**：同名类型写裸名是本分支引入的；改名类型的同样写法来自 0106，main 上没有。
+- **为什么不修**：见上，没有实际的歧义。
+- **既往修复**：无。
+- **代码锚点**：`CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed:importInfo:isDirectlyInImportedModule:)`。
+- **复审条件**：引用或扩展头里出现不带模块的 Swift 类型。
+
+---
+
+## A88 — interface 的布局注释行不带私有判别符、局部类型只写名字（提案 `consistent-c-imported-type-spelling` 的审查与自审，**有意设计**）
+
+- **裁决**：不修（2026-11-26）。
+- **发现**：展开字段偏移树的行改用 interface 打印器的拼写后，`M.(Foo in _ABC…)` 变成 `M.Foo`，局部类型只写自己的名字；同一个类型里两个字段分别是两个文件里同名的私有 `Foo` 时，注释行分不出哪棵子树属于哪个。
+- **复现 / 是否误报**：属实。
+- **与 main 基线对比**：本分支引入；main 上注释行按 `.default` 打印，带判别符。
+- **为什么不修**：这正是要的一致：这些行描述的字段声明（`let element: M.Foo`）本身也不带判别符，注释与声明写法相同才是这次改动的目的。要区分同名私有类型，看声明上方 `--emit-private-source-files` 印的源文件注释；dump 的注释行照旧带判别符。`SpecializedRuntimeTypeNameTests` 的期望随之改写，它要证明的「保留模块」不变。
+- **既往修复**：无。
+- **代码锚点**：`DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`。
+- **复审条件**：interface 的字段声明开始带判别符，或有宿主依赖注释行区分同名私有类型。
+
+---
+
+## A89 — 布局注释行的拼写失败时静默退回 `.default`（提案 `consistent-c-imported-type-spelling` 的自审，**不修**）
+
+- **裁决**：不修（2026-11-26）。
+- **发现**：`fieldLayoutTypeName(printedName:typeNode:)` 用 `try?` 调解析器，抛错或得到空串时退回 `.default` 拼写，不发事件、不打日志；那一行会是 `__C.AGAttribute`，旁边的行是 `AnyAttribute`。
+- **复现 / 是否误报**：机制属实，没有构造出会抛错的节点：interface 打印器的 `typeDemangleResolver` 只在打印器已释放时什么都不印。
+- **与 main 基线对比**：本分支引入。
+- **为什么不修**：退回的仍是正确的类型名，只是拼写不同；同一个类型在字段声明处由打印器自己印，出错会走它自己的报告路径。逐行打日志会在大框架上刷出几万行。
+- **既往修复**：无。
+- **代码锚点**：`Sources/Output/SwiftDeclarationRendering/DeclarationRenderConfiguration.swift` 的 `fieldLayoutTypeName(printedName:typeNode:)`。
+- **复审条件**：发现某类节点会让 interface 打印器抛错。
+
+---
+
+## A90 — 布局注释里来自依赖镜像的 C 类型按根镜像的名字表拼（提案 `consistent-c-imported-type-spelling` 的自审，**已知限制**）
+
+- **裁决**：不修，文档写明（2026-11-26）。
+- **发现**：展开树里某一行的类型来自依赖镜像时，打印器只认根镜像自己的描述符；依赖镜像带着那个 C 类型的描述符、根镜像没有时，这一行写 `__C.Bar`，而依赖镜像自己的 interface 写 `Bar`。
+- **复现 / 是否误报**：属实，按机制推断，没有专门造 fixture。
+- **与 main 基线对比**：main 上这一行永远是 `__C.Bar`，本分支没有让它变坏。
+- **为什么不修**：要从别的镜像的描述符取名字，正是另开提案的跨镜像查找（`AGSubgraphRef` 在 SwiftUICore 里记作 `Subgraph` 那条）要解决的事；插件 skill 第 8 节写明了这个限制。
+- **既往修复**：无。
+- **代码锚点**：`SwiftDeclarationPrinter.cImportedTypeSwiftNames()`。
+- **复审条件**：跨镜像查找的提案落地。
+
+---
+
+## A91 — 布局注释每行一次异步打印，进程内缓存每行多存一个节点（提案 `consistent-c-imported-type-spelling` 的自审，**实测后不修**）
+
+- **裁决**：不修（2026-11-26）。
+- **发现**：interface 的每一行展开字段偏移注释都经打印器的 `typeDemangleResolver` 印一次，没有跨行的结果缓存；进程内全进程缓存 `NestedFieldOffsetLevel` 的每一行多存一棵节点树，只有 `RuntimeFieldLayoutMemo.removeAll()` 能释放。
+- **复现 / 是否误报**：成本属实，实测都很小（JHs-Mac-Studio-Ultra，Xcode 26.6，release CLI 交替各跑 3 次）：`swift-section interface --uses-system-dyld-shared-cache --cache-image-name SwiftUICore --module-selectors --emit-expanded-field-offsets` 从 7.10 秒到 7.39 秒（+4%，42,559 行注释，约每行 7 微秒）；进程内把 SwiftUICore 每个非泛型类型的字段都展开一遍（34,755 行），渲染后的内存增量从 6.72 MB 到 8.85 MB（+2.1 MB）。
+- **与 main 基线对比**：本分支引入。
+- **为什么不修**：按 `.default` 文字做跨行缓存能省掉一部分打印，但收益只有那 4%；节点在建层时本来就算出来了，存下来避免渲染时重新 demangle（提案 0067 去掉的正是这部分成本）。
+- **既往修复**：无。
+- **代码锚点**：`DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`、`NestedFieldOffsetLevel.StructField.typeNode`。
+- **复审条件**：有宿主实测到这部分耗时或内存成为瓶颈（RuntimeViewer 建搜索语料时会把镜像的全部类型都展开一遍）。

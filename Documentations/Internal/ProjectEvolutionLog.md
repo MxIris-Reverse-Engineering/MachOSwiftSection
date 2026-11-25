@@ -3618,7 +3618,7 @@
 - **落地模块**：`Sources/Output/SwiftPrinting/`（`CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed:importInfo:isDirectlyInImportedModule:)`、`SwiftDeclarationPrinter+Headers` 打开开关）、`Sources/Output/SwiftDeclarationRendering/`（`DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`、两条后端改成异步渲染、`NestedFieldOffsetLevel` 带节点）、`Sources/Analysis/SwiftLayout/NestedFieldOffsetTree.swift`（`NestedFieldOffset.typeNode`）、`swift-section interface --c-imported-type-name-spelling` 的帮助文字。
 - **文档**：提案 [draft-consistent-c-imported-type-spelling](../Evolutions/draft-consistent-c-imported-type-spelling.md)；术语表「C-imported type name spelling」；插件 skill 第 8 节；SwiftLayout 模块文档的关键契约、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md)。
 - **顺带发现**：符号索引的建索引死锁（同一镜像 15 个以上并发建索引时占满大栈线程池），`next` 上就有，记在提案后续项，没在本分支修。
-- **验证**：见提案决策日志最后几行。
+- **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2997 个测试，只有已知的负载偶发 `BoundedConcurrentMapTests` 一条超时，单独重跑全过；每步的行为测试先红后绿。macOS 27.2 的 AttributeGraph 前后对照 `__C` 从 73 处降到 60 处；SwiftUICore 打开展开字段偏移的 interface 慢 4%（7.10 → 7.39 秒），进程内缓存多占约 2.1 MB（[ReviewAdjudications](ReviewAdjudications.md) A91）。
 - **对应版本**：未发布。
 
 ## 维护约定
