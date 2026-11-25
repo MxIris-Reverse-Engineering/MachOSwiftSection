@@ -13,7 +13,7 @@
 
 ## 摘要
 
-`swift-section interface --resolve-c-module-names` 能把公开的 C 导入类型写到真实模块下（`__C.CGColorRef` → `CoreGraphics.CGColor`），私有的 CF 类型却查不到模块：SDK 里没有它们的头文件，依赖镜像的 Objective-C 元数据也不列 CF 类型，于是按 0106 的规则只印描述符给的裸名（`CGSVGDocument`）。本提案在 `SwiftTypeNameResolution` 里新增 `CFDeclaredTypeNames`，它是 swift-type-indexing 的 `DeclaredTypeNameSource` 的又一个实现：从镜像的导出表里找出每个 `…GetTypeID` 函数，列出它定义的 CF 类型（`_CGSVGDocumentGetTypeID` → `CGSVGDocumentRef`）。`SwiftInterfaceBuilderTypeNameProvider` 为根镜像和每个直接依赖各登记一个。之后 `CGSVGDocumentRef` 归到 CoreSVG，引用印成 `CoreSVG.CGSVGDocument`。打印器、swift-type-indexing 和 CLI 参数都不改。
+`swift-section interface --resolve-c-module-names` 能把公开的 C 导入类型写到真实模块下（`__C.CGColorRef` → `CoreGraphics.CGColor`），私有的 CF 类型却查不到模块：SDK 里没有它们的头文件，依赖镜像的 Objective-C 元数据也不列 CF 类型，于是按 0106 的规则只印描述符给的裸名（`CGSVGDocument`）。本提案在 `SwiftTypeNameResolution` 里新增 `CFDeclaredTypeNames`，它是 swift-type-indexing 的 `DeclaredTypeNameSource` 的又一个实现：从镜像的导出表里找出每个 `…GetTypeID` 函数，列出它定义的 CF 类型（`_CGSVGDocumentGetTypeID` → `CGSVGDocumentRef`）。`SwiftInterfaceBuilderTypeNameProvider` 为根镜像登记它；每个直接依赖改登记新的 `ImageDeclaredTypeNames`，把这个镜像的 Objective-C 名字和 CF 类型合成一个来源，因为 `TypeDatabase` 每个镜像路径只收一个来源。之后 `CGSVGDocumentRef` 归到 CoreSVG，引用印成 `CoreSVG.CGSVGDocument`。打印器、swift-type-indexing 和 CLI 参数都不改。
 
 ## 动机
 
@@ -40,7 +40,7 @@
 2. **模块不在二进制里。** CF 类的描述符挂在 `__C` 模块下，`_CFObject` 等合成的一致性在 `__C_Synthesized`（mangling 里的 `SC`），都不带真实模块。Swift 给一个 Clang 声明定模块时取的是**顶层** Clang 模块（`swift/lib/ClangImporter/ClangImporter.cpp:3143-3154`，注释写明 submodule 没有自己的 `ClangModuleUnit`），所以 LaunchServices 里的类型在 Swift 里属于 CoreServices（SDK 的 `CoreServices.framework/Modules/module.modulemap:43` 把 LaunchServices 声明成 CoreServices 的 submodule）。
 3. **`GetTypeID` 的镜像就是模块。** 对 46 个公开 CF 类逐个查 `_<去掉 Ref 的名字>GetTypeID` 由 cache 里哪个镜像导出（`ipsw dyld symaddr`），再和 SDK 里声明它的框架比，46 个全部一致；其中 `IOSurfaceRef` 在 CoreGraphics 的头文件里有一份前向声明，真正的声明在 IOSurface，导出镜像也是 IOSurface。私有的 20 个里有 17 个能这样找到镜像，`CFXGPUDeviceRef`、`LXEntryRef`、`RTIImportOperation_t` 找不到对应的导出。Core* 框架一共导出约 190 个公开 SDK 里没有的 `…GetTypeID`（CoreMedia 75、CoreRealityIO 41、CoreGraphics 23、CoreSVG 16、CoreFoundation 12），并不是每个都对应 Swift 用到的类型。
 4. **打印器在模块解析出来以后已经会用描述符的名字。** 引用处 `TypeNodePrintable.printType`（`Sources/Output/SwiftPrinting/NodePrintables/TypeNodePrintable.swift:186-268`）：模块经 `resolvedModuleName(of:siblingIdentifier:)`（`NodePrintable.swift:186-196`，先按 C 名查，再按去掉 `Ref` 的名字查）解析；标识符依次取解析器的 `swiftName(forCName:category:)`、0106 名字表里描述符给的名字、C 名。声明行 `declaredTypeName(of:)`（`SwiftDeclarationPrinter+Headers.swift:153-183`）同样在解析器给不出 Swift 名时退回描述符的名字。所以只要模块查得到，私有 CF 类型就会印成 `CoreSVG.CGSVGDocument`，打印器不用改。
-5. **swift-type-indexing 已有开放的注册表。** 0.2.0 的 `DeclaredTypeNameSource`（`Sources/TypeIndexing/DeclaredTypeNameSource.swift`）：一个依赖镜像报出它声明的类型名，`TypeDatabase.moduleName(forTypeName:)` 只在模块接口和 API notes 都没有这个名字时，才按登记顺序一个个读这些来源，第一个声明了它的镜像胜出，模块名取自 `TypeDatabase.moduleName(forImagePath:)`（镜像文件名去掉扩展名与 `libswift` 前缀）。文档写明这个包自己不读 Mach-O。MachOObjCSection 0.8.209 的 `ObjCDeclaredTypeNames`（`Sources/ObjCTypeIndexing/ObjCDeclaredTypeNames.swift`）是现在唯一的实现，报出类、协议、struct 和 union 名，不含 CF 类型。
+5. **swift-type-indexing 已有开放的注册表。** 0.2.0 的 `DeclaredTypeNameSource`（`Sources/TypeIndexing/DeclaredTypeNameSource.swift`）：一个依赖镜像报出它声明的类型名，`TypeDatabase.moduleName(forTypeName:)` 只在模块接口和 API notes 都没有这个名字时，才按登记顺序一个个读这些来源，第一个声明了它的镜像胜出，模块名取自 `TypeDatabase.moduleName(forImagePath:)`（镜像文件名去掉扩展名与 `libswift` 前缀）。文档写明这个包自己不读 Mach-O。MachOObjCSection 0.8.209 的 `ObjCDeclaredTypeNames`（`Sources/ObjCTypeIndexing/ObjCDeclaredTypeNames.swift`）是现在唯一的实现，报出类、协议、struct 和 union 名，不含 CF 类型。`TypeDatabase.register(dependencies:)` 按镜像路径去重（`Sources/TypeIndexing/TypeDatabase.swift:237-243`）：同一路径的第二个来源直接丢掉，所以一个镜像的几种名字必须放进同一个来源。这一条是实现时由端到端测试发现的，见决策日志。
 6. **TypeDatabase 的 CF 去 `Ref` 规则只认 SDK 里有的名字。** `TypeDatabase.swiftName(forCName:category:)` 在 API notes 没有改名时，只有去掉 `Ref` 的名字出现在模块接口或 API notes 的归属表里才返回它，运行时登记的名字不算。私有 CF 类型因此拿不到解析器给的 Swift 名，走第 4 条里描述符那一档，`AGGraphRef` 正确地印成 `Graph` 而不是 `AGGraph`。
 7. **现在谁被登记。** `SwiftInterfaceBuilderTypeNameProvider.setup()`（`Sources/Output/SwiftTypeNameResolution/SwiftInterfaceBuilderTypeNameProvider.swift:81-98`）只给每个**直接**依赖登记一个 `ObjCDeclaredTypeNames`，根镜像自己不登记。只取直接依赖是有意的（`Sources/Output/SwiftInterface/SwiftInterfaceBuilderDependencies.swift:9-19`：每个依赖模块都要生成一份 SourceKit 接口，传递闭包有几百个镜像）。CLI 里只有 `interface --resolve-c-module-names` 会接上它（`Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift:273-320`），依赖按本机 dyld cache 解析。RuntimeViewer 不经这个 provider，它在 `RuntimeViewerCore/Sources/RuntimeViewerCore/Sections/Swift/RuntimeSwiftSection.swift:2013` 给自己打开的每个镜像登记一个 `ObjCDeclaredTypeNames`。
 8. **按这个设计能覆盖多少。** 对「动机」表里的 20 个查使用方的直接依赖（`dyld_info -dependents`）：CoreSVG、CoreGraphics、AttributeGraph、CoreRealityIO 都是使用方的直接依赖，覆盖 14 个；`CAXUIElementRef` 由使用方自己定义，登记根镜像后覆盖，共 15 个。剩下 5 个：`LSASNRef` 的导出在 LaunchServices，使用方只直接链接重新导出它的 CoreServices；`CFPhoneNumberRef` 的 CorePhoneNumbers 不是 IDSFoundation 的直接依赖；另外 3 个没有对应的导出。
@@ -50,8 +50,9 @@
 ## 提议方案
 
 1. **新增 `CFDeclaredTypeNames`**（`Sources/Output/SwiftTypeNameResolution/`），实现 `DeclaredTypeNameSource`，与 `ObjCDeclaredTypeNames` 同形：`init(machO:imagePath:)`，`declaredTypeNames()` 读 `machO.exportedSymbols`，每个名为 `_<名字>GetTypeID` 的导出给出 `<名字>Ref`；`<名字>` 以下划线开头的私有函数（`__LSASNGetTypeID`）同时给出去掉前导下划线的拼写（`LSASNRef`）。
-2. **provider 登记它**：`setup()` 交给 `TypeDatabase.index(dependencies:moduleFilter:)` 的来源变成「根镜像的 `CFDeclaredTypeNames`，然后每个直接依赖依次是 `ObjCDeclaredTypeNames`、`CFDeclaredTypeNames`」。根镜像排第一，因为它自己定义的类型由它自己说了算；根镜像不进 `moduleFilter`，不触发 SourceKit 接口生成。来源的排列抽成一个可测的静态函数。
-3. **打印器、swift-type-indexing、CLI 参数都不改**。效果全部经现有路径体现：`moduleName(forTypeName:)` 多答出一些名字，打印器按调研第 4 条的规则写成 `模块.描述符名`。`--resolve-c-module-names` 的帮助文字和 swift-section skill 的说明补一句来源。
+2. **新增 `ImageDeclaredTypeNames`**（同一目录），也实现 `DeclaredTypeNameSource`：一个镜像的 `ObjCDeclaredTypeNames` 名字在前、`CFDeclaredTypeNames` 名字在后，合成一个来源。`TypeDatabase` 每个镜像路径只收第一个来源（调研第 5 条），把两种来源分开登记，后登记的那个永远读不到。
+3. **provider 登记它们**：`setup()` 交给 `TypeDatabase.index(dependencies:moduleFilter:)` 的来源变成「根镜像的 `CFDeclaredTypeNames`，然后每个直接依赖一个 `ImageDeclaredTypeNames`」，取代原来每个依赖一个 `ObjCDeclaredTypeNames`。根镜像排第一，因为它自己定义的类型由它自己说了算；根镜像不进 `moduleFilter`，不触发 SourceKit 接口生成，它的 Objective-C 名字照旧不登记。来源的排列抽成一个内部静态函数。
+4. **打印器、swift-type-indexing、CLI 参数都不改**。效果全部经现有路径体现：`moduleName(forTypeName:)` 多答出一些名字，打印器按调研第 4 条的规则写成 `模块.描述符名`。`--resolve-c-module-names` 的帮助文字和 swift-section skill 的说明补一句来源。
 
 ### 非目标
 
@@ -61,7 +62,7 @@
 - **没有描述符时给出 Swift 名**：仍印 `模块.XRef`（调研第 9 条）。要改得让 TypeDatabase 的去 `Ref` 规则认运行时名表，会碰上重名与 `swift_name` 改名（见「替代方案」第 5 条）。
 - **根镜像自己的 Objective-C 类**：现在也没登记，是另一个问题，本提案不顺手改，免得 ObjC 输出跟着变。
 - **`dump`**：`dump` 不做 `__C` 模块解析，本提案不引入。
-- **RuntimeViewer 接入**：本库发版后，在 `RuntimeSwiftSection.swift:2013` 的 `metadataSources` 里加一个 `CFDeclaredTypeNames`，属于 RuntimeViewer 的改动。
+- **RuntimeViewer 接入**：本库发版后，把 `RuntimeSwiftSection.swift:2013` 的 `metadataSources` 里的 `ObjCDeclaredTypeNames` 换成 `ImageDeclaredTypeNames`，属于 RuntimeViewer 的改动。不能另加一个 `CFDeclaredTypeNames`：同一路径的第二个来源会被丢掉。
 - **调研第 10 条的 `IOSurfaceRef` 疑似问题**：先复现，另行修复。
 
 ## 改动地图
@@ -69,12 +70,14 @@
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
 |---|---|---|---|---|
 | `Sources/Output/SwiftTypeNameResolution/CFDeclaredTypeNames.swift` · `CFDeclaredTypeNames` | 新增 | `DeclaredTypeNameSource` 的实现：读导出表，`…GetTypeID` → typedef 名；内部静态函数 `typedefNames(forExportedSymbolName:)` 承载命名规则 | 私有 CF 类型的模块证据 | 1 |
-| `Tests/SwiftTypeNameResolutionTests/CFDeclaredTypeNamesTests.swift` | 新增 | 命名规则的表驱动测试；现场编译的 C 动态库经 `MachOFile` 与 `MachOImage` 两种读法读出的名字 | 规则与两种读法 | 1 |
-| `Sources/Output/SwiftTypeNameResolution/SwiftInterfaceBuilderTypeNameProvider.swift:81-98` · `setup()` | 修改 | 来源改为「根的 CF，然后每个依赖的 ObjC、CF」；排列抽成 `static func declaredTypeNameSources(root:dependencies:)`（internal） | 登记新来源，顺序可测 | 2 |
-| `Tests/SwiftTypeNameResolutionTests/PrivateCFTypeModuleTests.swift` | 新增 | 来源顺序；`TypeDatabase` 按新来源归属模块；用现场编译的 Swift 库验证接口里的拼写 | 端到端证明 | 2 |
+| `Tests/SwiftTypeNameResolutionTests/CFDeclaredTypeNamesTests.swift` | 新增 | 现场编译的 C 动态库经 `MachOFile` 与 `MachOImage` 两种读法读出的名字（覆盖命名规则的各种写法）；本机 cache 的 CoreSVG | 规则与两种读法 | 1 |
+| `Sources/Output/SwiftTypeNameResolution/ImageDeclaredTypeNames.swift` · `ImageDeclaredTypeNames` | 新增 | 一个镜像的 ObjC 名字与 CF 类型合成一个 `DeclaredTypeNameSource` | `TypeDatabase` 每个镜像路径只收一个来源 | 2 |
+| `Tests/SwiftTypeNameResolutionTests/ImageDeclaredTypeNamesTests.swift` | 新增 | IOSurface 一个镜像里同时列出 ObjC 类 `IOSurface` 与 CF 类型 `IOSurfaceRef` | 合成来源两种名字都在 | 2 |
+| `Sources/Output/SwiftTypeNameResolution/SwiftInterfaceBuilderTypeNameProvider.swift:81-113` · `setup()` | 修改 | 来源改为「根的 `CFDeclaredTypeNames`，然后每个依赖一个 `ImageDeclaredTypeNames`」；排列抽成 `static func declaredTypeNameSources(root:dependencies:)`（internal） | 登记新来源 | 2 |
+| `Tests/SwiftTypeNameResolutionTests/PrivateCFTypeModuleTests.swift` | 新增 | 用现场编译的 C 库与 Swift 库验证接口里的拼写：依赖定义的、根镜像定义的、不挂 provider 时的 | 端到端证明 | 2 |
 | `Sources/Executables/swift-section/Commands/InterfaceCommand.swift:33` · `resolveCModuleNames` 的 `help` | 修改 | 来源列表补上「依赖导出的 `…GetTypeID`（CF 类型）」 | `--help` 就是文档 | 3 |
 | `AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md` 第 8 节 | 修改 | 「没有 sourcekitd 时由 API notes 与 Objective-C 元数据归属」补上导出的 `GetTypeID`；加一句私有 CF 类型的效果与第 9 条的 `XRef` 退路 | CLI 行为变了，skill 同批更新 | 3 |
-| `CLAUDE.md` · SwiftTypeNameResolution 一条 | 修改 | 列出 `CFDeclaredTypeNames` | 模块清单与代码同步 | 3 |
+| `CLAUDE.md` · SwiftTypeNameResolution 一条 | 修改 | 列出 `CFDeclaredTypeNames` 与 `ImageDeclaredTypeNames` | 模块清单与代码同步 | 3 |
 | `Documentations/Evolutions/README.md`、`Documentations/README.md` | 修改 | 登记本提案；落地时改编号与状态 | 文档索引 | 0、3 |
 | `Documentations/Internal/ProjectEvolutionLog.md` | 修改 | 落地时追加一节 | 演进账本 | 3 |
 
@@ -86,16 +89,19 @@
 SwiftTypeNameResolution/
 + CFDeclaredTypeNames<MachO: MachORepresentable & Sendable>      DeclaredTypeNameSource
 +     declaredTypeNames()   machO.exportedSymbols: _<Name>GetTypeID -> "<Name>Ref"
++ ImageDeclaredTypeNames<MachO: ObjCMetadataSource>              DeclaredTypeNameSource, one per image
++     declaredTypeNames()   ObjCDeclaredTypeNames names + CFDeclaredTypeNames names
 ~ SwiftInterfaceBuilderTypeNameProvider.setup()
 ~     TypeDatabase.index(dependencies:
 +         [CFDeclaredTypeNames(root),
-               ObjCDeclaredTypeNames(dependency1),
-+              CFDeclaredTypeNames(dependency1),
-               ObjCDeclaredTypeNames(dependency2),
-+              CFDeclaredTypeNames(dependency2), ...],
+-          ObjCDeclaredTypeNames(dependency1),
++          ImageDeclaredTypeNames(dependency1),
+-          ObjCDeclaredTypeNames(dependency2),
++          ImageDeclaredTypeNames(dependency2), ...],
           moduleFilter: dependency module names)                  unchanged: root never generates an interface
 
 swift-type-indexing 0.2.0 (unchanged)
+  TypeDatabase.register(dependencies:)    keeps the first source per image path
   TypeDatabase.moduleName(forTypeName:)
       1. module interfaces, API notes
       2. runtime declared names, folded source by source in registration order
@@ -116,10 +122,9 @@ printType(__C.CGSVGDocumentRef)
 │       └─ TypeDatabase.moduleName
 │           ├─ SDK tables                                           miss
 │           ├─ CFDeclaredTypeNames(SwiftUICore)                     miss    (+)
-│           ├─ ObjCDeclaredTypeNames(AttributeGraph)                miss
-│           ├─ CFDeclaredTypeNames(AttributeGraph)                  miss    (+)
+│           ├─ ImageDeclaredTypeNames(AttributeGraph)               miss    (~ was ObjC only)
 │           ├─ ...
-│           └─ CFDeclaredTypeNames(CoreSVG): "CGSVGDocumentRef"     -> "CoreSVG"   (+)
+│           └─ ImageDeclaredTypeNames(CoreSVG): "CGSVGDocumentRef"  -> "CoreSVG"   (~)
 ├─ swiftName(forCName: "CGSVGDocumentRef")                          -> nil (no API notes, not SDK-indexed)
 └─ writes  CoreSVG . CGSVGDocument
 ```
@@ -138,20 +143,15 @@ import TypeIndexing
 /// them: one for every `…GetTypeID` function the image exports.
 ///
 /// A CF type's Swift metadata names the type but never its module — the descriptor sits in
-/// `__C` — while the framework defining it exports the type's `GetTypeID` function. Registered
-/// beside `ObjCDeclaredTypeNames`, this attributes a private CF type such as `CGSVGDocumentRef`
-/// to the image exporting `CGSVGDocumentGetTypeID` (`CoreSVG`). `TypeDatabase` consults it only
-/// for names neither the SDK's module interfaces nor its API notes attribute, and reads the
-/// image's exports only on such a miss.
+/// `__C` — while the framework defining it exports the type's `GetTypeID` function. This
+/// attributes a private CF type such as `CGSVGDocumentRef` to the image exporting
+/// `CGSVGDocumentGetTypeID` (`CoreSVG`). `TypeDatabase` consults it only for names neither the
+/// SDK's module interfaces nor its API notes attribute, and reads the image's exports only on
+/// such a miss.
 ///
-/// ```swift
-/// let sources: [any DeclaredTypeNameSource] = dependencyImages.flatMap { image in
-///     [
-///         ObjCDeclaredTypeNames(machO: image, imagePath: image.imagePath),
-///         CFDeclaredTypeNames(machO: image, imagePath: image.imagePath),
-///     ]
-/// }
-/// ```
+/// `TypeDatabase` keeps one source per image path, so an image whose Objective-C names are
+/// registered too goes in as one `ImageDeclaredTypeNames`, which reads both; this alone is for
+/// an image read for its CF types only.
 public struct CFDeclaredTypeNames<MachO: MachORepresentable & Sendable>: DeclaredTypeNameSource {
     public let imagePath: String
 
@@ -179,8 +179,24 @@ public struct CFDeclaredTypeNames<MachO: MachORepresentable & Sendable>: Declare
     static func typedefNames(forExportedSymbolName symbolName: String) -> [String]
 }
 
+/// Every type an image declares, as one swift-type-indexing source: the classes, protocols,
+/// structs and unions its Objective-C metadata names (`ObjCDeclaredTypeNames`), then the CF
+/// types it exports a `GetTypeID` function for (`CFDeclaredTypeNames`).
+public struct ImageDeclaredTypeNames<MachO: ObjCMetadataSource>: DeclaredTypeNameSource {
+    public let imagePath: String
+
+    public init(machO: MachO, imagePath: String)
+
+    /// The Objective-C names, then the CF typedef names. Throws when the Objective-C metadata
+    /// cannot be read, as `ObjCDeclaredTypeNames` does on its own: `TypeDatabase` then logs
+    /// the image and skips it whole.
+    public func declaredTypeNames() async throws -> [String]
+}
+
 #endif
 ```
+
+`ImageDeclaredTypeNames` 只要 `ObjCMetadataSource` 一个约束：它经 `MachORepresentableWithCache` 继承 `MachORepresentable` 与 `Sendable`，正好满足两种来源。Objective-C 元数据读不出来时整个来源抛错，与只登记 `ObjCDeclaredTypeNames` 时一样，由 `TypeDatabase` 记日志并跳过这个镜像；不为保住 CF 名字而吞掉这个错误。
 
 形状照 `ObjCDeclaredTypeNames<MachO: ObjCMetadataSource & Sendable>` 抄：同样的 `init(machO:imagePath:)`、同样的 `imagePath` 属性、同样放在 `#if os(macOS)` 里，名字按「来源 + `DeclaredTypeNames`」对称。泛型约束只要 `MachORepresentable & Sendable`：`exportedSymbols` 是 MachOKit `MachORepresentable` 的要求（`Sources/MachOKit/Protocol/MachORepresentable.swift:124-129`），`MachOFile`、`MachOImage` 和包装类型都有，不需要判断读取器种类。provider 的 `MachO` 约束经 `MachOSwiftSectionRepresentableWithCache: MachORepresentableWithCache: MachORepresentable, Sendable` 满足它。协议要求是 `async throws`，实现不会失败，所以写成不抛错的 `async`。
 
@@ -197,7 +213,8 @@ public struct CFDeclaredTypeNames<MachO: MachORepresentable & Sendable>: Declare
 extension SwiftInterfaceBuilderTypeNameProvider {
     /// The declared-type-name sources `setup()` registers, in the order `TypeDatabase` folds
     /// them: the root's CF types first — a type the root defines is its own — then each direct
-    /// dependency's Objective-C names and CF types, in dependency order.
+    /// dependency's Objective-C names and CF types, one `ImageDeclaredTypeNames` per image, in
+    /// dependency order.
     static func declaredTypeNameSources(root: MachO, dependencies: [MachO]) -> [any DeclaredTypeNameSource]
 }
 ```
@@ -216,12 +233,13 @@ extension SwiftInterfaceBuilderTypeNameProvider {
 4. **用一致性符号里的模块**（`_$sSo10AGGraphRefaSQ14AttributeGraphMc`）：否。那是声明这条一致性的模块，不是类型的模块；合成的一致性在 `__C_Synthesized`；cache 里的这类本地符号大多被剥掉了。
 5. **让 TypeDatabase 的去 `Ref` 规则也认运行时名表**，好在没有描述符时也给出 Swift 名：否。它不知道重名，会把 `IOSurfaceRef` 改成 `IOSurface`（调研第 9 条）；而打印器先问解析器、后用描述符，它还会把 `swift_name` 改过的 `AGGraphRef` 从 `Graph` 改坏成 `AGGraph`。
 6. **跟着 `LC_REEXPORT_DYLIB` 把子框架的导出算进伞框架**：推迟，见「非目标」第一条。
+7. **让 swift-type-indexing 允许一个镜像路径登记多个来源**（不合成 `ImageDeclaredTypeNames`）：否。「一个来源代表一个镜像」是那个包按镜像路径去重时的模型，改它要动 swift-type-indexing 并发版，而本提案定下不改那个包；在本仓库合成一个来源就够了。
 
 ## 影响
 
 ### 源码兼容性（source compatibility）
 
-纯新增：多一个公开类型 `CFDeclaredTypeNames`，`SwiftInterfaceBuilderTypeNameProvider` 的公开接口不变。行为上，`--resolve-c-module-names` 下原本没有模块的私有 CF 类型会带上模块。
+纯新增：多两个公开类型 `CFDeclaredTypeNames` 与 `ImageDeclaredTypeNames`，`SwiftInterfaceBuilderTypeNameProvider` 的公开接口不变。行为上，`--resolve-c-module-names` 下原本没有模块的私有 CF 类型会带上模块。
 
 ### ABI 兼容性（条件项）
 
@@ -230,7 +248,7 @@ extension SwiftInterfaceBuilderTypeNameProvider {
 ### 下游影响
 
 - 本仓库：`SwiftSectionKit` 的 `InterfaceRequest` 经 provider 自动受益，不用改代码。没有基线或快照测试开着 `__C` 模块解析（它要 SDK），渲染 A/B 校验不受影响。
-- RuntimeViewer：它不经 provider，自己在 `RuntimeSwiftSection.swift:2013` 登记来源，本提案落地不改变它的输出。要受益，等本库发版后在那里加一个 `CFDeclaredTypeNames`（见「非目标」）。
+- RuntimeViewer：它不经 provider，自己在 `RuntimeSwiftSection.swift:2013` 登记来源，本提案落地不改变它的输出。要受益，等本库发版后把那里的 `ObjCDeclaredTypeNames` 换成 `ImageDeclaredTypeNames`（见「非目标」）。
 - MachOKitUI、SymbolViewer：不用 `SwiftTypeNameResolution`，不受影响。
 
 ### 文档与示例
@@ -249,7 +267,8 @@ extension SwiftInterfaceBuilderTypeNameProvider {
    - 行为：`fileNamesTheTypedefOfEveryExportedTypeIDFunction`（`FixtureCompiler` 现场编译的 C 库导出 `ProbeWidgetGetTypeID`、`_ProbeSecretGetTypeID`、`ProbeWidgetCreate`、`GetTypeID`、`__GetTypeID`，经 `MachOFile` 读出的名字恰好是 `ProbeWidgetRef`、`_ProbeSecretRef`、`ProbeSecretRef`）
    - 行为：`loadedImageNamesTheSameTypedefs`（同一个库 `dlopen` 后经 `MachOImage` 读出同样的名字）
    - 行为：`coreSVGDeclaresItsPrivateDocumentType`（本机 cache 里的 CoreSVG，文件与进程内两种读法都给出 `CGSVGDocumentRef`）
-2. **provider 登记新来源，端到端验证** —— 改动地图第 3、4 行（`Tests/SwiftTypeNameResolutionTests/PrivateCFTypeModuleTests.swift`）
+2. ✅ **合成来源、provider 登记新来源，端到端验证** —— 改动地图第 3–6 行（`ImageDeclaredTypeNamesTests.swift`、`PrivateCFTypeModuleTests.swift`；Ultra，Xcode 26.6，`SwiftTypeNameResolutionTests` 13 个测试通过。`aPrivateCFTypePrintsUnderTheImageExportingItsTypeID` 在合成来源之前是红的，见决策日志）
+   - 行为：`listsTheObjectiveCClassAndTheCFTypeOfOneImage`（本机 cache 的 IOSurface 一个来源里同时有 ObjC 类 `IOSurface` 与 CF 类型 `IOSurfaceRef`）
    - 夹具：C 库 `ProbeCF` 导出 `ProbeWidgetGetTypeID`；Swift 库 `ProbeKit` 用桥接头声明两个 `CF_BRIDGED_TYPE(id)` 的 typedef，链接 `ProbeCF`，并用 `@_cdecl` 自己导出 `ProbeGadgetGetTypeID`。`FixtureCompiler` 把 install name 固定成 `@rpath/lib<名字>.dylib`，所以模块名是 `libProbeCF`、`libProbeKit`
    - 行为：`aPrivateCFTypePrintsUnderTheImageExportingItsTypeID`（字段类型印成 `libProbeCF.ProbeWidget`）
    - 行为：`aCFTypeTheRootDefinesPrintsUnderTheRootsModule`（根镜像自己定义的印成 `libProbeKit.ProbeGadget`）
@@ -272,3 +291,4 @@ extension SwiftInterfaceBuilderTypeNameProvider {
 | 2026-11-25 | `IOSurfaceRef` 疑似问题先复现 | 用户定：先在 Ultra 上复现调研第 10 条，确认是真的再按 bug 修复另走一批，不并入本提案。 |
 | 2026-11-25 | 用户批准，开始实现 | 轻量档，用户看过简报后批准。功能分支从本地 `next` 切，因为 moved-swift-type-modules 的本地合并也改了 provider 的 `setup()`，从 `origin/next` 切会在合回时冲突。 |
 | 2026-11-25 | 测试都放在公开 seam 上 | 命名规则不单独测内部静态函数，改由现场编译的 C 库的导出覆盖各种写法；来源顺序不单独测内部函数，改由端到端测试证明根镜像与依赖各自归属。`declaredTypeNameSources(root:dependencies:)` 仍按设计抽成内部静态函数。 |
+| 2026-11-25 | 新增 `ImageDeclaredTypeNames`，一个依赖只登记一个来源 | 偏离原方案。端到端测试发现依赖定义的私有 CF 类型仍印裸名：`TypeDatabase.register(dependencies:)` 按镜像路径去重，同一依赖先登记的 `ObjCDeclaredTypeNames` 占了位置，随后的 `CFDeclaredTypeNames` 被丢掉；根镜像只有一个来源，所以那条通过了。改为每个依赖登记一个合成两种名字的 `ImageDeclaredTypeNames`，方案方向不变，多一个纯新增的公开类型；RuntimeViewer 的后续接入也要用它。 |
