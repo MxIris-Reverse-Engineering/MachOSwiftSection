@@ -34,9 +34,16 @@ public struct ImageDeclaredTypeNames<MachO: ObjCMetadataSource>: DeclaredTypeNam
     ///     attributed to (`…/IOSurface.framework/Versions/A/IOSurface` →
     ///     `IOSurface`).
     public init(machO: MachO, imagePath: String) {
+        self.init(machO: machO, imagePath: imagePath, restrictingCFTypesTo: nil)
+    }
+
+    /// A source whose CF part gives only the names in `admittedTypedefNames`
+    /// (`CFDeclaredTypeNames.init(machO:imagePath:restrictedTo:)`); the
+    /// Objective-C names are all given.
+    init(machO: MachO, imagePath: String, restrictingCFTypesTo admittedTypedefNames: Set<String>?) {
         self.imagePath = imagePath
         self.objectiveCTypeNames = ObjCDeclaredTypeNames(machO: machO, imagePath: imagePath)
-        self.coreFoundationTypeNames = CFDeclaredTypeNames(machO: machO, imagePath: imagePath)
+        self.coreFoundationTypeNames = CFDeclaredTypeNames(machO: machO, imagePath: imagePath, restrictedTo: admittedTypedefNames)
     }
 
     /// The Objective-C names, then the CF typedef names. Throws when the

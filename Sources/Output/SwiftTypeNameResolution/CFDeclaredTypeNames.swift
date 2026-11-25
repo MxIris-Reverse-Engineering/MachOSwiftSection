@@ -31,21 +31,38 @@ public struct CFDeclaredTypeNames<MachO: MachORepresentable & Sendable>: Declare
 
     private let machO: MachO
 
+    /// The only typedef names this source may give, or `nil` for every one the
+    /// exports imply.
+    private let admittedTypedefNames: Set<String>?
+
     /// - Parameters:
     ///   - machO: The image, in this process or in a file.
     ///   - imagePath: Its install path, which names the module its types are
     ///     attributed to (`…/CoreSVG.framework/Versions/A/CoreSVG` → `CoreSVG`).
     public init(machO: MachO, imagePath: String) {
+        self.init(machO: machO, imagePath: imagePath, restrictedTo: nil)
+    }
+
+    /// A source giving only the names in `admittedTypedefNames` — the CF types
+    /// a binary's foreign class descriptors confirm, so that an export whose
+    /// name only looks like the convention (`CFGetTypeID`) or meets a typedef
+    /// that is no CF class claims nothing.
+    init(machO: MachO, imagePath: String, restrictedTo admittedTypedefNames: Set<String>?) {
         self.machO = machO
         self.imagePath = imagePath
+        self.admittedTypedefNames = admittedTypedefNames
     }
 
     /// The typedef name of every CF type the image exports a `GetTypeID`
     /// function for.
     public func declaredTypeNames() async -> [String] {
-        machO.exportedSymbols.flatMap { exportedSymbol in
+        let typedefNames = machO.exportedSymbols.flatMap { exportedSymbol in
             Self.typedefNames(forExportedSymbolName: exportedSymbol.name)
         }
+        guard let admittedTypedefNames else {
+            return typedefNames
+        }
+        return typedefNames.filter { admittedTypedefNames.contains($0) }
     }
 
     /// The typedef names an exported symbol implies, by the CF convention that
