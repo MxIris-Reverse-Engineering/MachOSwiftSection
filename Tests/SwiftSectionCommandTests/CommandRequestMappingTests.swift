@@ -153,6 +153,23 @@ struct CommandRequestMappingTests {
         #expect(request.expandsMacros)
     }
 
+    @Test("interface resolves moved Swift types' modules only with --resolve-moved-type-modules")
+    func resolveMovedTypeModulesFlagMapsOntoTheRequest() throws {
+        let defaultRequest = try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest()
+        #expect(defaultRequest.resolvesMovedTypeModules == false)
+        #expect(InterfaceRequest(source: defaultRequest.source).resolvesMovedTypeModules == false)
+        let request = try InterfaceCommand.parse(["/tmp/Sample", "--resolve-moved-type-modules"]).makeRequest()
+        #expect(request.resolvesMovedTypeModules)
+        #expect(request.cModuleNameResolution == .disabled)
+    }
+
+    @Test("--resolve-c-module-names and --resolve-moved-type-modules combine")
+    func bothResolutionFlagsCombine() throws {
+        let request = try InterfaceCommand.parse(["/tmp/Sample", "--resolve-c-module-names", "--resolve-moved-type-modules"]).makeRequest()
+        #expect(request.resolvesMovedTypeModules)
+        #expect(request.cModuleNameResolution == .enabled(supplementaryAPINotesPaths: []))
+    }
+
     @Test("interface prints without module selectors unless asked")
     func interfaceModuleSelectorsDefaultOff() throws {
         #expect(try InterfaceCommand.parse(["/tmp/Sample"]).makeRequest().usesModuleSelectors == false)

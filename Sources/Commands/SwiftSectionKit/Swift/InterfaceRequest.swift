@@ -39,6 +39,13 @@ public struct InterfaceRequest: Sendable, Equatable {
     /// Experimental: may fail to parse complex return types.
     public var parsesOpaqueReturnTypes: Bool
     public var cModuleNameResolution: CModuleNameResolution
+    /// Whether a Swift type the SDK moved between modules
+    /// (`@_originallyDefinedIn`) prints under the module that declares it
+    /// now (`CoreGraphics.CGFloat` → `CoreFoundation.CGFloat`), for the SDK
+    /// version the binary was built with. Reads the SDK's textual module
+    /// interfaces; needs Xcode or the Command Line Tools, not sourcekitd, and
+    /// is macOS only (evolution proposal `moved-swift-type-modules`).
+    public var resolvesMovedTypeModules: Bool
     public var fieldOffsetComments: FieldOffsetComments
     public var emitsMemberAddresses: Bool
     /// For class methods, computed properties and non-final stored
@@ -108,6 +115,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         showsCImportedTypes: Bool = false,
         parsesOpaqueReturnTypes: Bool = false,
         cModuleNameResolution: CModuleNameResolution = .disabled,
+        resolvesMovedTypeModules: Bool = false,
         fieldOffsetComments: FieldOffsetComments = .none,
         emitsMemberAddresses: Bool = false,
         emitsVTableOffsets: Bool = false,
@@ -133,6 +141,7 @@ public struct InterfaceRequest: Sendable, Equatable {
         self.showsCImportedTypes = showsCImportedTypes
         self.parsesOpaqueReturnTypes = parsesOpaqueReturnTypes
         self.cModuleNameResolution = cModuleNameResolution
+        self.resolvesMovedTypeModules = resolvesMovedTypeModules
         self.fieldOffsetComments = fieldOffsetComments
         self.emitsMemberAddresses = emitsMemberAddresses
         self.emitsVTableOffsets = emitsVTableOffsets
@@ -221,8 +230,13 @@ public struct InterfaceRequest: Sendable, Equatable {
             builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machOFile))
         }
 
-        if case .enabled(let supplementaryAPINotesPaths) = cModuleNameResolution {
-            addTypeNameProvider(to: builder, machOFile: machOFile, supplementaryAPINotesPaths: supplementaryAPINotesPaths, output: output)
+        let cImportedSupplementaryAPINotesPaths: [String]? = if case .enabled(let supplementaryAPINotesPaths) = cModuleNameResolution {
+            supplementaryAPINotesPaths
+        } else {
+            nil
+        }
+        if cImportedSupplementaryAPINotesPaths != nil || resolvesMovedTypeModules {
+            addTypeNameProvider(to: builder, machOFile: machOFile, cImportedSupplementaryAPINotesPaths: cImportedSupplementaryAPINotesPaths, output: output)
         }
 
         if !emitsHeader {
@@ -252,30 +266,50 @@ public struct InterfaceRequest: Sendable, Equatable {
         }
     }
 
+    /// Attaches the SDK type-name provider: `__C` resolution when
+    /// `cImportedSupplementaryAPINotesPaths` is non-nil, moved-type
+    /// resolution when `resolvesMovedTypeModules` is set — one provider and
+    /// one SDK database for both.
     private func addTypeNameProvider(
         to builder: SwiftInterfaceBuilder<MachOFile>,
         machOFile: MachOFile,
-        supplementaryAPINotesPaths: [String],
+        cImportedSupplementaryAPINotesPaths: [String]?,
         output: some SwiftSectionOutput
     ) {
+        let flagNames = [
+            cImportedSupplementaryAPINotesPaths != nil ? "--resolve-c-module-names" : nil,
+            resolvesMovedTypeModules ? "--resolve-moved-type-modules" : nil,
+        ].compactMap(\.self).joined(separator: " and ")
         #if os(macOS)
         guard #available(macOS 13.0, *) else {
-            output.reportWarning("warning: --resolve-c-module-names requires macOS 13 or later")
+            output.reportWarning("warning: \(flagNames) requires macOS 13 or later")
             return
         }
+        var resolutions: SDKTypeNameResolutions = []
+        if cImportedSupplementaryAPINotesPaths != nil {
+            resolutions.insert(.cImportedModules)
+        }
+        if resolvesMovedTypeModules {
+            resolutions.insert(.movedTypeModules)
+        }
+        let supplementaryAPINotesPaths = cImportedSupplementaryAPINotesPaths ?? []
+        // Only `__C` resolution reads the dependency images; moved types come
+        // from the SDK alone.
         let providerDependencies = SwiftInterfaceBuilderDependencies(
             machO: machOFile,
-            searchPaths: [.systemDyldSharedCache],
+            searchPaths: cImportedSupplementaryAPINotesPaths != nil ? [.systemDyldSharedCache] : [],
             eventHandlers: output.indexEventHandlers(forInputLabeled: nil)
         )
-        // Dependency resolution against the HOST dyld cache matches install
-        // names exactly, then bare names; a non-macOS binary's paths mostly
-        // miss both, which silently guts the SDK-interface source. Said
-        // aloud, misses named, instead of degrading quietly.
-        if providerDependencies.dependencies.isEmpty {
-            output.reportWarning("warning: --resolve-c-module-names resolved no dependency images against this host (non-macOS binary?); attribution will be limited to SDK APINotes and supplementary files")
-        } else if !providerDependencies.unresolvedLoadNames.isEmpty {
-            output.reportWarning("warning: --resolve-c-module-names could not resolve \(providerDependencies.unresolvedLoadNames.count) dependency image(s) against this host; their types will not be attributed: \(providerDependencies.unresolvedLoadNames.joined(separator: ", "))")
+        if cImportedSupplementaryAPINotesPaths != nil {
+            // Dependency resolution against the HOST dyld cache matches
+            // install names exactly, then bare names; a non-macOS binary's
+            // paths mostly miss both, which silently guts the SDK-interface
+            // source. Said aloud, misses named, instead of degrading quietly.
+            if providerDependencies.dependencies.isEmpty {
+                output.reportWarning("warning: --resolve-c-module-names resolved no dependency images against this host (non-macOS binary?); attribution will be limited to SDK APINotes and supplementary files")
+            } else if !providerDependencies.unresolvedLoadNames.isEmpty {
+                output.reportWarning("warning: --resolve-c-module-names could not resolve \(providerDependencies.unresolvedLoadNames.count) dependency image(s) against this host; their types will not be attributed: \(providerDependencies.unresolvedLoadNames.joined(separator: ", "))")
+            }
         }
         // A bad supplementary path is otherwise only os_log'd by the library
         // floor; a mistyped path or a broken YAML deserves the same warning
@@ -296,13 +330,13 @@ public struct InterfaceRequest: Sendable, Equatable {
             }
         }
         let supplementaryAPINotesURLs = supplementaryAPINotesPaths.map { URL(fileURLWithPath: $0) }
-        if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies, supplementaryAPINotesURLs: supplementaryAPINotesURLs) {
+        if let typeNameProvider = SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: providerDependencies, resolutions: resolutions, supplementaryAPINotesURLs: supplementaryAPINotesURLs) {
             builder.addExtraDataProvider(typeNameProvider)
         } else {
-            output.reportWarning("warning: --resolve-c-module-names ignored: the binary carries no build-version command mapping to a known SDK platform")
+            output.reportWarning("warning: \(flagNames) ignored: the binary carries no build-version command mapping to a known SDK platform")
         }
         #else
-        output.reportWarning("warning: --resolve-c-module-names is only available on macOS")
+        output.reportWarning("warning: \(flagNames) is only available on macOS")
         #endif
     }
 }
