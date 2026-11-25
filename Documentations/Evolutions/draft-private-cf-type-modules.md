@@ -326,3 +326,5 @@ extension ImageDeclaredTypeNames {
 | 2026-11-25 | 自己定义、不导出 `GetTypeID` 的 CF 桥接类型印裸名 | 应用户要求实测：`ProbeLonelyRef` 只有 `CF_BRIDGED_TYPE(id)`，foreign 描述符证实它是 CF 类，但没有模块证据，印 `ProbeLonely`。写成测试钉住，列入非目标。 |
 | 2026-11-25 | `IOSurfaceRef` 疑似问题未复现 | TextRecognition 改动前后都印 `CoreGraphics.IOSurfaceRef`，能编过；没有被改成 `IOSurface`。复现中确认的另一件事——`IOSurface.IOSurfaceRef` / `IOSurface.IOSurface` 因模块名被同名类遮住而编不过、要用 `IOSurface::…`——是打印器的通用拼写问题，记为后续项。 |
 | 2026-11-25 | 不改成遍历导出 trie | 第 3 步实测 SwiftUICore 热缓存下耗时 17.22 → 17.28 秒，`exportedSymbols` 的开销测不出来。 |
+| 2026-11-25 | 全量测试通过 | Ultra（macOS 27.2，Xcode 26.6），`swift test --skip IntegrationTests`：2978 个测试、563 个套件全部通过，退出码 0。 |
+| 2026-11-25 | 实现完成，待用户看过后收尾 | 文档判断：CLI 帮助文字、swift-section skill、`CLAUDE.md` 模块清单、两处索引已同批更新；不写单独的使用指南或实现说明，调用方契约在两个类型的文档注释里，「为什么一个镜像只登记一个来源、为什么判定靠 foreign 描述符」记在本提案；没有新术语。演进账本一节留到正式收尾。 |
