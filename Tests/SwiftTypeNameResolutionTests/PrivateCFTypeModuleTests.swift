@@ -18,7 +18,9 @@ import Testing
 /// library whose bridging header declares the CF types, which links `ProbeCF`
 /// and defines a CF type of its own, exporting `ProbeGadgetGetTypeID` through
 /// `@_cdecl`, and declares a third, `ProbeLonelyRef`, that no image exports a
-/// `GetTypeID` for — a bridged type made up without the CF convention.
+/// `GetTypeID` for — a bridged type made up without the CF convention. `ProbeCF`
+/// also exports `ProbeDecoyGetTypeID` while `ProbeKit`'s `ProbeDecoyRef` is a
+/// `swift_wrapper` struct, no CF class: a `GetTypeID` export alone must not claim it.
 /// `FixtureCompiler` gives every library the install name
 /// `@rpath/lib<name>.dylib`, and `TypeDatabase` names a module after the
 /// install name's file, so the two modules read `libProbeCF` and `libProbeKit`.
@@ -26,6 +28,7 @@ import Testing
 struct PrivateCFTypeModuleTests {
     private static let probeCFSource = """
     unsigned long ProbeWidgetGetTypeID(void) { return 1; }
+    unsigned long ProbeDecoyGetTypeID(void) { return 3; }
     """
 
     private static let probeKitBridgingHeader = """
@@ -33,6 +36,7 @@ struct PrivateCFTypeModuleTests {
     typedef struct CF_BRIDGED_TYPE(id) __ProbeWidget *ProbeWidgetRef;
     typedef struct CF_BRIDGED_TYPE(id) __ProbeGadget *ProbeGadgetRef;
     typedef struct CF_BRIDGED_TYPE(id) __ProbeLonely *ProbeLonelyRef;
+    typedef unsigned int ProbeDecoyRef __attribute__((swift_wrapper(struct)));
     CFTypeID ProbeWidgetGetTypeID(void);
     """
 
@@ -49,11 +53,13 @@ struct PrivateCFTypeModuleTests {
         public var widget: ProbeWidget
         public var gadget: ProbeGadget
         public var lonely: ProbeLonely
+        public var decoy: ProbeDecoyRef
 
-        public init(widget: ProbeWidget, gadget: ProbeGadget, lonely: ProbeLonely) {
+        public init(widget: ProbeWidget, gadget: ProbeGadget, lonely: ProbeLonely, decoy: ProbeDecoyRef) {
             self.widget = widget
             self.gadget = gadget
             self.lonely = lonely
+            self.decoy = decoy
         }
     }
 
@@ -68,7 +74,7 @@ struct PrivateCFTypeModuleTests {
     }
 
     public func exercise(_ holder: Holder) -> Int {
-        hashValue(of: holder.widget) &+ hashValue(of: holder.gadget) &+ hashValue(of: holder.lonely) &+ Int(ProbeWidgetGetTypeID())
+        hashValue(of: holder.widget) &+ hashValue(of: holder.gadget) &+ hashValue(of: holder.lonely) &+ hashValue(of: holder.decoy) &+ Int(ProbeWidgetGetTypeID())
     }
     """
 
@@ -128,6 +134,16 @@ struct PrivateCFTypeModuleTests {
     func aBridgedTypeWithoutATypeIDFunctionKeepsItsBareSwiftName() async throws {
         let interface = try await Self.probeKitInterface(attachingTypeNameProvider: true)
         #expect(interface.contains("lonely: ProbeLonely\n"), "\(interface)")
+    }
+
+    /// The decoy's descriptor is a struct promoted from a C typedef, not the
+    /// foreign class ClangImporter gives a CF type, so `ProbeCF`'s
+    /// `ProbeDecoyGetTypeID` says nothing about it.
+    @Test
+    func aGetTypeIDExportDoesNotClaimATypedefThatIsNoCFClass() async throws {
+        let interface = try await Self.probeKitInterface(attachingTypeNameProvider: true)
+        #expect(interface.contains("var decoy: "), "\(interface)")
+        #expect(!interface.contains("libProbeCF.ProbeDecoyRef"), "\(interface)")
     }
 
     /// What 0106 alone prints: the descriptor's Swift name, with no module.
