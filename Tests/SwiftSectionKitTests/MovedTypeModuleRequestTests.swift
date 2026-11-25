@@ -2,6 +2,7 @@
 
 import Foundation
 import Testing
+import Semantic
 import SwiftSectionKit
 import SwiftSectionFixtureSupport
 
@@ -34,7 +35,8 @@ struct MovedTypeModuleRequestTests {
         let declarations = output.products.compactMap { product in
             if case .declarations(let semanticString) = product { semanticString.string } else { nil }
         }
-        return try #require(declarations.only)
+        try #require(declarations.count == 1)
+        return declarations[0]
     }
 
     @Test
