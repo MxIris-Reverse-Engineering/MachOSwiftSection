@@ -30,7 +30,7 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Parse opaque return value, this option is an experimental feature and may result in parsing errors for complex return types.")
     var parseOpaqueReturnType: Bool = false
 
-    @Flag(help: "Resolve __C/__ObjC type module names to their real modules (__C.NSString -> Foundation.NSString) by indexing the SDK modules the binary links, its APINotes, and its dependencies' ObjC metadata. Requires Xcode; the first run per SDK generates module interfaces through sourcekitd and caches the extraction.")
+    @Flag(help: "Resolve __C/__ObjC type module names to their real modules (__C.NSString -> Foundation.NSString) by indexing the SDK modules the binary links, its APINotes, its dependencies' ObjC metadata, and the CF types the binary and its dependencies export a GetTypeID function for (a private CF type: __C.CGSVGDocumentRef -> CoreSVG.CGSVGDocument). Requires Xcode; the first run per SDK generates module interfaces through sourcekitd and caches the extraction.")
     var resolveCModuleNames: Bool = false
 
     @Flag(help: "Print a Swift type the SDK moved to another module (@_originallyDefinedIn) under the module that declares it now (CoreGraphics.CGFloat -> CoreFoundation.CGFloat, SwiftUI.View -> SwiftUICore.View), when the binary was built against an SDK that had already moved it. Reads the SDK's .swiftinterface files: needs Xcode or the Command Line Tools, not sourcekitd. macOS only.")
