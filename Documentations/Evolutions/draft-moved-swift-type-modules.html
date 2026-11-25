@@ -474,14 +474,24 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>2 条，最近一条：方案取舍（待用户确认）</summary>
+    <summary>13 条，最近一条：实现完成，待用户看过后收尾</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
         <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
         <tbody>
           <tr><td class="numeric">2026-11-25</td><td>Created as Draft</td><td>用户发现 <code>CGFloat</code> 在 SDK 里由 CoreFoundation 声明、二进制里却叫 CoreGraphics，问 swift-type-indexing 能否让输出与 SDK 一致；调研确认能做，用户要求写提案。</td></tr>
-          <tr><td class="numeric">2026-11-25</td><td>方案取舍（待用户确认）</td><td>独立开关、默认关闭；按二进制的 SDK 版本判断是否改写；dump 与 diff 类命令不改；RuntimeViewer 不随升级改变行为。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>方案取舍</td><td>独立开关、默认关闭；按二进制的 SDK 版本判断是否改写；dump 与 diff 类命令不改；RuntimeViewer 不随升级改变行为。用户确认开关做成独立的 <code>--resolve-moved-type-modules</code>。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>Accepted</td><td>用户批准，开始实现。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>第 1–2 步完成（swift-type-indexing）</td><td>扫描器与查询落地；单元测试 103 个、SDK 集成测试 7 个通过。另认 <code>#if</code> 指令与限定名属性；swift-type-indexing 0.2.0 未发版，本库经本地兄弟依赖构建。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>第 3 步：扩展头也要改</td><td>扩展头原本照 mangling 印（<code>extension CoreGraphics.CGFloat</code>），改为最外层类型被认作搬家时走类型打印器；修复前测试红、修复后绿。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>第 4 步：选项集合放顶层</td><td>嵌套在泛型 provider 里会逼调用方写泛型参数，改为顶层 <code>SDKTypeNameResolutions</code>。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>第 4 步：两条测试的取舍</td><td>共用数据库那条要跑 sourcekitd、写真实缓存，没写；另一条改名为 <code>providerWithOnlyMovedTypesAnswersNoCImportedQuestion</code>。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>第 5 步：警告措辞</td><td>只开搬家时不解析依赖镜像，警告按实际打开的开关写。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>第 6 步：真机核对</td><td>27.2 的 TipKit：<code>SwiftUI.View</code> 全变 <code>SwiftUICore.View</code>（14 处）；14.6 的 TipKit 只差 6 行 <code>CGFloat</code>，<code>SwiftUI.View</code> 原样。DeveloperToolsSupport 的 <code>PreviewLayout</code> 改回它自己的模块（14.0 搬家）。插件校验通过。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>全量验证</td><td>Ultra（Xcode 26.6）2969 个测试、560 个套件全过，退出码 0。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>收尾判断</td><td>不另写专题文章；新术语 moved type 已登记。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>实现完成，待用户看过后收尾</td><td>两边功能分支已推送；没有在本地合进 <code>next</code>，因为它按远端版本下限用 swift-type-indexing 0.1.1，合进去会编不过。</td></tr>
         </tbody>
       </table>
       </div>

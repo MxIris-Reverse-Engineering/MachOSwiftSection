@@ -388,7 +388,7 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
    - 行为：`resolveMovedTypeModulesFlagMapsOntoTheRequest`
    - 行为：`bothResolutionFlagsCombine`
    - 核对 skill 里点到的每个开关都还存在（CLAUDE.md 的 `grep -ohE` 命令）。
-6. **文档与收尾** —— 改动地图最后一行
+6. ✅ **文档与收尾** —— 改动地图最后一行
    - 用 `swift-section interface --resolve-moved-type-modules` 打一次宿主 macOS 27.2 cache 与 14.6 归档 cache 里的 DeveloperToolsSupport，确认前者印 SwiftUICore、后者照旧印 SwiftUI，结果写进决策日志。（原计划用 15.5 的 SwiftUI：15.5 已在搬家之后，验证不了「照旧」；换成体量小的 DeveloperToolsSupport，同样引用大量 SwiftUI 类型。）
    - 新开关默认关闭，不开时输出逐字节不变；按 CLAUDE.md，这一改动不属于需要渲染 A/B 的大重构，以 `withoutAResolverTheManglingModuleIsKept` 与现有快照测试为准。
 
@@ -410,3 +410,6 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
 | 2026-11-25 | 第 4 步：两条测试的取舍 | `providerWithBothResolutionsSharesOneDatabase` 没写：要观察共用，就得在测试里开 `__C` 解析并跑 `setup()`，那会经 sourcekitd 生成模块接口、写进真实缓存目录；共用由构造器里只建一个 `TypeDatabase` 保证。`providerWithOnlyMovedTypesGeneratesNoModuleInterface` 改名为 `providerWithOnlyMovedTypesAnswersNoCImportedQuestion`，断言它能答搬家、不答 `__C`。MachOKit 的 `Version` 没有公开构造器，`MachOKit.Version` → `OperatingSystemVersion` 的转换不单测，由 provider 测试覆盖。测试要现编小库，`SwiftTypeNameResolutionTests` 加 `SwiftInterface` 与 `SwiftSectionFixtureSupport` 依赖，`SwiftSectionKitTests` 加 `SwiftSectionFixtureSupport`；都是包内目标，`Tuist/Package.swift` 不用改。 |
 | 2026-11-25 | 第 5 步：警告措辞 | 只开 `--resolve-moved-type-modules` 时不解析依赖镜像（只有 `__C` 解析用得到），警告里的开关名按实际打开的那一个或两个写。 |
 | 2026-11-25 | 第 6 步：真机核对 | 在 Ultra 上用沙盒编出的 debug CLI 核对。宿主 macOS 27.2 cache 的 TipKit：开关打开后 `SwiftUI.View` 0 处、`SwiftUICore.View` 14 处（`SwiftUICore.` 共 326 处，剩下 45 处 `SwiftUI.` 是没搬家的类型）。14.6 归档 cache 的 TipKit：开关前后只差 6 行，全是 `CoreGraphics.CGFloat` → `CoreFoundation.CGFloat`，`SwiftUI.View` 15 处原样不动——版本判断生效。DeveloperToolsSupport（27.2 与 14.6）：`SwiftUI.PreviewLayout` 改成 `DeveloperToolsSupport.PreviewLayout`（SDK 里它是 `@_originallyDefinedIn(module: "SwiftUI", macOS 14.0)`，14.6 在其后），`CGFloat` 同上。原计划拿 15.5 的 SwiftUI 验证「照旧」，可 15.5 已在搬家之后，换成 14.6。插件 skill 新开关已在 `--help` 里；`claude plugin validate`（经 `claude-isolated`）插件与 marketplace 都通过。 |
+| 2026-11-25 | 全量验证 | Ultra（macOS 27.2，Xcode 26.6），沙盒里本仓库功能分支加 swift-type-indexing 功能分支的拷贝、`USING_LOCAL_DEPENDENCIES=1`、现成的 Xcode 26.6 ad-hoc fixture：`swift test --skip IntegrationTests` 2969 个测试、560 个套件全部通过，退出码 0，用时 1112 秒。swift-type-indexing 在公司那台本机：单元测试 103 个、SDK 集成测试 7 个通过。 |
+| 2026-11-25 | 收尾判断 | 不另写专题文章：调用方契约在 swift-type-indexing 的 README 与 `TypeIndexingPipeline.md`「搬家记录」一节，打印器一侧在 `Modules/SwiftInterface.md`。新术语 moved type 已登记进 `Documentations/Glossary.md`，「type index」条目补了一句。`Modules/SwiftSectionKit.md` 与 `Documentations/SwiftSectionKit.md` 不列请求字段，不用改。 |
+| 2026-11-25 | 实现完成，待用户看过后收尾 | 两个仓库的功能分支都已推送。没有在本地合进 `next`：`next` 按远端版本下限用 swift-type-indexing 0.1.1，合进去后常驻检出编不过；等 swift-type-indexing 发 0.2.0、本库把下限抬到 `from: "0.2.0"` 后再合。 |

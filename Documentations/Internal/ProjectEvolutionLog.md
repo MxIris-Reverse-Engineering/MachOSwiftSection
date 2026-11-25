@@ -3590,7 +3590,7 @@
   - 独立开关 `interface --resolve-moved-type-modules`，默认关闭（输出会随宿主 SDK 变化）；与 `--resolve-c-module-names` 同开时共用一个 provider 与一个数据库（`SDKTypeNameResolutions`）。dump、diff、snapshot、evolution 不改。
 - **落地模块**：swift-type-indexing 的 `MovedTypeIndex`、`TypeDatabase.declaringModuleName(ofMovedTypeNamed:originallyDefinedIn:builtAgainst:)`；本仓库 `Sources/Output/SwiftPrinting/`（`MovedTypeModuleResolving`、`NodePrintable`、`TypeNodePrintable`、`SwiftDeclarationPrinter+Headers`）、`Sources/Output/SwiftTypeNameResolution/`（`TypeDatabaseMovedTypeModuleResolver`、`SDKTypeNameResolutions`）、`Sources/Commands/SwiftSectionKit/Swift/InterfaceRequest.swift`、`Sources/Executables/swift-section/Commands/InterfaceCommand.swift`。
 - **文档**：提案 [moved-swift-type-modules](../Evolutions/draft-moved-swift-type-modules.md)；术语表新增「moved type」；swift-type-indexing 的 `TypeIndexingPipeline.md` 新增「搬家记录」一节；插件 skill 与 `Modules/SwiftInterface.md`。
-- **验证**：见提案决策日志。
+- **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2969 个测试全过；TipKit 与 DeveloperToolsSupport 在 macOS 27.2 与 14.6 cache 上的前后对比见提案决策日志。
 - **对应版本**：未发布；依赖 swift-type-indexing 0.2.0（未发版）。
 
 ## 维护约定
