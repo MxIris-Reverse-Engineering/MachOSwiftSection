@@ -154,11 +154,14 @@ struct CImportedTypeConformanceInterfaceTests {
         return bodies
     }
 
+    // Both types are imported under their own C names and this image carries
+    // their descriptors, so their extensions print the bare name the
+    // declarations print (evolution proposal `consistent-c-imported-type-spelling`).
     @Test(arguments: [
         // A C tag enum: descriptor kind `enum`, mangled as a structure.
-        ("__C.ProbeMode", "typealias RawValue = Swift.Int"),
+        ("ProbeMode", "typealias RawValue = Swift.Int"),
         // A `swift_wrapper` typedef: mangled as a `typeAlias`.
-        ("__C.ProbeIdentifier", "typealias RawValue = Swift.String"),
+        ("ProbeIdentifier", "typealias RawValue = Swift.String"),
     ])
     func rawRepresentableConformanceRendersWitnessAndMembersInOneBlock(typeName: String, witnessLine: String) async throws {
         let interface = try await buildInterface()

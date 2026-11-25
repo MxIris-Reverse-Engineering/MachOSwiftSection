@@ -372,13 +372,7 @@ this way only when the binary's own metadata shows it is a CF class (a C-importe
 promoted from a typedef), so a reference with no such descriptor stays `__C.CGSVGDocumentRef`, and a
 bridged type nobody exports a `GetTypeID` for keeps its bare name.
 
-**Swift names come first, with or without the SDK.** A C type has two names: its descriptor carries
-the one Swift code uses, every mangled reference the C one. `interface` prints the Swift one everywhere
-— declaration, member types, extension headers — when the binary's own descriptor gives it
-(`AnyWeakAttribute` for `AGWeakAttribute`, `CGColor` for `CGColorRef`), with no module when nothing
-resolves it and under its module when this flag does. `--c-imported-type-name-spelling c-name` prints
-every C-imported type as the binary mangles it (`struct AGWeakAttribute`, `__C.AGWeakAttribute`) and
-makes this flag do nothing.
+**Swift names come first, with or without the SDK.** A C type has two names: its descriptor carries the one Swift code uses, every mangled reference the C one. `interface` prints the Swift one everywhere — declaration, member types, extension headers — when the binary's own descriptor gives it (`AnyWeakAttribute` for `AGWeakAttribute`, `CGColor` for `CGColorRef`), with no module when nothing resolves it and under its module when this flag does. A descriptor with no separate C name says the two names are one, so such a type prints bare too (`AGDescriptionOption`, not `__C.AGDescriptionOption`). `__C.` stays in two cases. The binary has no descriptor for the type, because it passes the type around but never needs its metadata (`__C.AGValueOptions`): nothing in the binary says what Swift calls it, and the image that does carry its descriptor may be one that links this binary, not one it links. Or the descriptor's name may be only the leaf of a member import (`__C.AGTreeValue`, whose descriptor says `TreeValue`; see section 9). `--c-imported-type-name-spelling c-name` prints every C-imported type as the binary mangles it (`struct AGWeakAttribute`, `__C.AGWeakAttribute`) and makes this flag do nothing.
 
 **`--resolve-moved-type-modules` is the Swift-type counterpart, and independent of it.** When the
 SDK moves a Swift type to another module it marks the declaration `@_originallyDefinedIn`, and the

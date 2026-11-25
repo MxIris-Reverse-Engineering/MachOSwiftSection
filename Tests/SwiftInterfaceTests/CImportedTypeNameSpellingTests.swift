@@ -12,14 +12,20 @@ import SwiftSectionTestingSupport
 
 /// Evolution proposal `c-imported-type-name-spelling`: a C-imported type the
 /// compiler knows by two names prints under one of them everywhere —
-/// declaration, member types and extension headers.
+/// declaration, member types and extension headers. Evolution proposal
+/// `consistent-c-imported-type-spelling` extends that to a type whose two
+/// names are one, and to the field layout tree's comments.
 ///
 /// The fixture's bridging header reproduces the shapes AttributeGraph and the
 /// SDK have: a struct renamed with `swift_name` (`AGWeakAttribute` →
 /// `AnyWeakAttribute`) holding an anonymous struct, a `swift_wrapper` typedef
-/// renamed the same way (`AGAttribute` → `AnyAttribute`), and a typedef
+/// renamed the same way (`AGAttribute` → `AnyAttribute`), a typedef
 /// imported as a member of another type (`NSAttributedStringKey` →
-/// `NSAttributedString.Key`), whose descriptor keeps only the leaf.
+/// `NSAttributedString.Key`), whose descriptor keeps only the leaf, and two
+/// types imported under their own C names: a plain struct, whose descriptor
+/// carries no import info at all, and a `swift_wrapper` typedef, whose import
+/// info carries the typedef namespace but no ABI name
+/// (`AGDescriptionOption`).
 @Suite
 struct CImportedTypeNameSpellingTests {
     // MARK: - Fixture
@@ -53,13 +59,20 @@ struct CImportedTypeNameSpellingTests {
     } ProbeOwner;
 
     typedef NSString *ProbeOwnerKey __attribute__((swift_wrapper(struct))) __attribute__((swift_name("ProbeOwner.Key")));
+
+    typedef struct ProbePlainValue {
+        int32_t value;
+    } ProbePlainValue;
+
+    typedef NSString *ProbeOption __attribute__((swift_wrapper(struct)));
     """
 
     /// `Anchor` keeps a `__DATA` segment in the dylib (see AGENTS.md,
     /// "On-the-fly-compiled fixture dylibs need a class"). The conformances
     /// put the C-imported types' descriptors into this image: the Swift-side
-    /// `Equatable` of `AnyFooThing`, and the importer's synthesized `Hashable`
-    /// of the two wrappers, reached through a generic function.
+    /// `Equatable` of `AnyFooThing` and `ProbePlainValue`, and the importer's
+    /// synthesized `Hashable` of the three wrappers, reached through a generic
+    /// function.
     private static let fixtureSource = """
     import Foundation
 
@@ -69,11 +82,15 @@ struct CImportedTypeNameSpellingTests {
         public var thing: AnyFooThing
         public var identifier: AnyFooIdentifier
         public var key: ProbeOwner.Key
+        public var plain: ProbePlainValue
+        public var option: ProbeOption
 
-        public init(thing: AnyFooThing, identifier: AnyFooIdentifier, key: ProbeOwner.Key) {
+        public init(thing: AnyFooThing, identifier: AnyFooIdentifier, key: ProbeOwner.Key, plain: ProbePlainValue, option: ProbeOption) {
             self.thing = thing
             self.identifier = identifier
             self.key = key
+            self.plain = plain
+            self.option = option
         }
     }
 
@@ -83,11 +100,17 @@ struct CImportedTypeNameSpellingTests {
         }
     }
 
+    extension ProbePlainValue: Equatable {
+        public static func == (left: ProbePlainValue, right: ProbePlainValue) -> Bool {
+            left.value == right.value
+        }
+    }
+
     @inline(never) public func hashValue<Value: Hashable>(of value: Value) -> Int { value.hashValue }
     @inline(never) public func isEqual<Value: Equatable>(_ left: Value, _ right: Value) -> Bool { left == right }
 
-    public func exercise(_ holder: Holder) -> (Int, Int, Bool) {
-        (hashValue(of: holder.identifier), hashValue(of: holder.key), isEqual(holder.thing, holder.thing))
+    public func exercise(_ holder: Holder) -> (Int, Int, Bool, Bool, Int) {
+        (hashValue(of: holder.identifier), hashValue(of: holder.key), isEqual(holder.thing, holder.thing), isEqual(holder.plain, holder.plain), hashValue(of: holder.option))
     }
     """
 
@@ -236,6 +259,76 @@ struct CImportedTypeNameSpellingTests {
         #expect(swiftNamesByDescriptorName["Key"] == .some(nil))
         // The anonymous struct keeps its own name and has no entry.
         #expect(swiftNamesByDescriptorName["__Unnamed_struct__details"] == .some(nil))
+        // No ABI name: the compiler writes one only when the two names differ.
+        #expect(swiftNamesByDescriptorName["ProbePlainValue"] == .some("ProbePlainValue"))
+        #expect(swiftNamesByDescriptorName["ProbeOption"] == .some("ProbeOption"))
+    }
+
+    // MARK: - A descriptor's known Swift name
+
+    @Test("A descriptor whose ABI name is absent or its own name is its own Swift name", arguments: [
+        TypeImportInfo?.none,
+        TypeImportInfo(abiName: nil, symbolNamespace: TypeImportInfo.cTypedefSymbolNamespace, relatedEntityName: nil),
+        TypeImportInfo(abiName: "AGDescriptionOption", symbolNamespace: TypeImportInfo.cTypedefSymbolNamespace, relatedEntityName: nil),
+    ])
+    func knowsDescriptorNameWithoutABIName(importInfo: TypeImportInfo?) {
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "AGDescriptionOption", importInfo: importInfo, isDirectlyInImportedModule: true) == "AGDescriptionOption")
+    }
+
+    /// A type nested in a C type is printed through its parent, never looked
+    /// up by its own name.
+    @Test func doesNotKnowNestedDescriptorNameWithoutABIName() {
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "__Unnamed_struct__details", importInfo: nil, isDirectlyInImportedModule: false) == nil)
+    }
+
+    @Test func knowsTrustedRenameAndNotUntrustedOne() {
+        let trusted = TypeImportInfo(abiName: "AGWeakAttribute", symbolNamespace: nil, relatedEntityName: nil)
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "AnyWeakAttribute", importInfo: trusted, isDirectlyInImportedModule: true) == "AnyWeakAttribute")
+        let untrusted = TypeImportInfo(abiName: "AGTreeValue", symbolNamespace: TypeImportInfo.cTypedefSymbolNamespace, relatedEntityName: nil)
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "TreeValue", importInfo: untrusted, isDirectlyInImportedModule: true) == nil)
+    }
+
+    @Test func doesNotKnowRelatedEntityName() {
+        let withABIName = TypeImportInfo(abiName: "CKErrorCode", symbolNamespace: nil, relatedEntityName: "e")
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "CKError", importInfo: withABIName, isDirectlyInImportedModule: true) == nil)
+        let withoutABIName = TypeImportInfo(abiName: nil, symbolNamespace: nil, relatedEntityName: "e")
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "CKError", importInfo: withoutABIName, isDirectlyInImportedModule: true) == nil)
+    }
+
+    // MARK: - Types imported under their own C names
+
+    @Test func sameNameTypeReferencePrintsBareName() async throws {
+        let interface = try await buildInterface()
+        #expect(interface.contains("var plain: ProbePlainValue"), "\(interface)")
+        #expect(interface.contains("var option: ProbeOption"), "\(interface)")
+        #expect(!interface.contains("__C.ProbePlainValue"), "\(interface)")
+        #expect(!interface.contains("__C.ProbeOption"), "\(interface)")
+    }
+
+    @Test func sameNameTypeExtensionHeaderPrintsBareName() async throws {
+        let interface = try await buildInterface()
+        let plainLines = lines(of: interface, startingWith: "extension ProbePlainValue: ")
+        #expect(plainLines.contains { $0.contains("Swift.Equatable") }, "\(interface)")
+        #expect(!lines(of: interface, startingWith: "extension ProbeOption: ").isEmpty, "\(interface)")
+        #expect(lines(of: interface, startingWith: "extension __C.ProbePlainValue").isEmpty, "\(interface)")
+        #expect(lines(of: interface, startingWith: "extension __C.ProbeOption").isEmpty, "\(interface)")
+    }
+
+    @Test func sameNameTypeKeepsModuleThatResolverFinds() async throws {
+        let resolver = RecordingResolver(moduleNamesByTypeName: ["ProbePlainValue": "ProbeModule"])
+        let interface = try await buildInterface(resolver: resolver)
+        #expect(interface.contains("var plain: ProbeModule.ProbePlainValue"), "\(interface)")
+        #expect(!lines(of: interface, startingWith: "extension ProbeModule.ProbePlainValue: ").isEmpty, "\(interface)")
+        // Nothing found for the wrapper: its own name, alone.
+        #expect(interface.contains("var option: ProbeOption"), "\(interface)")
+    }
+
+    @Test func cSpellingKeepsMangledSameNameType() async throws {
+        let interface = try await buildInterface(spelling: .cName)
+        #expect(interface.contains("var plain: __C.ProbePlainValue"), "\(interface)")
+        #expect(interface.contains("var option: __C.ProbeOption"), "\(interface)")
+        #expect(!lines(of: interface, startingWith: "extension __C.ProbePlainValue: ").isEmpty, "\(interface)")
+        #expect(interface.contains("struct ProbePlainValue {"), "\(interface)")
     }
 
     // MARK: - Spelling Swift names
@@ -338,8 +431,9 @@ struct CImportedTypeNameSpellingTests {
         let marked = try await makeBuilder(marksCImportedTypeNames: true).printRoot().frozen()
         let names = marked.separatingAnnotationRegions().annotations.regions.compactMap(\.kind.cImportedTypeNames)
         // `ProbeOwnerKey` has no known Swift name without a resolver, and
-        // the anonymous struct has one name only.
-        #expect(!names.contains { $0.cName == "ProbeOwnerKey" || $0.cName == "__Unnamed_struct__details" })
+        // the anonymous struct and the two types imported under their own C
+        // names have one name only.
+        #expect(!names.contains { ["ProbeOwnerKey", "__Unnamed_struct__details", "ProbePlainValue", "ProbeOption"].contains($0.cName) })
     }
 
     @Test func regionKindRoundTripsDottedSwiftName() {

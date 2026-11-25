@@ -185,10 +185,12 @@ extension TypeNodePrintable {
         var resolvedCImportedModule = false
         var resolvedCImportedModuleName: String?
         // The Swift name the image's own descriptor gives a C-imported type
-        // (`AnyWeakAttribute` for `__C.AGWeakAttribute`; evolution proposal
-        // `c-imported-type-name-spelling`): what the identifier prints when no
-        // resolver spells it, with no module at all when none finds the
-        // module either — the name the type's declaration prints.
+        // (`AnyWeakAttribute` for `__C.AGWeakAttribute`, `AGDescriptionOption`
+        // for `__C.AGDescriptionOption`; evolution proposals
+        // `c-imported-type-name-spelling`, `consistent-c-imported-type-spelling`):
+        // what the identifier prints when no resolver spells it, with no
+        // module at all when none finds the module either — the name the
+        // type's declaration prints.
         let descriptorSwiftName = swiftNameFromDescriptor(ofCImportedType: name)
         if shouldPrintContext(), !isLocalType {
             let writtenUnitCountBeforeContext = target.writtenUnitCount
