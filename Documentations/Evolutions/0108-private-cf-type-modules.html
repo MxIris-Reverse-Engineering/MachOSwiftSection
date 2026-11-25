@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - 私有 CF 类型按导出 GetTypeID 的镜像解析所属模块</title>
+<title>0108 - 私有 CF 类型按导出 GetTypeID 的镜像解析所属模块</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -160,13 +160,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> 私有 CF 类型按导出 <code>GetTypeID</code> 的镜像解析所属模块</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0108</span></p>
+  <h1><span class="proposal-number">0108</span> 私有 CF 类型按导出 <code>GetTypeID</code> 的镜像解析所属模块</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-25</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
-    <div><dt>原文</dt><dd><code>draft-private-cf-type-modules.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0108-private-cf-type-modules.md</code></dd></div>
   </dl>
 </header>
 
@@ -199,7 +199,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <h2>要你定</h2>
   <div class="callout">
     <p class="callout-title">没有悬而未决的事</p>
-    <p>实现已完成，在本地合进常驻检出后可以就地看效果；看过后用 <code>finish-feature</code> 收尾。后续项（RuntimeViewer 接入、模块名与类型同名时用模块选择器）见「非目标」。</p>
+    <p>已落地：2026-11-25 合进 <code>next</code>，编号 0108。后续项：RuntimeViewer 接入、模块名与类型同名时用模块选择器、跟着重新导出找子框架、运行时来源放宽到间接依赖。</p>
   </div>
 </section>
 
@@ -432,7 +432,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>10 条，最近一条：不改成遍历导出 trie</summary>
+    <summary>11 条，最近一条：Implemented，落地编号 0108</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -448,6 +448,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-25</td><td>不导出 <code>GetTypeID</code> 的桥接类型印裸名</td><td>应用户要求实测并写成测试。</td></tr>
           <tr><td class="numeric">2026-11-25</td><td><code>IOSurfaceRef</code> 疑似问题未复现</td><td>印 <code>CoreGraphics.IOSurfaceRef</code>，能编过；模块选择器问题记为后续项。</td></tr>
           <tr><td class="numeric">2026-11-25</td><td>不改成遍历导出 trie</td><td>耗时测不出差别。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>Implemented，落地编号 0108</td><td>合进 <code>next</code> 并推送；演进账本第 154 节；后续项见「要你定」。</td></tr>
         </tbody>
       </table>
       </div>

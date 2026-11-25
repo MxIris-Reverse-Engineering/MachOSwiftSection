@@ -3593,6 +3593,20 @@
 - **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2969 个测试全过；TipKit 与 DeveloperToolsSupport 在 macOS 27.2 与 14.6 cache 上的前后对比见提案决策日志。
 - **对应版本**：未发布；依赖 swift-type-indexing 0.2.0（2026-11-25 发版）。
 
+## 154. 私有 CF 类型按导出 `GetTypeID` 的镜像解析所属模块
+
+- **时间段**：2026-11-25，本仓库的 `feature/private-cf-type-modules`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上编译、测试与对系统镜像做前后对照。
+- **动机**：`interface --resolve-c-module-names` 只认得 SDK 里有头文件的 C 导入类型；私有 CF 类型（`CGSVGDocumentRef`、`AGGraphRef`、`RIO…Ref`）在 0106 之后只印描述符给的裸名，看不出属于哪个框架。macOS 27.2 的 cache 里 Swift 用到 66 个 CF 类，20 个是私有的。
+- **关键决策**：
+  - 模块按「哪个镜像导出 `<名字>GetTypeID`」定：46 个公开 CF 类验证全对。只读根镜像与直接依赖。
+  - 走 swift-type-indexing 现成的 `DeclaredTypeNameSource` 注册表，不另写打印器解析器；打印器、swift-type-indexing、CLI 参数都不改。
+  - `TypeDatabase` 按镜像路径去重、静默丢掉第二个来源，所以一个依赖的 ObjC 名字与 CF 类型合成一个 `ImageDeclaredTypeNames`。
+  - `GetTypeID` 只负责定位；「是不是 CF 类型」由根镜像的 foreign class 描述符（C 导入、从 C typedef 升格来的 class）决定，挡掉 `CFRef` 这类非类型名字与同名的 `swift_wrapper` typedef。
+- **落地模块**：`Sources/Output/SwiftTypeNameResolution/`（`CFDeclaredTypeNames`、`ImageDeclaredTypeNames`、`SwiftInterfaceBuilderTypeNameProvider.declaredTypeNameSources(root:dependencies:)` 与 `cfTypedefNames(referencedBy:)`）、`Sources/Executables/swift-section/Commands/InterfaceCommand.swift` 的帮助文字。
+- **文档**：提案 [0108-private-cf-type-modules](../Evolutions/0108-private-cf-type-modules.md)；插件 skill 第 8 节；`AGENTS.md` 的 SwiftTypeNameResolution 一条。没有新术语，不另写使用指南或实现说明。
+- **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2978 个测试全过；两条回归测试（去重、foreign 描述符闸门）都先红后绿。macOS 27.2 系统镜像前后对照：SwiftUICore 300 行、AppKit 16 行、RealityIO 976 行变化，全是私有 CF 类型带上了模块，耗时测不出变化。
+- **对应版本**：未发布。RuntimeViewer 发版后接入（把 `ObjCDeclaredTypeNames` 换成 `ImageDeclaredTypeNames`）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

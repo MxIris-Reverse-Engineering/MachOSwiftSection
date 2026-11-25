@@ -1,12 +1,12 @@
-# Draft - 私有 CF 类型按导出 `GetTypeID` 的镜像解析所属模块
+# 0108 - 私有 CF 类型按导出 `GetTypeID` 的镜像解析所属模块
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-25
 - **最后更新**: 2026-11-25
 - **所属愿景**: 无
 - **关联提案**: [0105 swift-type-indexing-package](0105-swift-type-indexing-package.md)（`__C` 类型按 SDK 解析模块，`DeclaredTypeNameSource` 就是它定下的接口）；[0106 c-imported-type-name-spelling](0106-c-imported-type-name-spelling.md)（引用处改用描述符给的 Swift 名，本提案补上它缺的模块）
-- **实现分支 / PR**: `feature/private-cf-type-modules`（worktree `.worktrees/MachOSwiftSection-PrivateCFTypeModules`），叠在本地 `next` 上：那里有 `feature/moved-swift-type-modules` 的本地合并、尚未推到 `origin/next`，它同样改了 `SwiftInterfaceBuilderTypeNameProvider.swift`
+- **实现分支 / PR**: `feature/private-cf-type-modules`，2026-11-25 合进 `next`（worktree 与分支已删）。开工时叠在本地 `next` 上：那里有 `feature/moved-swift-type-modules` 的本地合并、尚未推到 `origin/next`，它同样改了 `SwiftInterfaceBuilderTypeNameProvider.swift`
 - **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
 - **网页版**: 同目录同名的 `.html`
 - **涉及仓库**: 只有 MachOSwiftSection。RuntimeViewer 自己登记类型名来源，要它也受益需要一行后续改动（见「非目标」）
@@ -328,3 +328,4 @@ extension ImageDeclaredTypeNames {
 | 2026-11-25 | 不改成遍历导出 trie | 第 3 步实测 SwiftUICore 热缓存下耗时 17.22 → 17.28 秒，`exportedSymbols` 的开销测不出来。 |
 | 2026-11-25 | 全量测试通过 | Ultra（macOS 27.2，Xcode 26.6），`swift test --skip IntegrationTests`：2978 个测试、563 个套件全部通过，退出码 0。 |
 | 2026-11-25 | 实现完成，待用户看过后收尾 | 文档判断：CLI 帮助文字、swift-section skill、`CLAUDE.md` 模块清单、两处索引已同批更新；不写单独的使用指南或实现说明，调用方契约在两个类型的文档注释里，「为什么一个镜像只登记一个来源、为什么判定靠 foreign 描述符」记在本提案；没有新术语。演进账本一节留到正式收尾。 |
+| 2026-11-25 | Implemented，落地编号 0108 | 合进 `next` 并推送（同一次推送带上了先在本地收尾的 0107）；演进账本第 154 节。后续项：RuntimeViewer 接入（发版后把 `ObjCDeclaredTypeNames` 换成 `ImageDeclaredTypeNames`）、模块名与它里面的类型同名时改用模块选择器（`IOSurface::IOSurfaceRef`）、跟着重新导出找子框架、给运行时来源放宽到间接依赖。 |
