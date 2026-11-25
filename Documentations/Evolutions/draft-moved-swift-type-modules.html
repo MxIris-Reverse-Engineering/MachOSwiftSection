@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-25</dd></div>
+    <div><dt>项目类型</dt><dd>库（跨仓库：swift-type-indexing + MachOSwiftSection）</dd></div>
+    <div><dt>原文</dt><dd><code>draft-moved-swift-type-modules.md</code></dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#decide">要你定</a></li>
+    <li><a href="#architecture">架构图</a></li>
+    <li><a href="#map">改动地图</a></li>
+    <li><a href="#design">详细设计</a></li>
+    <li><a href="#research">调研</a></li>
+    <li><a href="#alternatives">替代方案</a></li>
+    <li><a href="#impact">影响</a></li>
+    <li><a href="#steps">落地步骤</a></li>
+    <li><a href="#log">决策日志</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p>Apple 把一些 Swift 类型从一个模块搬进另一个模块时，会给声明加上 <code>@_originallyDefinedIn(module: "旧模块", 平台 版本)</code>。这个属性让 mangled name 和运行时元数据继续使用旧模块名，老二进制不用重编，所以二进制里只能读到旧名字：<code>CGFloat</code> 现在由 CoreFoundation 声明，mangling 却还是 <code>$s12CoreGraphics7CGFloatV</code>；macOS 15 起 SwiftUI 的约 370 个类型搬进了 SwiftUICore，mangling 还是 <code>7SwiftUI</code>。<code>swift-section interface</code> 因此印出 <code>CoreGraphics.CGFloat</code>、<code>SwiftUI.View</code>，而 SDK 的 <code>.swiftinterface</code> 写的是 <code>CoreFoundation::CGFloat</code>（CoreGraphics 的接口）、<code>SwiftUICore.View</code>（SwiftUI 的接口，2182 处）。</p>
+  <ul>
+    <li><strong>swift-type-indexing</strong> 在 <code>TypeDatabase</code> 第一次 <code>index</code> 时顺带扫描 SDK 里所有模块的文本 <code>.swiftinterface</code>，把每个顶层类型声明上的 <code>@_originallyDefinedIn</code> 记成「旧模块 + 类型名 → 现在声明它的模块，以及各平台的搬家版本」，新增查询 <code>declaringModuleName(ofMovedTypeNamed:originallyDefinedIn:builtAgainst:)</code>。扫描只读文本，不用 sourcekitd。</li>
+    <li><strong>MachOSwiftSection</strong> 的打印器多一个解析器角色 <code>MovedTypeModuleResolving</code>。注册了它，原生 Swift 类型的模块名就先问它，嵌套类型跟随最外层类型。<code>swift-section interface</code> 新增开关 <code>--resolve-moved-type-modules</code>，默认关闭。</li>
+  </ul>
+  <p>是否改写按二进制自己的 SDK 版本判断（<code>LC_BUILD_VERSION</code> 的 <code>sdk</code>）：用 macOS 14 SDK 编出的 SwiftUI 镜像，<code>View</code> 那时还在 SwiftUI 里，照旧印 <code>SwiftUI.View</code>。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+  <div class="callout">
+    <p class="callout-title">两件事</p>
+    <ol>
+      <li>开关做成独立的 <code>--resolve-moved-type-modules</code>（推荐：不需要 sourcekitd，几乎没有开销），还是并进现有的 <code>--resolve-c-module-names</code>？</li>
+      <li>方案是否批准、可以开工？</li>
+    </ol>
+  </div>
+  <div class="callout callout-note">
+    <p class="callout-title">我自己定的（可以推翻）</p>
+    <ul>
+      <li>默认关闭：输出会随宿主机的 SDK 变化。</li>
+      <li>按二进制的 <code>LC_BUILD_VERSION</code> <code>sdk</code> 判断，不看 <code>minos</code>。</li>
+      <li><code>dump</code>、<code>diff</code>、<code>snapshot</code>、<code>evolution</code> 不改：dump 从不读 SDK，其余按 mangled 名比较。</li>
+      <li><code>TypeDatabaseTypeNameResolver</code> 不变，RuntimeViewer 升级后输出不变，接入留给它自己。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+    <li><i class="swatch swatch-kept"></i>不变</li>
+  </ul>
+  <div class="figure">
+  <svg viewBox="0 0 1100 395" role="img" aria-label="Architecture of the moved type module resolution">
+    <rect class="group" x="10" y="10" width="400" height="300" rx="10"/>
+    <text class="group-label" x="22" y="30">swift-type-indexing</text>
+    <rect class="box-kept" x="25" y="45" width="370" height="36" rx="6"/><text x="35" y="67">TypeDatabase (actor)</text>
+    <rect class="box-added" x="25" y="91" width="370" height="44" rx="6"/><text x="35" y="109">MovedTypeIndex</text><text class="caption" x="35" y="125">scans every SDK module's .swiftinterface text</text>
+    <rect class="box-added" x="25" y="145" width="370" height="44" rx="6"/><text x="35" y="163">declaringModuleName(ofMovedTypeNamed:…)</text><text class="caption" x="35" y="179">public query, gated by the image's SDK version</text>
+    <rect class="box-changed" x="25" y="199" width="370" height="44" rx="6"/><text x="35" y="217">SDKPlatform</text><text class="caption" x="35" y="233">interface file suffix, Catalyst / visionOS fallback</text>
+    <rect class="box-kept" x="25" y="253" width="370" height="44" rx="6"/><text x="35" y="271">moduleName(forTypeName:) · swiftName(forCName:…)</text><text class="caption" x="35" y="287">__C only, unchanged</text>
+
+    <rect class="group" x="430" y="10" width="660" height="375" rx="10"/>
+    <text class="group-label" x="442" y="30">MachOSwiftSection</text>
+    <text class="group-label" x="445" y="55">SwiftPrinting</text>
+    <rect class="box-added" x="445" y="63" width="300" height="36" rx="6"/><text x="455" y="85">MovedTypeModuleResolving</text>
+    <rect class="box-changed" x="775" y="63" width="300" height="36" rx="6"/><text x="785" y="85">resolvedModuleName(of:…)</text>
+    <rect class="box-changed" x="445" y="109" width="300" height="44" rx="6"/><text x="455" y="127">SwiftDeclarationPrinter</text><text class="caption" x="455" y="143">registry: movedTypeModuleResolvers</text>
+    <rect class="box-changed" x="775" y="109" width="300" height="44" rx="6"/><text x="785" y="127">printModuleSelector(ofNestedType:)</text><text class="caption" x="785" y="143">key: the outermost type's name</text>
+
+    <text class="group-label" x="445" y="180">SwiftTypeNameResolution</text>
+    <rect class="box-added" x="445" y="188" width="300" height="44" rx="6"/><text x="455" y="206">TypeDatabaseMovedTypeModuleResolver</text><text class="caption" x="455" y="222">typeDatabase + sdkVersion</text>
+    <rect class="box-changed" x="775" y="188" width="300" height="44" rx="6"/><text x="785" y="206">SwiftInterfaceBuilderTypeNameProvider</text><text class="caption" x="785" y="222">resolutions: [.cImportedModules, .movedTypeModules]</text>
+    <rect class="box-kept" x="445" y="242" width="300" height="44" rx="6"/><text x="455" y="260">TypeDatabaseTypeNameResolver</text><text class="caption" x="455" y="276">unchanged (RuntimeViewer)</text>
+
+    <text class="group-label" x="445" y="312">SwiftSectionKit · swift-section</text>
+    <rect class="box-added" x="445" y="320" width="300" height="44" rx="6"/><text x="455" y="338">--resolve-moved-type-modules</text><text class="caption" x="455" y="354">swift-section interface</text>
+    <rect class="box-changed" x="775" y="320" width="300" height="44" rx="6"/><text x="785" y="338">InterfaceRequest</text><text class="caption" x="785" y="354">resolvesMovedTypeModules</text>
+
+    <path class="arrow" d="M 775 81 L 749 81"/>
+    <path class="arrow" d="M 775 210 L 749 210"/>
+    <path class="arrow" d="M 445 210 L 399 172"/>
+    <path class="arrow" d="M 925 320 L 925 236"/>
+    <path class="arrow" d="M 745 342 L 771 342"/>
+  </svg>
+  </div>
+  <p class="figure-caption">打印器在 <code>resolvedModuleName</code> 处问新角色；provider 持有适配器，适配器带着镜像的 SDK 版本去查 <code>TypeDatabase</code>。CLI 开关 → 请求 → provider。</p>
+  <p>一次查询的数据流：</p>
+<pre><code>interface print of `x: CoreGraphics.CGFloat`
+  TypeNodePrintable (context node = module "CoreGraphics", identifier "CGFloat")
+    resolvedModuleName(of: module, siblingIdentifier: "CGFloat")
+      not __C / __ObjC
+      delegate.declaringModuleName(ofMovedTypeNamed: "CGFloat", originallyDefinedIn: "CoreGraphics")
+        SwiftDeclarationPrinter -&gt; first non-nil of movedTypeModuleResolvers
+          SwiftInterfaceBuilderTypeNameProvider
+            TypeDatabaseMovedTypeModuleResolver(sdkVersion: LC_BUILD_VERSION.sdk)
+              TypeDatabase.declaringModuleName(ofMovedTypeNamed:originallyDefinedIn:builtAgainst:)
+                movedTypeDeclarationsByKey[CoreGraphics, CGFloat]
+                  -&gt; declaringModule "CoreFoundation", moved macOS 10.0
+                  sdkVersion &gt;= 10.0 -&gt; "CoreFoundation"
+    writes "CoreFoundation" + "." (or "::")</code></pre>
+</section>
+
+<section id="map">
+  <h2>改动地图</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+    <tbody>
+      <tr><td>swift-type-indexing <code>Sources/TypeIndexing/MovedTypeIndex.swift</code> · <code>MovedTypeIndex</code>、<code>MovedTypeDeclaration</code>、<code>MovedTypeKey</code></td><td><span class="tag tag-added">新增</span></td><td>文本扫描器（纯函数）与表的键值类型</td><td>搬家记录只在文本接口里</td><td class="numeric">1</td></tr>
+      <tr><td>swift-type-indexing <code>Sources/TypeIndexing/SDKPlatform.swift</code> · <code>SDKPlatform</code></td><td><span class="tag tag-changed">修改</span></td><td>内部属性：文本接口的文件名后缀，取哪个平台的搬家版本（含 Catalyst / visionOS 回退到 iOS）</td><td>挑文件、选版本都按平台</td><td class="numeric">1</td></tr>
+      <tr><td>swift-type-indexing <code>Sources/TypeIndexing/TypeDatabase.swift</code> · <code>TypeDatabase</code></td><td><span class="tag tag-changed">修改</span></td><td><code>discoverSDK()</code> 扫描并登记；新增 <code>declaringModuleName(ofMovedTypeNamed:originallyDefinedIn:builtAgainst:)</code>；内部 <code>register(movedTypeDeclarations:)</code></td><td>对外唯一入口</td><td class="numeric">2</td></tr>
+      <tr><td>swift-type-indexing <code>Tests/TypeIndexingTests/MovedTypeIndexTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>扫描器单元测试（手写接口文本）</td><td>规则可脱离 SDK 验证</td><td class="numeric">1</td></tr>
+      <tr><td>swift-type-indexing <code>Tests/TypeIndexingTests/TypeDatabaseMovedTypeTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>版本判断与平台回退</td><td>查询语义</td><td class="numeric">2</td></tr>
+      <tr><td>swift-type-indexing <code>Tests/TypeIndexingTests/SDKIntegrationTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>CGFloat</code> 与 <code>SwiftUI.View</code> 两条，照旧默认关闭</td><td>对真实 SDK 的核对</td><td class="numeric">2</td></tr>
+      <tr><td>swift-type-indexing <code>TypeIndexingPipeline.md</code>、<code>README.md</code>、<code>Evolutions/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>「搬家记录」一节、查询用法、cross-repository 一行</td><td>文档同批</td><td class="numeric">2</td></tr>
+      <tr><td><code>SwiftPrinting/NodePrintables/TypeNameResolving.swift</code> · <code>MovedTypeModuleResolving</code></td><td><span class="tag tag-added">新增</span></td><td>角色协议</td><td>打印器侧入口</td><td class="numeric">3</td></tr>
+      <tr><td><code>SwiftPrinting/NodePrintables/NodePrintableDelegate.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>declaringModuleName(ofMovedTypeNamed:originallyDefinedIn:)</code></td><td>节点打印器经委托提问</td><td class="numeric">3</td></tr>
+      <tr><td><code>SwiftPrinting/SwiftDeclarationPrinter.swift</code> · <code>TypeNameResolverRegistry</code></td><td><span class="tag tag-changed">修改</span></td><td>新角色的注册与分发</td><td>与其他角色同一套机制</td><td class="numeric">3</td></tr>
+      <tr><td><code>SwiftPrinting/NodePrintables/NodePrintable.swift</code> · <code>resolvedModuleName(of:siblingIdentifier:)</code></td><td><span class="tag tag-changed">修改</span></td><td>非 <code>__C</code> 模块问新角色</td><td>模块名输出的唯一出口</td><td class="numeric">3</td></tr>
+      <tr><td><code>SwiftPrinting/NodePrintables/TypeNodePrintable.swift</code> · <code>printModuleSelector(ofNestedType:)</code></td><td><span class="tag tag-changed">修改</span></td><td>模块节点来自根时，用最外层类型的标识符作键</td><td>嵌套类型跟随外层（编译器同样如此）</td><td class="numeric">3</td></tr>
+      <tr><td><code>Tests/SwiftInterfaceTests/MovedTypeModuleTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>FixtureCompiler</code> 现编引用 <code>CGFloat</code> 的小库，配记录型替身解析器</td><td>打印器行为不依赖 SDK</td><td class="numeric">3</td></tr>
+      <tr><td><code>SwiftTypeNameResolution/TypeDatabaseMovedTypeModuleResolver.swift</code></td><td><span class="tag tag-added">新增</span></td><td>包 <code>TypeDatabase</code> + SDK 版本的适配器</td><td>版本按镜像固定</td><td class="numeric">4</td></tr>
+      <tr><td><code>SwiftTypeNameResolution/SwiftInterfaceBuilderTypeNameProvider.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>Resolutions</code> 选项集合与 <code>resolutions:</code> 参数；遵循新角色；只开搬家时不生成模块接口</td><td>两个开关共用一个数据库</td><td class="numeric">4</td></tr>
+      <tr><td><code>Tests/SwiftTypeNameResolutionTests/TypeDatabaseMovedTypeModuleResolverTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>适配器的版本判断</td><td>适配层契约</td><td class="numeric">4</td></tr>
+      <tr><td><code>SwiftSectionKit/Swift/InterfaceRequest.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>resolvesMovedTypeModules</code> 字段、provider 接线与警告</td><td>子命令逻辑在请求里</td><td class="numeric">5</td></tr>
+      <tr><td><code>swift-section/Commands/InterfaceCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--resolve-moved-type-modules</code> 与 <code>makeRequest()</code> 一行</td><td>CLI 只是外壳</td><td class="numeric">5</td></tr>
+      <tr><td><code>Tests/SwiftSectionKitTests/…</code>、<code>CommandRequestMappingTests.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>请求两侧各一条</td><td>新开关两侧各一测</td><td class="numeric">5</td></tr>
+      <tr><td><code>Package.swift</code>、<code>Tuist/Package.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>swift-type-indexing 升到新版本</td><td>用上新 API</td><td class="numeric">4</td></tr>
+      <tr><td><code>AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新开关的说明与陷阱</td><td>CLI 改动同批改 skill</td><td class="numeric">5</td></tr>
+      <tr><td><code>Modules/SwiftInterface.md</code>、<code>Modules/SwiftSectionKit.md</code>、<code>Glossary.md</code>、<code>ProjectEvolutionLog.md</code>、<code>CLAUDE.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新角色、新开关、术语 moved type、账本一节</td><td>文档同批</td><td class="numeric">6</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details>
+    <summary>扫描器：只认第 0 列的属性组与紧跟的类型声明</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">struct</span> <span class="token-type">MovedTypeKey</span>: <span class="token-type">Hashable</span>, <span class="token-type">Sendable</span> {
+    <span class="token-keyword">let</span> originalModuleName: <span class="token-type">String</span>
+    <span class="token-keyword">let</span> typeName: <span class="token-type">String</span>
+}
+
+<span class="token-keyword">struct</span> <span class="token-type">MovedTypeDeclaration</span>: <span class="token-type">Hashable</span>, <span class="token-type">Sendable</span> {
+    <span class="token-keyword">let</span> typeName: <span class="token-type">String</span>
+    <span class="token-comment">/// The module the mangling names: the part before a `;`.</span>
+    <span class="token-keyword">let</span> originalModuleName: <span class="token-type">String</span>
+    <span class="token-comment">/// The module whose interface declares the type now.</span>
+    <span class="token-keyword">let</span> declaringModuleName: <span class="token-type">String</span>
+    <span class="token-keyword">let</span> movedVersionsByPlatformName: [<span class="token-type">String</span>: <span class="token-type">OperatingSystemVersion</span>]
+}
+
+<span class="token-keyword">enum</span> <span class="token-type">MovedTypeIndex</span> {
+    <span class="token-keyword">static func</span> movedTypeDeclarations(inInterfaceText interfaceText: <span class="token-type">String</span>, moduleName: <span class="token-type">String</span>) -&gt; [<span class="token-type">MovedTypeDeclaration</span>]
+}</code></pre>
+      <ul>
+        <li>属性组是连续的、从第 0 列开始的 <code>@</code> 行；一个属性写多个平台时逐个拆开。</li>
+        <li>组后第一行去掉属性与修饰词（<code>public</code>、<code>open</code>、<code>final</code>、<code>indirect</code>、<code>nonisolated</code>），关键字是 <code>struct</code> / <code>class</code> / <code>enum</code> / <code>protocol</code> / <code>actor</code> / <code>typealias</code> 才记，名字到 <code>&lt;</code>、<code>:</code>、空格、<code>=</code>、<code>{</code> 截止，反引号去掉。</li>
+        <li><code>OSX</code> 视同 <code>macOS</code>，<code>*ApplicationExtension</code> 视同基础平台。</li>
+        <li><code>module:</code> 有分号取前半段；等于本模块（<code>Swift;CompatibilitySpan</code>）就丢弃。</li>
+        <li>接口文件：<code>.swiftmodule</code> 目录下 <code>&lt;架构&gt;-apple-&lt;平台后缀&gt;.swiftinterface</code>，排除 <code>.private</code> / <code>.package</code>，按文件名排序取第一个；没有文本接口的模块跳过，读失败记日志跳过。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>查询与版本判断：按二进制的 SDK 版本</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">extension</span> <span class="token-type">TypeDatabase</span> {
+    <span class="token-keyword">public func</span> declaringModuleName(ofMovedTypeNamed typeName: <span class="token-type">String</span>, originallyDefinedIn originalModuleName: <span class="token-type">String</span>, builtAgainst sdkVersion: <span class="token-type">OperatingSystemVersion</span>) -&gt; <span class="token-type">String</span>?
+}</code></pre>
+      <ul>
+        <li>平台条目：macOS → macOS；Catalyst → macCatalyst，没有就 iOS；iOS / 模拟器 → iOS；tvOS、watchOS 同名；visionOS → visionOS，没有就 iOS 并换算（17.x → 1.x，18.x → 2.x，26 起相同，17 以前视为早已搬家）；driverKit 同名。</li>
+        <li>找不到适用条目：属性在该平台不生效，mangling 本来就是新模块，返回 <code>nil</code>。</li>
+        <li><code>sdkVersion</code> 不低于搬家版本才返回新模块；未 <code>index</code> 过返回 <code>nil</code>。</li>
+        <li>用 <code>sdk</code> 不用 <code>minos</code>：mangling 与部署目标无关，interface 要还原的是编译所用 SDK 里的写法；系统镜像的 <code>sdk</code> 就是它所属的系统版本。</li>
+      </ul>
+      <div class="callout callout-warning">
+        <p class="callout-title">已知偏差</p>
+        <p>属性写的版本不一定是源码真正搬家的时间：<code>CGFloat</code> 写 macOS 10.0，运行时 macOS 13 才搬进 <code>libswiftCoreFoundation</code>。用 macOS 12 SDK 编的二进制也会印 <code>CoreFoundation.CGFloat</code>。这里信属性，不另做修正表。</p>
+      </div>
+    </div>
+  </details>
+  <details>
+    <summary>打印器：新角色与嵌套类型的键</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">public protocol</span> <span class="token-type">MovedTypeModuleResolving</span>: <span class="token-type">TypeNameResolving</span> {
+    <span class="token-keyword">func</span> declaringModuleName(ofMovedTypeNamed typeName: <span class="token-type">String</span>, originallyDefinedIn originalModuleName: <span class="token-type">String</span>) <span class="token-keyword">async</span> -&gt; <span class="token-type">String</span>?
+}
+
+<span class="token-comment">// resolvedModuleName(of:siblingIdentifier:)</span>
+<span class="token-keyword">if</span> moduleName != objcModule, moduleName != cModule,
+   <span class="token-keyword">let</span> identifier = siblingIdentifier, !identifier.isEmpty,
+   <span class="token-keyword">let</span> delegate,
+   <span class="token-keyword">let</span> declaringModuleName = <span class="token-keyword">await</span> delegate.declaringModuleName(ofMovedTypeNamed: identifier, originallyDefinedIn: moduleName) {
+    <span class="token-keyword">return</span> (declaringModuleName, <span class="token-keyword">false</span>)
+}</code></pre>
+      <ul>
+        <li>返回的 <code>isResolvedCImportedModule</code> 仍是 <code>false</code>，不触发 C 名改写；与 <code>cImportedTypeNameSpelling</code> 无关。</li>
+        <li><code>declaringModuleForModuleSelector</code> 同时带回模块节点的来源：来自根时带回最外层类型的标识符作键；来自 <code>extension</code> 时不查询。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>适配层、请求与 CLI</summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">public struct</span> <span class="token-type">TypeDatabaseMovedTypeModuleResolver</span>: <span class="token-type">MovedTypeModuleResolving</span> {
+    <span class="token-keyword">public let</span> typeDatabase: <span class="token-type">TypeDatabase</span>
+    <span class="token-keyword">public let</span> sdkVersion: <span class="token-type">OperatingSystemVersion</span>
+    <span class="token-keyword">public init</span>(typeDatabase: <span class="token-type">TypeDatabase</span>, sdkVersion: <span class="token-type">OperatingSystemVersion</span>)
+}
+
+<span class="token-keyword">extension</span> <span class="token-type">SwiftInterfaceBuilderTypeNameProvider</span> {
+    <span class="token-keyword">public struct</span> <span class="token-type">Resolutions</span>: <span class="token-type">OptionSet</span>, <span class="token-type">Sendable</span> {
+        <span class="token-keyword">public static let</span> cImportedModules: <span class="token-type">Resolutions</span>
+        <span class="token-keyword">public static let</span> movedTypeModules: <span class="token-type">Resolutions</span>
+    }
+}
+
+<span class="token-keyword">public init?</span>(machO: <span class="token-type">MachO</span>, dependencies: <span class="token-type">SwiftInterfaceBuilderDependencies</span>&lt;<span class="token-type">MachO</span>&gt;, resolutions: <span class="token-type">Resolutions</span> = .cImportedModules, supplementaryAPINotesURLs: [<span class="token-type">URL</span>] = [])</code></pre>
+      <ul>
+        <li><code>MachOKit.Version</code> → <code>OperatingSystemVersion</code> 的转换放在适配层（swift-type-indexing 不依赖 MachOKit）。</li>
+        <li>未开 <code>.cImportedModules</code>：两个 C 角色方法返回 <code>nil</code>，<code>setup()</code> 用 <code>moduleFilter: { _ in false }</code> 调一次 <code>index</code>；未开 <code>.movedTypeModules</code>：新角色返回 <code>nil</code>。</li>
+        <li><code>InterfaceRequest.resolvesMovedTypeModules: Bool = false</code>；任一开关打开就构造 provider，警告措辞换成实际打开的开关名。</li>
+        <li>CLI：<code>--resolve-moved-type-modules</code>，帮助文字写明只读 SDK 的 <code>.swiftinterface</code>，需要 Xcode 或 Command Line Tools，不需要 sourcekitd，仅 macOS。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <details>
+    <summary>编译器、SDK、现状代码与成本</summary>
+    <div class="details-body">
+      <ol>
+        <li><strong>编译器</strong>：<code>Attr.h:2486</code> 的 <code>OriginallyDefinedInAttr</code> 存 <code>ManglingModuleName</code> 与 <code>LinkerModuleName</code>（<code>"Swift;CompatibilitySpan"</code> 分号前是 mangling 用的模块）。<code>Decl.cpp:1155</code> 的 <code>getAlternateModuleName()</code> 自己没有就沿 <code>DeclContext</code> 往上找，嵌套类型跟随外层。<code>Attr.cpp:2561</code> 的 <code>isActivePlatform</code> 只看平台不看版本。<code>PlatformKindUtils.cpp:131</code>：iOS 条目对 Catalyst 与 visionOS 同样生效。</li>
+        <li><strong>SDK</strong>：<code>libswiftCoreFoundation.tbd</code> 的 <code>$ld$previous</code> 显示 <code>CGFloat</code> 在 macOS 10.15–13.0 位于 <code>libswiftCoreGraphics.dylib</code>，属性却写 macOS 10.0。SwiftUICore 的搬家版本有 15.0、15.2、26.0、27.0 等批次；跟在属性后的声明有 266 struct、23 class、33 enum、40 protocol、5 typealias，另有 994 extension、17 func、185 var、16 let。</li>
+        <li><strong>现状代码</strong>：<code>NodePrintable.swift:186</code> 的 <code>resolvedModuleName</code> 只对 <code>__C</code> / <code>__ObjC</code> 提问，三个调用点 <code>NodePrintable.swift:176</code>、<code>TypeNodePrintable.swift:197</code>、<code>TypeNodePrintable.swift:310</code>。<code>InterfaceRequest.swift:224</code> 只在 <code>cModuleNameResolution</code> 打开时挂 provider；dump、diff、snapshot、evolution 不挂解析器。<code>import</code> 行来自 <code>SwiftInterfaceBuilder.swift:357</code> 的 <code>collectModules()</code>。</li>
+        <li><strong>swift-type-indexing</strong>（0.1.1）：只回答 <code>__C</code>；sourcekitd 一层不留属性，文档说明不读文本接口。<code>SDKIndexer</code> 已列出每个 <code>.swiftmodule</code> 的路径。</li>
+        <li><strong>成本</strong>：macOS 27.2 SDK 有 368 个 <code>.swiftmodule</code>、266 份 <code>arm64e-apple-macos.swiftinterface</code>，<code>grep</code> 扫完用时 0.38 秒；Swift 逐行解析的实测落地时补上。</li>
+        <li><strong>现在的输出能编过</strong>：SE-0491 让 <code>Module::Name</code> 也能找到被该模块重新导出的声明；CoreGraphics 重新导出 CoreFoundation，SwiftUI 的接口第 19 行 <code>@_exported import SwiftUICore</code>。</li>
+        <li><strong>使用方</strong>：RuntimeViewer 经 <code>TypeDatabaseTypeNameResolver(typeDatabase:)</code> 注册（<code>RuntimeTypeIndex.swift:145</code>），本提案不改它。</li>
+      </ol>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>七条被否的路径</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>并进 <code>--resolve-c-module-names</code></strong>：那个开关首次要经 sourcekitd 生成接口（UIKit 冷生成 126 秒），名字也说的是 <code>__C</code>。否，两者都开时共用数据库。</li>
+        <li><strong>从 <code>$ld$previous</code> 推导</strong>：给的是库路径不是模块名，还要逐符号归并。否。</li>
+        <li><strong>经 sourcekitd 接口读属性</strong>：只覆盖依赖命中的模块、不留属性，而搬家后的模块常不是直接依赖。否。</li>
+        <li><strong>不判断版本</strong>：macOS 14 的 SwiftUI 会印出当时不存在的 SwiftUICore。否。</li>
+        <li><strong>按定义是否在被打印镜像里判断</strong>：SwiftUICore 镜像会被反着判。否。</li>
+        <li><strong>打印器协议带版本</strong>：版本是镜像的固定属性，构造适配器时给一次即可。否。</li>
+        <li><strong>给 <code>TypeDatabaseTypeNameResolver</code> 直接加角色</strong>：RuntimeViewer 升级后会悄悄改变输出，且拿不到每个镜像的 SDK 版本。否。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+  <details>
+    <summary>纯新增；swift-type-indexing 要先发 0.2.0</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>源码兼容</strong>：纯新增。<code>SwiftInterfaceBuilderTypeNameProvider.init</code> 与 <code>InterfaceRequest</code> 加的参数都有保持现状的默认值；<code>NodePrintableDelegate</code> 是内部协议。</li>
+        <li><strong>ABI</strong>：不适用，两个库都以 SPM 源码分发。</li>
+        <li><strong>下游</strong>：swift-type-indexing 0.1.x → 0.2.0 先发版；RuntimeViewer 与 MachOObjCSection 的 <code>ObjCTypeIndexing</code> 不受影响。</li>
+        <li><strong>非目标</strong>：dump；diff / snapshot / evolution 与查找键；<code>import</code> 行；声明在搬过家的 extension 里的嵌套类型；函数与变量的搬家；默认开启；RuntimeViewer 接入。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+  <details>
+    <summary>六步：扫描器 → 数据库 → 打印器 → 适配层 → 请求与 CLI → 文档</summary>
+    <div class="details-body">
+      <ol>
+        <li><strong>扫描器</strong>：<code>structMovedFromAnotherModuleIsRecorded</code>、<code>protocolClassEnumActorAndTypealiasAreRecorded</code>、<code>extensionsFunctionsAndVariablesAreNotRecorded</code>、<code>declarationModifiersAndAttributesBeforeTheKeywordAreSkipped</code>、<code>severalPlatformsInOneAttributeAreSplit</code>、<code>manglingModuleIsThePartBeforeTheSemicolon</code>、<code>moveWithinTheSameModuleIsNotRecorded</code>、<code>indentedAttributesAreIgnored</code>、<code>interfaceFileMatchingThePlatformIsChosen</code></li>
+        <li><strong>数据库与查询</strong>（之后发 swift-type-indexing 0.2.0）：<code>answersTheDeclaringModuleWhenTheSDKIsNotOlderThanTheMove</code>、<code>answersNothingForAnSDKOlderThanTheMove</code>、<code>answersNothingForATypeThatNeverMoved</code>、<code>answersNothingBeforeIndexing</code>、<code>macCatalystFallsBackToTheIOSVersion</code>、<code>visionOSMapsTheIOSVersion</code>、<code>firstDiscoveredModuleWinsATiedKey</code>；SDK 集成（默认关闭）<code>cgFloatMovedFromCoreGraphicsToCoreFoundation</code>、<code>swiftUIViewMovedToSwiftUICoreInMacOS15</code></li>
+        <li><strong>打印器</strong>：<code>movedTopLevelTypePrintsUnderItsDeclaringModule</code>、<code>nestedTypeFollowsItsOutermostType</code>、<code>moduleSelectorsSpellTheDeclaringModuleOnNestedTypes</code>、<code>extensionHeaderOfAMovedProtocolUsesTheDeclaringModule</code>、<code>cImportedModulesAreNeverAskedAboutMoves</code>、<code>withoutAResolverTheManglingModuleIsKept</code>、<code>importLinesKeepTheManglingModules</code></li>
+        <li><strong>适配层</strong>：<code>resolverAnswersForTheImagesSDKVersion</code>、<code>providerWithOnlyMovedTypesGeneratesNoModuleInterface</code>、<code>providerWithBothResolutionsSharesOneDatabase</code>、<code>providerDefaultKeepsTodaysResolutions</code></li>
+        <li><strong>请求与 CLI</strong>：<code>interfaceRequestResolvesMovedTypeModulesOnlyWhenAsked</code>、<code>resolveMovedTypeModulesFlagMapsOntoTheRequest</code>、<code>bothResolutionFlagsCombine</code>；核对 skill 点到的开关都还存在</li>
+        <li><strong>文档与收尾</strong>：打 macOS 27 与 15.5 归档 cache 的 SwiftUI 各一次，前者印 SwiftUICore、后者照旧；默认关闭时输出逐字节不变，不需要渲染 A/B</li>
+      </ol>
+    </div>
+  </details>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>2 条，最近一条：方案取舍（待用户确认）</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-25</td><td>Created as Draft</td><td>用户发现 <code>CGFloat</code> 在 SDK 里由 CoreFoundation 声明、二进制里却叫 CoreGraphics，问 swift-type-indexing 能否让输出与 SDK 一致；调研确认能做，用户要求写提案。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>方案取舍（待用户确认）</td><td>独立开关、默认关闭；按二进制的 SDK 版本判断是否改写；dump 与 diff 类命令不改；RuntimeViewer 不随升级改变行为。</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>
