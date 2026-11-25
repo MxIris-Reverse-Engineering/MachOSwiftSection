@@ -822,6 +822,12 @@ extension SwiftDeclarationPrinter {
     /// names, `extension AnyWeakAttribute`, or `extension CoreFoundation.CGRect`
     /// once a resolver finds the module. Spelling C names it prints as the
     /// mangling spells it, which the plain spelling below already does.
+    ///
+    /// So does the extended type of an extension of a Swift type the SDK
+    /// moved between modules (evolution proposal `moved-swift-type-modules`):
+    /// `extension CoreFoundation.CGFloat` where the mangling says
+    /// `CoreGraphics`, once a `MovedTypeModuleResolving` resolver names the
+    /// module. Any other type keeps the plain spelling.
     @SemanticStringBuilder
     package func renderExtendedTypeName(_ extensionName: ExtensionName) async -> SemanticString {
         if spellsPositionNamedLocalType(extensionName.node) {
@@ -831,9 +837,34 @@ extension SwiftDeclarationPrinter {
                   isCImportedTypeReference(extensionName.node),
                   let spelledName = try? await typeDemangleResolver.resolve(for: extensionName.node) {
             spelledName.replacingTypeNameOrOtherToTypeDeclaration()
+        } else if await isMovedTypeReference(extensionName.node),
+                  let spelledName = try? await typeDemangleResolver.resolve(for: extensionName.node) {
+            spelledName.replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             extensionName.print(usesModuleSelectors: configuration.usesModuleSelectors)
         }
+    }
+
+    /// Whether `name`, with any `type` wrapper taken off, is a Swift type
+    /// — or nested in one — whose outermost type a registered
+    /// `MovedTypeModuleResolving` resolver says the SDK moved to another
+    /// module. Never asks about a `__C` / `__ObjC` type, nor about a type
+    /// declared in an extension or a function.
+    private func isMovedTypeReference(_ name: NodeReference) async -> Bool {
+        var current = name
+        while current.kind == .type, let wrapped = current.children.first {
+            current = wrapped
+        }
+        while current.kind.isAnyGeneric, let context = current.children.first {
+            if context.kind == .module {
+                guard let moduleName = context.text, moduleName != objcModule, moduleName != cModule,
+                      current.children.count > 1, let typeName = current.children[1].text
+                else { return false }
+                return await declaringModuleName(ofMovedTypeNamed: typeName, originallyDefinedIn: moduleName) != nil
+            }
+            current = context
+        }
+        return false
     }
 
     /// Whether `name`, with any `type` wrapper taken off, is a nominal type

@@ -9,6 +9,7 @@ import Demangling
 protocol NodePrintableDelegate: AnyObject, Sendable {
     func moduleName(forTypeName typeName: String) async -> String?
     func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String?
+    func declaringModuleName(ofMovedTypeNamed typeName: String, originallyDefinedIn originalModuleName: String) async -> String?
     func opaqueType(forNode node: Node, index: Int?, spellingOptions: DemangleOptions) async -> String?
     /// Whether what `opaqueType(forNode:index:)` supplies is to be marked as
     /// visible only with opaque type resolution on (see

@@ -38,6 +38,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
     private struct TypeNameResolverRegistry: Sendable {
         var moduleNameResolvers: [any ModuleNameResolving] = []
         var cImportedNameResolvers: [any CImportedNameResolving] = []
+        var movedTypeModuleResolvers: [any MovedTypeModuleResolving] = []
         var opaqueTypeResolvers: [any OpaqueTypeResolving] = []
     }
 
@@ -246,6 +247,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOFieldLayoutRenderable>: S
             }
             if let cImportedNameResolver = resolver as? any CImportedNameResolving {
                 registry.cImportedNameResolvers.append(cImportedNameResolver)
+                matchedAnyRole = true
+            }
+            if let movedTypeModuleResolver = resolver as? any MovedTypeModuleResolving {
+                registry.movedTypeModuleResolvers.append(movedTypeModuleResolver)
                 matchedAnyRole = true
             }
             if let opaqueTypeResolver = resolver as? any OpaqueTypeResolving {
@@ -1300,6 +1305,10 @@ extension SwiftDeclarationPrinter: NodePrintableDelegate {
 
     public func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String? {
         await typeNameResolverRegistry.cImportedNameResolvers.asyncFirstNonNil { await $0.swiftName(forCName: cName, category: category) }
+    }
+
+    public func declaringModuleName(ofMovedTypeNamed typeName: String, originallyDefinedIn originalModuleName: String) async -> String? {
+        await typeNameResolverRegistry.movedTypeModuleResolvers.asyncFirstNonNil { await $0.declaringModuleName(ofMovedTypeNamed: typeName, originallyDefinedIn: originalModuleName) }
     }
 
     public func opaqueType(forNode node: Node, index: Int?) async -> String? {

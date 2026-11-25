@@ -33,6 +33,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Resolve __C/__ObjC type module names to their real modules (__C.NSString -> Foundation.NSString) by indexing the SDK modules the binary links, its APINotes, and its dependencies' ObjC metadata. Requires Xcode; the first run per SDK generates module interfaces through sourcekitd and caches the extraction.")
     var resolveCModuleNames: Bool = false
 
+    @Flag(help: "Print a Swift type the SDK moved to another module (@_originallyDefinedIn) under the module that declares it now (CoreGraphics.CGFloat -> CoreFoundation.CGFloat, SwiftUI.View -> SwiftUICore.View), when the binary was built against an SDK that had already moved it. Reads the SDK's .swiftinterface files: needs Xcode or the Command Line Tools, not sourcekitd. macOS only.")
+    var resolveMovedTypeModules: Bool = false
+
     @Option(name: .customLong("c-imported-type-name-spelling"), help: "How imported C and Objective-C types are spelled. swift-name (the default) prints the name Swift code uses: a type the binary's own descriptors rename prints under that name (__C.AGWeakAttribute -> AnyWeakAttribute), under its module when --resolve-c-module-names finds it. c-name prints every one as the binary mangles it (__C.AGWeakAttribute), declarations included, and resolves nothing.")
     var cImportedTypeNameSpelling: CImportedTypeNameSpelling = .swiftName
 
@@ -95,6 +98,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             showsCImportedTypes: showCImportedTypes,
             parsesOpaqueReturnTypes: parseOpaqueReturnType,
             cModuleNameResolution: resolveCModuleNames ? .enabled(supplementaryAPINotesPaths: supplementaryAPINotesPaths) : .disabled,
+            resolvesMovedTypeModules: resolveMovedTypeModules,
             fieldOffsetComments: emitExpandedFieldOffsets ? .expanded : (emitOffsetComments ? .flat : .none),
             emitsMemberAddresses: emitMemberAddresses,
             emitsVTableOffsets: emitVtableOffsets,

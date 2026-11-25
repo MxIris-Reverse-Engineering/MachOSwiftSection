@@ -44,6 +44,19 @@ public protocol CImportedNameResolving: TypeNameResolving {
     func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String?
 }
 
+/// Resolves the module that declares a Swift type now when its mangling
+/// names the module the type was originally defined in
+/// (`@_originallyDefinedIn`): `CoreGraphics.CGFloat` → `CoreFoundation`,
+/// `SwiftUI.View` → `SwiftUICore` (evolution proposal
+/// `moved-swift-type-modules`).
+///
+/// The printer asks for every module other than `__C` / `__ObjC`, by the
+/// top-level type's name: a nested type follows its outermost type, as the
+/// compiler's mangling does. `nil` keeps the mangling's module.
+public protocol MovedTypeModuleResolving: TypeNameResolving {
+    func declaringModuleName(ofMovedTypeNamed typeName: String, originallyDefinedIn originalModuleName: String) async -> String?
+}
+
 /// Expands an opaque return type (`some P`) from its descriptor's generic
 /// requirements.
 public protocol OpaqueTypeResolving: TypeNameResolving {

@@ -181,16 +181,31 @@ extension NodePrintable {
     /// The module a `module` node names, with a C-imported module spelling
     /// (`__C` / `__ObjC`) resolved to its real module through the delegate
     /// when the sibling identifier finds one. A printer spelling C names
-    /// (`CImportedTypeNameSpelling.cName`) asks nothing and keeps the
-    /// mangling's module.
+    /// (`CImportedTypeNameSpelling.cName`) asks nothing about those and keeps
+    /// the mangling's module.
+    ///
+    /// Any other module is the one a Swift type's mangling names, which for a
+    /// type the SDK moved (`@_originallyDefinedIn`) is the module it was
+    /// originally defined in: the delegate is asked for the module declaring
+    /// it now, by `siblingIdentifier` — the name of the top-level type the
+    /// module node roots (evolution proposal `moved-swift-type-modules`).
     func resolvedModuleName(of node: Node, siblingIdentifier: String?) async -> (text: String, isResolvedCImportedModule: Bool) {
         let moduleName = node.text ?? ""
+        let isCImportedModule = moduleName == objcModule || moduleName == cModule
         if context.cImportedTypeNameSpelling == .swiftName,
-           moduleName == objcModule || moduleName == cModule,
+           isCImportedModule,
            let identifier = siblingIdentifier,
            let delegate,
            let updatedModuleName = await or(await delegate.moduleName(forTypeName: identifier), await delegate.moduleName(forTypeName: identifier.strippedRefSuffix)) {
             return (updatedModuleName, true)
+        }
+        if !isCImportedModule,
+           !moduleName.isEmpty,
+           let identifier = siblingIdentifier,
+           !identifier.isEmpty,
+           let delegate,
+           let declaringModuleName = await delegate.declaringModuleName(ofMovedTypeNamed: identifier, originallyDefinedIn: moduleName) {
+            return (declaringModuleName, false)
         }
         return (moduleName, false)
     }
