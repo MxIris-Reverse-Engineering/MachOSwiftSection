@@ -245,17 +245,15 @@ extension SwiftInterfaceBuilderTypeNameProvider {
 ## 落地步骤
 
 0. **提案落盘、登记索引**（本次）—— 改动地图最后两行中的索引部分
-1. **`CFDeclaredTypeNames` 与它的测试** —— 改动地图第 1、2 行
-   - 行为：`exportedTypeIDFunctionNamesItsTypedef`（`_CGSVGDocumentGetTypeID` → `CGSVGDocumentRef`）
-   - 行为：`underscoredTypeIDFunctionNamesBothSpellings`（`__LSASNGetTypeID` → `_LSASNRef`、`LSASNRef`）
-   - 行为：`otherExportsNameNothing`（`_CGSVGDocumentCreate`、`_GetTypeID`、`_$s…`、`_OBJC_CLASS_$_…` → 空）
-   - 行为：`readsACompiledLibrarysExportsThroughBothReaders`（用 `FixtureCompiler` 现场编译一个导出 `ProbeWidgetGetTypeID`、`_ProbeSecretGetTypeID`、`ProbeWidgetCreate` 的 C 动态库，`MachOFile` 与 `dlopen` 后的 `MachOImage` 读出同样的名字）
-2. **provider 登记新来源，端到端验证** —— 改动地图第 3、4 行
-   - 行为：`sourcesListTheRootFirstThenEachDependencyObjCBeforeCF`
-   - 行为：`typeDatabaseAttributesAnExportedCFTypeToItsImage`（`TypeDatabase` 只登记第 1 步的 C 库、`moduleFilter` 不选任何模块，`moduleName(forTypeName: "ProbeWidgetRef") == "ProbeCF"`）
-   - 行为：`interfacePrintsAPrivateCFTypeUnderItsDeclaringModule`（一个用桥接头引入 `CF_BRIDGED_TYPE(id)` 的 `ProbeWidgetRef`、在公开 struct 里存它的 Swift 库，接口里的字段类型印成 `ProbeCF.ProbeWidget`；先断言这个库确实带着 `ProbeWidgetRef` 的描述符）
-   - 行为：`interfaceKeepsTheBareSwiftNameWithoutTheSource`（同一个库、不登记来源时仍是 0106 的 `ProbeWidget`）
-   - 现场编译用 `FixtureCompiler`；它给不出桥接头的路径时，照 `Tests/SwiftInterfaceTests/CImportedTypeNameSpellingTests.swift` 的写法，并把这个能力缺口记进 shared-macho-testing-support 提案
+1. ✅ **`CFDeclaredTypeNames` 与它的测试** —— 改动地图第 1、2 行（`Tests/SwiftTypeNameResolutionTests/CFDeclaredTypeNamesTests.swift`；Ultra，Xcode 26.6，3 个测试通过）
+   - 行为：`fileNamesTheTypedefOfEveryExportedTypeIDFunction`（`FixtureCompiler` 现场编译的 C 库导出 `ProbeWidgetGetTypeID`、`_ProbeSecretGetTypeID`、`ProbeWidgetCreate`、`GetTypeID`、`__GetTypeID`，经 `MachOFile` 读出的名字恰好是 `ProbeWidgetRef`、`_ProbeSecretRef`、`ProbeSecretRef`）
+   - 行为：`loadedImageNamesTheSameTypedefs`（同一个库 `dlopen` 后经 `MachOImage` 读出同样的名字）
+   - 行为：`coreSVGDeclaresItsPrivateDocumentType`（本机 cache 里的 CoreSVG，文件与进程内两种读法都给出 `CGSVGDocumentRef`）
+2. **provider 登记新来源，端到端验证** —— 改动地图第 3、4 行（`Tests/SwiftTypeNameResolutionTests/PrivateCFTypeModuleTests.swift`）
+   - 夹具：C 库 `ProbeCF` 导出 `ProbeWidgetGetTypeID`；Swift 库 `ProbeKit` 用桥接头声明两个 `CF_BRIDGED_TYPE(id)` 的 typedef，链接 `ProbeCF`，并用 `@_cdecl` 自己导出 `ProbeGadgetGetTypeID`。`FixtureCompiler` 把 install name 固定成 `@rpath/lib<名字>.dylib`，所以模块名是 `libProbeCF`、`libProbeKit`
+   - 行为：`aPrivateCFTypePrintsUnderTheImageExportingItsTypeID`（字段类型印成 `libProbeCF.ProbeWidget`）
+   - 行为：`aCFTypeTheRootDefinesPrintsUnderTheRootsModule`（根镜像自己定义的印成 `libProbeKit.ProbeGadget`）
+   - 行为：`withoutTheProviderAPrivateCFTypeKeepsItsBareSwiftName`（不挂 provider 时仍是 0106 的 `ProbeWidget`）
 3. **文档与系统镜像验证** —— 改动地图第 5–9 行
    - 在 Ultra 上对本机 cache 的 SwiftUICore、AppKit、RealityIO 跑 `interface --resolve-c-module-names`，确认 `CoreSVG.CGSVGDocument`、`AttributeGraph.Graph`、`CoreGraphics.CGColorTransform`、`CoreRealityIO.RIOPxrSdfLayer`，并量耗时变化（详细设计「性能」），结果记进本提案
    - 测试一律在 Ultra 上跑（公司那台不跑本库的测试），`--filter` 同时带 `--skip IntegrationTests`
@@ -273,3 +271,4 @@ extension SwiftInterfaceBuilderTypeNameProvider {
 | 2026-11-25 | 实现放在本仓库，形式是 `DeclaredTypeNameSource` | 用户选定放在本仓库、不改 swift-type-indexing。调研发现用户设想的「类型索引开放注册表、各库注册自己的内容」已经以 `DeclaredTypeNameSource` 存在，ObjC 侧就是这样接入的，因此不再另写打印器解析器（替代方案第 1 条）。用户确认这个形式。 |
 | 2026-11-25 | `IOSurfaceRef` 疑似问题先复现 | 用户定：先在 Ultra 上复现调研第 10 条，确认是真的再按 bug 修复另走一批，不并入本提案。 |
 | 2026-11-25 | 用户批准，开始实现 | 轻量档，用户看过简报后批准。功能分支从本地 `next` 切，因为 moved-swift-type-modules 的本地合并也改了 provider 的 `setup()`，从 `origin/next` 切会在合回时冲突。 |
+| 2026-11-25 | 测试都放在公开 seam 上 | 命名规则不单独测内部静态函数，改由现场编译的 C 库的导出覆盖各种写法；来源顺序不单独测内部函数，改由端到端测试证明根镜像与依赖各自归属。`declaredTypeNameSources(root:dependencies:)` 仍按设计抽成内部静态函数。 |
