@@ -9,20 +9,22 @@ import TypeIndexing
 ///
 /// A CF type's Swift metadata names the type but never its module — its
 /// descriptor sits in `__C` — while the framework defining it exports the
-/// type's `GetTypeID` function. Registered beside `ObjCDeclaredTypeNames`, this
-/// attributes a private CF type such as `CGSVGDocumentRef` to the image
-/// exporting `CGSVGDocumentGetTypeID` (`CoreSVG`). `TypeDatabase` consults it
-/// only for names neither the SDK's module interfaces nor its API notes
-/// attribute, and reads the image's exports only on such a miss (evolution
-/// proposal `private-cf-type-modules`).
+/// type's `GetTypeID` function. This attributes a private CF type such as
+/// `CGSVGDocumentRef` to the image exporting `CGSVGDocumentGetTypeID`
+/// (`CoreSVG`). `TypeDatabase` consults it only for names neither the SDK's
+/// module interfaces nor its API notes attribute, and reads the image's
+/// exports only on such a miss (evolution proposal `private-cf-type-modules`).
+///
+/// `TypeDatabase` keeps one source per image path, so an image whose
+/// Objective-C names are registered too goes in as one
+/// ``ImageDeclaredTypeNames``, which reads both; this alone is for an image
+/// read for its CF types only.
 ///
 /// ```swift
-/// let sources: [any DeclaredTypeNameSource] = dependencyImages.flatMap { image in
-///     [
-///         ObjCDeclaredTypeNames(machO: image, imagePath: image.imagePath),
-///         CFDeclaredTypeNames(machO: image, imagePath: image.imagePath),
-///     ]
-/// }
+/// try await typeDatabase.index(
+///     dependencies: [CFDeclaredTypeNames(machO: coreSVG, imagePath: coreSVG.imagePath)],
+///     moduleFilter: { _ in false }
+/// )
 /// ```
 public struct CFDeclaredTypeNames<MachO: MachORepresentable & Sendable>: DeclaredTypeNameSource {
     public let imagePath: String

@@ -101,15 +101,14 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
     /// `TypeDatabase` reads them on a name the SDK does not attribute: the
     /// root's CF types first — a type the root defines is its own — then each
     /// direct dependency's Objective-C names and CF types, in dependency
-    /// order. The root generates no SDK interface: it is not in the module
-    /// filter.
+    /// order. One source per image: `TypeDatabase` skips a second source with
+    /// the same image path. The root generates no SDK interface: it is not in
+    /// the module filter.
     static func declaredTypeNameSources(root: MachO, dependencies: [MachO]) -> [any DeclaredTypeNameSource] {
-        var sources: [any DeclaredTypeNameSource] = [CFDeclaredTypeNames(machO: root, imagePath: root.imagePath)]
-        for dependency in dependencies {
-            sources.append(ObjCDeclaredTypeNames(machO: dependency, imagePath: dependency.imagePath))
-            sources.append(CFDeclaredTypeNames(machO: dependency, imagePath: dependency.imagePath))
+        let rootSource: any DeclaredTypeNameSource = CFDeclaredTypeNames(machO: root, imagePath: root.imagePath)
+        return [rootSource] + dependencies.map { dependency in
+            ImageDeclaredTypeNames(machO: dependency, imagePath: dependency.imagePath)
         }
-        return sources
     }
 
     public func moduleName(forTypeName typeName: String) async -> String? {
