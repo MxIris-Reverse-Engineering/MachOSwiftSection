@@ -10,16 +10,48 @@ import SwiftInterface
 import SwiftPrinting
 import TypeIndexing
 
-/// The `SwiftInterfaceBuilder` extra-data provider that resolves `__C` /
-/// `__ObjC` types: attach it and `__C.NSString` prints as
-/// `Foundation.NSString`, `__C.UICellConfigurationState` as
-/// `UIKit.__UICellConfigurationState`, through a swift-type-indexing
-/// `TypeDatabase` built for the indexed binary's platform and dependency set.
+/// What a `SwiftInterfaceBuilderTypeNameProvider` resolves through the SDK.
 @available(macOS 13.0, *)
-public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & ObjCMetadataSource & Sendable>: SwiftInterfaceBuilderExtraDataProvider, ModuleNameResolving, CImportedNameResolving, Sendable {
+public struct SDKTypeNameResolutions: OptionSet, Hashable, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    /// `__C` / `__ObjC` types: the module that declares them and the name
+    /// Swift gives them (`__C.NSString` → `Foundation.NSString`). Indexes the
+    /// SDK modules the binary links through sourcekitd — the first run per
+    /// SDK generates their interfaces.
+    public static let cImportedModules = SDKTypeNameResolutions(rawValue: 1 << 0)
+
+    /// Swift types the SDK moved between modules (`@_originallyDefinedIn`):
+    /// the module that declares them now (`CoreGraphics.CGFloat` →
+    /// `CoreFoundation.CGFloat`), for the SDK version the binary was built
+    /// with. Reads the SDK's textual interfaces; no sourcekitd.
+    public static let movedTypeModules = SDKTypeNameResolutions(rawValue: 1 << 1)
+}
+
+/// The `SwiftInterfaceBuilder` extra-data provider that resolves type names
+/// through the SDK the indexed binary was built for: attach it and
+/// `__C.NSString` prints as `Foundation.NSString`,
+/// `__C.UICellConfigurationState` as `UIKit.__UICellConfigurationState`, and —
+/// with ``SDKTypeNameResolutions/movedTypeModules`` — `CoreGraphics.CGFloat` as
+/// `CoreFoundation.CGFloat`, through one swift-type-indexing `TypeDatabase`
+/// built for the binary's platform and dependency set.
+@available(macOS 13.0, *)
+public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & ObjCMetadataSource & Sendable>: SwiftInterfaceBuilderExtraDataProvider, ModuleNameResolving, CImportedNameResolving, MovedTypeModuleResolving, Sendable {
     public let machO: MachO
 
+    /// What this provider resolves; a role it was not asked for answers
+    /// `nil`.
+    public let resolutions: SDKTypeNameResolutions
+
     private let resolver: TypeDatabaseTypeNameResolver
+
+    /// `nil` unless ``resolutions`` contains
+    /// ``SDKTypeNameResolutions/movedTypeModules``.
+    private let movedTypeModuleResolver: TypeDatabaseMovedTypeModuleResolver?
 
     private let dependencies: SwiftInterfaceBuilderDependencies<MachO>
 
@@ -29,19 +61,30 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
     /// `supplementaryAPINotesURLs` names `.apinotes` files or directories of
     /// user-provided type mappings (evolution proposal 0010), loaded after
     /// the SDK's own APINotes so they overwrite them.
-    public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO>, supplementaryAPINotesURLs: [URL] = []) {
+    public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO>, resolutions: SDKTypeNameResolutions = .cImportedModules, supplementaryAPINotesURLs: [URL] = []) {
         guard
-            let buildPlatform = machO.loadCommands.buildVersionCommand?.platform,
-            let platform = SDKPlatform(buildPlatform)
+            let buildVersionCommand = machO.loadCommands.buildVersionCommand,
+            let platform = SDKPlatform(buildVersionCommand.platform)
         else {
             return nil
         }
         self.machO = machO
+        self.resolutions = resolutions
         self.dependencies = dependencies
-        self.resolver = TypeDatabaseTypeNameResolver(typeDatabase: TypeDatabase(platform: platform, supplementaryAPINotesURLs: supplementaryAPINotesURLs))
+        let typeDatabase = TypeDatabase(platform: platform, supplementaryAPINotesURLs: supplementaryAPINotesURLs)
+        self.resolver = TypeDatabaseTypeNameResolver(typeDatabase: typeDatabase)
+        self.movedTypeModuleResolver = resolutions.contains(.movedTypeModules)
+            ? TypeDatabaseMovedTypeModuleResolver(typeDatabase: typeDatabase, sdkVersion: OperatingSystemVersion(machOVersion: buildVersionCommand.sdk))
+            : nil
     }
 
     public func setup() async throws {
+        guard resolutions.contains(.cImportedModules) else {
+            // Moved types come from the SDK discovery alone: a filter
+            // selecting no module generates no interface.
+            try await resolver.typeDatabase.index(dependencies: [], moduleFilter: { _ in false })
+            return
+        }
         // Index only the SDK modules the binary actually links: the module
         // filter is keyed on the dependency images' module names, which is
         // what makes first-run indexing minutes-of-modules instead of the
@@ -55,11 +98,17 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
     }
 
     public func moduleName(forTypeName typeName: String) async -> String? {
-        await resolver.moduleName(forTypeName: typeName)
+        guard resolutions.contains(.cImportedModules) else { return nil }
+        return await resolver.moduleName(forTypeName: typeName)
     }
 
     public func swiftName(forCName cName: String, category: CImportedTypeNameCategory) async -> String? {
-        await resolver.swiftName(forCName: cName, category: category)
+        guard resolutions.contains(.cImportedModules) else { return nil }
+        return await resolver.swiftName(forCName: cName, category: category)
+    }
+
+    public func declaringModuleName(ofMovedTypeNamed typeName: String, originallyDefinedIn originalModuleName: String) async -> String? {
+        await movedTypeModuleResolver?.declaringModuleName(ofMovedTypeNamed: typeName, originallyDefinedIn: originalModuleName)
     }
 }
 

@@ -1251,6 +1251,10 @@ extension Target {
         dependencies: [
             .target(.SwiftTypeNameResolution),
             .target(.SwiftPrinting),
+            // The provider's tests build a small library to read
+            // (proposal moved-swift-type-modules).
+            .target(.SwiftInterface),
+            .target(.SwiftSectionFixtureSupport),
             .product(.MachOKit),
             .product(name: "TypeIndexing", package: "swift-type-indexing", condition: .when(platforms: [.macOS])),
         ],
@@ -1399,6 +1403,9 @@ extension Target {
         name: "SwiftSectionKitTests",
         dependencies: [
             .target(.SwiftSectionKit),
+            // `FixtureCompiler`, for a library that names a moved Swift type
+            // (proposal moved-swift-type-modules).
+            .target(.SwiftSectionFixtureSupport),
             .product(.MachOFoundation),
             .target(.SwiftSymbols),
             // `LocalTypeFixture` and `ExclusiveImageAccess`, for the source
