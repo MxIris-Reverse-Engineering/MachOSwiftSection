@@ -17,7 +17,9 @@ import Testing
 /// exporting `ProbeWidgetGetTypeID`. `ProbeKit` stands for SwiftUICore: a Swift
 /// library whose bridging header declares the CF types, which links `ProbeCF`
 /// and defines a CF type of its own, exporting `ProbeGadgetGetTypeID` through
-/// `@_cdecl`. `FixtureCompiler` gives every library the install name
+/// `@_cdecl`, and declares a third, `ProbeLonelyRef`, that no image exports a
+/// `GetTypeID` for — a bridged type made up without the CF convention.
+/// `FixtureCompiler` gives every library the install name
 /// `@rpath/lib<name>.dylib`, and `TypeDatabase` names a module after the
 /// install name's file, so the two modules read `libProbeCF` and `libProbeKit`.
 @Suite
@@ -30,10 +32,11 @@ struct PrivateCFTypeModuleTests {
     #include <CoreFoundation/CoreFoundation.h>
     typedef struct CF_BRIDGED_TYPE(id) __ProbeWidget *ProbeWidgetRef;
     typedef struct CF_BRIDGED_TYPE(id) __ProbeGadget *ProbeGadgetRef;
+    typedef struct CF_BRIDGED_TYPE(id) __ProbeLonely *ProbeLonelyRef;
     CFTypeID ProbeWidgetGetTypeID(void);
     """
 
-    /// `Anchor` keeps a `__DATA` segment in the dylib. Hashing the two CF
+    /// `Anchor` keeps a `__DATA` segment in the dylib. Hashing the CF
     /// types through a generic function makes the library carry their type
     /// descriptors, and calling `ProbeWidgetGetTypeID` keeps `ProbeCF` among
     /// its load commands.
@@ -45,10 +48,12 @@ struct PrivateCFTypeModuleTests {
     public struct Holder {
         public var widget: ProbeWidget
         public var gadget: ProbeGadget
+        public var lonely: ProbeLonely
 
-        public init(widget: ProbeWidget, gadget: ProbeGadget) {
+        public init(widget: ProbeWidget, gadget: ProbeGadget, lonely: ProbeLonely) {
             self.widget = widget
             self.gadget = gadget
+            self.lonely = lonely
         }
     }
 
@@ -63,7 +68,7 @@ struct PrivateCFTypeModuleTests {
     }
 
     public func exercise(_ holder: Holder) -> Int {
-        hashValue(of: holder.widget) &+ hashValue(of: holder.gadget) &+ Int(ProbeWidgetGetTypeID())
+        hashValue(of: holder.widget) &+ hashValue(of: holder.gadget) &+ hashValue(of: holder.lonely) &+ Int(ProbeWidgetGetTypeID())
     }
     """
 
@@ -114,6 +119,15 @@ struct PrivateCFTypeModuleTests {
     func aCFTypeTheRootDefinesPrintsUnderTheRootsModule() async throws {
         let interface = try await Self.probeKitInterface(attachingTypeNameProvider: true)
         #expect(interface.contains("gadget: libProbeKit.ProbeGadget"), "\(interface)")
+    }
+
+    /// No image exports `ProbeLonelyGetTypeID`, and nothing else in the binaries
+    /// names the module that declares `ProbeLonelyRef` — the class it is
+    /// bridged to is not recorded — so it keeps the descriptor's bare name.
+    @Test
+    func aBridgedTypeWithoutATypeIDFunctionKeepsItsBareSwiftName() async throws {
+        let interface = try await Self.probeKitInterface(attachingTypeNameProvider: true)
+        #expect(interface.contains("lonely: ProbeLonely\n"), "\(interface)")
     }
 
     /// What 0106 alone prints: the descriptor's Swift name, with no module.
