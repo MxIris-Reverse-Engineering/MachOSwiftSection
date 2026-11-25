@@ -121,5 +121,5 @@
 | [0104](0104-shared-macho-testing-support.md) | 测试支持的通用部分迁入 MachOKitExtensions：两个包共用 MachOFixtureSupport 与 MachOTestingSupport | Implemented |
 | [0105](0105-swift-type-indexing-package.md) | 类型索引独立成 swift-type-indexing 包，并接入 MachOObjCSection 与 RuntimeViewer（跨仓库唯一提案） | Implemented |
 | [0106](0106-c-imported-type-name-spelling.md) | C 导入类型的名字统一成 Swift 名，并能切换回 C 名（跨仓库唯一提案，RuntimeViewer 参与） | Implemented |
-| draft | [被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印（跨仓库唯一提案，swift-type-indexing 参与）](draft-moved-swift-type-modules.md) | In Progress |
+| [0107](0107-moved-swift-type-modules.md) | 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印（跨仓库唯一提案，swift-type-indexing 参与） | Implemented |
 | draft | [私有 CF 类型按导出 `GetTypeID` 的镜像解析所属模块](draft-private-cf-type-modules.md) | In Progress |

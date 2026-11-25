@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印</title>
+<title>0107 - 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -160,13 +160,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0107</span></p>
+  <h1><span class="proposal-number">0107</span> 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-25</dd></div>
     <div><dt>项目类型</dt><dd>库（跨仓库：swift-type-indexing + MachOSwiftSection）</dd></div>
-    <div><dt>原文</dt><dd><code>draft-moved-swift-type-modules.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0107-moved-swift-type-modules.md</code></dd></div>
   </dl>
 </header>
 
@@ -201,7 +201,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <h2>要你定</h2>
   <div class="callout">
     <p class="callout-title">没有待定的事</p>
-    <p>swift-type-indexing 0.2.0 已发版，本库的版本下限已抬到 <code>from: "0.2.0"</code>。</p>
+    <p>已落地：swift-type-indexing 0.2.0 已发版，本库的版本下限已抬到 <code>from: "0.2.0"</code>，实现合进 <code>next</code>。</p>
   </div>
   <div class="callout callout-note">
     <p class="callout-title">已定（用户批准）</p>
@@ -491,6 +491,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-25</td><td>收尾判断</td><td>不另写专题文章；新术语 moved type 已登记。</td></tr>
           <tr><td class="numeric">2026-11-25</td><td>实现完成，待用户看过后收尾</td><td>两边功能分支已推送；当时 <code>next</code> 按远端版本下限用 swift-type-indexing 0.1.1，先不合。</td></tr>
           <tr><td class="numeric">2026-11-25</td><td>swift-type-indexing 0.2.0 发版</td><td>用户同意发版；Xcode 26.6 测试与 CI 通过后打 tag，本库下限抬到 <code>from: "0.2.0"</code>。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>Implemented</td><td>取号 0107、账本第 153 节；验证沿用全量 2969 个测试与按 0.2.0 重编后的 58 个相关测试；不另写专题文章。本地 <code>next</code> 上还叠着未收尾的 private-cf-type-modules，<code>next</code> 等它收尾时一起推。</td></tr>
         </tbody>
       </table>
       </div>

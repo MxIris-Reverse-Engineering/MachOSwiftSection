@@ -1,15 +1,15 @@
-# Draft - 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印
+# 0107 - 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-25
 - **最后更新**: 2026-11-25
 - **所属愿景**: 无
 - **关联提案**: [0105 swift-type-indexing-package](0105-swift-type-indexing-package.md)（`TypeDatabase` 搬进独立包，本提案给它加一类数据）；[0106 c-imported-type-name-spelling](0106-c-imported-type-name-spelling.md)（`__C` 类型按 SDK 拼写，本提案把同样的思路推到原生 Swift 类型）；[0082 image-group-evolution](0082-image-group-evolution.md)（evolution 把 SwiftUI 与 SwiftUICore 当一组比较，同样源于 `@_originallyDefinedIn`）；[0064 module-selectors](0064-module-selectors.md)（`Module::Name` 写法）
-- **实现分支 / PR**: 两个仓库都是 `feature/moved-swift-type-modules`（worktree `.worktrees/MachOSwiftSection-MovedSwiftTypeModules`、swift-type-indexing 的 `.worktrees/swift-type-indexing-MovedSwiftTypeModules`）
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **实现分支 / PR**: 两个仓库都是 `feature/moved-swift-type-modules`；swift-type-indexing 一侧合进 `main` 并发 0.2.0，本仓库一侧合进 `next`
+- **配套文档**: 不另写专题文章。调用方契约在 swift-type-indexing 的 `README.md` 与 `Documentations/Internal/TypeIndexingPipeline.md`「搬家记录」一节；打印器一侧在 [Modules/SwiftInterface.md](../Internal/Modules/SwiftInterface.md)；术语见 [Glossary.md](../Glossary.md)「moved type」
 - **网页版**: 同目录同名的 `.html`
-- **涉及仓库**: swift-type-indexing（从 SDK 读出搬家记录、提供查询）、MachOSwiftSection（本仓库：打印器、`SwiftTypeNameResolution` 适配层、`SwiftSectionKit` 请求、`swift-section interface` 开关）。这是跨仓库的唯一提案，swift-type-indexing 的提案索引在实现时登记为 cross-repository draft
+- **涉及仓库**: swift-type-indexing（从 SDK 读出搬家记录、提供查询）、MachOSwiftSection（本仓库：打印器、`SwiftTypeNameResolution` 适配层、`SwiftSectionKit` 请求、`swift-section interface` 开关）。这是跨仓库的唯一提案，swift-type-indexing 的提案索引登记为 cross-repository MachOSwiftSection 0107
 
 ## 摘要
 
@@ -414,3 +414,4 @@ public init?(machO: MachO, dependencies: SwiftInterfaceBuilderDependencies<MachO
 | 2026-11-25 | 收尾判断 | 不另写专题文章：调用方契约在 swift-type-indexing 的 README 与 `TypeIndexingPipeline.md`「搬家记录」一节，打印器一侧在 `Modules/SwiftInterface.md`。新术语 moved type 已登记进 `Documentations/Glossary.md`，「type index」条目补了一句。`Modules/SwiftSectionKit.md` 与 `Documentations/SwiftSectionKit.md` 不列请求字段，不用改。 |
 | 2026-11-25 | 实现完成，待用户看过后收尾 | 两个仓库的功能分支都已推送。没有在本地合进 `next`：`next` 按远端版本下限用 swift-type-indexing 0.1.1，合进去后常驻检出编不过；等 swift-type-indexing 发 0.2.0、本库把下限抬到 `from: "0.2.0"` 后再合。 |
 | 2026-11-25 | swift-type-indexing 0.2.0 发版 | 用户同意发版。swift-type-indexing 用 Xcode 26.6 跑过测试（103 个全过），功能分支以合并提交 `Merge branch 'feature/moved-swift-type-modules'` 快进推上 `main`，CI（Xcode 26.6）通过后在合并提交上打注释 tag 0.2.0。本库 `Package.swift` 的下限抬到 `from: "0.2.0"`。 |
+| 2026-11-25 | Implemented | 用户看过本地合并后要求收尾。落地时取号 0107，演进账本对应第 153 节。验证沿用最终代码上的两次结果：Ultra（Xcode 26.6）全量 2969 个测试全过；抬到 swift-type-indexing 0.2.0 后按远端依赖重编，相关 58 个测试全过；此后只改文档。核心能力全部实现，没有遗留的后续项。文档判断：不另写专题文章，配套文档字段登记了现有的三处；新术语 moved type 已在术语表。本地 `next` 上紧接着还合进了 private-cf-type-modules（叠在本次合并之上，尚未收尾），所以 `next` 暂不推送，等那个提案收尾时一起推。 |
