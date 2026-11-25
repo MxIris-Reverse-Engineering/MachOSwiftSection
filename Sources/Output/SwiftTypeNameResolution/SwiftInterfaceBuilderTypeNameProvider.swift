@@ -92,9 +92,56 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
         let dependencyImages = dependencies.dependencies
         let dependencyModuleNames = Set(dependencyImages.map { TypeDatabase.moduleName(forImagePath: $0.imagePath) })
         try await resolver.typeDatabase.index(
-            dependencies: dependencyImages.map { ObjCDeclaredTypeNames(machO: $0, imagePath: $0.imagePath) },
+            dependencies: Self.declaredTypeNameSources(root: machO, dependencies: dependencyImages),
             moduleFilter: { dependencyModuleNames.contains($0) }
         )
+    }
+
+    /// The images' own lists of the types they declare, in the order
+    /// `TypeDatabase` reads them on a name the SDK does not attribute: the
+    /// root's CF types first — a type the root defines is its own — then each
+    /// direct dependency's Objective-C names and CF types, in dependency
+    /// order. One source per image: `TypeDatabase` skips a second source with
+    /// the same image path. The root generates no SDK interface: it is not in
+    /// the module filter.
+    ///
+    /// A `GetTypeID` export claims a name only when the root's foreign class
+    /// descriptors say it is a CF type (``cfTypedefNames(referencedBy:)``):
+    /// the export locates the type, the descriptor decides what it is.
+    static func declaredTypeNameSources(root: MachO, dependencies: [MachO]) -> [any DeclaredTypeNameSource] {
+        let referencedCFTypedefNames = cfTypedefNames(referencedBy: root)
+        let rootSource: any DeclaredTypeNameSource = CFDeclaredTypeNames(machO: root, imagePath: root.imagePath, restrictedTo: referencedCFTypedefNames)
+        return [rootSource] + dependencies.map { dependency in
+            ImageDeclaredTypeNames(machO: dependency, imagePath: dependency.imagePath, restrictingCFTypesTo: referencedCFTypedefNames)
+        }
+    }
+
+    /// The typedef names of the CF types `image`'s Swift metadata refers to:
+    /// its C-imported class descriptors promoted from a C typedef — the
+    /// foreign class ClangImporter makes of a CF type (a struct or enum from
+    /// a `swift_wrapper` typedef shares the import info, not the kind). Named
+    /// by the ABI name a mangling spells, or by the descriptor's own name when
+    /// ClangImporter kept the C spelling (`IOSurfaceRef`, whose stripped name
+    /// the Objective-C class `IOSurface` took).
+    static func cfTypedefNames(referencedBy image: MachO) -> Set<String> {
+        let context = image.context
+        var typedefNames: Set<String> = []
+        for descriptorWrapper in (try? image.swift.typeContextDescriptors) ?? [] {
+            guard case .class = descriptorWrapper else { continue }
+            let descriptor = descriptorWrapper.typeContextDescriptor
+            guard descriptor.hasImportInfo,
+                  (try? descriptor.isCImportedContextDescriptor(in: context)) == true,
+                  let importInfo = try? descriptor.typeImportInfo(in: context),
+                  importInfo.isCTypedef,
+                  !importInfo.isRelatedEntity
+            else { continue }
+            if let abiName = importInfo.abiName {
+                typedefNames.insert(abiName)
+            } else if let descriptorName = try? descriptorWrapper.namedContextDescriptor.name(in: context) {
+                typedefNames.insert(descriptorName)
+            }
+        }
+        return typedefNames
     }
 
     public func moduleName(forTypeName typeName: String) async -> String? {

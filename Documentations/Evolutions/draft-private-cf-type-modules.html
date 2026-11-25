@@ -163,7 +163,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
   <h1><span class="proposal-number">Draft</span> 私有 CF 类型按导出 <code>GetTypeID</code> 的镜像解析所属模块</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-25</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
     <div><dt>原文</dt><dd><code>draft-private-cf-type-modules.md</code></dd></div>
@@ -192,17 +192,14 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="summary">
   <h2>摘要</h2>
   <p><code>swift-section interface --resolve-c-module-names</code> 能把公开的 C 导入类型写到真实模块下（<code>__C.CGColorRef</code> → <code>CoreGraphics.CGColor</code>），私有的 CF 类型却查不到模块：SDK 里没有它们的头文件，依赖镜像的 Objective-C 元数据也不列 CF 类型，于是按 0106 的规则只印描述符给的裸名（<code>CGSVGDocument</code>）。</p>
-  <p>本提案在 <code>SwiftTypeNameResolution</code> 里新增 <code>CFDeclaredTypeNames</code>，它是 swift-type-indexing 的 <code>DeclaredTypeNameSource</code> 的又一个实现：从镜像的导出表里找出每个 <code>…GetTypeID</code> 函数，列出它定义的 CF 类型（<code>_CGSVGDocumentGetTypeID</code> → <code>CGSVGDocumentRef</code>）。<code>SwiftInterfaceBuilderTypeNameProvider</code> 为根镜像和每个直接依赖各登记一个。之后 <code>CGSVGDocumentRef</code> 归到 CoreSVG，引用印成 <code>CoreSVG.CGSVGDocument</code>。打印器、swift-type-indexing 和 CLI 参数都不改。</p>
+  <p>本提案在 <code>SwiftTypeNameResolution</code> 里新增 <code>CFDeclaredTypeNames</code>：从镜像的导出表里找出每个 <code>…GetTypeID</code> 函数，列出它定义的 CF 类型（<code>_CGSVGDocumentGetTypeID</code> → <code>CGSVGDocumentRef</code>）。provider 为根镜像登记它；每个直接依赖改登记新的 <code>ImageDeclaredTypeNames</code>，把这个镜像的 Objective-C 名字和 CF 类型合成一个来源，因为 <code>TypeDatabase</code> 每个镜像路径只收一个来源。<code>GetTypeID</code> 只负责定位：一个名字是不是 CF 类型，由根镜像自己的 foreign class 描述符决定。之后 <code>CGSVGDocumentRef</code> 归到 CoreSVG，引用印成 <code>CoreSVG.CGSVGDocument</code>。打印器、swift-type-indexing 和 CLI 参数都不改。</p>
 </section>
 
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">两件事</p>
-    <ol>
-      <li>实现形式：用 swift-type-indexing 现成的 <code>DeclaredTypeNameSource</code> 注册表（提案的做法），而不是在打印器上另注册一个解析器（讨论时最先选的方向）。理由见替代方案第 1 条。</li>
-      <li>调研第 10 条的 <code>IOSurfaceRef</code> 疑似问题（可能被印成 <code>IOSurface.IOSurface</code>）：是否先在 Ultra 上复现，再另行修复。</li>
-    </ol>
+    <p class="callout-title">没有悬而未决的事</p>
+    <p>实现已完成，在本地合进常驻检出后可以就地看效果；看过后用 <code>finish-feature</code> 收尾。后续项（RuntimeViewer 接入、模块名与类型同名时用模块选择器）见「非目标」。</p>
   </div>
 </section>
 
@@ -215,29 +212,31 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   </ul>
   <h3>改了什么</h3>
   <div class="figure">
-  <svg viewBox="0 0 1000 260" role="img" aria-label="What changes">
-    <rect class="group" x="10" y="10" width="480" height="150" rx="10"/>
+  <svg viewBox="0 0 1000 330" role="img" aria-label="What changes">
+    <rect class="group" x="10" y="10" width="480" height="230" rx="10"/>
     <text class="group-label" x="22" y="30">SwiftTypeNameResolution/</text>
-    <rect class="box-changed" x="25" y="42" width="440" height="50" rx="6"/><text x="35" y="62">SwiftInterfaceBuilderTypeNameProvider.setup()</text><text class="caption" x="35" y="80">registers CF(root), then ObjC + CF for each direct dependency</text>
-    <rect class="box-added" x="25" y="102" width="440" height="46" rx="6"/><text x="35" y="122">CFDeclaredTypeNames&lt;MachO&gt;</text><text class="caption" x="35" y="139">exportedSymbols: _&lt;Name&gt;GetTypeID -&gt; "&lt;Name&gt;Ref"</text>
-    <rect class="group" x="10" y="175" width="480" height="75" rx="10"/>
-    <text class="group-label" x="22" y="195">MachOObjCSection</text>
-    <rect class="box-kept" x="25" y="205" width="440" height="34" rx="6"/><text x="35" y="227">ObjCDeclaredTypeNames&lt;MachO&gt;</text>
+    <rect class="box-changed" x="25" y="42" width="450" height="62" rx="6"/><text x="35" y="62">SwiftInterfaceBuilderTypeNameProvider.setup()</text><text class="caption" x="35" y="80">gate: cfTypedefNames(referencedBy: root)</text><text class="caption" x="35" y="96">registers CF(root), then ImageDeclaredTypeNames per dependency</text>
+    <rect class="box-added" x="25" y="114" width="450" height="46" rx="6"/><text x="35" y="134">ImageDeclaredTypeNames&lt;MachO&gt;</text><text class="caption" x="35" y="151">one source per image: ObjC names + CF typedef names</text>
+    <rect class="box-added" x="25" y="170" width="450" height="56" rx="6"/><text x="35" y="190">CFDeclaredTypeNames&lt;MachO&gt;</text><text class="caption" x="35" y="207">exportedSymbols: _&lt;Name&gt;GetTypeID -&gt; "&lt;Name&gt;Ref"</text><text class="caption" x="35" y="221">only names the root's descriptors confirm (internal gate)</text>
+    <rect class="group" x="10" y="252" width="480" height="70" rx="10"/>
+    <text class="group-label" x="22" y="272">MachOObjCSection</text>
+    <rect class="box-kept" x="25" y="280" width="450" height="32" rx="6"/><text x="35" y="301">ObjCDeclaredTypeNames&lt;MachO&gt;</text>
     <rect class="group" x="520" y="10" width="470" height="150" rx="10"/>
     <text class="group-label" x="532" y="30">swift-type-indexing 0.2.0</text>
-    <rect class="box-kept" x="535" y="42" width="440" height="50" rx="6"/><text x="545" y="62">TypeDatabase.moduleName(forTypeName:)</text><text class="caption" x="545" y="80">SDK tables first, then sources in registration order</text>
+    <rect class="box-kept" x="535" y="42" width="440" height="50" rx="6"/><text x="545" y="62">TypeDatabase.moduleName(forTypeName:)</text><text class="caption" x="545" y="80">SDK first, then sources; one per image path</text>
     <rect class="box-kept" x="535" y="102" width="265" height="46" rx="6"/><text x="545" y="122">protocol DeclaredTypeNameSource</text><text class="caption" x="545" y="139">imagePath, declaredTypeNames()</text>
-    <rect class="group" x="520" y="175" width="470" height="75" rx="10"/>
-    <text class="group-label" x="532" y="195">SwiftPrinting</text>
-    <rect class="box-kept" x="535" y="205" width="440" height="34" rx="6"/><text x="545" y="227">TypeNodePrintable.printType: module + descriptor name</text>
-    <path class="arrow" d="M 465 67 L 535 67"/>
-    <path class="arrow arrow-weak" d="M 465 125 L 535 125"/>
-    <path class="arrow arrow-weak" d="M 465 222 L 505 222 L 505 160 L 600 160 L 600 148"/>
-    <path class="arrow" d="M 900 205 L 900 92"/>
-    <text class="caption" x="908" y="170">asks via provider</text>
+    <rect class="group" x="520" y="252" width="470" height="70" rx="10"/>
+    <text class="group-label" x="532" y="272">SwiftPrinting</text>
+    <rect class="box-kept" x="535" y="280" width="440" height="32" rx="6"/><text x="545" y="301">TypeNodePrintable.printType: module + descriptor name</text>
+    <path class="arrow" d="M 475 67 L 535 67"/>
+    <path class="arrow arrow-weak" d="M 475 137 L 535 130"/>
+    <path class="arrow arrow-weak" d="M 475 198 L 560 198 L 560 148"/>
+    <path class="arrow arrow-weak" d="M 250 280 L 250 226"/>
+    <path class="arrow" d="M 900 280 L 900 92"/>
+    <text class="caption" x="908" y="200">asks via provider</text>
   </svg>
   </div>
-  <p class="figure-caption">实线：调用；虚线：遵循协议。swift-type-indexing 与打印器都不改，新来源只是让 <code>moduleName(forTypeName:)</code> 多答出一些名字。</p>
+  <p class="figure-caption">实线：调用；虚线：遵循协议或被组合。swift-type-indexing 与打印器都不改。</p>
 
   <h3>一个引用怎么印出来</h3>
   <div class="figure">
@@ -245,8 +244,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <rect class="box-kept" x="20" y="10" width="960" height="34" rx="6"/><text x="32" y="32">printType(__C.CGSVGDocumentRef)   in SwiftUICore</text>
     <rect class="box-kept" x="60" y="60" width="920" height="34" rx="6"/><text x="72" y="82">swiftNameFromDescriptor -&gt; "CGSVGDocument"   (0106 name table)</text>
     <rect class="box-kept" x="60" y="110" width="920" height="34" rx="6"/><text x="72" y="132">TypeDatabase.moduleName("CGSVGDocumentRef"): SDK tables miss</text>
-    <rect class="box-added" x="100" y="160" width="880" height="34" rx="6"/><text x="112" y="182">CF(SwiftUICore) miss · ObjC(AttributeGraph) miss · CF(AttributeGraph) miss · …</text>
-    <rect class="box-added" x="100" y="210" width="880" height="34" rx="6"/><text x="112" y="232">CFDeclaredTypeNames(CoreSVG): "CGSVGDocumentRef" -&gt; "CoreSVG"</text>
+    <rect class="box-added" x="100" y="160" width="880" height="34" rx="6"/><text x="112" y="182">CF(SwiftUICore) miss · Image(AttributeGraph) miss · …</text>
+    <rect class="box-added" x="100" y="210" width="880" height="34" rx="6"/><text x="112" y="232">ImageDeclaredTypeNames(CoreSVG): "CGSVGDocumentRef" (root descriptor confirms) -&gt; "CoreSVG"</text>
     <rect class="box-kept" x="60" y="260" width="920" height="34" rx="6"/><text x="72" y="282">swiftName(forCName:) -&gt; nil (no API notes, not SDK-indexed)</text>
     <rect class="box-changed" x="20" y="300" width="960" height="26" rx="6"/><text x="32" y="318">writes  CoreSVG.CGSVGDocument   (was: CGSVGDocument)</text>
     <path class="arrow" d="M 40 44 L 40 300"/>
@@ -260,13 +259,15 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <table>
     <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
     <tbody>
-      <tr><td><code>Sources/Output/SwiftTypeNameResolution/CFDeclaredTypeNames.swift</code> · <code>CFDeclaredTypeNames</code></td><td><span class="tag tag-added">新增</span></td><td><code>DeclaredTypeNameSource</code> 的实现：读导出表，<code>…GetTypeID</code> → typedef 名；内部静态函数 <code>typedefNames(forExportedSymbolName:)</code> 承载命名规则</td><td>私有 CF 类型的模块证据</td><td class="numeric">1</td></tr>
-      <tr><td><code>Tests/SwiftTypeNameResolutionTests/CFDeclaredTypeNamesTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>命名规则的表驱动测试；现场编译的 C 动态库经 <code>MachOFile</code> 与 <code>MachOImage</code> 两种读法读出的名字</td><td>规则与两种读法</td><td class="numeric">1</td></tr>
-      <tr><td><code>Sources/Output/SwiftTypeNameResolution/SwiftInterfaceBuilderTypeNameProvider.swift:81-98</code> · <code>setup()</code></td><td><span class="tag tag-changed">修改</span></td><td>来源改为「根的 CF，然后每个依赖的 ObjC、CF」；排列抽成 internal 的 <code>static func declaredTypeNameSources(root:dependencies:)</code></td><td>登记新来源，顺序可测</td><td class="numeric">2</td></tr>
-      <tr><td><code>Tests/SwiftTypeNameResolutionTests/PrivateCFTypeModuleTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>来源顺序；<code>TypeDatabase</code> 按新来源归属模块；用现场编译的 Swift 库验证接口里的拼写</td><td>端到端证明</td><td class="numeric">2</td></tr>
-      <tr><td><code>Sources/Executables/swift-section/Commands/InterfaceCommand.swift:33</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--resolve-c-module-names</code> 的帮助文字补上「依赖导出的 <code>…GetTypeID</code>（CF 类型）」</td><td><code>--help</code> 就是文档</td><td class="numeric">3</td></tr>
-      <tr><td><code>AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md</code> 第 8 节</td><td><span class="tag tag-changed">修改</span></td><td>归属来源补上导出的 <code>GetTypeID</code>；加一句私有 CF 类型的效果与 <code>XRef</code> 退路</td><td>CLI 行为变了，skill 同批更新</td><td class="numeric">3</td></tr>
-      <tr><td><code>CLAUDE.md</code> · SwiftTypeNameResolution 一条</td><td><span class="tag tag-changed">修改</span></td><td>列出 <code>CFDeclaredTypeNames</code></td><td>模块清单与代码同步</td><td class="numeric">3</td></tr>
+      <tr><td><code>Sources/Output/SwiftTypeNameResolution/CFDeclaredTypeNames.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>DeclaredTypeNameSource</code>：读导出表，<code>…GetTypeID</code> → typedef 名；internal 的带闸门构造器</td><td>私有 CF 类型的模块证据</td><td class="numeric">1</td></tr>
+      <tr><td><code>Tests/SwiftTypeNameResolutionTests/CFDeclaredTypeNamesTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>现场编译的 C 库经两种读法读出的名字；本机 cache 的 CoreSVG</td><td>规则与两种读法</td><td class="numeric">1</td></tr>
+      <tr><td><code>Sources/Output/SwiftTypeNameResolution/ImageDeclaredTypeNames.swift</code></td><td><span class="tag tag-added">新增</span></td><td>一个镜像的 ObjC 名字与 CF 类型合成一个来源</td><td><code>TypeDatabase</code> 每个镜像路径只收一个来源</td><td class="numeric">2</td></tr>
+      <tr><td><code>Tests/SwiftTypeNameResolutionTests/ImageDeclaredTypeNamesTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>IOSurface 同时列出 <code>IOSurface</code> 与 <code>IOSurfaceRef</code></td><td>合成来源两种名字都在</td><td class="numeric">2</td></tr>
+      <tr><td><code>Sources/Output/SwiftTypeNameResolution/SwiftInterfaceBuilderTypeNameProvider.swift</code> · <code>setup()</code></td><td><span class="tag tag-changed">修改</span></td><td>来源改为「根的 CF，然后每个依赖一个 <code>ImageDeclaredTypeNames</code>」；<code>cfTypedefNames(referencedBy:)</code> 从根镜像的 foreign 描述符收集闸门集合</td><td>登记新来源，判定靠描述符</td><td class="numeric">2</td></tr>
+      <tr><td><code>Tests/SwiftTypeNameResolutionTests/PrivateCFTypeModuleTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td>端到端：依赖定义的、根镜像定义的、不导出 <code>GetTypeID</code> 的、诱饵 <code>swift_wrapper</code>、不挂 provider 的</td><td>端到端证明</td><td class="numeric">2</td></tr>
+      <tr><td><code>Sources/Executables/swift-section/Commands/InterfaceCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--resolve-c-module-names</code> 的帮助文字</td><td><code>--help</code> 就是文档</td><td class="numeric">3</td></tr>
+      <tr><td><code>AgentPlugins/swift-section/skills/swift-section-cli/SKILL.md</code> 第 8 节</td><td><span class="tag tag-changed">修改</span></td><td>私有 CF 类型的归属、哪些情况仍不解析</td><td>CLI 行为变了</td><td class="numeric">3</td></tr>
+      <tr><td><code>CLAUDE.md</code>（<code>AGENTS.md</code>）</td><td><span class="tag tag-changed">修改</span></td><td>模块清单列出两个新类型、闸门与去重的坑</td><td>模块清单与代码同步</td><td class="numeric">3</td></tr>
       <tr><td><code>Documentations/Evolutions/README.md</code>、<code>Documentations/README.md</code></td><td><span class="tag tag-changed">修改</span></td><td>登记本提案；落地时改编号与状态</td><td>文档索引</td><td class="numeric">0、3</td></tr>
       <tr><td><code>Documentations/Internal/ProjectEvolutionLog.md</code></td><td><span class="tag tag-changed">修改</span></td><td>落地时追加一节</td><td>演进账本</td><td class="numeric">3</td></tr>
     </tbody>
@@ -277,17 +278,19 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="proposal">
   <h2>提议方案</h2>
   <ol>
-    <li><strong>新增 <code>CFDeclaredTypeNames</code></strong>，与 <code>ObjCDeclaredTypeNames</code> 同形：<code>init(machO:imagePath:)</code>，<code>declaredTypeNames()</code> 读 <code>machO.exportedSymbols</code>，每个名为 <code>_&lt;名字&gt;GetTypeID</code> 的导出给出 <code>&lt;名字&gt;Ref</code>；<code>&lt;名字&gt;</code> 以下划线开头的私有函数（<code>__LSASNGetTypeID</code>）同时给出去掉前导下划线的拼写（<code>LSASNRef</code>）。</li>
-    <li><strong>provider 登记它</strong>：来源变成「根镜像的 <code>CFDeclaredTypeNames</code>，然后每个直接依赖依次是 <code>ObjCDeclaredTypeNames</code>、<code>CFDeclaredTypeNames</code>」。根镜像排第一，它自己定义的类型由它自己说了算；根镜像不进 <code>moduleFilter</code>，不触发 SourceKit 接口生成。</li>
+    <li><strong><code>CFDeclaredTypeNames</code></strong>：每个 <code>_&lt;名字&gt;GetTypeID</code> 导出给出 <code>&lt;名字&gt;Ref</code>；以下划线开头的私有函数（<code>__LSASNGetTypeID</code>）同时给出去掉前导下划线的拼写。</li>
+    <li><strong><code>ImageDeclaredTypeNames</code></strong>：一个镜像的 ObjC 名字在前、CF 名字在后，合成一个来源。分开登记的话，后登记的那个永远读不到。</li>
+    <li><strong>provider 登记它们</strong>：根镜像的 <code>CFDeclaredTypeNames</code>，然后每个直接依赖一个 <code>ImageDeclaredTypeNames</code>。<strong><code>GetTypeID</code> 只负责定位，「是不是 CF 类型」由 foreign 描述符决定</strong>：CF 来源只给出根镜像的 foreign class 描述符证实的名字。</li>
     <li><strong>打印器、swift-type-indexing、CLI 参数都不改</strong>，只补帮助文字和 skill 说明。</li>
   </ol>
   <h3>非目标</h3>
   <ul>
-    <li>跟着重新导出找子框架（<code>LSASNRef</code> → CoreServices）：ObjC 来源同样不跟，两边一起做，另开提案。</li>
-    <li>间接依赖（<code>CFPhoneNumberRef</code>）：放宽到传递闭包会让 SourceKit 接口生成回到几百个模块，另开提案。</li>
-    <li>没有 <code>GetTypeID</code> 导出的类型，以及非 CF 的私有 C 类型：二进制里没有可靠的模块证据。</li>
-    <li>没有描述符时给出 Swift 名：仍印 <code>模块.XRef</code>。</li>
-    <li>根镜像自己的 Objective-C 类、<code>dump</code>、RuntimeViewer 接入（发版后在它那边加一行）、<code>IOSurfaceRef</code> 疑似问题。</li>
+    <li>跟着重新导出找子框架（<code>LSASNRef</code> → CoreServices），与 ObjC 来源一起另开提案。</li>
+    <li>间接依赖（<code>CFPhoneNumberRef</code>）：放宽到传递闭包会让 SourceKit 接口生成回到几百个模块。</li>
+    <li>没有 <code>GetTypeID</code> 导出的类型；自己定义、不导出 <code>GetTypeID</code> 的 CF 桥接类型印裸名（测试里的 <code>ProbeLonelyRef</code>）。</li>
+    <li>本镜像没有描述符的引用：闸门挡在外面，仍印 <code>__C.XRef</code>。</li>
+    <li>根镜像自己的 ObjC 类、<code>dump</code>、RuntimeViewer 接入（发版后把 <code>ObjCDeclaredTypeNames</code> 换成 <code>ImageDeclaredTypeNames</code>）。</li>
+    <li>模块名与它里面的类型同名时（<code>IOSurface.IOSurface</code> 编不过）改用模块选择器 <code>IOSurface::…</code>：打印器的通用拼写问题，另做。</li>
   </ul>
 </section>
 
@@ -298,50 +301,50 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <div class="details-body">
 <pre><code><span class="token-keyword">public struct</span> <span class="token-type">CFDeclaredTypeNames</span>&lt;<span class="token-type">MachO</span>: <span class="token-type">MachORepresentable</span> &amp; <span class="token-type">Sendable</span>&gt;: <span class="token-type">DeclaredTypeNameSource</span> {
     <span class="token-keyword">public let</span> imagePath: <span class="token-type">String</span>
-
-    <span class="token-keyword">private let</span> machO: <span class="token-type">MachO</span>
-
     <span class="token-keyword">public init</span>(machO: <span class="token-type">MachO</span>, imagePath: <span class="token-type">String</span>)
-
-    <span class="token-comment">/// The typedef name of every CF type the image exports a `GetTypeID` function for.</span>
+    <span class="token-keyword">init</span>(machO: <span class="token-type">MachO</span>, imagePath: <span class="token-type">String</span>, restrictedTo admittedTypedefNames: <span class="token-type">Set</span>&lt;<span class="token-type">String</span>&gt;?)   <span class="token-comment">// internal</span>
     <span class="token-keyword">public func</span> declaredTypeNames() <span class="token-keyword">async</span> -&gt; [<span class="token-type">String</span>]
+}
 
-    <span class="token-comment">/// `_CGSVGDocumentGetTypeID` → ["CGSVGDocumentRef"], `__LSASNGetTypeID` → ["_LSASNRef", "LSASNRef"].</span>
-    <span class="token-keyword">static func</span> typedefNames(forExportedSymbolName symbolName: <span class="token-type">String</span>) -&gt; [<span class="token-type">String</span>]
+<span class="token-keyword">public struct</span> <span class="token-type">ImageDeclaredTypeNames</span>&lt;<span class="token-type">MachO</span>: <span class="token-type">ObjCMetadataSource</span>&gt;: <span class="token-type">DeclaredTypeNameSource</span> {
+    <span class="token-keyword">public let</span> imagePath: <span class="token-type">String</span>
+    <span class="token-keyword">public init</span>(machO: <span class="token-type">MachO</span>, imagePath: <span class="token-type">String</span>)
+    <span class="token-keyword">init</span>(machO: <span class="token-type">MachO</span>, imagePath: <span class="token-type">String</span>, restrictingCFTypesTo admittedTypedefNames: <span class="token-type">Set</span>&lt;<span class="token-type">String</span>&gt;?)   <span class="token-comment">// internal</span>
+    <span class="token-keyword">public func</span> declaredTypeNames() <span class="token-keyword">async throws</span> -&gt; [<span class="token-type">String</span>]
 }
 
 <span class="token-keyword">extension</span> <span class="token-type">SwiftInterfaceBuilderTypeNameProvider</span> {
     <span class="token-keyword">static func</span> declaredTypeNameSources(root: <span class="token-type">MachO</span>, dependencies: [<span class="token-type">MachO</span>]) -&gt; [<span class="token-keyword">any</span> <span class="token-type">DeclaredTypeNameSource</span>]
+    <span class="token-keyword">static func</span> cfTypedefNames(referencedBy image: <span class="token-type">MachO</span>) -&gt; <span class="token-type">Set</span>&lt;<span class="token-type">String</span>&gt;
 }</code></pre>
-      <p>形状照 <code>ObjCDeclaredTypeNames</code> 抄。泛型约束只要 <code>MachORepresentable &amp; Sendable</code>：<code>exportedSymbols</code> 是 MachOKit <code>MachORepresentable</code> 的要求，<code>MachOFile</code>、<code>MachOImage</code> 和包装类型都有，不需要判断读取器种类。协议要求是 <code>async throws</code>，实现不会失败，写成不抛错的 <code>async</code>。</p>
+      <p>判定 CF 类只看描述符：种类是 class、<code>isCImportedContextDescriptor</code> 为真、import info 的 <code>isCTypedef</code> 为真且不是相关实体。只有 CF 类型会被升格成 class 而又来自 C typedef。名字取 ABI 名，ClangImporter 保留了 C 拼写时（<code>IOSurfaceRef</code>）取描述符自己的名字。带闸门的构造器是 internal，公开接口不变。</p>
     </div>
   </details>
   <details>
     <summary>命名规则</summary>
     <div class="details-body">
       <ol>
-        <li>导出名必须以一个 <code>_</code> 开头，去掉它得到 C 函数名；Swift 符号和 Objective-C 符号因为不以 <code>GetTypeID</code> 结尾自然落选。</li>
-        <li>C 函数名以 <code>GetTypeID</code> 结尾，去掉后缀的部分非空、由字母数字和下划线组成、不以数字开头，记为 <code>base</code>。</li>
-        <li>给出 <code>base + "Ref"</code>；<code>base</code> 以下划线开头时，再给出去掉全部前导下划线后的 <code>+ "Ref"</code>。</li>
-        <li><code>CFGetTypeID</code> 给出的 <code>CFRef</code> 这类不是类型的名字不做过滤：只在查询恰好问到它时才命中，而那时 SDK 的归属已经先问过了。</li>
+        <li>导出名以一个 <code>_</code> 开头，去掉它得到 C 函数名。</li>
+        <li>C 函数名以 <code>GetTypeID</code> 结尾，去掉后缀的部分是合法 C 标识符且不全是下划线，记为 <code>base</code>。</li>
+        <li>给出 <code>base + "Ref"</code>；<code>base</code> 以下划线开头时再给出去掉前导下划线的拼写。</li>
+        <li>规则会产生 <code>CFRef</code> 这类非类型名字；provider 登记的来源都带闸门，只留根镜像证实的名字。</li>
       </ol>
     </div>
   </details>
   <details>
     <summary>性能</summary>
     <div class="details-body">
-      <p><code>TypeDatabase</code> 只在一个名字查不到时才按顺序读下一个来源。根镜像排第一，第一次未命中就会读一遍根镜像的导出表：SwiftUICore 这样的大镜像有数十万个导出。第 3 步在 Ultra 上量一次耗时变化；明显的话，改成直接遍历导出 trie、只取以 <code>GetTypeID</code> 结尾的名字。</p>
+      <p>Ultra 上 SwiftUICore 热缓存下 17.22 → 17.28 秒，测不出差别，不改成遍历导出 trie。</p>
     </div>
   </details>
 </section>
 
 <section id="motivation">
   <h2>动机</h2>
-  <p>按代码推断（没有实跑 CLI）：macOS 27.2 的 SwiftUICore 用到私有的 <code>CGSVGDocumentRef</code>，0106 之后印成没有模块的 <code>CGSVGDocument</code>，公开的 <code>CGImageRef</code> 则印成 <code>CoreGraphics.CGImage</code>。读者分不出它来自哪个框架。</p>
   <p>macOS 27.2 的 cache 里，被 Swift 用到的 CF 类一共 66 个，其中 20 个不在公开 SDK 的头文件里：</p>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>私有 CF 类型</th><th>描述符里的 Swift 名</th><th>导出 GetTypeID 的镜像</th><th>用到它的 Swift 镜像</th></tr></thead>
+    <thead><tr><th>私有 CF 类型</th><th>Swift 名</th><th>导出 GetTypeID 的镜像</th><th>用到它的 Swift 镜像</th></tr></thead>
     <tbody>
       <tr><td><code>CGSVGDocumentRef</code></td><td><code>CGSVGDocument</code></td><td>CoreSVG</td><td>SwiftUICore</td></tr>
       <tr><td><code>CGColorTransformRef</code>、<code>CGContextDelegateRef</code></td><td>去掉 <code>Ref</code></td><td>CoreGraphics</td><td>AppKit</td></tr>
@@ -349,8 +352,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       <tr><td><code>RIOPxrSdfLayerRef</code> 等 9 个</td><td>去掉 <code>Ref</code></td><td>CoreRealityIO</td><td>RealityIO</td></tr>
       <tr><td><code>CAXUIElementRef</code></td><td><code>CAXUIElement</code></td><td>CoreAccessibility</td><td>CoreAccessibility（自己）</td></tr>
       <tr><td><code>CFPhoneNumberRef</code></td><td><code>CFPhoneNumber</code></td><td>CorePhoneNumbers</td><td>IDSFoundation</td></tr>
-      <tr><td><code>LSASNRef</code></td><td><code>LSASN</code></td><td>LaunchServices（<code>__LSASNGetTypeID</code>）</td><td>GamePolicyFoundation</td></tr>
-      <tr><td><code>CFXGPUDeviceRef</code>、<code>LXEntryRef</code>、<code>RTIImportOperation_t</code></td><td><code>CFXGPUDevice</code>、<code>LXEntry</code>、<code>ImportOperation</code></td><td>找不到</td><td>VFX、ImageGenerationServices、_USDKit_RealityKit</td></tr>
+      <tr><td><code>LSASNRef</code></td><td><code>LSASN</code></td><td>LaunchServices</td><td>GamePolicyFoundation</td></tr>
+      <tr><td><code>CFXGPUDeviceRef</code>、<code>LXEntryRef</code>、<code>RTIImportOperation_t</code></td><td>…</td><td>找不到</td><td>VFX 等</td></tr>
     </tbody>
   </table>
   </div>
@@ -362,16 +365,16 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <summary>十条查证过的事实</summary>
     <div class="details-body">
       <ol>
-        <li><strong>哪些是 CF 类、怎么枚举</strong>：ClangImporter 把指向带 <code>objc_bridge</code> 系列 attribute 的 struct 的指针 typedef 导入成 <code>ForeignKind::CFType</code> 的类，并合成 <code>_CFObject</code> 一致性；描述符种类是 class，import info 写着 <code>N&lt;typedef 名&gt;</code> 和 <code>St</code>。<code>ipsw dyld swift --foreign</code> 导出 dyld 预存的 <code>__C</code> 一致性表，按 <code>_CFObject</code> 筛出 66 个 CF 类。</li>
-        <li><strong>模块不在二进制里</strong>：描述符挂在 <code>__C</code>，合成的一致性在 <code>__C_Synthesized</code>。Swift 取顶层 Clang 模块（<code>ClangImporter.cpp:3143-3154</code>），LaunchServices 的类型属于 CoreServices。</li>
-        <li><strong><code>GetTypeID</code> 的镜像就是模块</strong>：46 个公开 CF 类全部一致；私有的 20 个里 17 个能找到导出；Core* 框架约有 190 个不在公开 SDK 里的 <code>…GetTypeID</code>。</li>
-        <li><strong>打印器已经会用描述符的名字</strong>：引用处模块解析后，标识符依次取解析器的 Swift 名、0106 名字表、C 名（<code>TypeNodePrintable.swift:186-268</code>），声明行同理（<code>SwiftDeclarationPrinter+Headers.swift:153-183</code>）。</li>
-        <li><strong>swift-type-indexing 已有开放注册表</strong>：<code>DeclaredTypeNameSource</code>，SDK 答不上时按登记顺序读，第一个声明者胜出；这个包自己不读 Mach-O；<code>ObjCDeclaredTypeNames</code> 是现有唯一实现，不含 CF 类型。</li>
-        <li><strong>去 <code>Ref</code> 规则只认 SDK 里有的名字</strong>：私有 CF 类型拿不到解析器给的 Swift 名，走描述符那一档，<code>AGGraphRef</code> 正确地印成 <code>Graph</code>。</li>
-        <li><strong>现在谁被登记</strong>：provider 只给直接依赖登记 ObjC 来源，根镜像不登记；只有 <code>interface --resolve-c-module-names</code> 接上它；RuntimeViewer 自己给打开的每个镜像登记来源。</li>
-        <li><strong>覆盖面</strong>：直接依赖覆盖 14 个，登记根镜像后 15 个；剩下的是重新导出（1）、间接依赖（1）、没有导出（3）。</li>
-        <li><strong>带 <code>Ref</code> 的名字在 Swift 里不能用</strong>：只剩改名用的兼容别名；没有描述符时会印成 <code>CoreSVG.CGSVGDocumentRef</code>。<code>IOSurfaceRef</code> 因为和 ObjC 类 <code>IOSurface</code> 重名而保留 <code>Ref</code>。</li>
-        <li><strong>顺带发现、未验证</strong>：去 <code>Ref</code> 规则不看重名，而打印器先问解析器，<code>__C.IOSurfaceRef</code> 可能被印成 <code>IOSurface.IOSurface</code>。</li>
+        <li>CF 类导入成 <code>ForeignKind::CFType</code> 的类并合成 <code>_CFObject</code>；描述符种类 class，import info 写着 <code>N&lt;typedef 名&gt;</code> 与 <code>St</code>。</li>
+        <li>模块不在二进制里；Swift 取顶层 Clang 模块。</li>
+        <li><code>GetTypeID</code> 的镜像就是模块：46 个公开 CF 类全部一致。</li>
+        <li>打印器在模块解析出来以后已经会用描述符的名字。</li>
+        <li>swift-type-indexing 已有 <code>DeclaredTypeNameSource</code> 注册表；<strong><code>TypeDatabase</code> 按镜像路径去重，同一路径的第二个来源被丢掉</strong>（实现时由端到端测试发现）。</li>
+        <li>去 <code>Ref</code> 规则只认 SDK 里有的名字，私有类型走描述符名（<code>AGGraphRef</code> → <code>Graph</code>）。</li>
+        <li>provider 只读直接依赖；RuntimeViewer 自己给每个镜像登记来源。</li>
+        <li>按设计 20 个里覆盖 15 个；实测覆盖更多（有描述符但没有一致性记录的也算上）。</li>
+        <li>带 <code>Ref</code> 的拼写在 Swift 里不能用；<code>IOSurfaceRef</code> 因为和 ObjC 类 <code>IOSurface</code> 重名而保留 <code>Ref</code>。</li>
+        <li><code>IOSurfaceRef</code> 疑似问题未复现：TextRecognition 印 <code>CoreGraphics.IOSurfaceRef</code>，能编过；<code>IOSurface.IOSurfaceRef</code> 因模块名被同名类遮住编不过，要写 <code>IOSurface::IOSurfaceRef</code>。</li>
       </ol>
     </div>
   </details>
@@ -380,15 +383,16 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="alternatives">
   <h2>替代方案</h2>
   <details>
-    <summary>六条被否或推迟的方向</summary>
+    <summary>七条被否或推迟的方向</summary>
     <div class="details-body">
       <ol>
-        <li><strong>打印器上另注册一个 <code>ModuleNameResolving</code></strong>：否。注册表已经在 swift-type-indexing，另写一个要么抄一遍规则，要么与 <code>TypeDatabase</code> 给出不同答案；RuntimeViewer 也走 <code>DeclaredTypeNameSource</code>。</li>
-        <li><strong>让 swift-type-indexing 自己读导出表</strong>：否，那个包按设计不读 Mach-O。</li>
-        <li><strong>从 CF 运行时类注册取名字</strong>：否，要反汇编调用点，结果与导出表等价，名字还是显示名。</li>
-        <li><strong>用一致性符号里的模块</strong>：否，那是声明一致性的模块，不是类型的模块。</li>
-        <li><strong>让去 <code>Ref</code> 规则也认运行时名表</strong>：否，会把 <code>IOSurfaceRef</code> 改成 <code>IOSurface</code>，还会把 <code>Graph</code> 改坏成 <code>AGGraph</code>。</li>
-        <li><strong>跟着重新导出算进伞框架</strong>：推迟，与 ObjC 来源一起另开提案。</li>
+        <li>打印器上另注册一个 <code>ModuleNameResolving</code>：否，注册表已经在 swift-type-indexing。</li>
+        <li>让 swift-type-indexing 自己读导出表：否，那个包按设计不读 Mach-O。</li>
+        <li>从 CF 运行时类注册取名字：否，要反汇编调用点，结果与导出表等价。</li>
+        <li>用一致性符号里的模块：否，那是声明一致性的模块。</li>
+        <li>让去 <code>Ref</code> 规则也认运行时名表：否，会改错 <code>IOSurfaceRef</code> 与 <code>Graph</code>。</li>
+        <li>跟着重新导出算进伞框架：推迟。</li>
+        <li>让 swift-type-indexing 允许一个镜像路径登记多个来源：否，本提案不改那个包。</li>
       </ol>
     </div>
   </details>
@@ -397,9 +401,9 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="impact">
   <h2>影响</h2>
   <ul>
-    <li><strong>源码兼容性</strong>：纯新增，provider 的公开接口不变；<code>--resolve-c-module-names</code> 下私有 CF 类型会带上模块。</li>
+    <li><strong>源码兼容性</strong>：纯新增两个公开类型，provider 的公开接口不变；<code>--resolve-c-module-names</code> 下私有 CF 类型带上模块。</li>
     <li><strong>ABI</strong>：不适用，SPM 源码分发。</li>
-    <li><strong>下游</strong>：<code>InterfaceRequest</code> 自动受益；没有基线开着 <code>__C</code> 模块解析，渲染 A/B 不受影响；RuntimeViewer 要在 <code>RuntimeSwiftSection.swift:2013</code> 加一行才受益；MachOKitUI、SymbolViewer 不受影响。</li>
+    <li><strong>下游</strong>：<code>InterfaceRequest</code> 自动受益；RuntimeViewer 发版后把 <code>ObjCDeclaredTypeNames</code> 换成 <code>ImageDeclaredTypeNames</code> 才受益。</li>
     <li><strong>API 演进</strong>：没有被替代的旧 API，按 minor 版本发布。</li>
   </ul>
 </section>
@@ -407,24 +411,43 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="steps">
   <h2>落地步骤</h2>
   <ol start="0">
-    <li><strong>提案落盘、登记索引</strong>（本次）</li>
-    <li><strong><code>CFDeclaredTypeNames</code> 与测试</strong>：<code>exportedTypeIDFunctionNamesItsTypedef</code>、<code>underscoredTypeIDFunctionNamesBothSpellings</code>、<code>otherExportsNameNothing</code>、<code>readsACompiledLibrarysExportsThroughBothReaders</code></li>
-    <li><strong>provider 登记、端到端验证</strong>：<code>sourcesListTheRootFirstThenEachDependencyObjCBeforeCF</code>、<code>typeDatabaseAttributesAnExportedCFTypeToItsImage</code>、<code>interfacePrintsAPrivateCFTypeUnderItsDeclaringModule</code>、<code>interfaceKeepsTheBareSwiftNameWithoutTheSource</code></li>
-    <li><strong>文档与系统镜像验证</strong>：在 Ultra 上对 SwiftUICore、AppKit、RealityIO 跑 <code>interface --resolve-c-module-names</code>，确认四个代表类型的拼写并量耗时；测试一律在 Ultra 上跑</li>
+    <li><strong>提案落盘、登记索引</strong> ✅</li>
+    <li><strong><code>CFDeclaredTypeNames</code> 与测试</strong> ✅：<code>fileNamesTheTypedefOfEveryExportedTypeIDFunction</code>、<code>loadedImageNamesTheSameTypedefs</code>、<code>coreSVGDeclaresItsPrivateDocumentType</code></li>
+    <li><strong>合成来源、provider 登记、端到端验证</strong> ✅：<code>listsTheObjectiveCClassAndTheCFTypeOfOneImage</code>、<code>aPrivateCFTypePrintsUnderTheImageExportingItsTypeID</code>、<code>aCFTypeTheRootDefinesPrintsUnderTheRootsModule</code>、<code>aBridgedTypeWithoutATypeIDFunctionKeepsItsBareSwiftName</code>、<code>aGetTypeIDExportDoesNotClaimATypedefThatIsNoCFClass</code>、<code>withoutTheProviderAPrivateCFTypeKeepsItsBareSwiftName</code></li>
+    <li><strong>文档与系统镜像验证</strong> ✅：</li>
   </ol>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>镜像</th><th>改动前后不同的行</th><th>新增的模块限定</th><th>改动后耗时</th></tr></thead>
+    <tbody>
+      <tr><td>SwiftUICore</td><td class="numeric">300</td><td><code>AttributeGraph.Subgraph</code> 134、<code>AttributeGraph.Graph</code> 13、<code>CoreSVG.CGSVGDocument</code> 7</td><td class="numeric">17.28 秒（改动前 17.22）</td></tr>
+      <tr><td>AppKit</td><td class="numeric">16</td><td><code>CoreGraphics.CGColorTransform</code> 4、<code>CGContextDelegate</code> 3、<code>CGDisplayList</code> 1</td><td class="numeric">8.17 秒</td></tr>
+      <tr><td>RealityIO</td><td class="numeric">976</td><td><code>CoreRealityIO.RIOPxrUsdObject</code> 等二十多种</td><td class="numeric">2.24 秒</td></tr>
+      <tr><td>TextRecognition</td><td class="numeric">0</td><td>无</td><td class="numeric">2.62 秒</td></tr>
+    </tbody>
+  </table>
+  </div>
 </section>
 
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>2 条，最近一条：实现放在本仓库，形式是 DeclaredTypeNameSource（待确认）</summary>
+    <summary>10 条，最近一条：不改成遍历导出 trie</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
         <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
         <tbody>
-          <tr><td class="numeric">2026-11-25</td><td>Created as Draft</td><td>起因是想知道 Swift 用到的私有 CF 类能否还原原名。调研发现 Swift 名 0106 已经从描述符取得，缺的是模块；定义 CF 类型的框架都导出 <code>GetTypeID</code>，46 个公开类型验证全对。</td></tr>
-          <tr><td class="numeric">2026-11-25</td><td>实现放在本仓库，形式是 <code>DeclaredTypeNameSource</code></td><td>用户选定放在本仓库、不改 swift-type-indexing。用户设想的开放注册表已经以 <code>DeclaredTypeNameSource</code> 存在，因此不再另写打印器解析器；此项待用户确认。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>Created as Draft</td><td>Swift 名 0106 已从描述符取得，缺的是模块；<code>GetTypeID</code> 定位模块，46 个公开类型验证全对。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>形式是 <code>DeclaredTypeNameSource</code></td><td>用户设想的开放注册表已经存在；用户确认。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td><code>IOSurfaceRef</code> 疑似问题先复现</td><td>用户定：先复现，不并入本提案。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>用户批准，开始实现</td><td>功能分支从本地 <code>next</code> 切。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>测试都放在公开 seam 上</td><td>命名规则与来源顺序都经公开接口测。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>新增 <code>ImageDeclaredTypeNames</code></td><td>偏离原方案：<code>TypeDatabase</code> 按镜像路径去重，分开登记的 CF 来源被丢掉。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>加 foreign 描述符闸门</td><td>用户指出判断 CF 类型要靠 foreign metadata；诱饵测试加闸前红、加闸后绿。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>不导出 <code>GetTypeID</code> 的桥接类型印裸名</td><td>应用户要求实测并写成测试。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td><code>IOSurfaceRef</code> 疑似问题未复现</td><td>印 <code>CoreGraphics.IOSurfaceRef</code>，能编过；模块选择器问题记为后续项。</td></tr>
+          <tr><td class="numeric">2026-11-25</td><td>不改成遍历导出 trie</td><td>耗时测不出差别。</td></tr>
         </tbody>
       </table>
       </div>
