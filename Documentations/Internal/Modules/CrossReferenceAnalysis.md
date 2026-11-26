@@ -260,6 +260,17 @@ Swift 符号改按链接关系预筛（`imageIndices(linkingImageAt:among:)`，`
 
 **搬家之后**（2026-11-19，同一台 Ultra，Xcode 26.6，release；提案 [0098 move-cross-reference-layers](../../Evolutions/0098-move-cross-reference-layers.md)）：核心层与 ObjC 层跨包、接口改成 SPI 之后没有变慢，各项比 `next` 快 1% 到 11%（整 cache 建表进程内 2.67 → 2.53 秒、归档 27.2 cache 文件 2.75 → 2.51 秒），引用逐条一致。逐项数字记在 MachOKitExtensions 的 `Documentations/Internal/MachOCodeReferences.md`「吞吐」一节。
 
+**召回补漏的代价**（提案 [cross-reference-recall-gaps](../../Evolutions/draft-cross-reference-recall-gaps.md)，2026-11-26，JHs-Mac-Studio-Ultra，macOS 27.2，Xcode 27.2，release，`ScanThroughputBenchmarkTests`；基线是三个仓库的 `next`，与候选交替各两轮、取最好，计时期间机器上没有别的构建）：
+
+| 操作 | 基线 | 候选 |
+|---|---|---|
+| 建分析器 | 0.054 秒 | 0.055 秒 |
+| 每个镜像都建整表 | 2.419 秒（129,592,499 条） | 2.464 秒（133,847,503 条） |
+| `init` 的调用者（2,880 个镜像） | 0.034 + 1.516 秒（336,063 条） | 0.034 + 1.545 秒（336,075 条） |
+| `makeKeyAndOrderFront:` 的调用者（105 个镜像） | 0.059 + 0.292 秒（439 条） | 0.058 + 0.299 秒（442 条） |
+
+整表慢 1.9%、多 425 万条引用（取函数地址为主）；两条调用者查询慢 1.9% 与 2.4%，多出的几条是进程里 cache 外镜像的 selector 引用。都在提案定的 5% 以内。
+
 ## 测试锚点
 
 - `ARM64InstructionWordTests` / `ARM64TrampolineTests`：手写编码器造指令字；`capstoneAgreesWithTheEncoders` 让 Capstone 反汇编同一批字，编码器写错也藏不住。`linkerRewrittenAddressesAndLoads` 与 `linkerRewrittenSlotStub` 核对 ld64 改写出的 `adr`、字面量 `ldr` 与桩。
