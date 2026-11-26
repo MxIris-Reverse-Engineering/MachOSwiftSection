@@ -232,7 +232,7 @@ swift-section evolution <path>... \
 8. **兼容性推广**：逐转换 additive/breaking 与 `firstBreakingTransitionIndex`。
 9. **reporter**：小型 evolution 的整段文本断言（确定性输出）。
 
-另有**维护者手检集成套件**，在 `Tests/IntegrationTests/Evolution/`（遵循 IntegrationTests 约定：只打印/写文件、无断言、agent 不运行；Swift 与 ObjC 的报告和联合接口共用这一套，见提案 [0110-unify-evolution-integration-suites](../Evolutions/0110-unify-evolution-integration-suites.md)）：每条版本轴一个套件，挂在 `EvolutionTestSuite` 下，各按读的元数据筛版本。报告的 `swiftReportFile` / `swiftReportString` 跑完整 pipeline——逐版本索引 → 冻结 → **经持久化 JSON 往返**（codec + 版本头在真实数据上过一遍）→ lineage 矩阵 → timeline 报告（`-Evolution.txt` / `-Evolution.json` 落盘）。`SwiftUIDyldCacheTests` 对三份 macOS dyld cache（15.5 → 26.5.2 → 27.0）提取 SwiftUI；`SwiftUICoreSimulatorTests`（iOS 18.5 → 26.5 模拟器运行时）覆盖 N == 2 情形并打印与双侧 diff 的 verdict 交叉核对行。
+另有**维护者手检集成套件**，在 `Tests/IntegrationTests/InspectionDumps/`（遵循 IntegrationTests 约定：只打印/写文件、无断言、agent 不运行；Swift 与 ObjC 的报告和联合接口共用这一套，见提案 [0110-unify-evolution-integration-suites](../Evolutions/0110-unify-evolution-integration-suites.md)；与单版本接口、两版本 diff 的手检套件同在一个目录、共用版本轴，见提案 [draft-unify-diff-and-interface-integration-suites](../Evolutions/draft-unify-diff-and-interface-integration-suites.md)）：每条版本轴一个套件，挂在 `EvolutionTestSuite` 下，各按读的元数据筛版本。报告的 `swiftReportFile` / `swiftReportString` 跑完整 pipeline——逐版本索引 → 冻结 → **经持久化 JSON 往返**（codec + 版本头在真实数据上过一遍）→ lineage 矩阵 → timeline 报告（`-Evolution.txt` / `-Evolution.json` 落盘）。`SwiftUIDyldCacheTests` 对三份 macOS dyld cache（15.5 → 26.5.2 → 27.0）提取 SwiftUI；`SwiftUICoreSimulatorTests`（iOS 18.5 → 26.5 模拟器运行时）覆盖 N == 2 情形并打印与双侧 diff 的 verdict 交叉核对行。
 
 ## 后续项（不在首轮范围）
 

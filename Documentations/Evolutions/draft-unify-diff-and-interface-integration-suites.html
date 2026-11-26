@@ -163,7 +163,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
   <h1><span class="proposal-number">Draft</span> IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-26</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
     <div><dt>原文</dt><dd><code>draft-unify-diff-and-interface-integration-suites.md</code></dd></div>
@@ -199,7 +199,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">已批准。以下是没问用户就采用的假设：</p>
+    <p class="callout-title">实现完成，待看过后收尾。以下是没问用户就采用的假设：</p>
     <ol>
       <li>ObjC 输出只加在 AppKit 的四个套件上；别的套件要看 ObjC，加一对一行测试即可。</li>
       <li>ObjC 头文件开满注释（ivar 偏移、属性特性、方法 IMP 地址、访问器地址），与 Swift 接口开满字段偏移、成员地址对齐。</li>
@@ -343,7 +343,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
     <rect class="box-added" x="20" y="210" width="600" height="40" rx="6"/>
     <text x="35" y="235">objcReport — objcSnapshotDocument ×2 → ObjCAPIDiffer</text>
     <rect class="box-changed" x="20" y="275" width="600" height="40" rx="6"/>
-    <text x="35" y="300">deliver → write(forImageGroup: new.images) → -ObjCDiff.txt / .json</text>
+    <text x="35" y="300">deliver → write(forImageGroup: [new.primaryImage]) → -ObjCDiff.txt / .json</text>
     <path class="arrow" d="M 320 55 L 320 80"/>
     <path class="arrow" d="M 320 120 L 320 145"/>
     <path class="arrow" d="M 320 185 L 320 210"/>
@@ -524,10 +524,10 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <h2>落地步骤</h2>
   <p>验证在 Ultra 上做：<code>queued-build swift build --build-tests</code>，默认 Xcode 与 Xcode 26.6 各编一遍；不运行 IntegrationTests。</p>
   <ol>
-    <li><strong>公共骨架与版本轴</strong>：新目录，四个文件移入并改名；两个旧文件只做机械改名以保持能编。</li>
-    <li><strong>接口一类</strong>：<code>InterfaceDumpTests.swift</code>、<code>InterfaceTests.swift</code>；删旧接口文件；<code>Package.swift</code> 加依赖。</li>
-    <li><strong>diff 一类</strong>：<code>DiffDumpTests.swift</code>、<code>DiffTests.swift</code>；删旧 diff 文件。</li>
-    <li><strong>文档</strong>：<code>ABIEvolutionDesign.md</code>、账本、索引；维护者可选地挑几个 file 测试前后比对。</li>
+    <li><strong>公共骨架与版本轴</strong>（已完成）：新目录，四个文件移入并改名；两个旧文件只做机械改名以保持能编。</li>
+    <li><strong>接口一类</strong>（已完成）：<code>InterfaceDumpTests.swift</code>、<code>InterfaceTests.swift</code>；删旧接口文件；<code>Package.swift</code> 加依赖。</li>
+    <li><strong>diff 一类</strong>（已完成）：<code>DiffDumpTests.swift</code>、<code>DiffTests.swift</code>；删旧 diff 文件。</li>
+    <li><strong>文档</strong>（已完成）：<code>ABIEvolutionDesign.md</code>、账本、索引；维护者可选地挑几个 file 测试前后比对。</li>
   </ol>
   <p>收尾判断：预计不需要配套专题文章；不新增术语。</p>
 </section>
@@ -535,7 +535,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>2 条，最近一条：Accepted</summary>
+    <summary>7 条，最近一条：实现完成，待用户看过后收尾</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -543,6 +543,11 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
         <tbody>
           <tr><td class="numeric">2026-11-26</td><td>Created as Draft</td><td>0110 合并演进套件后，用户要求把 diff 与单版本接口两类手检套件也按同样的结构统一。澄清一轮：两类都加上 ObjC 输出；diff 改用演进套件的版本轴（cache 对因此整份打开，与 CLI 一致）；维护者未提交的接口套件实验不碰，照提交版重构，由维护者自己收掉。</td></tr>
           <tr><td class="numeric">2026-11-26</td><td>Accepted</td><td>用户看过简报后批准，开始实现。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>In Progress：第 1 步开工</td><td>功能分支从 <code>next</code> 切出，<code>next</code> 上已有本提案的 Accepted 提交。第 1 步首次在 Xcode 27.2 上编译时，<code>VersionAxis.swift</code> 缺 <code>FoundationToolbox</code> 与 <code>SwiftStdlibToolbox</code> 的导入（成员导入可见性检查），补了一个提交；Xcode 26.6 首次撞上已知的 <code>no such module &#x27;swift_section&#x27;</code> 构建顺序竞态，第 2 步重跑通过。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>第 2、3 步完成</td><td><code>measuringPreparation</code> 改成泛型、返回准备好的值（详细设计原写不变）：ObjC 头文件要在计时的一步里拿回索引器，ObjC diff 要拿回两份快照文档。diff 的文件名按新版本的主镜像起（<code>[newVersion.primaryImage]</code>），不按整组镜像：diff 只读主镜像，单镜像时文件名与原来相同。带标注的接口两种格式各建一个渲染器，与现状一致。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>第 4 步完成</td><td><code>ABIEvolutionDesign.md</code> 的集成套件一段改成新目录并链接本提案；账本追加一节（节号落地时取）。只编译、没运行 IntegrationTests。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>收尾判断</td><td>不配使用指南或实现说明：这是维护者手检目标的内部整理，用法写在新文件的文档注释里。没有新术语：「版本轴」0110 已判断不登记。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>实现完成，待用户看过后收尾</td><td>功能分支已推送，待在本地合进 <code>.worktrees/MachOSwiftSection</code> 的 <code>next</code>（不推送）。</td></tr>
         </tbody>
       </table>
       </div>

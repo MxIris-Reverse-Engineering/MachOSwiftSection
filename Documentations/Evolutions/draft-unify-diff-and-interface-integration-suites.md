@@ -1,6 +1,6 @@
 # Draft - IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-26
 - **最后更新**: 2026-11-26
@@ -181,7 +181,7 @@ DiffTestSuite.DyldCacheTests.objcReportFile()
        │    │      └─ preparedObjCIndexer(of:) → ObjCAPISnapshotBuilder.snapshot() → JSON round trip
        │    ├─ ObjCAPIDiffer().diff(old:new:)
        │    └─ DumpOutput(console: report, files: [ObjCDiff.txt, ObjCDiff.json])
-       └─ deliver(output, to: .file) → write(_:forImageGroup: new.images, …)
+       └─ deliver(output, to: .file) → write(_:forImageGroup: [new.primaryImage], …)
 ```
 
 ## 详细设计
@@ -197,7 +197,7 @@ protocol InspectionDumpTests {}
 extension InspectionDumpTests {
     var rootDirectory: URL                                   // unchanged: Documents/SwiftInterfaceTests
     var indexConfiguration: SwiftDeclarationIndexConfiguration { .init(showCImportedTypes: false) }
-    func measuringPreparation(_ prepare: () async throws -> Void) async rethrows   // unchanged
+    func measuringPreparation<Prepared>(_ prepare: () async throws -> Prepared) async rethrows -> Prepared   // now returns what it prepared
     func printResult(_ string: String)                       // unchanged
     func write(_:for:suffix:fileExtension:) throws           // unchanged
     func write(_:forImageGroup images: [AxisImage], suffix:fileExtension:) throws
@@ -221,7 +221,7 @@ struct DumpOutput: Sendable { let consoleText: String; let files: [DumpFile] }
 func preparedObjCIndexer<MachO: ObjCMetadataSource & MachORepresentableWithCache>(of machO: MachO) async throws -> ObjCInterfaceIndexer<MachO>
 ```
 
-`BuildVersionCommand` 与 `Platform.stringValue` 的扩展原样搬来。`deliver` 让三类各自决定文件名怎么起：接口按 `write(_:for: machO…)`，diff 与演进按 `write(_:forImageGroup: newest.images…)`。
+`BuildVersionCommand` 与 `Platform.stringValue` 的扩展原样搬来。`deliver` 让三类各自决定文件名怎么起：接口按 `write(_:for: machO…)`，演进按 `write(_:forImageGroup: newest.images…)`，diff 按 `write(_:forImageGroup: [newVersion.primaryImage]…)`（diff 只读主镜像；单镜像时三种写法得到同一个文件名）。`measuringPreparation` 改成泛型、返回准备好的值：ObjC 头文件与 ObjC diff 要在计时的那一步里拿回索引器或快照文档。
 
 ### `VersionAxis.swift`
 
@@ -315,14 +315,14 @@ extension DiffDumpTests {
         }
         let output: DumpOutput = switch kind { … }
         try deliver(output, to: destination) { file in
-            try write(file.text, forImageGroup: newVersion.images, suffix: file.suffix, fileExtension: file.fileExtension)
+            try write(file.text, forImageGroup: [newVersion.primaryImage], suffix: file.suffix, fileExtension: file.fileExtension)
         }
     }
 }
 ```
 
 - `swiftReport`：两个 `SwiftDiffableInterfaceBuilder` 在一个 `measuringPreparation` 里各 `prepare()`（与现状同）；`ABIDiffer().diff(old: abiModule(), new: abiModule())`；正文 = 报告 + `\n\n` + 结论行；JSON = `ABIJSON.encoder().encode(diff)`。
-- `swiftInterface`：同样准备两个 builder；inline 必出，unified（`.unified()`，与现状相同的默认标签）只在去向是文件时渲染。
+- `swiftInterface`：同样准备两个 builder；inline 必出，unified（`.unified()`，与现状相同的默认标签）只在去向是文件时渲染。两种格式各建一个 `SwiftDiffableInterfaceRenderer`，与现状相同。
 - `objcReport`：两边 `objcSnapshotDocument(of: version.primaryImage, label: version.label)`，`ObjCAPIDiffer().diff(old:new:)`，正文 = `ObjCAPIDiffReporter().report(diff)` + 结论行（`API-breaking: … · backward-compatible: …`，与 CLI 同），JSON = `ObjCAPIJSON.encoder().encode(diff)`。
 
 ### 套件的样子
@@ -404,25 +404,25 @@ enum InterfaceTestSuite {
 
 验证一律在 Ultra 上做（本机是公司那台，不编大工程）：`queued-build swift build --build-tests`，scratch 用 `/Volumes/DerivedData/Agents.noindex/claude/SwiftPM/MachOSwiftSection-UnifyDiffAndInterfaceIntegrationSuites`，默认 Xcode 编一遍，再用 `DEVELOPER_DIR=…/Xcode-26.6.0.app`（CI 的版本）编一遍。第一次 26.6 构建若报 `no such module 'swift_section'`，是已知的构建顺序竞态，原样重跑。不运行 IntegrationTests。
 
-1. **公共骨架与版本轴**——`InspectionDumps/` 目录；`InspectionDumpTests.swift`、`VersionAxis.swift`、`EvolutionDumpTests.swift`、`EvolutionTests.swift` 移入并改名；两个旧文件只做机械改名以保持能编。
+1. **公共骨架与版本轴**（已完成，Ultra 上 Xcode 27.2 编过；26.6 首次撞上已知的构建顺序竞态，随第 2 步重跑通过）——`InspectionDumps/` 目录；`InspectionDumpTests.swift`、`VersionAxis.swift`、`EvolutionDumpTests.swift`、`EvolutionTests.swift` 移入并改名；两个旧文件只做机械改名以保持能编。
    - 行为：`evolutionSuitesKeepTheirFortyThreeTestsAndOutputs`
    - 行为：`multiVersionCacheAxisStoresOneAxisPerLanguage`
    - 行为：`simulatorFilePairGivesItsOwnAxisLabeledByVersion`
    - 行为：`objcSnapshotDocumentIsSharedByDiffAndEvolution`
-2. **接口一类**——`InterfaceDumpTests.swift`、`InterfaceTests.swift`；删除 `SwiftInterface/SwiftInterfaceBuilderTests.swift`；`Package.swift` 加 `ObjCDeclarationRendering`。
+2. **接口一类**（已完成，Ultra 上 Xcode 26.6 与 27.2 都编过，新文件没有警告）——`InterfaceDumpTests.swift`、`InterfaceTests.swift`；删除 `SwiftInterface/SwiftInterfaceBuilderTests.swift`；`Package.swift` 加 `ObjCDeclarationRendering`。
    - 行为：`swiftInterfaceMatchesTodaysConfigurationAndFileName`
    - 行为：`exportedOnlySuiteOverridesOneFlagInsteadOfTheWholeConfiguration`
    - 行为：`objcInterfaceConcatenatesEveryKindInObjcDumpOrder`
    - 行为：`readerSuffixComesFromAsMachOImage`
    - 行为：`appKitInterfaceSuitesWriteBothLanguages`
-3. **diff 一类**——`DiffDumpTests.swift`、`DiffTests.swift`；删除 `SwiftInterface/SwiftDiffableInterfaceBuilderTests.swift`。
+3. **diff 一类**（已完成，Ultra 上 Xcode 26.6 与 27.2 都编过，新文件没有警告）——`DiffDumpTests.swift`、`DiffTests.swift`；删除 `SwiftInterface/SwiftDiffableInterfaceBuilderTests.swift`。
    - 行为：`diffCachePairOpensEachCacheWhole`
    - 行为：`swiftReportWritesChangeListAndJSON`
    - 行为：`swiftInterfaceRendersUnifiedOnlyForFiles`
    - 行为：`objcReportUsesTheObjCDifferAndVerdictLine`
    - 行为：`diffWithFewerThanTwoVersionsPrintsANoteAndWritesNothing`
    - 行为：`xcodePairIsPickedByVersion`
-4. **文档**——`ABIEvolutionDesign.md`、账本一节、两个索引；提案状态与决策日志随代码同批提交。
+4. **文档**（已完成）——`ABIEvolutionDesign.md`、账本一节、两个索引；提案状态与决策日志随代码同批提交。
    - 维护者比对（可选）：挑 `InterfaceTestSuite.MachOFileTests.swiftInterfaceFile` 与 `DiffTestSuite.SwiftUICoreTests` 的两个 file 测试前后各跑一次，`diff` 输出；cache 对的 diff 预期可能因整份打开而不同。
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
@@ -436,3 +436,8 @@ enum InterfaceTestSuite {
 |------|------|------|
 | 2026-11-26 | Created as Draft | 0110 合并演进套件后，用户要求把 diff 与单版本接口两类手检套件也按同样的结构统一。澄清一轮：两类都加上 ObjC 输出；diff 改用演进套件的版本轴（cache 对因此整份打开，与 CLI 一致）；维护者未提交的接口套件实验不碰，照提交版重构，由维护者自己收掉。 |
 | 2026-11-26 | Accepted | 用户看过简报后批准，开始实现。 |
+| 2026-11-26 | In Progress：第 1 步开工 | 功能分支从 `next` 切出，`next` 上已有本提案的 Accepted 提交。第 1 步首次在 Xcode 27.2 上编译时，`VersionAxis.swift` 缺 `FoundationToolbox` 与 `SwiftStdlibToolbox` 的导入（成员导入可见性检查），补了一个提交；Xcode 26.6 首次撞上已知的 `no such module 'swift_section'` 构建顺序竞态，第 2 步重跑通过。 |
+| 2026-11-26 | 第 2、3 步完成 | `measuringPreparation` 改成泛型、返回准备好的值（详细设计原写不变）：ObjC 头文件要在计时的一步里拿回索引器，ObjC diff 要拿回两份快照文档。diff 的文件名按新版本的主镜像起（`[newVersion.primaryImage]`），不按整组镜像：diff 只读主镜像，单镜像时文件名与原来相同。带标注的接口两种格式各建一个渲染器，与现状一致。 |
+| 2026-11-26 | 第 4 步完成 | `ABIEvolutionDesign.md` 的集成套件一段改成新目录并链接本提案；账本追加一节（节号落地时取）。只编译、没运行 IntegrationTests。 |
+| 2026-11-26 | 收尾判断 | 不配使用指南或实现说明：这是维护者手检目标的内部整理，用法写在新文件的文档注释里。没有新术语：「版本轴」0110 已判断不登记。 |
+| 2026-11-26 | 实现完成，待用户看过后收尾 | 功能分支已推送，待在本地合进 `.worktrees/MachOSwiftSection` 的 `next`（不推送）。 |

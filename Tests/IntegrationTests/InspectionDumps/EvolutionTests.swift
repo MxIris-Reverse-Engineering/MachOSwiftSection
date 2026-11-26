@@ -54,7 +54,7 @@ enum EvolutionTestSuite {
         /// byte-identical.
         @available(macOS 14.0, iOS 17.0, tvOS 17.0, watchOS 10.0, *)
         @Test func swiftInterfaceStringViaPackFacade() async throws {
-            let versions = evolutionAxis(for: .swift).versions
+            let versions = versionAxis(for: .swift).versions
             let builder = try SwiftEvolutionInterfaceBuilder(
                 configuration: indexConfiguration,
                 versions: versions[0].primaryImage.machOFile, versions[1].primaryImage.machOFile, versions[2].primaryImage.machOFile,
@@ -117,7 +117,7 @@ enum EvolutionTestSuite {
     final class SwiftUIArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated EvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] { archivedMacOSCachePaths }
         override class var cacheImageName: MachOImageName { .SwiftUI }
-        override class var availabilityPlatform: EvolutionAvailabilityPlatform? { .macOS }
+        override class var availabilityPlatform: AvailabilityPlatform? { .macOS }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func swiftInterfaceFile() async throws {
@@ -142,7 +142,7 @@ enum EvolutionTestSuite {
     final class AppKitArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated EvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] { archivedMacOSCachePaths }
         override class var cacheImageName: MachOImageName { .AppKit }
-        override class var availabilityPlatform: EvolutionAvailabilityPlatform? { .macOS }
+        override class var availabilityPlatform: AvailabilityPlatform? { .macOS }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func objcReportFile() async throws {
@@ -220,7 +220,7 @@ enum EvolutionTestSuite {
     final class SwiftUIImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated EvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] { archivedMacOSCachePaths }
         override class var cacheImageNames: [MachOImageName] { [.SwiftUI, .SwiftUICore] }
-        override class var availabilityPlatform: EvolutionAvailabilityPlatform? { .macOS }
+        override class var availabilityPlatform: AvailabilityPlatform? { .macOS }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func swiftReportFile() async throws {
@@ -297,7 +297,7 @@ enum EvolutionTestSuite {
     final class AppKitImageGroupArchivedDyldCacheTests: MultiVersionDyldCacheImageTests, nonisolated EvolutionDumpTests, @unchecked Sendable {
         override class var cachePaths: [DyldSharedCachePath] { archivedMacOSCachePaths }
         override class var cacheImageNames: [MachOImageName] { [.AppKit, .UIFoundation, .CollectionViewCore, .CoreAutoLayout] }
-        override class var availabilityPlatform: EvolutionAvailabilityPlatform? { .macOS }
+        override class var availabilityPlatform: AvailabilityPlatform? { .macOS }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func objcReportFile() async throws {
@@ -323,21 +323,9 @@ enum EvolutionTestSuite {
     /// SwiftUICore across two simulator runtimes (iOS 18.5 → 26.5) — the
     /// N == 2 case, whose printed pairwise cross-check line must agree with
     /// the two-sided differ.
-    final class SwiftUICoreSimulatorTests: SwiftDiffableInterfaceBuilderTestSuite.CrossVersionMachOFileTests, nonisolated EvolutionDumpTests, @unchecked Sendable {
+    final class SwiftUICoreSimulatorTests: CrossVersionMachOFileTests, nonisolated EvolutionDumpTests, @unchecked Sendable {
         override class var oldFileName: MachOFileName { .iOS_18_5_Simulator_SwiftUICore }
         override class var newFileName: MachOFileName { .iOS_26_5_Simulator_SwiftUICore }
-
-        nonisolated func evolutionAxis(for language: EvolutionMetadataLanguage) -> EvolutionAxis {
-            let versions = [
-                EvolutionVersion(label: "18.5", images: [EvolutionImage(imageName: "SwiftUICore", machOFile: oldMachOFile)]),
-                EvolutionVersion(label: "26.5", images: [EvolutionImage(imageName: "SwiftUICore", machOFile: newMachOFile)]),
-            ]
-            return EvolutionAxis(
-                versions: versions.compactMap { $0.keepingImages(carrying: language) },
-                comparesImageGroups: false,
-                availabilityPlatform: nil
-            )
-        }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func swiftReportFile() async throws {
