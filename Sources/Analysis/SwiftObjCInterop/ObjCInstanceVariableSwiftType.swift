@@ -47,7 +47,7 @@ package struct ObjCInstanceVariableSwiftType {
         // binary says what its type is.
         guard instanceVariable.isObjCVisible else { return nil }
         guard instanceVariable.typeEncoding != "?" else { return nil }
-        guard let encodedType = ObjCTypeEncoding.type(from: instanceVariable.typeEncoding),
+        guard let encodedType = ObjCTypeEncodingParser.type(from: instanceVariable.typeEncoding),
               let typeNode = importedTypes.triviallyRepresentedTypeNode(encodedType, position: isWeak ? .weakStorage : .topLevel)
         else { return nil }
         self.typeNode = typeNode

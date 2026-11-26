@@ -25,7 +25,7 @@ RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`__C._UISplitViewControllerAdapti
 - **编译器怎么写 ivar 的 encoding**：`swift/lib/IRGen/GenClass.cpp` 的 `buildIvar`（约 2083–2096 行）：只有 `varDecl->isObjC() && varDecl->hasStorage()` 才写 encoding；类型 `isTriviallyRepresentableIn(ForeignLanguage::ObjectiveC, …)` 时调 `getObjCEncodingForPropertyType`，否则写 `"?"`（注释原文：「"Unknown type" - used when ObjC classes are bridged to separate Swift types」）；不是 `@objc` 的存储属性 encoding 为空串。`isTriviallyRepresentableIn`（`lib/AST/Type.cpp` 3481 行）对 `Trivial` 与 `Object` 返回 true，对 `Bridged` / `BridgedError` / `StaticBridged` / `None` 返回 false。
 - **encoding 与 ObjC 属性的 `T` 特性是同一个函数算的**：`getObjCEncodingForPropertyType`（`lib/IRGen/GenObjC.cpp` 1267 行）取 getter 的 foreign 结果类型对应的 clang 类型，交给 clang 的 `getObjCEncodingForPropertyType`；属性表的 `T` 特性也走它（`GenClass.cpp` 2192 行）。所以 encoding 为 `?` 的 ivar，它的 ObjC 属性 `T` 特性给的是桥接后的 ObjC 类型（`T@"NSString"`）。
 - **encoding 不带的信息**：可空性（`UIView` / `UIView?` / `UIView!` 都是 `@"UIView"`）、typedef（`CGFloat`、`NSTimeInterval` 都是 `d`，`NSInteger` 与 `Int` 都是 `q`）、`NSArray` 等的泛型参数（`T@"NSArray"`）、block 的签名（ivar 与属性都只写 `@?`）。
-- **已有的转换**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedTypes.swift` 的 `ObjCImportedTypes.typeNode(_:position:)` 按 ClangImporter 的规则把 `ObjCEncodedType` 转成 `Type` 节点：桥接类（`ObjCBridgedStructures`、`NSArray` / `NSDictionary` / `NSSet` / `NSError`）转值类型，`id` 转 `Any`，可空的对象类型转 `T!`，类名经 `ObjCRuntimeNames.classNode(forRuntimeName:in:)` 找 Swift 类、找不到就是 `__C.<Name>`；`__C` 名在打印时经 C 导入类型名改写（0106，接 swift-type-indexing 的 SDK 索引）换成 Swift 名。`ObjCTypeEncoding.type(from:)` 与 `propertyType(fromAttributes:)` 解析 encoding 与 `T` 特性（`ObjCTypeEncoding.swift` 115–132 行）。
+- **已有的转换**：`Sources/Analysis/SwiftObjCInterop/ObjCImportedTypes.swift` 的 `ObjCImportedTypes.typeNode(_:position:)` 按 ClangImporter 的规则把 `ObjCEncodedType` 转成 `Type` 节点：桥接类（`ObjCBridgedStructures`、`NSArray` / `NSDictionary` / `NSSet` / `NSError`）转值类型，`id` 转 `Any`，可空的对象类型转 `T!`，类名经 `ObjCRuntimeNames.classNode(forRuntimeName:in:)` 找 Swift 类、找不到就是 `__C.<Name>`；`__C` 名在打印时经 C 导入类型名改写（0106，接 swift-type-indexing 的 SDK 索引）换成 Swift 名。`ObjCTypeEncodingParser.type(from:)` 与 `propertyType(fromAttributes:)` 解析 encoding 与 `T` 特性（`ObjCTypeEncoding.swift` 115–132 行）。
 - **现状的渲染路径**：`Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ObjCImplementation.swift` 的 `renderUnrepresentedObjCImplementationInstanceVariables`：有 `Wvd` 符号的 ivar 打 `var name: Type`，否则（Generated Interface 有 stand-in 时打 stand-in）打 `unrecoverableStoredPropertyComment`。`dump` 一侧在 `Sources/Output/SwiftDump/Dumper/ObjCImplementationClassDumper.swift` 约 142–160 行，注释部分写 `Swift type not recoverable`。ObjC 属性与 ivar 的对应：`ObjCImplementationClassFacts.objcProperty(storedIn:swiftPropertyName:)`（先认 `V<ivar>`，再认同名）。
 - **ObjC 一侧的 C 类型替换**：MachOObjCSection 的 `Transformer.CType`（`ObjCOutputTransformer`，`Pattern` 13 种 C 基本类型）。RuntimeViewer 在 `RuntimeObjCSection.builderInputs(for:)` 里把它转成 `[ObjCPrimitiveTypePattern: String]` 交给 ObjC 渲染；Swift 打印目前拿不到这份替换表。`ObjCOutputTransformer` 只依赖 `OutputTransformer` 与 `Semantic`。
 - **实例**：UIKitCore（macOS 27.2 的 iOSSupport）`_UISplitViewControllerAdaptiveLayoutTransition` 的 24 个 ivar：12 个空 encoding、1 个 `?`（`identifier`，ObjC 属性 `NSString *`）、11 个完整 encoding（`@"UIView"`、`@"<_UISplitViewControllerAdaptiveLayout>"`、`B`、`d` 等）。
@@ -34,7 +34,7 @@ RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`__C._UISplitViewControllerAdapti
 
 在 `SwiftObjCInterop` 加一个只依赖 ivar 事实与 ObjC 属性的还原函数，interface 与 dump 共用：
 
-1. **encoding 完整**（非空、非 `?`）：`ObjCTypeEncoding.type(from:)` 解析后按「原样表示」规则转成 `Type` 节点——与导入规则只差三处：桥接类保持类本身（`NSString` 还是 `NSString`），`id` 是 `AnyObject`，block / 位域 / 不认识的类型 / 无名结构体还原不出（返回 `nil`，保持注释）。
+1. **encoding 完整**（非空、非 `?`）：`ObjCTypeEncodingParser.type(from:)` 解析后按「原样表示」规则转成 `Type` 节点——与导入规则只差三处：桥接类保持类本身（`NSString` 还是 `NSString`），`id` 是 `AnyObject`，block / 位域 / 不认识的类型 / 无名结构体还原不出（返回 `nil`，保持注释）。
 2. **encoding 是 `?`**：找 ivar 对应的 ObjC 属性，按它的 `T` 特性走现有的导入规则（`NSString` → `String`、`NSArray` → `[Any]`、`id` → `Any`）；没有 ObjC 属性、或 `T` 是 block 等还原不出的类型，保持注释。`weak` 属性例外：`weak` 的存储不能原样表示成 ObjC 类型，编译器对类类型也写 `?`，而 `weak` 只能是类，所以按「原样表示」规则读它的 `T` 特性，不桥接。
 3. **空 encoding**：保持注释，二进制里没有任何类型信息。
 4. **可空性**：可空的类型写 `T!`（ClangImporter 对无可空性标注的声明的写法，Generated Interface 也这样写）；ObjC 属性是 `weak` 时写 `weak var x: T?`（`weak` 必为可选）。
@@ -81,8 +81,8 @@ SwiftObjCInterop
   ObjCImplementationClassFacts.InstanceVariable   (typeEncoding, swiftTypeNode?)
   ObjCImplementationClassFacts.Property           (attributes: T…,R,W,V…)
 + ObjCInstanceVariableSwiftType(instanceVariable:objcProperty:in:)
-+   encoding complete   -> ObjCTypeEncoding.type(from:)          -> ObjCImportedTypes.triviallyRepresentedTypeNode
-+   encoding "?"        -> ObjCTypeEncoding.propertyType(fromAttributes:) -> ObjCImportedTypes.bridgedTypeNode
++   encoding complete   -> ObjCTypeEncodingParser.type(from:)          -> ObjCImportedTypes.triviallyRepresentedTypeNode
++   encoding "?"        -> ObjCTypeEncodingParser.propertyType(fromAttributes:) -> ObjCImportedTypes.bridgedTypeNode
 +   encoding ""         -> nil
   ObjCImportedTypes
     typeNode(_:position:)                          (unchanged: imported declarations)
