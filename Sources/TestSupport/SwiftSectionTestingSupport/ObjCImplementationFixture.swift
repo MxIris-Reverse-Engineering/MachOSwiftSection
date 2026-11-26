@@ -43,6 +43,10 @@ import Testing
 /// recognition's first version accepted only the `identifier` shape and left
 /// both untyped even with every symbol present.
 ///
+/// `AdaptiveTransitionWidget` (evolution proposal `objc-ivar-type-recovery`)
+/// has one stored property per ivar encoding shape, all internal, so the
+/// stripped variants keep only the Objective-C side of each.
+///
 /// Five link/strip variants exercise the evidence tiers and the bind formats:
 /// - `.full`: every symbol present — accessor, field-offset globals, `To`
 ///   thunks at the class's own IMPs.
@@ -135,6 +139,28 @@ package enum ObjCImplementationFixture {
     @property (nonatomic, strong) PresentationSettings *settings NS_REFINED_FOR_SWIFT;
     - (BOOL)isHostingSceneLayer:(FXSceneLayer *)sceneLayer NS_SWIFT_NAME(isHosting(sceneLayer:));
     - (void)activate;
+    @end
+
+    // Shaped after UIKitCore's `_UISplitViewControllerAdaptiveLayoutTransition`
+    // on macOS 27.2 (evolution proposal `objc-ivar-type-recovery`): with its
+    // field-offset symbols stripped, only the ivar encodings and the
+    // Objective-C properties say what its stored properties' types are.
+    @protocol AdaptiveLayout <NSObject>
+    @end
+
+    @interface AdaptiveTransitionWidget : NSObject
+    @property (nonatomic, strong) NSObject *containerView;
+    @property (nonatomic, strong) NSMutableString *buffer;
+    @property (nonatomic, strong) id<AdaptiveLayout> previousLayout;
+    @property (nonatomic, readonly) NSString *identifier;
+    @property (nonatomic, weak, nullable) NSObject *observer;
+    @property (nonatomic) BOOL isAnimated;
+    @property (nonatomic) CGFloat interactiveProgress;
+    @property (nonatomic) NSInteger stepCount;
+    @property (nonatomic) NSRange selectedRange;
+    @property (nonatomic, copy) NSArray<NSString *> *names;
+    @property (nonatomic, strong) id payload;
+    - (void)begin;
     @end
 
     NS_ASSUME_NONNULL_END
@@ -341,6 +367,36 @@ package enum ObjCImplementationFixture {
         }
         public func activate() {
             priority += 1
+        }
+    }
+
+    // Shaped after UIKitCore's `_UISplitViewControllerAdaptiveLayoutTransition`
+    // (evolution proposal `objc-ivar-type-recovery`). Internal members, so
+    // `strip -x` takes every field-offset symbol and accessor: one ivar per
+    // encoding shape — a class, a class Swift does not bridge, a protocol
+    // existential, `B`, `d`, `q`, a structure — the bridged ones the ivar
+    // marks `?` (`String`, `[String]`, `Any`), a `weak` one, a `let` behind a
+    // `readonly` property, and a Swift-only one with no encoding at all.
+    final class StandInAdaptiveLayout: NSObject, AdaptiveLayout {}
+
+    @objc @implementation extension AdaptiveTransitionWidget {
+        var containerView: NSObject = NSObject()
+        var buffer: NSMutableString = NSMutableString()
+        var previousLayout: any AdaptiveLayout = StandInAdaptiveLayout()
+        let identifier: String = "transition"
+        weak var observer: NSObject?
+        var isAnimated: Bool = false
+        var interactiveProgress: CGFloat = 0
+        var stepCount: Int = 0
+        var selectedRange: NSRange = NSRange(location: 0, length: 0)
+        var names: [String] = []
+        var payload: Any = NSNull()
+        final var transitionAnimations: [() -> Void] = []
+
+        func begin() {
+            isAnimated = true
+            stepCount += names.count
+            transitionAnimations.append {}
         }
     }
     """

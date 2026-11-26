@@ -846,6 +846,10 @@ extension Target {
             .target(.SwiftDeclarationRendering),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
+            // `Transformer.CType.Pattern`, the keys of
+            // `SwiftDeclarationPrintConfiguration.cTypeReplacements`.
+            .product(.OutputTransformer),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
         ],
         path: "Sources/Output/SwiftPrinting",
     )
