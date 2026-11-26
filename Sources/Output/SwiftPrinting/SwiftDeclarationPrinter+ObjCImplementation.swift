@@ -88,6 +88,12 @@ extension SwiftDeclarationPrinter {
     /// without renders as an honest comment naming what the binary does say
     /// (ObjC name, offset, size, encoding) rather than a fabricated type.
     ///
+    /// Before falling back to the comment, the Objective-C side is asked for
+    /// the Swift type: a complete ivar encoding is the Swift type itself, and
+    /// a `?` one the bridged form of the Objective-C property synthesized on
+    /// the ivar (`ObjCInstanceVariableSwiftType`, evolution proposal
+    /// `objc-ivar-type-recovery`).
+    ///
     /// `standIns` replace that comment with a declaration the Objective-C side
     /// gives, keyed by the ivar's identity: the Generated Interface prints the
     /// Objective-C property synthesized on the ivar as Swift imports it,
@@ -126,6 +132,23 @@ extension SwiftDeclarationPrinter {
                                 Space()
                             }
                             await printType(typeNode.materialize(), isProtocol: false, level: level)
+                        } else if let recoveredType = recoveredSwiftType(of: instanceVariable, in: extensionDefinition) {
+                            SemanticString {
+                                if recoveredType.isWeak {
+                                    Keyword(.weak)
+                                    Space()
+                                    Keyword(.var)
+                                } else {
+                                    // A `readonly` Objective-C property over
+                                    // stored Swift storage was declared `let`.
+                                    Keyword(recoveredType.isReadOnly ? .let : .var)
+                                }
+                                Space()
+                                MemberDeclaration(instanceVariable.name)
+                                Standard(":")
+                                Space()
+                            }
+                            await printRecoveredType(recoveredType, level: level)
                         } else {
                             comment(.note(Self.unrecoverableStoredPropertyComment(for: instanceVariable)), as: .note)
                         }
@@ -133,6 +156,21 @@ extension SwiftDeclarationPrinter {
                 }
             }
         }
+    }
+
+    /// The Swift type the Objective-C side gives `instanceVariable`, or `nil`
+    /// when it gives none. An unnamed ivar names no property to declare.
+    private func recoveredSwiftType(of instanceVariable: ObjCImplementationClassFacts.InstanceVariable, in extensionDefinition: ExtensionDefinition) -> ObjCInstanceVariableSwiftType? {
+        guard !instanceVariable.name.isEmpty, let facts = extensionDefinition.objcImplementation else { return nil }
+        let objcProperty = facts.objcProperty(storedIn: instanceVariable, swiftPropertyName: instanceVariable.name)
+        return ObjCInstanceVariableSwiftType(instanceVariable: instanceVariable, objcProperty: objcProperty, in: machO)
+    }
+
+    /// A recovered type, through the configuration's C type replacements when
+    /// it is a C primitive one of them names.
+    @SemanticStringBuilder
+    private func printRecoveredType(_ recoveredType: ObjCInstanceVariableSwiftType, level: Int) async -> SemanticString {
+        await printType(recoveredType.typeNode, isProtocol: false, level: level)
     }
 
     static func unrecoverableStoredPropertyComment(for instanceVariable: ObjCImplementationClassFacts.InstanceVariable) -> String {

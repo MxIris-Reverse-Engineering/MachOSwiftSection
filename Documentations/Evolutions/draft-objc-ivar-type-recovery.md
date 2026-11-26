@@ -35,7 +35,7 @@ RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`__C._UISplitViewControllerAdapti
 在 `SwiftObjCInterop` 加一个只依赖 ivar 事实与 ObjC 属性的还原函数，interface 与 dump 共用：
 
 1. **encoding 完整**（非空、非 `?`）：`ObjCTypeEncoding.type(from:)` 解析后按「原样表示」规则转成 `Type` 节点——与导入规则只差三处：桥接类保持类本身（`NSString` 还是 `NSString`），`id` 是 `AnyObject`，block / 位域 / 不认识的类型 / 无名结构体还原不出（返回 `nil`，保持注释）。
-2. **encoding 是 `?`**：找 ivar 对应的 ObjC 属性，按它的 `T` 特性走现有的导入规则（`NSString` → `String`、`NSArray` → `[Any]`、`id` → `Any`）；没有 ObjC 属性、或 `T` 是 block 等还原不出的类型，保持注释。
+2. **encoding 是 `?`**：找 ivar 对应的 ObjC 属性，按它的 `T` 特性走现有的导入规则（`NSString` → `String`、`NSArray` → `[Any]`、`id` → `Any`）；没有 ObjC 属性、或 `T` 是 block 等还原不出的类型，保持注释。`weak` 属性例外：`weak` 的存储不能原样表示成 ObjC 类型，编译器对类类型也写 `?`，而 `weak` 只能是类，所以按「原样表示」规则读它的 `T` 特性，不桥接。
 3. **空 encoding**：保持注释，二进制里没有任何类型信息。
 4. **可空性**：可空的类型写 `T!`（ClangImporter 对无可空性标注的声明的写法，Generated Interface 也这样写）；ObjC 属性是 `weak` 时写 `weak var x: T?`（`weak` 必为可选）。
 5. **`var` / `let`**：有 ObjC 属性且是 `readonly` 写 `let`，否则 `var`——与已有的「存储属性按 setter 判 `var` / `let`」同一规则（`printThrowingObjCImplementationStoredProperty`）。
@@ -182,17 +182,18 @@ package struct ObjCInstanceVariableSwiftType {
 1. **骨架**（已完成）：`ObjCInstanceVariableSwiftType`（恒返回 `nil`）、`cTypeReplacements`、`SwiftPrinting` 依赖 `ObjCOutputTransformer`；夹具加 `AdaptiveTransitionWidget`，类集合断言跟上；前提测试。
    - 行为：夹具的 `@objc @implementation` 类集合多出 `AdaptiveTransitionWidget`，其余输出不变。
    - 行为：剥过符号后新类的 ivar 仍有名字与编译器写的 encoding，`@objc` 的都能对上 ObjC 属性。
-2. **完整 encoding 还原**：`triviallyRepresentedTypeNode`，interface 接入。
+2. **完整 encoding 还原**（已完成）：`triviallyRepresentedTypeNode`，interface 接入。
    - 行为：剥过符号的类类型 ivar 打成 `var x: Class!`。
    - 行为：协议存在类型打成 `var x: (any P)!`。
    - 行为：`B` / `d` / `q` 打成 `Bool` / `Double` / `Int`，结构体按结构体名。
-   - 行为：`readonly` 的 ObjC 属性打 `let`，`weak` 的打 `weak var x: T?`。
+   - 行为：`readonly` 的 ObjC 属性打 `let`。
    - 行为：完整 encoding 的 `NSString` 不桥接成 `String`、`@` 是 `AnyObject`（单元测试；夹具造不出，见改动地图）；夹具里不桥接的类用 `NSMutableString` 验。
    - 行为：block、指向结构体的指针、位域、无名结构体还原不出。
    - 行为：空 encoding 仍是注释。
 3. **`?` 按 ObjC 属性还原**：`bridgedTypeNode`。
    - 行为：`?` 且有 `NSString` 属性的打成 `String!`，`NSArray` 的打成 `[Any]!`，`id` 的打成 `Any!`。
    - 行为：`?` 且没有 ObjC 属性的仍是注释。
+   - 行为：`weak` 的 ObjC 属性打 `weak var x: T?`，类不桥接（`weak` 的存储让 ivar 写 `?`）。
 4. **C 类型替换**：`applyTransformers(_: Transformer.ObjCConfiguration)`，打印时替换。
    - 行为：配置 `double → CGFloat` 时 `d` 打成 `CGFloat`。
    - 行为：没有配置或模块关闭时仍是 `Double`。
@@ -217,4 +218,5 @@ package struct ObjCInstanceVariableSwiftType {
 | 2026-11-26 | 开始实现 | 在 `feature/objc-ivar-type-recovery` 上按落地步骤做 |
 | 2026-11-26 | 还原结果存 `ObjCEncodedType`，不另设 `ObjCPrimitiveType` | `ObjCEncodedType` 在同一个包内可见，打印器直接对到 `Transformer.CType.Pattern`，少一个只为转一手的类型 |
 | 2026-11-26 | 夹具的 `CGFloat` 属性在 Swift 一侧写 `Double` | 夹具只 `import Foundation`，头文件的 `CGFloat` 导入成 `Double`，写 `CGFloat` 时 `@implementation` 的类型匹配报错 |
+| 2026-11-26 | `weak` 属性挪到第 3 步，按 ObjC 属性读、不桥接 | 前提测试实测：`weak var observer: NSObject?` 的 ivar encoding 是 `?`，不是 `@"NSObject"` |
 | 2026-11-26 | 加前提测试 | 第 1 步审查指出：ivar 名在即时编译夹具里曾观测为空（`ObjCImplementationClassFacts.InstanceVariable.name` 的注释），名字空了就对不上 ObjC 属性；先钉住剥过符号后的事实 |

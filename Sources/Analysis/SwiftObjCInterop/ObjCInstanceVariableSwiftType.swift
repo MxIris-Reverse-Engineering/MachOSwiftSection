@@ -41,6 +41,19 @@ package struct ObjCInstanceVariableSwiftType {
     /// synthesized on it (`ObjCImplementationClassFacts.objcProperty(storedIn:swiftPropertyName:)`);
     /// `nil` when the Objective-C side does not say.
     package init?(instanceVariable: ObjCImplementationClassFacts.InstanceVariable, objcProperty: ObjCImplementationClassFacts.Property?, in machO: some MachOSwiftSectionRepresentableWithCache) {
-        return nil
+        let importedTypes = ObjCImportedTypes(machO: machO)
+        let isWeak = objcProperty?.isWeak ?? false
+        // An empty encoding: the property is not `@objc`, and nothing in the
+        // binary says what its type is.
+        guard instanceVariable.isObjCVisible else { return nil }
+        guard instanceVariable.typeEncoding != "?" else { return nil }
+        guard let encodedType = ObjCTypeEncoding.type(from: instanceVariable.typeEncoding),
+              let typeNode = importedTypes.triviallyRepresentedTypeNode(encodedType, position: isWeak ? .weakStorage : .topLevel)
+        else { return nil }
+        self.typeNode = typeNode
+        self.source = .instanceVariableEncoding
+        self.encodedType = encodedType
+        self.isReadOnly = objcProperty?.isReadOnly ?? false
+        self.isWeak = isWeak
     }
 }
