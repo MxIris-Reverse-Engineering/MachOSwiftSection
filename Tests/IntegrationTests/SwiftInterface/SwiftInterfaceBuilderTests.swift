@@ -1,4 +1,5 @@
 @_spi(Support) @testable import SwiftDeclaration
+import SwiftTypeNameResolution
 @_spi(Support) @testable import SwiftIndexing
 @_spi(Support) @testable import SwiftPrinting
 import Foundation
@@ -13,6 +14,7 @@ import SwiftSectionFixtureSupport
 @_spi(Internals) @testable import SwiftSymbols
 @_spi(Internals) @testable import MachOCaches
 import Semantic
+import MachODependencies
 
 protocol SwiftInterfaceBuilderTests: SwiftInterfaceDumpTests {
     var builderConfiguration: SwiftInterfaceBuilderConfiguration { get }
@@ -23,7 +25,7 @@ extension SwiftInterfaceBuilderTests {
     var builderConfiguration: SwiftInterfaceBuilderConfiguration {
         SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
-                showCImportedTypes: false,
+                showCImportedTypes: true,
             ),
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
@@ -32,12 +34,14 @@ extension SwiftInterfaceBuilderTests {
                 printMemberAddress: true,
                 printVTableOffset: true,
                 printPWTOffset: true,
+                printExportedDeclarationsOnly: true,
                 infersObjCOverridesFromSelectorNames: true,
                 usesModuleSelectors: true,
                 protocolRequirementPlacement: .associatedTypes,
                 memberSortOrder: .byOffset,
                 printTypeLayout: true,
                 printEnumLayout: true,
+                
             ),
         )
     }
@@ -45,6 +49,9 @@ extension SwiftInterfaceBuilderTests {
     private func makeBuilder<MachO: MachOFieldLayoutRenderable>(in machO: MachO) throws -> SwiftInterfaceBuilder<MachO> {
         let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
         builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machO))
+        if let machOFile = machO.asMachOFile {
+            builder.addExtraDataProvider(try #require(SwiftInterfaceBuilderTypeNameProvider(machO: machOFile, dependencies: .init(machO: machOFile, searchPaths: [.systemDyldSharedCache]))))
+        }
         return builder
     }
 
@@ -71,7 +78,7 @@ extension SwiftInterfaceBuilderTests {
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: SwiftSectionTestingSupport.DyldCacheTests, nonisolated SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName {
-            .AppKit
+            .AttributeGraph
         }
 
         override class var cachePath: DyldSharedCachePath {
