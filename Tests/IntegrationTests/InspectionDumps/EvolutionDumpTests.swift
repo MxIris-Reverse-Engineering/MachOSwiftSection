@@ -30,31 +30,12 @@ enum EvolutionDumpKind: Sendable {
     /// lifecycle annotations (`-ObjCEvolutionInterface.h`).
     case objcInterface
 
-    var language: EvolutionMetadataLanguage {
+    var language: MetadataLanguage {
         switch self {
         case .swiftReport, .swiftInterface: .swift
         case .objcReport, .objcInterface: .objc
         }
     }
-}
-
-/// Where a dump goes: printed for a quick look, or written next to the
-/// other dumps for inspection.
-enum EvolutionDumpDestination: Sendable {
-    case console
-    case file
-}
-
-/// What one pipeline produced.
-struct EvolutionDumpOutput: Sendable {
-    /// The file-name suffix, after the build version and the image names.
-    let suffix: String
-    /// What a maintainer reads: the report, or the annotated interface.
-    let text: String
-    let textFileExtension: String
-    /// The machine-readable form a report also writes; `nil` for an
-    /// interface.
-    let json: String?
 }
 
 /// The evolution dumps: an *ordered series* of versions of one image — or
@@ -70,25 +51,19 @@ struct EvolutionDumpOutput: Sendable {
 /// lifecycle annotated; read one against the report of the same axis — the
 /// annotations are the same lineages.
 ///
-/// A conforming suite supplies the axis each pipeline runs over. Like its
-/// siblings this is a maintainer-inspection dump: it prints / writes results
-/// without assertions.
-protocol EvolutionDumpTests: SwiftInterfaceDumpTests {
-    func evolutionAxis(for language: EvolutionMetadataLanguage) -> EvolutionAxis
-}
+/// A conforming suite supplies the axis each pipeline runs over
+/// (`VersionAxisDumpTests`). Like its siblings this is a maintainer-inspection
+/// dump: it prints / writes results without assertions.
+protocol EvolutionDumpTests: VersionAxisDumpTests {}
 
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 extension EvolutionDumpTests {
-    var indexConfiguration: SwiftDeclarationIndexConfiguration {
-        .init(showCImportedTypes: false)
-    }
-
     /// Runs one pipeline over this suite's axis for the pipeline's language,
     /// then prints the text, or writes the text — and a report's JSON —
     /// named after the newest version's images.
-    func dump(_ kind: EvolutionDumpKind, to destination: EvolutionDumpDestination) async throws {
-        let axis = evolutionAxis(for: kind.language)
-        let output: EvolutionDumpOutput
+    func dump(_ kind: EvolutionDumpKind, to destination: DumpDestination) async throws {
+        let axis = versionAxis(for: kind.language)
+        let output: DumpOutput
         switch kind {
         case .swiftReport:
             output = try await swiftReport(over: axis)
@@ -99,15 +74,9 @@ extension EvolutionDumpTests {
         case .objcInterface:
             output = try await objcInterface(over: axis)
         }
-        switch destination {
-        case .console:
-            printResult(output.text)
-        case .file:
+        try deliver(output, to: destination) { file in
             guard let newestVersion = axis.versions.last else { return }
-            try write(output.text, forImageGroup: newestVersion.images, suffix: output.suffix, fileExtension: output.textFileExtension)
-            if let json = output.json {
-                try write(json, forImageGroup: newestVersion.images, suffix: output.suffix, fileExtension: "json")
-            }
+            try write(file.text, forImageGroup: newestVersion.images, suffix: file.suffix, fileExtension: file.fileExtension)
         }
     }
 
@@ -117,7 +86,7 @@ extension EvolutionDumpTests {
     /// frozen into a labeled snapshot document, round-tripped through the
     /// persisted form: what the evolution consumes is exactly what a saved
     /// baseline would decode to.
-    private func swiftSnapshotDocument(of image: EvolutionImage, label: String) async throws -> ABISnapshotDocument {
+    private func swiftSnapshotDocument(of image: AxisImage, label: String) async throws -> ABISnapshotDocument {
         let builder = SwiftDiffableInterfaceBuilder(configuration: indexConfiguration, in: image.machOFile)
         try await builder.prepare()
         let document = ABISnapshotDocument(
@@ -135,7 +104,7 @@ extension EvolutionDumpTests {
     /// The lineage report and its JSON. The timed step covers indexing every
     /// image of every version — the real cost; the lineage math afterwards
     /// is milliseconds.
-    private func swiftReport(over axis: EvolutionAxis) async throws -> EvolutionDumpOutput {
+    private func swiftReport(over axis: VersionAxis) async throws -> DumpOutput {
         var documentsByVersion: [[ABISnapshotDocument]] = []
         try await measuringPreparation {
             for version in axis.versions {
@@ -171,11 +140,12 @@ extension EvolutionDumpTests {
                 report += "\n\nPairwise cross-check — evolution ABI-breaking: \(evolution.hasBreakingChange) · diff ABI-breaking: \(diff.hasBreakingChange)"
             }
         }
-        return EvolutionDumpOutput(
-            suffix: "Evolution",
-            text: report,
-            textFileExtension: "txt",
-            json: String(decoding: try ABIJSON.encoder().encode(evolution), as: UTF8.self)
+        return DumpOutput(
+            consoleText: report,
+            files: [
+                DumpFile(suffix: "Evolution", fileExtension: "txt", text: report),
+                DumpFile(suffix: "Evolution", fileExtension: "json", text: String(decoding: try ABIJSON.encoder().encode(evolution), as: UTF8.self)),
+            ]
         )
     }
 
@@ -183,7 +153,7 @@ extension EvolutionDumpTests {
     /// manual inspection can eyeball the CI-gate input next to the
     /// rendering. The timed step covers indexing every version; the lineage
     /// join and rendering afterwards are cheap by comparison.
-    private func swiftInterface(over axis: EvolutionAxis) async throws -> EvolutionDumpOutput {
+    private func swiftInterface(over axis: VersionAxis) async throws -> DumpOutput {
         let labels = axis.versions.map(\.label)
         let availabilityAnnotationPlatform = axis.availabilityPlatform?.swiftSpelling
         let builder: AnySwiftEvolutionInterfaceBuilder
@@ -213,31 +183,17 @@ extension EvolutionDumpTests {
         if let evolution = builder.evolution {
             report += "\n\n// ABI-breaking on this axis: \(evolution.hasBreakingChange)"
         }
-        return EvolutionDumpOutput(suffix: "EvolutionInterface", text: report, textFileExtension: "swiftinterface", json: nil)
+        return DumpOutput(
+            consoleText: report,
+            files: [DumpFile(suffix: "EvolutionInterface", fileExtension: "swiftinterface", text: report)]
+        )
     }
 
     // MARK: - Objective-C
 
-    /// One image indexed the way `swift-section objc snapshot` indexes it and
-    /// frozen into a labeled snapshot document, round-tripped through the
-    /// persisted form.
-    private func objcSnapshotDocument(of image: EvolutionImage, label: String) async throws -> ObjCAPISnapshotDocument {
-        let indexer = try await preparedObjCIndexer(of: image.machOFile)
-        let document = ObjCAPISnapshotDocument(
-            provenance: ObjCAPIProvenance(
-                label: label,
-                binaryPath: image.machOFile.imagePath,
-                generatorVersion: "IntegrationTests",
-                createdAt: Date()
-            ),
-            snapshot: ObjCAPISnapshotBuilder(indexer: indexer).snapshot()
-        )
-        return try ObjCAPISnapshotDocument.decode(from: document.encoded())
-    }
-
     /// The lineage report and its JSON, as `swiftReport(over:)` builds the
     /// Swift ones.
-    private func objcReport(over axis: EvolutionAxis) async throws -> EvolutionDumpOutput {
+    private func objcReport(over axis: VersionAxis) async throws -> DumpOutput {
         var documentsByVersion: [[ObjCAPISnapshotDocument]] = []
         try await measuringPreparation {
             for version in axis.versions {
@@ -270,11 +226,12 @@ extension EvolutionDumpTests {
                 report += "\n\nPairwise cross-check — evolution API-breaking: \(evolution.hasBreakingChange) · diff API-breaking: \(diff.hasBreakingChange)"
             }
         }
-        return EvolutionDumpOutput(
-            suffix: "ObjCEvolution",
-            text: report,
-            textFileExtension: "txt",
-            json: String(decoding: try ObjCAPIJSON.encoder().encode(evolution), as: UTF8.self)
+        return DumpOutput(
+            consoleText: report,
+            files: [
+                DumpFile(suffix: "ObjCEvolution", fileExtension: "txt", text: report),
+                DumpFile(suffix: "ObjCEvolution", fileExtension: "json", text: String(decoding: try ObjCAPIJSON.encoder().encode(evolution), as: UTF8.self)),
+            ]
         )
     }
 
@@ -283,7 +240,7 @@ extension EvolutionDumpTests {
     /// handed to the builder, which keeps what it rendered and snapshotted,
     /// never the indexer; a group's images go in together, the primary image
     /// first, so a class that moved between them stays one declaration.
-    private func objcInterface(over axis: EvolutionAxis) async throws -> EvolutionDumpOutput {
+    private func objcInterface(over axis: VersionAxis) async throws -> DumpOutput {
         var builder = ObjCEvolutionInterfaceBuilder()
         try await measuringPreparation {
             for version in axis.versions {
@@ -303,24 +260,10 @@ extension EvolutionDumpTests {
             }
         }
         let evolutionInterface = try builder.build(availabilityPlatform: axis.availabilityPlatform?.objcSpelling)
-        return EvolutionDumpOutput(
-            suffix: "ObjCEvolutionInterface",
-            text: evolutionInterface.interface.string + "\n\n// API-breaking on this axis: \(evolutionInterface.evolution.hasBreakingChange)",
-            textFileExtension: "h",
-            json: nil
+        let header = evolutionInterface.interface.string + "\n\n// API-breaking on this axis: \(evolutionInterface.evolution.hasBreakingChange)"
+        return DumpOutput(
+            consoleText: header,
+            files: [DumpFile(suffix: "ObjCEvolutionInterface", fileExtension: "h", text: header)]
         )
     }
-}
-
-/// One image indexed the way the `objc` subcommands index it: the Swift
-/// classes that keep no class object supplied from Swift metadata.
-@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
-private func preparedObjCIndexer(of machO: MachOFile) async throws -> ObjCInterfaceIndexer<MachOFile> {
-    let indexer = ObjCInterfaceIndexer(
-        machO: machO,
-        imagePath: machO.imagePath,
-        suppliedClasses: ObjCSuppliedClass.swiftClassesWithoutClassObjects(in: machO)
-    )
-    try await indexer.prepare()
-    return indexer
 }

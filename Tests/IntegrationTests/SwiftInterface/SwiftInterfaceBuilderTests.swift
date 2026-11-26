@@ -14,7 +14,7 @@ import SwiftSectionFixtureSupport
 @_spi(Internals) @testable import MachOCaches
 import Semantic
 
-protocol SwiftInterfaceBuilderTests: SwiftInterfaceDumpTests {
+protocol SwiftInterfaceBuilderTests: InspectionDumpTests {
     var builderConfiguration: SwiftInterfaceBuilderConfiguration { get }
 }
 

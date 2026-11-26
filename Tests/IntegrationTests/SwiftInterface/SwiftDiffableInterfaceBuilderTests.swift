@@ -18,14 +18,10 @@ import Semantic
 /// `SwiftDiffableInterfaceRenderer` (the full interface annotated with inline
 /// `+`/`-` markers). Like its sibling it is a maintainer-inspection dump — it
 /// prints / writes results without assertions.
-protocol SwiftDiffableInterfaceBuilderTests: SwiftInterfaceDumpTests {}
+protocol SwiftDiffableInterfaceBuilderTests: InspectionDumpTests {}
 
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 extension SwiftDiffableInterfaceBuilderTests {
-    var indexConfiguration: SwiftDeclarationIndexConfiguration {
-        .init(showCImportedTypes: false)
-    }
-
     /// Builds and `prepare()`s both binaries in one timed step — the differ needs
     /// both sides indexed before it can compare them, so the printed duration
     /// covers the whole preparation.
