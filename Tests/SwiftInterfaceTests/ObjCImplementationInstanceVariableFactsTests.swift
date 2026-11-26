@@ -30,7 +30,9 @@ struct ObjCImplementationInstanceVariableFactsTests {
             "buffer": "@\"NSMutableString\"",
             "previousLayout": "@\"<AdaptiveLayout>\"",
             "identifier": "?",
-            "observer": "@\"NSObject\"",
+            // A `weak` property's storage is no type Objective-C represents
+            // as it is, so its ivar says `?` even for a class.
+            "observer": "?",
             "isAnimated": "B",
             "interactiveProgress": "d",
             "stepCount": "q",
