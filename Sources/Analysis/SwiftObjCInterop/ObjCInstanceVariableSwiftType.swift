@@ -43,15 +43,33 @@ package struct ObjCInstanceVariableSwiftType {
     package init?(instanceVariable: ObjCImplementationClassFacts.InstanceVariable, objcProperty: ObjCImplementationClassFacts.Property?, in machO: some MachOSwiftSectionRepresentableWithCache) {
         let importedTypes = ObjCImportedTypes(machO: machO)
         let isWeak = objcProperty?.isWeak ?? false
+        let encodedType: ObjCEncodedType
+        let typeNode: Node
         // An empty encoding: the property is not `@objc`, and nothing in the
         // binary says what its type is.
         guard instanceVariable.isObjCVisible else { return nil }
-        guard instanceVariable.typeEncoding != "?" else { return nil }
-        guard let encodedType = ObjCTypeEncodingParser.type(from: instanceVariable.typeEncoding),
-              let typeNode = importedTypes.triviallyRepresentedTypeNode(encodedType, position: isWeak ? .weakStorage : .topLevel)
-        else { return nil }
+        if instanceVariable.typeEncoding == "?" {
+            // Bridged: the Objective-C property says to what. A `weak`
+            // property's storage is marked `?` whatever its class, and
+            // `weak` holds only a class, which no bridging changes.
+            guard let objcProperty,
+                  let propertyType = ObjCTypeEncodingParser.propertyType(fromAttributes: objcProperty.attributes),
+                  let propertyTypeNode = isWeak
+                  ? importedTypes.triviallyRepresentedTypeNode(propertyType, position: .weakStorage)
+                  : importedTypes.bridgedTypeNode(propertyType, position: .topLevel)
+            else { return nil }
+            encodedType = propertyType
+            typeNode = propertyTypeNode
+            self.source = .objcProperty
+        } else {
+            guard let instanceVariableType = ObjCTypeEncodingParser.type(from: instanceVariable.typeEncoding),
+                  let instanceVariableTypeNode = importedTypes.triviallyRepresentedTypeNode(instanceVariableType, position: isWeak ? .weakStorage : .topLevel)
+            else { return nil }
+            encodedType = instanceVariableType
+            typeNode = instanceVariableTypeNode
+            self.source = .instanceVariableEncoding
+        }
         self.typeNode = typeNode
-        self.source = .instanceVariableEncoding
         self.encodedType = encodedType
         self.isReadOnly = objcProperty?.isReadOnly ?? false
         self.isWeak = isWeak

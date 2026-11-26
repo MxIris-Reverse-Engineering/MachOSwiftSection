@@ -63,6 +63,19 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
         return typeNode(type, position: position, mapping: .triviallyRepresented)
     }
 
+    /// The Swift type of an `@objc @implementation` stored property whose
+    /// ivar the compiler marked `?` — a type bridged to a separate
+    /// Objective-C one — read off the `T` attribute of the Objective-C
+    /// property synthesized on it (evolution proposal
+    /// `objc-ivar-type-recovery`): the type the importer gives that
+    /// Objective-C type, `NSString` as `String`, `NSArray` as `[Any]` (the
+    /// attribute names no element type), `id` as `Any`. `nil` for a type
+    /// that determines none, as for `triviallyRepresentedTypeNode(_:position:)`.
+    package func bridgedTypeNode(_ type: ObjCEncodedType, position: Position) -> Node? {
+        guard Self.determinesStoredPropertyType(type) else { return nil }
+        return typeNode(type, position: position, mapping: .imported)
+    }
+
     private func typeNode(_ type: ObjCEncodedType, position: Position, mapping: Mapping) -> Node {
         let base = Self.type(bareTypeNode(type, mapping: mapping))
         guard Self.isNullable(type) else { return base }

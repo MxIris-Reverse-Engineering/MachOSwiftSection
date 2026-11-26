@@ -111,11 +111,13 @@ struct ObjCImplementationClassRecognitionTests {
         let interface = try await interface(of: .strippedLocals)
         let widget = try #require(block(named: "@objc @implementation extension __C.Widget {", in: interface))
         #expect(!widget.contains("inferred from ObjC class data"))
-        // No field-offset symbol survived. An ivar with a complete encoding
-        // takes the type Objective-C represents as it is (evolution proposal
-        // `objc-ivar-type-recovery`); the others render as honest comments —
-        // ObjC facts, no fabricated Swift type.
-        #expect(widget.contains("// stored property title: Swift type not recoverable (ObjC ivar, offset 0x8, size 16, encoding \"?\")"))
+        // No field-offset symbol survived. The Objective-C side still gives
+        // the types of the `@objc` ones (evolution proposal
+        // `objc-ivar-type-recovery`): a complete encoding is the type itself,
+        // a `?` one the bridged form of its Objective-C property. The others
+        // render as honest comments — ObjC facts, no fabricated Swift type.
+        #expect(widget.contains("    var title: Swift.String!\n"))
+        #expect(!widget.contains("stored property title"))
         #expect(widget.contains("    var count: Swift.Int\n"))
         #expect(!widget.contains("stored property count"))
         #expect(widget.contains("// stored property swiftOnlyCache: Swift type not recoverable (ObjC ivar, offset 0x20, size 8, encoding \"\")"))
@@ -131,7 +133,9 @@ struct ObjCImplementationClassRecognitionTests {
 
     private func adaptiveTransitionWidget(of variant: ObjCImplementationFixture.Variant) async throws -> String {
         let interface = try await interface(of: variant)
-        return try #require(block(named: "@objc @implementation extension __C.AdaptiveTransitionWidget {", in: interface))
+        // The fully stripped variant's header carries the inferred evidence
+        // between `@implementation` and `extension`.
+        return try #require(block(named: "extension __C.AdaptiveTransitionWidget {", in: interface))
     }
 
     /// What follows `var <name>: ` or `let <name>: ` on its line in `block`.
@@ -176,6 +180,21 @@ struct ObjCImplementationClassRecognitionTests {
         #expect(widget.contains("    let revision: Swift.Int\n"), "\(widget)")
     }
 
+    @Test func bridgedIvarsRecoverTheImportedTypeOfTheirObjCProperty() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        // `readonly` over stored storage: a `let`.
+        #expect(widget.contains("    let identifier: Swift.String!\n"), "\(widget)")
+        // The `T` attribute names no element type.
+        #expect(widget.contains("    var names: [Any]!\n"), "\(widget)")
+        #expect(widget.contains("    var payload: Any!\n"), "\(widget)")
+        #expect(!widget.contains("stored property identifier"))
+    }
+
+    @Test func weakObjCPropertyRecoversAsAWeakOptionalOfItsClass() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(widget.contains("    weak var observer: __C.NSObject?\n"), "\(widget)")
+    }
+
     @Test func ivarWithNoEncodingStaysAComment() async throws {
         let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
         #expect(widget.contains("// stored property transitionAnimations: Swift type not recoverable (ObjC ivar, offset 0x"), "\(widget)")
@@ -195,7 +214,7 @@ struct ObjCImplementationClassRecognitionTests {
         // The class has no member symbol left, so the extension is synthesized
         // from the ObjC side alone — and labelled as an inference.
         let widget = try #require(block(named: "@objc @implementation /* inferred from ObjC class data: 4 ivars carry Swift-style type encodings */ extension __C.Widget {", in: interface))
-        #expect(widget.contains("// stored property title: Swift type not recoverable"))
+        #expect(widget.contains("    var title: Swift.String!\n"))
         #expect(widget.contains("// stored property swiftOnlyCache: Swift type not recoverable"))
         // The clang class has complete encodings and no Swift symbols: silent
         // (it still appears as the SUPERCLASS of the fixture's Swift subclasses).

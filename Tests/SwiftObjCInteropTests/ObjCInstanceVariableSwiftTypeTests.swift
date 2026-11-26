@@ -30,11 +30,27 @@ struct ObjCInstanceVariableSwiftTypeTests {
             .map { $0.typeNode.print(using: .interface) }
     }
 
+    /// How the fixed print preset spells the class named `runtimeName`, which
+    /// is how a class the recovery keeps prints, whatever the spelling of
+    /// imported names.
+    private static func printedClass(_ runtimeName: String) throws -> String {
+        ObjCRuntimeNames.classNode(forRuntimeName: runtimeName, in: try appKit()).print(using: .interface)
+    }
+
+    /// The importer's type for an Objective-C type, as a declaration imports it.
+    private static func importedType(_ encoding: String) throws -> String {
+        let type = try #require(ObjCTypeEncodingParser.type(from: encoding))
+        return ObjCImportedTypes(machO: try appKit()).typeNode(type, position: .topLevel).print(using: .interface)
+    }
+
     @Test func completeEncodingOfABridgeableClassKeepsTheClass() throws {
         // A Swift `NSString` property: the compiler writes `@"NSString"` only
         // because the type is the class itself, never for a `String`.
-        #expect(try Self.recoveredType(encoding: "@\"NSString\"") == "__C.NSString!")
-        #expect(try Self.recoveredType(encoding: "@\"NSArray\"") == "__C.NSArray!")
+        let string = try Self.recoveredType(encoding: "@\"NSString\"")
+        #expect(string == (try Self.printedClass("NSString")) + "!")
+        #expect(string != (try Self.importedType("@\"NSString\"")))
+        let array = try Self.recoveredType(encoding: "@\"NSArray\"")
+        #expect(array == (try Self.printedClass("NSArray")) + "!")
     }
 
     @Test func completeEncodingOfABareIdIsAnyObject() throws {
@@ -42,7 +58,10 @@ struct ObjCInstanceVariableSwiftTypeTests {
     }
 
     @Test func completeEncodingOfAProtocolIsTheExistential() throws {
-        #expect(try Self.recoveredType(encoding: "@\"<NSCopying>\"") == "(any __C.NSCopying)!")
+        // As the importer gives it: no bridging touches a protocol.
+        let existential = try Self.recoveredType(encoding: "@\"<NSCopying>\"")
+        #expect(existential == (try Self.importedType("@\"<NSCopying>\"")))
+        #expect(existential?.hasSuffix("!") == true)
     }
 
     @Test func scalarEncodingsNameTheirSwiftTypes() throws {
@@ -62,8 +81,26 @@ struct ObjCInstanceVariableSwiftTypeTests {
         #expect(try Self.recoveredType(encoding: "") == nil)
     }
 
-    @Test func weakPropertyIsOptional() throws {
-        #expect(try Self.recoveredType(encoding: "@\"NSObject\"", propertyAttributes: "T@\"NSObject\",W,N,Vstorage") == "__C.NSObject?")
+    @Test func bridgedEncodingTakesTheImportedTypeOfTheObjCProperty() throws {
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@\"NSString\",C,N,Vstorage") == "Swift.String!")
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@\"NSArray\",C,N,Vstorage") == (try Self.importedType("@\"NSArray\"")))
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@,&,N,Vstorage") == (try Self.importedType("@")))
+        let appKit = try Self.appKit()
+        let bridged = try #require(ObjCInstanceVariableSwiftType(instanceVariable: Self.instanceVariable(encoding: "?"), objcProperty: .init(name: "storage", attributes: "T@\"NSString\",C,N,Vstorage"), in: appKit))
+        #expect(bridged.source == .objcProperty)
+    }
+
+    @Test func bridgedEncodingWithoutATypedObjCPropertyRecoversNothing() throws {
+        #expect(try Self.recoveredType(encoding: "?") == nil)
+        // A Swift closure bridges to a block, whose attribute has no signature.
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@?,C,N,Vstorage") == nil)
+    }
+
+    @Test func weakStorageReadsItsClassUnbridged() throws {
+        // `weak` makes the compiler write `?` for any class, and holds no
+        // value type: `NSString` stays a class.
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@\"NSObject\",W,N,Vstorage") == (try Self.printedClass("NSObject")) + "?")
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@\"NSString\",W,N,Vstorage") == (try Self.printedClass("NSString")) + "?")
     }
 
     @Test func readOnlyAndWeakAreReadOffTheObjCProperty() throws {
@@ -74,5 +111,8 @@ struct ObjCInstanceVariableSwiftTypeTests {
         #expect(readOnly.source == .instanceVariableEncoding)
         let settable = try #require(ObjCInstanceVariableSwiftType(instanceVariable: Self.instanceVariable(encoding: "q"), objcProperty: nil, in: appKit))
         #expect(!settable.isReadOnly)
+        let weak = try #require(ObjCInstanceVariableSwiftType(instanceVariable: Self.instanceVariable(encoding: "?"), objcProperty: .init(name: "storage", attributes: "T@\"NSObject\",W,N,Vstorage"), in: appKit))
+        #expect(weak.isWeak)
+        #expect(!weak.isReadOnly)
     }
 }

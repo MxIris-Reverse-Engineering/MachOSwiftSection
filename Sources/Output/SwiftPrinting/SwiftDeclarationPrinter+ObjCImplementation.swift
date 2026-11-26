@@ -133,22 +133,8 @@ extension SwiftDeclarationPrinter {
                             }
                             await printType(typeNode.materialize(), isProtocol: false, level: level)
                         } else if let recoveredType = recoveredSwiftType(of: instanceVariable, in: extensionDefinition) {
-                            SemanticString {
-                                if recoveredType.isWeak {
-                                    Keyword(.weak)
-                                    Space()
-                                    Keyword(.var)
-                                } else {
-                                    // A `readonly` Objective-C property over
-                                    // stored Swift storage was declared `let`.
-                                    Keyword(recoveredType.isReadOnly ? .let : .var)
-                                }
-                                Space()
-                                MemberDeclaration(instanceVariable.name)
-                                Standard(":")
-                                Space()
-                            }
-                            await printRecoveredType(recoveredType, level: level)
+                            // One row: `Rows` puts each component on a line of its own.
+                            await recoveredStoredPropertyDeclaration(named: instanceVariable.name, type: recoveredType, level: level)
                         } else {
                             comment(.note(Self.unrecoverableStoredPropertyComment(for: instanceVariable)), as: .note)
                         }
@@ -162,14 +148,26 @@ extension SwiftDeclarationPrinter {
     /// when it gives none. An unnamed ivar names no property to declare.
     private func recoveredSwiftType(of instanceVariable: ObjCImplementationClassFacts.InstanceVariable, in extensionDefinition: ExtensionDefinition) -> ObjCInstanceVariableSwiftType? {
         guard !instanceVariable.name.isEmpty, let facts = extensionDefinition.objcImplementation else { return nil }
-        let objcProperty = facts.objcProperty(storedIn: instanceVariable, swiftPropertyName: instanceVariable.name)
+        let objcProperty = facts.objcProperty(storedIn: instanceVariable, swiftPropertyName: instanceVariable.swiftPropertyName ?? instanceVariable.name)
         return ObjCInstanceVariableSwiftType(instanceVariable: instanceVariable, objcProperty: objcProperty, in: machO)
     }
 
-    /// A recovered type, through the configuration's C type replacements when
-    /// it is a C primitive one of them names.
+    /// `[weak] var|let name: Type` for a stored property whose type the
+    /// Objective-C side gave. With an Objective-C property, `readonly` makes
+    /// it a `let`; with none, nothing says it cannot be set.
     @SemanticStringBuilder
-    private func printRecoveredType(_ recoveredType: ObjCInstanceVariableSwiftType, level: Int) async -> SemanticString {
+    private func recoveredStoredPropertyDeclaration(named name: String, type recoveredType: ObjCInstanceVariableSwiftType, level: Int) async -> SemanticString {
+        if recoveredType.isWeak {
+            Keyword(.weak)
+            Space()
+            Keyword(.var)
+        } else {
+            Keyword(recoveredType.isReadOnly ? .let : .var)
+        }
+        Space()
+        MemberDeclaration(name)
+        Standard(":")
+        Space()
         await printType(recoveredType.typeNode, isProtocol: false, level: level)
     }
 
