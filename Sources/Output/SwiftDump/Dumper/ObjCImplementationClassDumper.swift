@@ -17,7 +17,9 @@ import SwiftDeclarationRendering
 /// the Swift symbols found there, the property list, the protocol list, then
 /// the Swift member symbols the way `ClassDumper` lists a class's. Nothing
 /// is guessed: an IMP with no symbol prints as an address, an ivar with no
-/// field-offset symbol prints its ObjC facts and no Swift type.
+/// field-offset symbol prints its ObjC facts, and the Swift type only when the
+/// Objective-C side gives it, saying which part did (evolution proposal
+/// `objc-ivar-type-recovery`).
 package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>: NamedDumper {
     package typealias Dumped = ObjCImplementationClass
 
@@ -139,6 +141,7 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
                 configuration.fieldOffsetComment(startOffset: instanceVariable.offset, endOffset: instanceVariable.offset + instanceVariable.size)
             }
             Indent(level: 1)
+            let recoveredType = instanceVariable.swiftTypeNode == nil ? recoveredSwiftType(of: instanceVariable) : nil
             if let typeNode = instanceVariable.swiftTypeNode, let propertyName = instanceVariable.swiftPropertyName {
                 // A `lazy var`'s storage prints under the property's name with
                 // its storage type, as `ClassDumper` prints a Swift type's own
@@ -157,11 +160,24 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
                 Standard(":")
                 Space()
                 try await demangleResolver.resolve(for: typeNode.materialize())
+            } else if let recoveredType {
+                if recoveredType.isWeak {
+                    Keyword(.weak)
+                    Space()
+                    Keyword(.var)
+                } else {
+                    Keyword(recoveredType.isReadOnly ? .let : .var)
+                }
+                Space()
+                MemberDeclaration(instanceVariable.name)
+                Standard(":")
+                Space()
+                try await demangleResolver.resolve(for: recoveredType.typeNode)
             } else {
                 MemberDeclaration(instanceVariable.name.isEmpty ? "<unnamed ivar>" : instanceVariable.name)
             }
             Space()
-            Comment(instanceVariableComment(for: instanceVariable))
+            Comment(instanceVariableComment(for: instanceVariable, recoveredType: recoveredType))
             if offset.isEnd {
                 BreakLine()
             }
@@ -169,13 +185,26 @@ package struct ObjCImplementationClassDumper<MachO: MachOFieldLayoutRenderable>:
         }
     }
 
-    private func instanceVariableComment(for instanceVariable: ObjCImplementationClassFacts.InstanceVariable) -> String {
+    /// The Swift type the Objective-C side gives an ivar with no
+    /// field-offset symbol, as the interface prints it.
+    private func recoveredSwiftType(of instanceVariable: ObjCImplementationClassFacts.InstanceVariable) -> ObjCInstanceVariableSwiftType? {
+        guard !instanceVariable.name.isEmpty else { return nil }
+        let objcProperty = facts.objcProperty(storedIn: instanceVariable, swiftPropertyName: instanceVariable.swiftPropertyName ?? instanceVariable.name)
+        return ObjCInstanceVariableSwiftType(instanceVariable: instanceVariable, objcProperty: objcProperty, in: machO)
+    }
+
+    private func instanceVariableComment(for instanceVariable: ObjCImplementationClassFacts.InstanceVariable, recoveredType: ObjCInstanceVariableSwiftType?) -> String {
         var parts = ["offset 0x\(String(instanceVariable.offset, radix: 16))", "size \(instanceVariable.size)", "alignment \(instanceVariable.alignment)", "encoding \"\(instanceVariable.typeEncoding)\""]
         if !instanceVariable.name.isEmpty, instanceVariable.swiftPropertyName != nil, instanceVariable.name != instanceVariable.swiftPropertyName {
             parts.append("ivar \(instanceVariable.name)")
         }
         if let symbolName = instanceVariable.swiftFieldOffsetSymbolName {
             parts.append(symbolName)
+        } else if let recoveredType {
+            switch recoveredType.source {
+            case .instanceVariableEncoding: parts.append("Swift type from the ObjC type encoding")
+            case .objcProperty: parts.append("Swift type from the ObjC property")
+            }
         } else {
             parts.append("Swift type not recoverable")
         }

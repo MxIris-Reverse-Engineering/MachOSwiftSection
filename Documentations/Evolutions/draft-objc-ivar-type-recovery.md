@@ -75,7 +75,8 @@ RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`__C._UISplitViewControllerAdapti
 | `Tests/SwiftObjCInteropTests/ObjCInstanceVariableSwiftTypeTests.swift` | 新增 | 逐个 encoding 检查还原结果，含夹具造不出的形状（`@"NSString"`、`@`、`@?`、`^{CGColor=}`） | `@objc @implementation` 的匹配规则不允许实现里把头文件的 `NSString *` 写成 `NSString` | 2–3 |
 | `Tests/SwiftInterfaceTests/ObjCImplementationClassRecognitionTests.swift` | 修改 | 类集合断言加新类；`count` 的断言改成还原后的声明；新增还原的测试 | 行为清单 | 1–4 |
 | `Tests/SwiftDumpTests/ObjCImplementationClassDumpTests.swift` | 修改 | dump 的还原断言 | 行为清单 | 5 |
-| `Documentations/Internal/Modules/SwiftObjCInterop.md` 等模块说明、`ProjectEvolutionLog.md` | 修改 | 记录还原规则 | 文档同批 | 5 |
+| `Documentations/Internal/Modules/SwiftObjCInterop.md`、`Documentations/Internal/ObjCImplementationClassRecognition.md` | 修改 | 记录还原规则与新入口 | 文档同批 | 5 |
+| `Documentations/Internal/ProjectEvolutionLog.md` | 修改 | 一节记录本次改动 | 节号落地时取 | 收尾 |
 
 ## 架构图
 
@@ -200,7 +201,7 @@ package struct ObjCInstanceVariableSwiftType {
 4. **C 类型替换**（已完成）：`applyTransformers(_: Transformer.ObjCConfiguration)`，打印时替换；`SwiftInterfaceTests` 为此依赖 `ObjCOutputTransformer` 与 `OutputTransformer`。
    - 行为：配置 `double → CGFloat` 时 `d` 打成 `CGFloat`。
    - 行为：没有配置或模块关闭时仍是 `Double`。
-5. **dump 与文档**：`ObjCImplementationClassDumper` 接入；模块说明与演进账本。
+5. **dump 与文档**（已完成）：`ObjCImplementationClassDumper` 接入；模块说明 `Internal/Modules/SwiftObjCInterop.md` 与实现说明 `Internal/ObjCImplementationClassRecognition.md`。演进账本的节号按项目规则在落地时取，由收尾时补。
    - 行为：dump 的 ivar 行打出还原的类型，注释写明来源。
    - 行为：还原不出的 ivar 注释仍写 `Swift type not recoverable`。
 

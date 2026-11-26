@@ -68,7 +68,12 @@ struct ObjCImplementationClassDumpTests {
         let output = try await dump(.strippedEverything)
         #expect(output.hasPrefix("@objc @implementation /* inferred from ObjC class data: 4 ivars carry Swift-style type encodings */ extension Widget {"))
         #expect(output.contains("// Evidence: inferred from ObjC class data: 4 ivars carry Swift-style type encodings"))
-        #expect(output.contains("title // offset 0x8, size 16, alignment 8, encoding \"?\", Swift type not recoverable"))
+        // The Objective-C side still gives the `@objc` ivars' types, and the
+        // comment says which part did (evolution proposal
+        // `objc-ivar-type-recovery`).
+        #expect(output.contains("var title: Swift.String! // offset 0x8, size 16, alignment 8, encoding \"?\", Swift type from the ObjC property"), "\(output)")
+        #expect(output.contains("var count: Swift.Int // offset 0x18, size 8, alignment 8, encoding \"q\", Swift type from the ObjC type encoding"), "\(output)")
+        #expect(output.contains("swiftOnlyCache // offset 0x20, size 8, alignment 8, encoding \"\", Swift type not recoverable, not exposed to ObjC"), "\(output)")
         // IMPs with no symbol print as addresses only.
         #expect(output.contains("-[Widget refresh] // types \"v16@0:8\", imp 0x"))
         #expect(!output.contains("To\n"))
