@@ -461,12 +461,12 @@ enum EvolutionTestSuite {
    - 行为：`reportWritesTextAndJSONNamedAfterTheNewestVersionsImages`
    - 行为：`interfaceSpellsAvailabilityInItsOwnLanguagesSpelling`
    - 本步只编译，测试目标能编过即可。
-2. **十个轴套件取代旧文件** —— `EvolutionTests.swift`；删除三个旧文件与随之变空的 `SwiftDiffing/`、`ObjCDiffing/` 目录；删除 `write(_:forImageGroup:)` 收元组的旧重载。
+2. **十个轴套件取代旧文件**（已完成，Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests` 都通过，新文件没有警告）—— `EvolutionTests.swift`；删除三个旧文件与随之变空的 `SwiftDiffing/`、`ObjCDiffing/` 目录；删除 `write(_:forImageGroup:)` 收元组的旧重载。
    - 行为：`everyAxisPipelinePairOfTheOldSuitesHasOneTestNow`（43 个，逐一对照「提议方案」的表）
    - 行为：`noSuiteReadsAnotherSuitesClassProperties`
    - 行为：`archivedAxesTakeTheCacheListFromTheBaseClass`
    - 两个 Xcode 版本各编一遍。
-3. **文档** —— `ABIEvolutionDesign.md`、账本一节、两个索引；提案状态与决策日志随代码同批提交。
+3. **文档**（已完成；维护者比对待做）—— `ABIEvolutionDesign.md`、账本一节、两个索引；提案状态与决策日志随代码同批提交。
    - 维护者比对：挑 `SwiftUIImageGroupDyldCacheTests`（四种输出都有、只开三份 cache）前后各跑一次 file 测试，`diff` 两次的输出（JSON 忽略 `createdAt`）。结果记进决策日志。
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
@@ -481,3 +481,6 @@ enum EvolutionTestSuite {
 | 2026-11-26 | Created as Draft | 用户要求把 IntegrationTests 里重复的演进测试抽出来，Swift 与 ObjC 各有一套套件，统一成一套。澄清一轮：范围只做演进（不顺带合并 diff 基类与 MachOSymbols 的重复）；每种输出保留一对显式测试，不用参数化测试；按规则写轻量档提案。 |
 | 2026-11-26 | Accepted | 用户看过简报后批准，开始实现。 |
 | 2026-11-26 | In Progress：第 1 步开工 | 功能分支从本地 `next` 切出，按 `create-worktree` 的基线规则。本地 `next` 上还有一次未推送、待用户验收的合并（C 导入类型拼写），因此推送功能分支时它作为祖先一并上了远端功能分支，`next` 本身未推送。`MultiVersionDyldCacheImageTests` 用两个 `let`（`swiftAxis`、`objcAxis`）加 `switch` 存两条轴，不用字典加强制解包（详细设计里留的退路）。 |
+| 2026-11-26 | 第 2、3 步完成 | 十个轴套件取代旧的三个文件；`SwiftDiffing/` 也随之变空、删除（改动地图原先只写了 `ObjCDiffing/`）。`ABIEvolutionDesign.md` 的集成套件一段改成新路径与套件名，账本追加一节。只编译、没运行 IntegrationTests。 |
+| 2026-11-26 | 收尾判断 | 不配使用指南或实现说明：这是维护者手检目标的内部整理，用法写在新文件的文档注释里。没有新术语：「版本轴」是描述性说法，已在多份提案里直接使用，不登记术语表。 |
+| 2026-11-26 | 实现完成，待用户看过后收尾 | 功能分支已推送，并在本地以 `--no-ff` 合进 `.worktrees/MachOSwiftSection` 的 `next`（不推送）。改前改后的输出比对由维护者做。 |

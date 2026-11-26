@@ -3621,6 +3621,20 @@
 - **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2997 个测试，只有已知的负载偶发 `BoundedConcurrentMapTests` 一条超时，单独重跑全过；每步的行为测试先红后绿。macOS 27.2 的 AttributeGraph 前后对照 `__C` 从 73 处降到 60 处；SwiftUICore 打开展开字段偏移的 interface 慢 4%（7.10 → 7.39 秒），进程内缓存多占约 2.1 MB（[ReviewAdjudications](ReviewAdjudications.md) A91）。
 - **对应版本**：未发布。
 
+## 2026-11-26 IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴
+
+- **时间段**：2026-11-26，本仓库的 `feature/unify-evolution-integration-suites`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上编译。
+- **动机**：IntegrationTests 的四套演进手检套件（Swift 报告、Swift 联合接口、ObjC 报告、ObjC 联合头文件）各自把同几条版本轴再定义一遍：SwiftUI 加 SwiftUICore 的两条轴各写了四次，51 份归档 cache 的清单挂在 Swift 接口套件上、别的套件去借它的类属性，ObjC 侧为了把 `__swift5_*` 换成 `__objc_*` 多出一层基类；四条管线又各把单镜像与镜像组写两遍。两个 Swift 侧 `DyldCacheTests` 的注释写着读 AppKit，实际读的是 SwiftUI。
+- **关键决策**：
+  - 一个套件实例为 Swift 与 ObjC 各存一条轴，按镜像带不带该语言的元数据筛版本，主镜像不带的版本不上这条轴。
+  - 单镜像与镜像组仍走构建器的两个入口（`comparesImageGroups`）：镜像组入口给版本描述写镜像名、不带 provenance，一律走它会改变输出。
+  - 每种输出保留一对显式的一行测试，不用参数化测试：51 版归档轴一点就跑全部管线要几个小时。
+  - 默认三版本轴上 Swift 一侧沿用实际读的 SwiftUI、ObjC 一侧沿用 AppKit，拆成两个套件，改正过时的注释。原有 43 个「轴 × 输出」组合与输出文件名不变，只改测试名。
+- **落地模块**：`Tests/IntegrationTests/Evolution/`（`EvolutionAxis.swift`、`EvolutionDumpTests.swift`、`EvolutionTests.swift`）与 `SwiftInterfaceTestSupport.swift` 的 `write(_:forImageGroup:)`；删去 `SwiftDiffing/ABIEvolutionTests.swift`、`SwiftInterface/SwiftEvolutionInterfaceBuilderTests.swift`、`ObjCDiffing/ObjCAPIEvolutionTests.swift`。
+- **文档**：提案 [draft-unify-evolution-integration-suites](../Evolutions/draft-unify-evolution-integration-suites.md)；[ABIEvolutionDesign.md](ABIEvolutionDesign.md) 的集成套件一段。没有新术语，不另写使用指南或实现说明。
+- **验证**：只编译、没运行（IntegrationTests 不让 agent 跑）：Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests` 都通过。改前改后的输出是否逐字一致，待维护者挑一条轴比对。
+- **对应版本**：未发布（只改测试目标）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
