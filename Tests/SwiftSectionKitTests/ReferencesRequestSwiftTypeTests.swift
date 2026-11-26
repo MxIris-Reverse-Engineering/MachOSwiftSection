@@ -2,6 +2,7 @@
 
 import Foundation
 import Testing
+import MachOKit
 import MachOKitExtensions
 import CrossReferenceAnalysis
 import SwiftSectionKit

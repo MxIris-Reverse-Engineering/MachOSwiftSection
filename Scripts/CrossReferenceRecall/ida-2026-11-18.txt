@@ -1,0 +1,60 @@
+Finder A bn1 code 20/22 data 0/0 extra 0 {} internal 0 2hop 0
+Finder A bn2 code 22/22 data 0/0 extra 0 {} internal 0 2hop 0
+Finder A ida1 code 20/22 data 0/0 extra 0 {} internal 0 2hop 0
+Finder A ida2 code 22/22 data 0/0 extra 0 {} internal 0 2hop 0
+Finder B bn1 code 0/57 data 8/13 extra 0 {} internal 0 2hop 0
+Finder B bn2 code 57/57 data 8/13 extra 0 {} internal 0 2hop 0
+Finder B ida1 code 54/57 data 13/13 extra 0 {} internal 0 2hop 0
+Finder B ida2 code 54/57 data 13/13 extra 1 {'__objc_classlist': 1} internal 0 2hop 0
+Finder C bn1 code 58/58 data 0/0 extra 0 {} internal 0 2hop 0
+Finder C bn2 code 58/58 data 0/0 extra 0 {} internal 0 2hop 0
+Finder C ida1 code 58/58 data 0/0 extra 0 {} internal 0 2hop 0
+Finder C ida2 code 58/58 data 0/0 extra 0 {} internal 0 2hop 0
+Finder D bn1 code 27/28 data 0/0 extra 0 {} internal 226 2hop 0
+Finder D bn2 code 27/28 data 0/0 extra 0 {} internal 226 2hop 0
+Finder D ida1 code 28/28 data 0/0 extra 0 {} internal 2 2hop 0
+Finder D ida2 code 28/28 data 0/0 extra 0 {} internal 2 2hop 0
+Finder E bn1 code 0/28 data 2/2 extra 0 {} internal 0 2hop 0
+Finder E bn2 code 26/28 data 2/2 extra 0 {} internal 0 2hop 0
+Finder E ida1 code 28/28 data 2/2 extra 0 {} internal 0 2hop 0
+Finder E ida2 code 28/28 data 2/2 extra 0 {} internal 0 2hop 6
+Finder F bn1 code 0/32 data 8/8 extra 0 {} internal 0 2hop 0
+Finder F bn2 code 32/32 data 8/8 extra 0 {} internal 0 2hop 0
+Finder F ida1 code 32/32 data 8/8 extra 0 {} internal 0 2hop 0
+Finder F ida2 code 32/32 data 8/8 extra 0 {} internal 0 2hop 0
+Finder H bn1 code 0/0 data 4/8 extra 8 {'__objc_methname': 4, '__objc_selrefs': 4} internal 13 2hop 0
+Finder H bn2 code 0/0 data 4/8 extra 8 {'__objc_methname': 4, '__objc_selrefs': 4} internal 13 2hop 0
+Finder H ida1 code 0/0 data 8/8 extra 0 {} internal 0 2hop 0
+Finder H ida2 code 0/0 data 8/8 extra 0 {} internal 0 2hop 0
+ControlCenter A bn1 code 72/75 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter A bn2 code 75/75 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter A ida1 code 72/75 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter A ida2 code 75/75 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter B bn1 code 0/30 data 5/9 extra 0 {} internal 0 2hop 0
+ControlCenter B bn2 code 30/30 data 5/9 extra 0 {} internal 0 2hop 0
+ControlCenter B ida1 code 22/30 data 9/9 extra 2 {'text:ldr': 1, '?': 1} internal 0 2hop 0
+ControlCenter B ida2 code 30/30 data 9/9 extra 3 {'text:ldr': 1, '?': 2} internal 0 2hop 0
+ControlCenter C bn1 code 33/33 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter C bn2 code 33/33 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter C ida1 code 33/33 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter C ida2 code 33/33 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter D bn1 code 42/42 data 0/0 extra 0 {} internal 21 2hop 0
+ControlCenter D bn2 code 42/42 data 0/0 extra 0 {} internal 21 2hop 0
+ControlCenter D ida1 code 42/42 data 0/0 extra 1 {'__data': 1} internal 0 2hop 0
+ControlCenter D ida2 code 42/42 data 0/0 extra 1 {'__data': 1} internal 0 2hop 0
+ControlCenter E bn1 code 0/18 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter E bn2 code 9/18 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter E ida1 code 18/18 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter E ida2 code 18/18 data 0/0 extra 0 {} internal 0 2hop 0
+ControlCenter G-accessor bn1 code 104/104 data 0/0 extra 5 {'text:adrp': 5} internal 3 2hop 0
+ControlCenter G-accessor bn2 code 104/104 data 0/0 extra 5 {'text:adrp': 5} internal 3 2hop 0
+ControlCenter G-accessor ida1 code 104/104 data 0/0 extra 8 {'__constg_swiftt': 8} internal 0 2hop 0
+ControlCenter G-accessor ida2 code 104/104 data 0/0 extra 8 {'__constg_swiftt': 8} internal 0 2hop 0
+ControlCenter G-tableonly bn1 code 0/0 data 11/11 extra 17 {'text:adrp': 17} internal 4 2hop 0
+ControlCenter G-tableonly bn2 code 0/0 data 11/11 extra 17 {'text:adrp': 17} internal 4 2hop 0
+ControlCenter G-tableonly ida1 code 0/0 data 11/11 extra 0 {} internal 0 2hop 0
+ControlCenter G-tableonly ida2 code 0/0 data 11/11 extra 0 {} internal 0 2hop 0
+ControlCenter H bn1 code 0/0 data 4/8 extra 8 {'__objc_methname': 4, '__objc_selrefs': 4} internal 7 2hop 0
+ControlCenter H bn2 code 0/0 data 4/8 extra 8 {'__objc_methname': 4, '__objc_selrefs': 4} internal 7 2hop 0
+ControlCenter H ida1 code 0/0 data 8/8 extra 0 {} internal 0 2hop 0
+ControlCenter H ida2 code 0/0 data 8/8 extra 0 {} internal 0 2hop 0
