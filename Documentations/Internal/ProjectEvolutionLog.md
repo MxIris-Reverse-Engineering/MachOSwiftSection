@@ -3635,6 +3635,20 @@
 - **验证**：只编译、没运行（IntegrationTests 不让 agent 跑）：Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests` 都通过。改前改后的输出是否逐字一致，待维护者挑一条轴比对。
 - **对应版本**：未发布（只改测试目标）。
 
+## 2026-11-26 IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架
+
+- **时间段**：2026-11-26，本仓库的 `feature/unify-diff-and-interface-integration-suites`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上编译。
+- **动机**：0110 合并演进套件之后，单版本接口与两版本 diff 两类手检套件还各写各的。diff 自带三个「新旧两版」基类，读 cache 只开主文件，和演进套件、CLI 都不一样，`DyldCacheTests` 的注释写 SwiftUI、实际读 AppKit；接口套件为了开一个「只印导出声明」把整份配置抄了一遍，还用 `machO is MachOImage` 判读取器；两类都只出 Swift，AppKit 的 ObjC 部分只有演进套件看得到。
+- **关键决策**：
+  - 三类输出进同一个目录 `Tests/IntegrationTests/InspectionDumps/`，共用 `InspectionDumpTests`：输出目录、索引配置、计时、`DumpOutput` 与 `deliver`、泛型的 `preparedObjCIndexer`。
+  - diff 与演进共用版本轴：diff 读轴上首尾两个版本的主镜像；cache 对改用 `MultiVersionDyldCacheImageTests`，整份打开；模拟器与 Xcode 两个两版基类搬进轴文件、各自给出轴；轴类型去掉 `Evolution` 前缀。
+  - 单版本接口不走版本轴：它要读进程内的 `MachOImage`，而轴与演进构建器只收 `MachOFile`。
+  - 每类一个输出种类枚举加一个 `dump` 入口。AppKit 的接口套件加整镜像的 ObjC 头文件（`objc dump` 的管线，四种注释全开），AppKit 的 diff 套件加 ObjC 变更列表与 JSON，Swift diff 报告加 JSON。套件类名保留（它们是维护者临时改读别的镜像的探针），测试名改成「种类 + 去向」；接口 14 个、diff 24 个，演进 43 个不变。
+- **落地模块**：`Tests/IntegrationTests/InspectionDumps/`（`InspectionDumpTests.swift`、`VersionAxis.swift`、`InterfaceDumpTests.swift`、`InterfaceTests.swift`、`DiffDumpTests.swift`、`DiffTests.swift`，以及从 `Evolution/` 移来的 `EvolutionDumpTests.swift`、`EvolutionTests.swift`）；`Package.swift` 给 IntegrationTests 加 `ObjCDeclarationRendering`。删去 `SwiftInterface/SwiftInterfaceBuilderTests.swift`、`SwiftInterface/SwiftDiffableInterfaceBuilderTests.swift`，`SwiftInterface/SwiftInterfaceTestSupport.swift` 移成 `InspectionDumpTests.swift`。
+- **文档**：提案 [draft-unify-diff-and-interface-integration-suites](../Evolutions/draft-unify-diff-and-interface-integration-suites.md)；[ABIEvolutionDesign.md](ABIEvolutionDesign.md) 的集成套件一段改了目录。没有新术语，不另写使用指南或实现说明。
+- **验证**：只编译、没运行（IntegrationTests 不让 agent 跑）：Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests` 都通过，新文件没有警告。diff 的 cache 对改为整份打开，输出可能与改前不同；改前改后的比对待维护者做。
+- **对应版本**：未发布（只改测试目标）。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
