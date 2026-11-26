@@ -1,7 +1,8 @@
 # `refs` and `symbolicate`
 
 Two subcommands that read arm64 machine code rather than metadata: who references a selector,
-a symbol, a class, a function, an instance variable or a string — and what an address is. They
+a symbol, a class, a function, an instance variable, a string or a Swift type — and what an
+address is. They
 work on a whole dyld shared cache (an archived one, another device's, or the running system's,
 read from its files) or on a set of standalone Mach-O files read together, without IDA and
 without loading anything into a process.
@@ -16,6 +17,9 @@ swift-section refs --class NSWindow --uses-system-dyld-shared-cache --in-image A
 
 # What one function calls, in instruction order
 swift-section refs --function 0x1880a1000 --callees --uses-system-dyld-shared-cache
+
+# Every reference to a Swift type, by its mangling or a $s…Mn / $s…Ma / $s…N symbol of it
+swift-section refs --type 7SwiftUI4TextV --uses-system-dyld-shared-cache --in-image SwiftUICore
 
 # An app's executable and its frameworks, read together; a fat file needs -a
 swift-section refs --symbol _objc_msgSend Foo.app/Contents/MacOS/Foo \
@@ -35,13 +39,17 @@ swift-section symbolicate 0x19012345 0x1e1226590 --uses-system-dyld-shared-cache
   by its symbol, or, where the symbol table names none, by the export trie, the Objective-C
   method lists or the Swift metadata (`-[NSWindow …]`, `…Ma`); its address when nothing names it.
 - **kind** — `call`, `tailCall` (a branch out that does not return), or `reference` (an
-  address taken: a class object, a type's metadata, a string, an ivar offset).
+  address taken: a class object, a type's metadata, a string, an ivar offset, a function's
+  start, a selector handed on).
 - **route** — how the code got there: `direct`, `imageStub`, `stubIsland`, `cacheSharedStub`
   (macOS / iOS 27's selector and GOT stubs outside every image), `pointerSlot`,
   `addressMaterialization`, `literalLoad`, `indirect`. A reference that went through a stub is
   as real as a direct one; the route is what to check before trusting it.
-- **target** — `send sel:` (`to self`, `to NSWindow` when the receiver is known), a function
-  and its image, a class, `ivar Class._name`, a string, `type …`, `indirect` (`at offset …` when the callee was loaded from memory).
+- **target** — `send sel:` (`to self`, `to NSWindow` when the receiver is known), `selector
+  sel:` (loaded but sent nothing with: an argument of `respondsToSelector:` or
+  `performSelector:`, a returned selector, an action), a function and its image, a class,
+  `ivar Class._name`, a string, `type …`, `indirect` (`at offset …` when the callee was loaded
+  from memory).
 
 A one-line summary goes to stderr: how many references, in how many images, and how many images
 were scanned.
@@ -64,12 +72,30 @@ were scanned.
   whole cache, name the images.
 - **`--class` on a class no symbol exports** (most private classes in a cache) reads every
   image's class list first; the first such query takes a few seconds longer.
+- **`--selector` lists more than sends**: a `selector` row is the selector loaded from the
+  image's `__objc_selrefs` and handed on. A dyld cache's builder rewrites those loads into the
+  selector string's address, so inside a cache only the sends show; in an app's files both do.
+- **`--function` lists the code that takes the function's address too** (`kind reference`,
+  route `addressMaterialization`): a block's invoke function shows the function that builds the
+  block, a callback the function that hands it to `dispatch_async_f`. A call-hierarchy walk can
+  go through blocks and closures this way; data that points at a function (a method list, a
+  vtable) still does not show.
+- **`--type` takes a mangling, not a Swift name**: `7SwiftUI4TextV`, or a symbol of the type
+  (`$s7SwiftUI4TextVMn`, `_$s…Ma`, `$s…N`). In a dyld cache, a type no image exports a
+  descriptor of (an internal one) needs `--type-image <image>`, the image that defines it; a set
+  of files is searched whole. A Swift class is also listed as the Objective-C class it is.
+- **A class reference can sit at an `add`**: optimized Swift code builds the address of a
+  class's GOT slot and hands it to the helper that makes the class's metadata, so the reference
+  is where the slot's address is built, not where it is loaded.
 - **`--json`** prints one document whose every address is a hexadecimal string, never a number.
   Its field names are a contract. `--limit` keeps the first references in image and address
   order and sets `isTruncated`.
 - **Not reported, by design or not yet**: a call through a vtable, a witness table or any
   register says `indirect` with what the call site shows (the offset of the load, the pointer-
-  authentication discriminator) but no callee — never which table it was; a Swift class's stored-property offset variables are not
+  authentication discriminator) but no callee — never which table it was; a load from
+  `__objc_superrefs` is the start of a super send, reported as `send super …`, never as a
+  reference to the class; data references (a method list's IMP, a pointer in `__const`); a
+  Swift class's stored-property offset variables are not
   reported as ivar references; an app read together with the running system's cache is not
   supported — read the app's files alone, and a call into a system library stays the imported
   symbol it is.

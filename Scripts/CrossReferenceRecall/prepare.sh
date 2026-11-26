@@ -9,8 +9,12 @@ CONTROL_CENTER=${CROSS_REFERENCE_RECALL_CONTROL_CENTER:-/Volumes/RE/ControlCente
 mkdir -p $WORK
 cd $WORK
 
-lipo -thin arm64e $FINDER -output Finder
-lipo -thin arm64e $CONTROL_CENTER -output ControlCenter
+# A sample already thinned to arm64e is taken as it is.
+thin() {
+  if lipo -info $1 | grep -q '^Non-fat'; then cp $1 $2; else lipo -thin arm64e $1 -output $2; fi
+}
+thin $FINDER Finder
+thin $CONTROL_CENTER ControlCenter
 # 1E2E81F7-9B9D-317A-A102-F55ADAF6A0A0 and 5782ED6B-471B-3CAC-9258-93734B6009C3.
 dwarfdump --uuid Finder ControlCenter
 

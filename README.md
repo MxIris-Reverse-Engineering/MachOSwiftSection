@@ -753,7 +753,7 @@ superclass chain, why pure-Swift classes' ivar records do not line up, and the r
 
 #### refs - Find Cross References
 
-Who sends a selector, calls a function, or references a class, an instance variable or a string — across every image of a dyld shared cache (an archived one, another device's, or the running system's, read from its files) or across a set of Mach-O files read together, such as an app's executable and its frameworks. No disassembler and no process: the code is read from the files, through image stubs, the stub islands between a cache's images, and the selector and GOT stubs macOS 27 shares across a cache. Only the images that can reference the subject are scanned — the ones whose selector references, imports or linkage allow it.
+Who sends a selector, calls a function or takes its address, or references a class, an instance variable, a string or a Swift type — across every image of a dyld shared cache (an archived one, another device's, or the running system's, read from its files) or across a set of Mach-O files read together, such as an app's executable and its frameworks. No disassembler and no process: the code is read from the files, through image stubs, the stub islands between a cache's images, and the selector and GOT stubs macOS 27 shares across a cache. Only the images that can reference the subject are scanned — the ones whose selector references, imports or linkage allow it.
 
 ```bash
 # Every send of a selector across a whole cache
@@ -769,6 +769,10 @@ swift-section refs --symbol _objc_autoreleasePoolPush --uses-system-dyld-shared-
 
 # What one function references, in instruction order
 swift-section refs --function 0x18a403858 --callees --uses-system-dyld-shared-cache
+
+# Every reference to a Swift type, by its mangling or a $s…Mn / $s…Ma / $s…N symbol of it;
+# --type-image names the image of a type no image of a cache exports
+swift-section refs --type 7SwiftUI4TextV --uses-system-dyld-shared-cache --in-image SwiftUICore
 
 # An app's files; a fat file needs --architecture, as everywhere
 swift-section refs --string NSWindowDidBecomeKeyNotification \

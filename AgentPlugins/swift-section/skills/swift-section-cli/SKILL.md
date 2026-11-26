@@ -51,8 +51,9 @@ Flags added comparatively late, and therefore worth checking: `--emit-header`,
 0.25.0 `objc evolution --interface` / `--emit-available` / `--platform`,
 `objc interface --swift`, `interface --no-existential-any` / `dump --disable-existential-any`,
 `interface --expand-macros` and the `refs` and `symbolicate` subcommands, and after 0.26.0
-`--multiline-types` / `--maximum-line-width` on `dump` and `interface`, and
-`objc interface --mark-sdk-swift-names`.
+`--multiline-types` / `--maximum-line-width` on `dump` and `interface`,
+`objc interface --mark-sdk-swift-names`, and `refs --type` / `--type-image` (with `refs`
+listing selector references and function address references).
 When one is
 missing, say so rather than silently producing a weaker answer — the alternative is usually
 "upgrade (`brew upgrade swift-section`), or do without that annotation".
@@ -68,7 +69,7 @@ missing, say so rather than silently producing a weaker answer — the alternati
 | How did this API evolve across N OS versions? | `evolution` |
 | Reformat the memory-layout comments the two above emit | `transformer` |
 | Objective-C headers, IMP addresses, or an Objective-C API diff (0.20.0+, formerly the separate `objc-section` executable) | `objc` — read `references/objc.md` first |
-| Who calls this selector / symbol / function, who references this class, ivar or string — across a whole dyld shared cache or an app's files | `refs` — read `references/cross-references.md` first |
+| Who calls this selector / symbol / function, who references this class, ivar, string or Swift type — across a whole dyld shared cache or an app's files | `refs` — read `references/cross-references.md` first |
 | What is this address: which function and how far into it, a stub and where it leads, a slot and what it holds | `symbolicate` — same reference |
 
 `dump` is the default subcommand: `swift-section <path>` is `swift-section dump <path>`.
