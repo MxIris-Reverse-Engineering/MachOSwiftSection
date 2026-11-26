@@ -3663,6 +3663,19 @@
 - **验证**：只编译、没运行（IntegrationTests 不让 agent 跑）：Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests`。
 - **对应版本**：未发布（只改测试目标）。
 
+## 158. `@objc @implementation` 只剩 ivar 的存储属性按 ObjC 类型还原 Swift 类型
+
+- **时间段**：2026-11-26，本仓库的 `feature/objc-ivar-type-recovery`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上编译和测试。
+- **动机**：RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`_UISplitViewControllerAdaptiveLayoutTransition` 的 24 个存储属性在 Swift 接口里全是「Swift type not recoverable」注释，而 ObjC 头文件一侧已经显示出其中 12 个的类型。
+- **关键决策**：
+  - 按编译器写 ivar encoding 的规则（IRGen `buildIvar`）分流：完整 encoding 只写给能原样表示成 ObjC 的类型，所以就是 Swift 类型本身，不桥接、`id` 是 `AnyObject`；`?` 是桥接类型，读 ObjC 属性的 `T` 特性按导入规则还原，只认桥接表里的类与裸 `id`（`unowned` 的存储也写 `?`）；`weak` 的存储对类也写 `?`，读属性、不桥接，写 `T?`；空 encoding 仍是注释。
+  - 对象可空性未知写 `T!`，`readonly` 写 `let`；block、指向结构体的指针、位域、无名结构体还原不出。`NS_ENUM` 的 `q`、`^v`、`#` 之类的同码异型照导入规则打，与 ObjC 一侧一致。
+  - C 基本类型可按 `SwiftDeclarationPrintConfiguration.cTypeReplacements` 改写（`double` → `CGFloat`），调用方用 `applyTransformers(_: Transformer.ObjCConfiguration)` 把 ObjC 一侧的 C Type Replacement 交进来；只换类型本身。
+- **落地模块**：`SwiftObjCInterop`（新增 `ObjCInstanceVariableSwiftType`，`ObjCImportedTypes` 加 `triviallyRepresentedTypeNode` / `bridgedTypeNode` / `Position.weakStorage`）、`SwiftPrinting`（还原的声明、`cTypeReplacements`，新依赖 `ObjCOutputTransformer`）、`SwiftDump`（ivar 行与来源注释）；夹具 `ObjCImplementationFixture` 加 `AdaptiveTransitionWidget`。
+- **文档**：提案 [0112-objc-ivar-type-recovery](../Evolutions/0112-objc-ivar-type-recovery.md)；[ObjCImplementationClassRecognition.md](ObjCImplementationClassRecognition.md) 与 [Modules/SwiftObjCInterop.md](Modules/SwiftObjCInterop.md) 补了还原规则。没有新术语，不另写使用指南。
+- **验证**：Ultra 上相关的五个套件全过；整套测试的失败全是构建槽位检出里缺 `SymbolTestsCore` fixture，没有别的原因。
+- **对应版本**：未发布。RuntimeViewer 抬依赖并把 ObjC 的 C 类型替换交给 Swift 打印之后，App 里才看得到 `CGFloat` 一类的替换。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -1,13 +1,13 @@
-# Draft - `@objc @implementation` 只剩 ivar 的存储属性按 ObjC 类型还原 Swift 类型
+# 0112 - `@objc @implementation` 只剩 ivar 的存储属性按 ObjC 类型还原 Swift 类型
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-26
 - **最后更新**: 2026-11-26
 - **所属愿景**: 无
 - **关联提案**: [0046 objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)、[0096 swift-first-imported-declarations](0096-swift-first-imported-declarations.md)、[0090 objc-imported-declarations](0090-objc-imported-declarations.md)、[0106 c-imported-type-name-spelling](0106-c-imported-type-name-spelling.md)
 - **实现分支 / PR**: `feature/objc-ivar-type-recovery`
-- **配套文档**: 待定 —— 落地时登记实现说明 / 使用指南的链接
+- **配套文档**: 实现说明 [ObjCImplementationClassRecognition.md](../Internal/ObjCImplementationClassRecognition.md)（存储属性一段）；模块说明 [SwiftObjCInterop.md](../Internal/Modules/SwiftObjCInterop.md)
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -234,3 +234,6 @@ package struct ObjCInstanceVariableSwiftType {
 | 2026-11-26 | `applyTransformers(_: Transformer.ObjCConfiguration)` 与 Swift 一侧同名重载 | 调用点传的都是有类型的值（`transformer.objc`），不会歧义；只装 `cType`，`ivarOffset` 是 ObjC 头文件的 ivar 注释，Swift 一侧的偏移注释仍走 `fieldOffsetTransformer` |
 | 2026-11-26 | C 类型替换只换类型本身，替换名照原样打印 | 与假设一致；替换表的文档写明只收不带模块的名字。ObjC 一侧会递归替换指针里的类型，Swift 一侧不跟 |
 | 2026-11-26 | 实现完成，待用户看过后收尾 | 五步都在 Ultra 上过了针对性测试；整套测试结果见收尾；RuntimeViewer 的接入随依赖版本一起做（后续项） |
+| 2026-11-26 | Implemented，取号 0112 | 用户看过后收尾。合进 `next`；落地时演进账本记为第 158 节。没做的：RuntimeViewer 一侧的接入（把 `transformer.objc.cType` 交给 Swift 打印、抬依赖版本）、`swift-section interface --c-type-replacement`、只有 `Wvd` 那条旧分支分两行的问题，都在后续项 |
+| 2026-11-26 | 文档判断 | 不另写使用指南：调用方的契约只有 `cTypeReplacements` 一个属性，文档注释已写清。实现说明更新了已有的 `ObjCImplementationClassRecognition.md`，模块说明更新了 `SwiftObjCInterop.md`。没有新术语：「原样表示」对应编译器自己的 `isTriviallyRepresentableIn`，不是本项目造的词 |
+| 2026-11-26 | 验证 | Ultra 上五个相关套件全过（界面 33、单元 9、前提 3 条，另含 dump 与 Generated Interface 套件）。整套测试（跳过 IntegrationTests）红约 800 处，全部是构建槽位的检出里没有 `SymbolTestsCore` fixture（「Fixture binary not found」「cannot load the SymbolTestsCore fixture」），其余原因的失败为零；完整结果要先把 fixture 编进那个检出 |
