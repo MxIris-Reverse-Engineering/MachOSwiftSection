@@ -233,3 +233,4 @@ package struct ObjCInstanceVariableSwiftType {
 | 2026-11-26 | `weak` 与 `readonly` 同时出现时仍写 `weak var` | `weak let`（SE-0481）要 Swift 6.2，源码更常见的是 `weak private(set) var`；无从区分时取更常见的写法 |
 | 2026-11-26 | `applyTransformers(_: Transformer.ObjCConfiguration)` 与 Swift 一侧同名重载 | 调用点传的都是有类型的值（`transformer.objc`），不会歧义；只装 `cType`，`ivarOffset` 是 ObjC 头文件的 ivar 注释，Swift 一侧的偏移注释仍走 `fieldOffsetTransformer` |
 | 2026-11-26 | C 类型替换只换类型本身，替换名照原样打印 | 与假设一致；替换表的文档写明只收不带模块的名字。ObjC 一侧会递归替换指针里的类型，Swift 一侧不跟 |
+| 2026-11-26 | 实现完成，待用户看过后收尾 | 五步都在 Ultra 上过了针对性测试；整套测试结果见收尾；RuntimeViewer 的接入随依赖版本一起做（后续项） |
