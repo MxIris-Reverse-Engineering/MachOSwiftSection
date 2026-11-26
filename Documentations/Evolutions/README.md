@@ -123,3 +123,4 @@
 | [0106](0106-c-imported-type-name-spelling.md) | C 导入类型的名字统一成 Swift 名，并能切换回 C 名（跨仓库唯一提案，RuntimeViewer 参与） | Implemented |
 | [0107](0107-moved-swift-type-modules.md) | 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印（跨仓库唯一提案，swift-type-indexing 参与） | Implemented |
 | [0108](0108-private-cf-type-modules.md) | 私有 CF 类型按导出 `GetTypeID` 的镜像解析所属模块 | Implemented |
+| draft | [C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写](draft-consistent-c-imported-type-spelling.md) | In Progress |

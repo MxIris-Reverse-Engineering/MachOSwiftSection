@@ -131,12 +131,11 @@ struct SpecializedRuntimeTypeNameTests: GenericSpecializationTestingEnvironment 
 
         let printed = try await printSpecialized("RuntimeNamedPrivateLayoutOuter", with: ["A": .metatype(RuntimeNamedPrivateArgument.self)], configuration: configuration)
 
-        // Layout comments print with `DemangleOptions.default`, which spells
-        // private discriminators. Since 2026-09-24 the runtime's name carries
-        // the discriminator the descriptor-built name does, so a runtime-named
-        // argument reads like every other private type in these comments. The
-        // hash comes from this file's name, so only its shape is pinned.
-        #expect(printed.contains("element (SwiftSpecializationTests.(RuntimeNamedPrivateArgument in _"), "got:\n\(printed)")
+        // The interface's layout comments spell their types the way its
+        // declarations do (evolution proposal
+        // `consistent-c-imported-type-spelling`): a private type keeps its
+        // module and loses its discriminator, as `let element:` does above.
+        #expect(printed.contains("element (SwiftSpecializationTests.RuntimeNamedPrivateArgument): 0x"), "got:\n\(printed)")
     }
 
     /// The runtime's name carries the extension context too

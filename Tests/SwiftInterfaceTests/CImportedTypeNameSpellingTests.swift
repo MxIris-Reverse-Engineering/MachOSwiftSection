@@ -4,6 +4,8 @@ import MachOKit
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftPrinting
 @_spi(Support) @testable import SwiftInterface
+@testable import SwiftDeclarationRendering
+import Demangling
 import SwiftDeclaration
 import SwiftIndexing
 @_spi(Internals) import SwiftInspection
@@ -12,14 +14,20 @@ import SwiftSectionTestingSupport
 
 /// Evolution proposal `c-imported-type-name-spelling`: a C-imported type the
 /// compiler knows by two names prints under one of them everywhere —
-/// declaration, member types and extension headers.
+/// declaration, member types and extension headers. Evolution proposal
+/// `consistent-c-imported-type-spelling` extends that to a type whose two
+/// names are one, and to the field layout tree's comments.
 ///
 /// The fixture's bridging header reproduces the shapes AttributeGraph and the
 /// SDK have: a struct renamed with `swift_name` (`AGWeakAttribute` →
 /// `AnyWeakAttribute`) holding an anonymous struct, a `swift_wrapper` typedef
-/// renamed the same way (`AGAttribute` → `AnyAttribute`), and a typedef
+/// renamed the same way (`AGAttribute` → `AnyAttribute`), a typedef
 /// imported as a member of another type (`NSAttributedStringKey` →
-/// `NSAttributedString.Key`), whose descriptor keeps only the leaf.
+/// `NSAttributedString.Key`), whose descriptor keeps only the leaf, and two
+/// types imported under their own C names: a plain struct, whose descriptor
+/// carries no import info at all, and a `swift_wrapper` typedef, whose import
+/// info carries the typedef namespace but no ABI name
+/// (`AGDescriptionOption`).
 @Suite
 struct CImportedTypeNameSpellingTests {
     // MARK: - Fixture
@@ -53,27 +61,50 @@ struct CImportedTypeNameSpellingTests {
     } ProbeOwner;
 
     typedef NSString *ProbeOwnerKey __attribute__((swift_wrapper(struct))) __attribute__((swift_name("ProbeOwner.Key")));
+
+    typedef struct ProbePlainValue {
+        int32_t value;
+    } ProbePlainValue;
+
+    typedef NSString *ProbeOption __attribute__((swift_wrapper(struct)));
     """
 
     /// `Anchor` keeps a `__DATA` segment in the dylib (see AGENTS.md,
     /// "On-the-fly-compiled fixture dylibs need a class"). The conformances
     /// put the C-imported types' descriptors into this image: the Swift-side
-    /// `Equatable` of `AnyFooThing`, and the importer's synthesized `Hashable`
-    /// of the two wrappers, reached through a generic function.
+    /// `Equatable` of `AnyFooThing` and `ProbePlainValue`, and the importer's
+    /// synthesized `Hashable` of the three wrappers, reached through a generic
+    /// function.
     private static let fixtureSource = """
     import Foundation
 
     public final class Anchor {}
 
+    public struct PlainBox {
+        public var plain: ProbePlainValue
+        public var count: Int
+
+        public init(plain: ProbePlainValue, count: Int) {
+            self.plain = plain
+            self.count = count
+        }
+    }
+
     public struct Holder {
         public var thing: AnyFooThing
         public var identifier: AnyFooIdentifier
         public var key: ProbeOwner.Key
+        public var plain: ProbePlainValue
+        public var option: ProbeOption
+        public var box: PlainBox
 
-        public init(thing: AnyFooThing, identifier: AnyFooIdentifier, key: ProbeOwner.Key) {
+        public init(thing: AnyFooThing, identifier: AnyFooIdentifier, key: ProbeOwner.Key, plain: ProbePlainValue, option: ProbeOption, box: PlainBox) {
             self.thing = thing
             self.identifier = identifier
             self.key = key
+            self.plain = plain
+            self.option = option
+            self.box = box
         }
     }
 
@@ -83,11 +114,17 @@ struct CImportedTypeNameSpellingTests {
         }
     }
 
+    extension ProbePlainValue: Equatable {
+        public static func == (left: ProbePlainValue, right: ProbePlainValue) -> Bool {
+            left.value == right.value
+        }
+    }
+
     @inline(never) public func hashValue<Value: Hashable>(of value: Value) -> Int { value.hashValue }
     @inline(never) public func isEqual<Value: Equatable>(_ left: Value, _ right: Value) -> Bool { left == right }
 
-    public func exercise(_ holder: Holder) -> (Int, Int, Bool) {
-        (hashValue(of: holder.identifier), hashValue(of: holder.key), isEqual(holder.thing, holder.thing))
+    public func exercise(_ holder: Holder) -> (Int, Int, Bool, Bool, Int) {
+        (hashValue(of: holder.identifier), hashValue(of: holder.key), isEqual(holder.thing, holder.thing), isEqual(holder.plain, holder.plain), hashValue(of: holder.option))
     }
     """
 
@@ -135,6 +172,15 @@ struct CImportedTypeNameSpellingTests {
         try HostSlice.machOFile(at: Self.fixtureCompilationResult.get())
     }
 
+    /// The fixture loaded into the test process, for the in-process layout
+    /// backend.
+    private func loadFixtureMachOImage() throws -> MachOImage {
+        let libraryURL = try Self.fixtureCompilationResult.get()
+        _ = libraryURL.path.withCString { dlopen($0, RTLD_NOW) }
+        let imageName = libraryURL.deletingPathExtension().lastPathComponent
+        return try #require(MachOImage(name: imageName), "the fixture dylib did not load in-process")
+    }
+
     /// Records every query, and answers the ones it was set up to answer.
     private final class RecordingResolver: ModuleNameResolving, CImportedNameResolving, @unchecked Sendable {
         private let lock = NSLock()
@@ -162,14 +208,23 @@ struct CImportedTypeNameSpellingTests {
         }
     }
 
-    private func makeBuilder(spelling: CImportedTypeNameSpelling = .swiftName, marksCImportedTypeNames: Bool = false, resolver: RecordingResolver? = nil) async throws -> SwiftInterfaceBuilder<MachOFile> {
+    private func makeBuilder(spelling: CImportedTypeNameSpelling = .swiftName, marksCImportedTypeNames: Bool = false, printsFieldLayout: Bool = false, usesModuleSelectors: Bool = false, resolver: RecordingResolver? = nil) async throws -> SwiftInterfaceBuilder<MachOFile> {
+        try await makeBuilder(spelling: spelling, marksCImportedTypeNames: marksCImportedTypeNames, printsFieldLayout: printsFieldLayout, usesModuleSelectors: usesModuleSelectors, resolver: resolver, in: loadFixtureMachOFile())
+    }
+
+    /// `printsFieldLayout` turns on the field offsets and the expanded tree
+    /// of nested field offsets under them.
+    private func makeBuilder<MachO: MachOFieldLayoutRenderable>(spelling: CImportedTypeNameSpelling = .swiftName, marksCImportedTypeNames: Bool = false, printsFieldLayout: Bool = false, usesModuleSelectors: Bool = false, resolver: RecordingResolver? = nil, in machO: MachO) async throws -> SwiftInterfaceBuilder<MachO> {
         var printConfiguration = SwiftDeclarationPrintConfiguration()
         printConfiguration.cImportedTypeNameSpelling = spelling
         printConfiguration.marksCImportedTypeNames = marksCImportedTypeNames
+        printConfiguration.printFieldOffset = printsFieldLayout
+        printConfiguration.printExpandedFieldOffsets = printsFieldLayout
+        printConfiguration.usesModuleSelectors = usesModuleSelectors
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.indexConfiguration = SwiftDeclarationIndexConfiguration(showCImportedTypes: true)
         configuration.printConfiguration = printConfiguration
-        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: loadFixtureMachOFile())
+        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machO)
         if let resolver {
             builder.printer.addTypeNameResolver(resolver)
         }
@@ -177,8 +232,8 @@ struct CImportedTypeNameSpellingTests {
         return builder
     }
 
-    private func buildInterface(spelling: CImportedTypeNameSpelling = .swiftName, resolver: RecordingResolver? = nil) async throws -> String {
-        try await makeBuilder(spelling: spelling, resolver: resolver).printRoot().string
+    private func buildInterface(spelling: CImportedTypeNameSpelling = .swiftName, printsFieldLayout: Bool = false, usesModuleSelectors: Bool = false, resolver: RecordingResolver? = nil) async throws -> String {
+        try await makeBuilder(spelling: spelling, printsFieldLayout: printsFieldLayout, usesModuleSelectors: usesModuleSelectors, resolver: resolver).printRoot().string
     }
 
     private func lines(of interface: String, startingWith prefix: String) -> [String] {
@@ -236,6 +291,217 @@ struct CImportedTypeNameSpellingTests {
         #expect(swiftNamesByDescriptorName["Key"] == .some(nil))
         // The anonymous struct keeps its own name and has no entry.
         #expect(swiftNamesByDescriptorName["__Unnamed_struct__details"] == .some(nil))
+        // No ABI name: the compiler writes one only when the two names differ.
+        #expect(swiftNamesByDescriptorName["ProbePlainValue"] == .some("ProbePlainValue"))
+        #expect(swiftNamesByDescriptorName["ProbeOption"] == .some("ProbeOption"))
+    }
+
+    // MARK: - A descriptor's known Swift name
+
+    @Test("A descriptor whose ABI name is absent or its own name is its own Swift name", arguments: [
+        TypeImportInfo?.none,
+        TypeImportInfo(abiName: nil, symbolNamespace: TypeImportInfo.cTypedefSymbolNamespace, relatedEntityName: nil),
+        TypeImportInfo(abiName: "AGDescriptionOption", symbolNamespace: TypeImportInfo.cTypedefSymbolNamespace, relatedEntityName: nil),
+    ])
+    func knowsDescriptorNameWithoutABIName(importInfo: TypeImportInfo?) {
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "AGDescriptionOption", importInfo: importInfo, isDirectlyInImportedModule: true) == "AGDescriptionOption")
+    }
+
+    /// A type nested in a C type is printed through its parent, never looked
+    /// up by its own name.
+    @Test func doesNotKnowNestedDescriptorNameWithoutABIName() {
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "__Unnamed_struct__details", importInfo: nil, isDirectlyInImportedModule: false) == nil)
+    }
+
+    @Test func knowsTrustedRenameAndNotUntrustedOne() {
+        let trusted = TypeImportInfo(abiName: "AGWeakAttribute", symbolNamespace: nil, relatedEntityName: nil)
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "AnyWeakAttribute", importInfo: trusted, isDirectlyInImportedModule: true) == "AnyWeakAttribute")
+        let untrusted = TypeImportInfo(abiName: "AGTreeValue", symbolNamespace: TypeImportInfo.cTypedefSymbolNamespace, relatedEntityName: nil)
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "TreeValue", importInfo: untrusted, isDirectlyInImportedModule: true) == nil)
+    }
+
+    @Test func doesNotKnowRelatedEntityName() {
+        let withABIName = TypeImportInfo(abiName: "CKErrorCode", symbolNamespace: nil, relatedEntityName: "e")
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "CKError", importInfo: withABIName, isDirectlyInImportedModule: true) == nil)
+        let withoutABIName = TypeImportInfo(abiName: nil, symbolNamespace: nil, relatedEntityName: "e")
+        #expect(CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed: "CKError", importInfo: withoutABIName, isDirectlyInImportedModule: true) == nil)
+    }
+
+    // MARK: - Types imported under their own C names
+
+    @Test func sameNameTypeReferencePrintsBareName() async throws {
+        let interface = try await buildInterface()
+        #expect(interface.contains("var plain: ProbePlainValue"), "\(interface)")
+        #expect(interface.contains("var option: ProbeOption"), "\(interface)")
+        #expect(!interface.contains("__C.ProbePlainValue"), "\(interface)")
+        #expect(!interface.contains("__C.ProbeOption"), "\(interface)")
+    }
+
+    @Test func sameNameTypeExtensionHeaderPrintsBareName() async throws {
+        let interface = try await buildInterface()
+        let plainLines = lines(of: interface, startingWith: "extension ProbePlainValue: ")
+        #expect(plainLines.contains { $0.contains("Swift.Equatable") }, "\(interface)")
+        #expect(!lines(of: interface, startingWith: "extension ProbeOption: ").isEmpty, "\(interface)")
+        #expect(lines(of: interface, startingWith: "extension __C.ProbePlainValue").isEmpty, "\(interface)")
+        #expect(lines(of: interface, startingWith: "extension __C.ProbeOption").isEmpty, "\(interface)")
+    }
+
+    @Test func sameNameTypeKeepsModuleThatResolverFinds() async throws {
+        let resolver = RecordingResolver(moduleNamesByTypeName: ["ProbePlainValue": "ProbeModule"])
+        let interface = try await buildInterface(resolver: resolver)
+        #expect(interface.contains("var plain: ProbeModule.ProbePlainValue"), "\(interface)")
+        #expect(!lines(of: interface, startingWith: "extension ProbeModule.ProbePlainValue: ").isEmpty, "\(interface)")
+        // Nothing found for the wrapper: its own name, alone.
+        #expect(interface.contains("var option: ProbeOption"), "\(interface)")
+    }
+
+    @Test func cSpellingKeepsMangledSameNameType() async throws {
+        let interface = try await buildInterface(spelling: .cName)
+        #expect(interface.contains("var plain: __C.ProbePlainValue"), "\(interface)")
+        #expect(interface.contains("var option: __C.ProbeOption"), "\(interface)")
+        #expect(!lines(of: interface, startingWith: "extension __C.ProbePlainValue: ").isEmpty, "\(interface)")
+        #expect(interface.contains("struct ProbePlainValue {"), "\(interface)")
+    }
+
+    // MARK: - Field layout comments (offline)
+
+    /// `Holder.thing` expands into the anonymous struct and the wrapper in
+    /// it: the rows name them the way the declarations do.
+    @Test func offlineLayoutCommentSpellsRenamedTypesAsDeclared() async throws {
+        let interface = try await buildInterface(printsFieldLayout: true)
+        #expect(interface.contains("_details (AnyFooThing.__Unnamed_struct__details): 0x0"), "\(interface)")
+        #expect(interface.contains("identifier (AnyFooIdentifier): 0x0"), "\(interface)")
+        #expect(!interface.contains("__C.AGFoo"), "\(interface)")
+    }
+
+    /// `Holder.box` expands into `PlainBox`, whose field is the type
+    /// imported under its own C name.
+    @Test func offlineLayoutCommentSpellsSameNameTypeBare() async throws {
+        let interface = try await buildInterface(printsFieldLayout: true)
+        #expect(interface.contains("plain (ProbePlainValue): 0x"), "\(interface)")
+        #expect(!interface.contains("(__C.ProbePlainValue)"), "\(interface)")
+    }
+
+    /// With module selectors on, so the printer's C spelling (`__C::`) is
+    /// told apart from the `.default` one the tree was built with (`__C.`).
+    @Test func offlineLayoutCommentSpellsCNamesWhenSpellingCNames() async throws {
+        let interface = try await buildInterface(spelling: .cName, printsFieldLayout: true, usesModuleSelectors: true)
+        #expect(interface.contains("identifier (__C::AGFooIdentifier): 0x0"), "\(interface)")
+        #expect(interface.contains("plain (__C::ProbePlainValue): 0x"), "\(interface)")
+        #expect(!interface.contains("AnyFooIdentifier"), "\(interface)")
+    }
+
+    @Test func offlineLayoutCommentCarriesModuleSelectors() async throws {
+        let interface = try await buildInterface(printsFieldLayout: true, usesModuleSelectors: true)
+        #expect(interface.contains("rawValue (Swift::UInt32): 0x0"), "\(interface)")
+        #expect(!interface.contains("(Swift.UInt32)"), "\(interface)")
+    }
+
+    /// The comments `Holder.<fieldName>` renders with through
+    /// `demangleResolver`, with or without asking for its spelling — offline
+    /// from a `MachOFile`, in process from a `MachOImage`. Drives the field
+    /// layout renderer directly, the way the printer does, without indexing
+    /// the image.
+    private func renderHolderFieldComments<MachO: MachOFieldLayoutRenderable>(named fieldName: String, in machO: MachO, demangleResolver: DemangleResolver, spellsThroughResolver: Bool) async throws -> String {
+        var configuration = DeclarationRenderConfiguration(demangleResolver: demangleResolver)
+        configuration.printFieldOffset = true
+        configuration.printExpandedFieldOffsets = true
+        configuration.staticFieldLayoutProvider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: .default)
+        configuration = configuration.spellingFieldLayoutTypeNamesThroughResolver(spellsThroughResolver)
+        var holderType: TypeContextWrapper?
+        var holderDescriptor: StructDescriptor?
+        for type in try machO.swift.types {
+            guard case .struct(let structType) = type, try structType.descriptor.name(in: machO.context) == "Holder" else { continue }
+            holderType = type
+            holderDescriptor = structType.descriptor
+        }
+        let type = try #require(holderType)
+        let descriptor = try #require(holderDescriptor)
+        let renderer = FieldLayoutRenderer(type: type, metadata: nil, machO: machO, configuration: configuration)
+        let records = try descriptor.fieldDescriptor(in: machO.context).records(in: machO.context)
+        let fieldIndex = try #require(try records.firstIndex { try $0.fieldName(in: machO.context) == fieldName })
+        return try await renderer.storedFieldComments(forFieldAtIndex: fieldIndex, mangledTypeName: records[fieldIndex].mangledTypeName(in: machO.context), fieldOffsets: renderer.fieldOffsets).string
+    }
+
+    private func renderHolderThingComments(demangleResolver: DemangleResolver, spellsThroughResolver: Bool) async throws -> String {
+        try await renderHolderFieldComments(named: "thing", in: loadFixtureMachOFile(), demangleResolver: demangleResolver, spellsThroughResolver: spellsThroughResolver)
+    }
+
+    /// The comments `Holder.<fieldName>` renders with through the interface
+    /// printer's own type spelling, with module selectors on.
+    private func renderHolderFieldCommentsAsInterface<MachO: MachOFieldLayoutRenderable>(named fieldName: String, in machO: MachO) async throws -> String {
+        var printConfiguration = SwiftDeclarationPrintConfiguration()
+        printConfiguration.usesModuleSelectors = true
+        let printer = SwiftDeclarationPrinter(configuration: printConfiguration, in: machO)
+        // The resolver holds the printer weakly and prints nothing once it is
+        // gone, which would leave every row on its `.default` spelling — on
+        // both sides of a comparison alike.
+        defer { withExtendedLifetime(printer) {} }
+        return try await renderHolderFieldComments(named: fieldName, in: machO, demangleResolver: printer.typeDemangleResolver, spellsThroughResolver: true)
+    }
+
+    /// A resolver that spells every type alike, so a row it spelled is
+    /// unmistakable.
+    private static let markingResolver = DemangleResolver.builder { _ in
+        "SpelledByResolver"
+    }
+
+    /// The dump never asks for the printer's spelling: whatever its resolver
+    /// is, its rows keep the `.default` one the tree was built with.
+    @Test func layoutCommentKeepsDefaultSpellingUnlessAsked() async throws {
+        let rendered = try await renderHolderThingComments(demangleResolver: Self.markingResolver, spellsThroughResolver: false)
+        #expect(rendered.contains("identifier (__C.AGFooIdentifier): 0x0"), "\(rendered)")
+        #expect(rendered.contains("rawValue (Swift.UInt32): 0x0"), "\(rendered)")
+        #expect(!rendered.contains("SpelledByResolver"), "\(rendered)")
+    }
+
+    @Test func layoutCommentSpellsThroughResolverWhenAsked() async throws {
+        let rendered = try await renderHolderThingComments(demangleResolver: Self.markingResolver, spellsThroughResolver: true)
+        #expect(rendered.contains("identifier (SpelledByResolver): 0x0"), "\(rendered)")
+        #expect(!rendered.contains("__C.AGFooIdentifier"), "\(rendered)")
+    }
+
+    @Test func freshRenderConfigurationDoesNotSpellThroughResolver() {
+        #expect(!DeclarationRenderConfiguration.demangleOptions(.default).spellsFieldLayoutTypeNamesThroughResolver)
+    }
+
+    // MARK: - Field layout comments (in process)
+
+    private func treeRows(of comments: String) -> [String] {
+        comments.split(separator: "\n").map(String.init).filter { $0.contains("── ") }
+    }
+
+    /// `Holder.box` expands, in process, into `PlainBox`'s two fields.
+    @Test func inProcessLayoutCommentSpellsTypesAsDeclared() async throws {
+        let comments = try await renderHolderFieldCommentsAsInterface(named: "box", in: loadFixtureMachOImage())
+        #expect(comments.contains("plain (ProbePlainValue): 0x"), "\(comments)")
+        #expect(comments.contains("count (Swift::Int): 0x"), "\(comments)")
+        #expect(!comments.contains("(__C.ProbePlainValue)"), "\(comments)")
+        #expect(!comments.contains("(Swift.Int)"), "\(comments)")
+    }
+
+    /// The in-process walk prints the offline walk's rows, row for row. These
+    /// fields are non-generic, so neither walk has a reason to stop before
+    /// the other (it does under a generic standard-library struct, see
+    /// `OfflineSpecializationParityTests`).
+    @Test(arguments: ["thing", "identifier", "plain", "box"])
+    func inProcessLayoutCommentRowsMatchOfflineOnes(fieldName: String) async throws {
+        let offline = try await renderHolderFieldCommentsAsInterface(named: fieldName, in: loadFixtureMachOFile())
+        let inProcess = try await renderHolderFieldCommentsAsInterface(named: fieldName, in: loadFixtureMachOImage())
+        let inProcessRows = treeRows(of: inProcess)
+        #expect(!inProcessRows.isEmpty, "\(inProcess)")
+        // Only the printer writes module selectors: rows on the `.default`
+        // spelling would match each other too, and prove nothing.
+        #expect(inProcessRows.contains { $0.contains("::") }, "\(inProcess)")
+        #expect(inProcessRows == treeRows(of: offline), "--- in process ---\n\(inProcess)\n--- offline ---\n\(offline)")
+    }
+
+    /// The headline case, in process: the renamed C type in `Holder.thing`'s
+    /// anonymous struct.
+    @Test func inProcessLayoutCommentSpellsRenamedTypeAsDeclared() async throws {
+        let comments = try await renderHolderFieldCommentsAsInterface(named: "thing", in: loadFixtureMachOImage())
+        #expect(comments.contains("identifier (AnyFooIdentifier): 0x0"), "\(comments)")
+        #expect(!comments.contains("__C"), "\(comments)")
     }
 
     // MARK: - Spelling Swift names
@@ -338,8 +604,9 @@ struct CImportedTypeNameSpellingTests {
         let marked = try await makeBuilder(marksCImportedTypeNames: true).printRoot().frozen()
         let names = marked.separatingAnnotationRegions().annotations.regions.compactMap(\.kind.cImportedTypeNames)
         // `ProbeOwnerKey` has no known Swift name without a resolver, and
-        // the anonymous struct has one name only.
-        #expect(!names.contains { $0.cName == "ProbeOwnerKey" || $0.cName == "__Unnamed_struct__details" })
+        // the anonymous struct and the two types imported under their own C
+        // names have one name only.
+        #expect(!names.contains { ["ProbeOwnerKey", "__Unnamed_struct__details", "ProbePlainValue", "ProbeOption"].contains($0.cName) })
     }
 
     @Test func regionKindRoundTripsDottedSwiftName() {

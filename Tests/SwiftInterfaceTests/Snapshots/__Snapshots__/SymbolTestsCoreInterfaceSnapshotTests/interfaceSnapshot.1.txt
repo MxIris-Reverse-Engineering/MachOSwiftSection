@@ -1167,12 +1167,12 @@ enum FieldDescriptorVariants {
 struct ForeignPackedTimeContainer {
     // Field offset: 0x0
     // Type Layout: (size: 24, stride: 24, alignment: 4, extraInhabitantCount: 0)
-    var startTime: __C.CMTime
+    var startTime: CMTime
     // Field offset: 0x18
     // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
     var elapsedSeconds: Swift.Double
 
-    init(startTime: __C.CMTime, elapsedSeconds: Swift.Double)
+    init(startTime: CMTime, elapsedSeconds: Swift.Double)
 }
 enum ForeignTypeFixtures {
     static func foreignClassReference() -> __C.CFStringRef

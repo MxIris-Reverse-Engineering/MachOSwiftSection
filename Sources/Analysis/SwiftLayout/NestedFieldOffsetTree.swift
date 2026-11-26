@@ -15,8 +15,18 @@ import Demangling
 public struct NestedFieldOffset: Sendable {
     /// The stored property's (or enum payload's) name.
     public let fieldName: String
-    /// The field type's printable name (e.g. `Swift.Int`, `MyModule.Box<Int>`).
+    /// The field type's printable name (e.g. `Swift.Int`, `MyModule.Box<Int>`),
+    /// printed from ``typeNode`` with the fixed `.default` options. It is the
+    /// walk's cycle key, and what a host that does not spell types itself
+    /// prints (the dump).
     public let typeName: String
+    /// The field type's node, with the enclosing type's generic arguments
+    /// substituted — what ``typeName`` was printed from. A printer spells it
+    /// the way it spells its declarations' types: the C-imported type name
+    /// spelling, module selectors, `any` (evolution proposal
+    /// `consistent-c-imported-type-spelling`). `nil` when the field's type
+    /// did not demangle, or for a node built by hand.
+    public let typeNode: Node?
     /// The field's absolute byte offset from the start of the outermost type.
     public let offset: Int
     /// The field's value size, excluding trailing alignment padding. Available
@@ -27,9 +37,10 @@ public struct NestedFieldOffset: Sendable {
     /// reference, or an aggregate the engine could not expand).
     public let children: [NestedFieldOffset]
 
-    public init(fieldName: String, typeName: String, offset: Int, children: [NestedFieldOffset], byteWidth: Int? = nil) {
+    public init(fieldName: String, typeName: String, offset: Int, children: [NestedFieldOffset], byteWidth: Int? = nil, typeNode: Node? = nil) {
         self.fieldName = fieldName
         self.typeName = typeName
+        self.typeNode = typeNode
         self.offset = offset
         self.children = children
         self.byteWidth = byteWidth
@@ -277,6 +288,6 @@ extension StaticLayoutCalculator {
                 hasUnconditionalStorage: byteWidth != nil
             )
         } ?? []) : []
-        return NestedFieldOffset(fieldName: fieldName, typeName: typeName, offset: absoluteOffset, children: children, byteWidth: byteWidth)
+        return NestedFieldOffset(fieldName: fieldName, typeName: typeName, offset: absoluteOffset, children: children, byteWidth: byteWidth, typeNode: fieldTypeNode)
     }
 }

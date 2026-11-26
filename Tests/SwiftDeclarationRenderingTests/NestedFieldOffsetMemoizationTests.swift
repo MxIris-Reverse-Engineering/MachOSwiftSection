@@ -29,9 +29,15 @@ final class NestedFieldOffsetMemoizationTests: MachOSwiftSectionFixtureTests, @u
 
     /// Every stored field of every non-generic struct and class in the
     /// fixture, rendered in process with field offsets, expanded field
-    /// offsets and type layouts on.
-    private func renderEveryStoredField() async throws -> [(label: String, rendered: String)] {
+    /// offsets and type layouts on. With `rowSpellingResolver`, each row
+    /// spells its type through it from the node the level keeps, the way the
+    /// interface printer has the rows spelled (evolution proposal
+    /// `consistent-c-imported-type-spelling`).
+    private func renderEveryStoredField(rowSpellingResolver: DemangleResolver? = nil) async throws -> [(label: String, rendered: String)] {
         var configuration = DeclarationRenderConfiguration.demangleOptions(.default)
+        if let rowSpellingResolver {
+            configuration = DeclarationRenderConfiguration(demangleResolver: rowSpellingResolver).spellingFieldLayoutTypeNamesThroughResolver(true)
+        }
         configuration.printFieldOffset = true
         configuration.printExpandedFieldOffsets = true
         configuration.printTypeLayout = true
@@ -85,6 +91,24 @@ final class NestedFieldOffsetMemoizationTests: MachOSwiftSectionFixtureTests, @u
         #expect(expandedRowCount > 100, "the fixture should expand plenty of nested rows; got \(expandedRowCount)")
         let mismatches = Self.mismatches(between: unmemoized, and: firstMemoized) + Self.mismatches(between: unmemoized, and: secondMemoized)
         #expect(mismatches.isEmpty, "\(mismatches.prefix(3).joined(separator: "\n\n"))")
+    }
+
+    /// Rows spelled from the node a level keeps read the same from a cold
+    /// memo, from a warm one and without the memo — and do take the
+    /// resolver's spelling, not the `.default` one stored beside the node.
+    @Test func memoizedExpansionSpelledThroughAResolverReadsAsTheUnmemoizedOne() async throws {
+        let rowSpellingResolver = DemangleResolver.options(.interface)
+        RuntimeFieldLayoutMemo.removeAll()
+        let unmemoized = try await NestedFieldOffsetLevelMemo.$isBypassed.withValue(true) {
+            try await renderEveryStoredField(rowSpellingResolver: rowSpellingResolver)
+        }
+        let firstMemoized = try await renderEveryStoredField(rowSpellingResolver: rowSpellingResolver)
+        let secondMemoized = try await renderEveryStoredField(rowSpellingResolver: rowSpellingResolver)
+        let mismatches = Self.mismatches(between: unmemoized, and: firstMemoized) + Self.mismatches(between: unmemoized, and: secondMemoized)
+        #expect(mismatches.isEmpty, "\(mismatches.prefix(3).joined(separator: "\n\n"))")
+
+        let defaultSpelled = try await renderEveryStoredField()
+        #expect(!Self.mismatches(between: defaultSpelled, and: firstMemoized).isEmpty, "the resolver's spelling should differ from `.default` on some row")
     }
 
     /// The row before an unresolved last payload keeps the branch it drew

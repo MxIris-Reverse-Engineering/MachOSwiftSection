@@ -103,6 +103,16 @@ public struct DeclarationRenderConfiguration: Sendable {
     @Init(.ignore)
     package var marksCommentStructure: Bool = false
 
+    /// Set by a printer that spells its declarations' types through
+    /// `demangleResolver` — `SwiftDeclarationPrinter`, whose resolver is its
+    /// own type printer: the expanded field offset tree's rows then spell
+    /// their types the same way, with the C-imported type name spelling,
+    /// module selectors and `any` (evolution proposal
+    /// `consistent-c-imported-type-spelling`). The dump never sets it: its
+    /// rows keep the `.default` spelling the tree was built with.
+    @Init(.ignore)
+    package var spellsFieldLayoutTypeNamesThroughResolver: Bool = false
+
     /// Where the dump learns the source file of each private discriminator
     /// (evolution proposal `private-declaration-source-files`). With one, a
     /// declaration whose name reads a discriminator the declaration it is
@@ -166,6 +176,30 @@ extension DeclarationRenderConfiguration {
         var configuration = self
         configuration.marksCommentStructure = marksCommentStructure
         return configuration
+    }
+
+    /// This configuration, spelling the expanded field offset tree's type
+    /// names through `demangleResolver` or not
+    /// (``spellsFieldLayoutTypeNamesThroughResolver``).
+    package func spellingFieldLayoutTypeNamesThroughResolver(_ spellsThroughResolver: Bool) -> Self {
+        var configuration = self
+        configuration.spellsFieldLayoutTypeNamesThroughResolver = spellsThroughResolver
+        return configuration
+    }
+
+    /// The type name an expanded field offset tree row prints: `typeNode`
+    /// spelled through `demangleResolver` when
+    /// ``spellsFieldLayoutTypeNamesThroughResolver`` is set, else
+    /// `printedName`, the `.default` spelling the row was built with — which
+    /// is also what the row prints when its type has no node, or the
+    /// resolver fails or spells nothing, so a row never loses its type.
+    package func fieldLayoutTypeName(printedName: String, typeNode: Node?) async -> String {
+        guard spellsFieldLayoutTypeNamesThroughResolver,
+              let typeNode,
+              let spelledName = try? await demangleResolver.resolve(for: typeNode).string,
+              !spelledName.isEmpty
+        else { return printedName }
+        return spelledName
     }
 
     /// `content`; when marking comment structure, in a region of `kind` —
