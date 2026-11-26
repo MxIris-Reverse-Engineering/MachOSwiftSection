@@ -5,7 +5,7 @@ import SwiftSectionKit
 struct ReferencesCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
         commandName: "refs",
-        abstract: "List the code that references a selector, a symbol, a class, a function, an instance variable or a string — or what a function references — across a dyld shared cache or a set of arm64 Mach-O files.",
+        abstract: "List the code that references a selector, a symbol, a class, a function, an instance variable, a string or a Swift type — or what a function references — across a dyld shared cache or a set of arm64 Mach-O files.",
         discussion: "Addresses in and out are unslid, as IDA, ipsw and dyld_info show them. Each line is a reference: the referencing instruction's address, its image, its function and the offset into it, the reference's kind and route, and what it references."
     )
 
@@ -14,7 +14,7 @@ struct ReferencesCommand: AsyncParsableCommand {
 
     @OptionGroup var inputOptions: CrossReferenceInputOptionGroup
 
-    @Option(help: "Every send of this selector, super sends included (makeKeyAndOrderFront:).")
+    @Option(help: "Every send of this selector, super sends included (makeKeyAndOrderFront:), and every other use of it: an argument of respondsToSelector: or performSelector:, a returned selector, an action.")
     var selector: String?
 
     @Option(help: "The callers of the function this symbol names, with its leading underscore: a C function, a Swift mangled name, _OBJC_CLASS_$_<class> or _OBJC_IVAR_$_<class>.<ivar>. A function no analyzed image defines is looked for as the imported symbol it is.")
@@ -38,6 +38,12 @@ struct ReferencesCommand: AsyncParsableCommand {
     @Option(help: "Every reference to a C string or constant CFString literal with these characters.")
     var string: String?
 
+    @Option(name: .customLong("type"), help: "Every reference to the Swift struct, enum or class with this mangling (7SwiftUI4TextV), or to the one a $s…Mn, $s…Ma or $s…N symbol names: its metadata accessor called or its address taken, its metadata, a mangled name spelling it.")
+    var swiftType: String?
+
+    @Option(name: .customLong("type-image"), help: "The image that defines --type's type, by path or file name: needed in a dyld shared cache for a type no image exports.")
+    var swiftTypeImage: String?
+
     @Option(help: "Report at most this many references, the first in image and address order.")
     var limit: Int?
 
@@ -45,10 +51,11 @@ struct ReferencesCommand: AsyncParsableCommand {
     var json: Bool = false
 
     func validate() throws {
-        let queryCount = [selector, symbol, className, function, instanceVariable, string].compactMap { $0 }.count
+        let queryCount = [selector, symbol, className, function, instanceVariable, string, swiftType].compactMap { $0 }.count
         guard queryCount == 1 else {
-            throw ValidationError("Name exactly one of --selector, --symbol, --class, --function, --ivar and --string.")
+            throw ValidationError("Name exactly one of --selector, --symbol, --class, --function, --ivar, --string and --type.")
         }
+        if swiftTypeImage != nil, swiftType == nil { throw ValidationError("--type-image names the image that defines --type's type; it needs --type.") }
         if callees, function == nil { throw ValidationError("--callees lists a function's references; it needs --function.") }
         if functionImage != nil, function == nil { throw ValidationError("--function-image names the image of --function's address; it needs --function.") }
         if let instanceVariable, !Self.isQualifiedInstanceVariableName(instanceVariable) {
@@ -79,8 +86,10 @@ struct ReferencesCommand: AsyncParsableCommand {
             subject = .instanceVariable(className: String(instanceVariable[..<dot]), name: String(instanceVariable[instanceVariable.index(after: dot)...]))
         } else if let string {
             subject = .string(string)
+        } else if let swiftType {
+            subject = .swiftType(swiftType, imageName: swiftTypeImage)
         } else {
-            throw ValidationError("Name exactly one of --selector, --symbol, --class, --function, --ivar and --string.")
+            throw ValidationError("Name exactly one of --selector, --symbol, --class, --function, --ivar, --string and --type.")
         }
         return ReferencesRequest(
             input: try inputOptions.input(filePaths: filePaths),

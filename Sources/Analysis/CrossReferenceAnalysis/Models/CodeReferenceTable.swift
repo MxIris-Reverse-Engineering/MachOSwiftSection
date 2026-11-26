@@ -74,7 +74,7 @@ extension CodeReferenceTarget {
         switch self {
         case .function(let location):
             return .function(location)
-        case .messageSend(let selector, _), .superMessageSend(let selector, _):
+        case .messageSend(let selector, _), .superMessageSend(let selector, _), .selector(let selector):
             return .selector(selector)
         case .importedSymbol(let name):
             return .importedSymbol(name)

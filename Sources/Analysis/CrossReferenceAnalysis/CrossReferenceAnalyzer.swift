@@ -390,7 +390,7 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
     ) -> [CodeReference] {
         let collector = ReferenceCollector(keeping: keys, matching: query)
         let sessions: [any CodeReferenceRecognitionSession] = [
-            objectiveC.makeSession(table: table, recording: collector, findsClassReferences: collector.findsTypeReferences),
+            objectiveC.makeSession(table: table, recording: collector, findsClassReferences: collector.findsTypeReferences, findsSelectorReferences: collector.findsSelectorReferences),
             swift.makeSession(table: table, recording: collector, findsTypeReferences: collector.findsTypeReferences),
         ]
         var scanner = ReferenceScanner(
@@ -400,7 +400,8 @@ public final class CrossReferenceAnalyzer: @unchecked Sendable {
             recording: collector,
             followsBranches: followsBranches,
             recordsStringReferences: collector.findsStrings(whenWholeImage: recordsStringReferences),
-            recordsImportedSymbolReferences: collector.findsImportedSymbolReferences
+            recordsImportedSymbolReferences: collector.findsImportedSymbolReferences,
+            recordsFunctionAddressReferences: collector.findsFunctionAddressReferences
         )
         body(&scanner, collector)
         return collector.references
@@ -511,7 +512,22 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
         self.findsImportedSymbolReferences = keptKeys.map { keys in
             keys.contains { if case .importedSymbol = $0 { true } else { false } }
         } ?? true
+        self.findsSelectorReferences = keptKeys.map { keys in
+            keys.contains { if case .selector = $0 { true } else { false } }
+        } ?? true
+        self.findsFunctionAddressReferences = keptKeys.map { keys in
+            keys.contains { if case .function = $0 { true } else { false } }
+        } ?? true
     }
+
+    /// Whether the selectors code loads but sends nothing with are recorded:
+    /// for a whole image, or for a query for a selector.
+    let findsSelectorReferences: Bool
+
+    /// Whether the addresses code builds of a function's start are recorded
+    /// as references to the function: for a whole image, or for a query for
+    /// a function's callers.
+    let findsFunctionAddressReferences: Bool
 
     /// Whether loads from slots that bind to another image's symbol are
     /// recorded: for a whole image, or for a query for an imported name.
@@ -530,11 +546,14 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
     }
 
     private func keep(_ target: CodeReferenceTarget, at site: ScanSite, isRuntimeHelperCall: Bool = false) {
-        if let keptKeys {
-            let isFiled = if let key = target.tableKey { keptKeys.contains(key) } else { false }
-            guard isFiled || swiftTypeQuery?.matches(target) == true else { return }
-        }
+        guard isKept(target) else { return }
         references.append(CodeReference(function: site.function, instructionAddress: site.instructionAddress, kind: site.kind, target: target, route: site.route, isRuntimeHelperCall: isRuntimeHelperCall))
+    }
+
+    private func isKept(_ target: CodeReferenceTarget) -> Bool {
+        guard let keptKeys else { return true }
+        let isFiled = if let key = target.tableKey { keptKeys.contains(key) } else { false }
+        return isFiled || swiftTypeQuery?.matches(target) == true
     }
 
     func recordCall(to target: ResolvedCallTarget, targetAddress: UInt64, at site: ScanSite, isRuntimeHelperCall: Bool) {
@@ -566,6 +585,25 @@ final class ReferenceCollector: ObjCCodeReferenceRecording, SwiftCodeReferenceRe
 
     func recordInstanceVariableReference(className: String, name: String, at site: ScanSite) {
         keep(.objectiveCInstanceVariable(className: className, name: name), at: site)
+    }
+
+    /// Recorded when the scan leaves the function that loads the selector,
+    /// after the function's later references: put back in instruction order,
+    /// which a function's references are listed in.
+    func recordSelectorReference(selector: String, at site: ScanSite) {
+        let target = CodeReferenceTarget.selector(selector)
+        guard isKept(target) else { return }
+        var insertionIndex = references.endIndex
+        while insertionIndex > references.startIndex,
+              references[insertionIndex - 1].function == site.function,
+              references[insertionIndex - 1].instructionAddress > site.instructionAddress {
+            insertionIndex -= 1
+        }
+        references.insert(CodeReference(function: site.function, instructionAddress: site.instructionAddress, kind: site.kind, target: target, route: site.route, isRuntimeHelperCall: false), at: insertionIndex)
+    }
+
+    func recordFunctionAddressReference(to function: CodeLocation, at site: ScanSite) {
+        keep(.function(function), at: site)
     }
 
     func recordString(_ string: StringLiteralReference, at site: ScanSite) {

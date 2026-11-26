@@ -1,6 +1,6 @@
 # Draft - 交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-26
 - **最后更新**: 2026-11-26

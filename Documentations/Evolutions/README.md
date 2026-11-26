@@ -126,4 +126,4 @@
 | [0109](0109-consistent-c-imported-type-spelling.md) | C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写 | Implemented |
 | [0110](0110-unify-evolution-integration-suites.md) | IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴 | Implemented |
 | [0111](0111-unify-diff-and-interface-integration-suites.md) | IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架 | Implemented |
-| draft | [交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法](draft-cross-reference-recall-gaps.md)（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Accepted |
+| draft | [交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法](draft-cross-reference-recall-gaps.md)（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | In Progress |

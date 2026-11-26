@@ -124,6 +124,8 @@ enum CommandLineErrorTranslation {
             }
         case CrossReferenceRequestError.imageNotFound(let name):
             return ValidationError("No analyzed image is named '\(name)'; --in-image and --function-image take an image's path or its file name.")
+        case CrossReferenceRequestError.swiftTypeNeedsImage(let mangling):
+            return ValidationError("No image of the dyld shared cache exports a descriptor of '\(mangling)': name the image that defines it with --type-image.")
         case CrossReferenceRequestError.ambiguousFunction(let address, let imagePaths):
             return ValidationError("Several files hold a function at 0x\(String(address, radix: 16)): \(imagePaths.joined(separator: ", ")). Name its image with --function-image.")
         case SnapshotSourceError.binaryRequired(let snapshotPath):

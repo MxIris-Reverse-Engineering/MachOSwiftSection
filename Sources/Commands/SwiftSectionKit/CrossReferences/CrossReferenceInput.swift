@@ -32,6 +32,13 @@ public enum CrossReferenceRequestError: Error, LocalizedError, Sendable, Equatab
     case symbolIsNoFunction(name: String)
     /// No analyzed image defines or imports a class of this name.
     case classNotFound(name: String)
+    /// No analyzed image — or none of the one named — defines a Swift type
+    /// with this mangling.
+    case swiftTypeNotFound(mangling: String)
+    /// A dyld shared cache's images export no descriptor of a Swift type
+    /// with this mangling: the image that defines it must be named, since
+    /// working out every image's type keys takes minutes.
+    case swiftTypeNeedsImage(mangling: String)
     /// No function of the image the address was looked up in holds it.
     case noFunction(address: UInt64)
     /// Several of the files hold a function at the address; the image must
@@ -54,6 +61,10 @@ public enum CrossReferenceRequestError: Error, LocalizedError, Sendable, Equatab
             "The symbol '\(name)' does not name the start of a function."
         case .classNotFound(let name):
             "No analyzed image defines or imports an Objective-C class named '\(name)'."
+        case .swiftTypeNotFound(let mangling):
+            "No analyzed image defines a Swift type whose mangling is '\(mangling)'."
+        case .swiftTypeNeedsImage(let mangling):
+            "No image of the dyld shared cache exports a descriptor of '\(mangling)'; name the image that defines it."
         case .noFunction(let address):
             "No function holds the address \(CrossReferenceFormatting.hexadecimal(address))."
         case .ambiguousFunction(let address, let imagePaths):
