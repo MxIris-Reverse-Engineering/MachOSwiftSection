@@ -157,6 +157,7 @@ package enum ObjCImplementationFixture {
     @property (nonatomic) BOOL isAnimated;
     @property (nonatomic) CGFloat interactiveProgress;
     @property (nonatomic) NSInteger stepCount;
+    @property (nonatomic, readonly) NSInteger revision;
     @property (nonatomic) NSRange selectedRange;
     @property (nonatomic, copy) NSArray<NSString *> *names;
     @property (nonatomic, strong) id payload;
@@ -386,8 +387,10 @@ package enum ObjCImplementationFixture {
         let identifier: String = "transition"
         weak var observer: NSObject?
         var isAnimated: Bool = false
-        var interactiveProgress: CGFloat = 0
+        // The header's `CGFloat` imports as `Double` into this fixture.
+        var interactiveProgress: Double = 0
         var stepCount: Int = 0
+        let revision: Int = 1
         var selectedRange: NSRange = NSRange(location: 0, length: 0)
         var names: [String] = []
         var payload: Any = NSNull()
