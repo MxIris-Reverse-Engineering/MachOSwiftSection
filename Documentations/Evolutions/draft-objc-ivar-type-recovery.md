@@ -68,6 +68,7 @@ RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`__C._UISplitViewControllerAdapti
 | `Sources/Output/SwiftPrinting/SwiftDeclarationPrintConfiguration.swift` | 修改 | 新增 `cTypeReplacements` | 调用方传 C 类型替换表 | 1 |
 | `Sources/Output/SwiftPrinting/SwiftDeclarationPrintConfiguration+Transformers.swift` | 修改 | 新增 `applyTransformers(_: Transformer.ObjCConfiguration)` | 与 Swift 一侧的 `applyTransformers` 对称 | 4 |
 | `Package.swift`（`SwiftPrinting` target） | 修改 | 依赖 `ObjCOutputTransformer` 与 `OutputTransformer` | `Transformer.CType.Pattern` 在前者，`Transformer` 命名空间在后者 | 1 |
+| `Package.swift`（`SwiftInterfaceTests` target） | 修改 | 同样两个依赖 | 测试要写 `cTypeReplacements` 与 `Transformer.ObjCConfiguration`；两者都是图里已有包的 product，Tuist 清单不用改 | 4 |
 | `Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ObjCImplementation.swift` | 修改 | `renderUnrepresentedObjCImplementationInstanceVariables` 先试还原，还原不出才打注释 | 行为本身 | 2–4 |
 | `Sources/Output/SwiftDump/Dumper/ObjCImplementationClassDumper.swift` | 修改 | ivar 行用同一还原，注释写来源 | dump 与 interface 一致 | 5 |
 | `Sources/TestSupport/SwiftSectionTestingSupport/ObjCImplementationFixture.swift` | 修改 | 新增 ObjC 协议 `AdaptiveLayout`、遵循它的 Swift 类 `StandInAdaptiveLayout`（给协议属性一个初值）与 `AdaptiveTransitionWidget`（照 `_UISplitViewControllerAdaptiveLayoutTransition`）：`NSObject`、`NSMutableString`（不桥接的类）、协议存在类型、`BOOL`、`CGFloat`（夹具里导入成 `Double`）、`NSInteger`、`readonly NSInteger`、`NSRange`、`readonly NSString`、`weak`、`NSArray<NSString *>`、`id`、纯 Swift 属性 | 覆盖每种 encoding | 1 |
@@ -224,10 +225,11 @@ package struct ObjCInstanceVariableSwiftType {
 | 2026-11-26 | 开始实现 | 在 `feature/objc-ivar-type-recovery` 上按落地步骤做 |
 | 2026-11-26 | 还原结果存 `ObjCEncodedType`，不另设 `ObjCPrimitiveType` | `ObjCEncodedType` 在同一个包内可见，打印器直接对到 `Transformer.CType.Pattern`，少一个只为转一手的类型 |
 | 2026-11-26 | 夹具的 `CGFloat` 属性在 Swift 一侧写 `Double` | 夹具只 `import Foundation`，头文件的 `CGFloat` 导入成 `Double`，写 `CGFloat` 时 `@implementation` 的类型匹配报错 |
+| 2026-11-26 | 加前提测试 | 第 1 步审查指出：ivar 名在即时编译夹具里曾观测为空（`ObjCImplementationClassFacts.InstanceVariable.name` 的注释），名字空了就对不上 ObjC 属性；先钉住剥过符号后的事实 |
 | 2026-11-26 | `weak` 属性挪到第 3 步，按 ObjC 属性读、不桥接 | 前提测试实测：`weak var observer: NSObject?` 的 ivar encoding 是 `?`，不是 `@"NSObject"` |
-| 2026-11-26 | 第 2 步的修正与第 3 步同一个提交 | 第 2 步的首个提交在 Ultra 上编不过（解析器名写错）、修好后又发现声明被 `Rows` 拆成两行，两处修正与第 3 步的改动落在同几个文件里 |
+| 2026-11-26 | 第 2 步的两处修正与第 3 步同一个提交 | 第 2 步的首个提交在 Ultra 上编不过（解析器名写错，单独一个提交修好）；之后又发现声明被 `Rows` 拆成两行、ObjC 属性的查找名与 stand-in 不一致，这两处修正与第 3 步的改动落在同几个文件里 |
 | 2026-11-26 | 完整 encoding 的近似（枚举、`^v`、`#` 等）照打，写进假设 | 第 2 步审查指出；与 `CGFloat` / `Double` 同性质，ObjC 头文件一侧显示的也是同一个 C 类型 |
 | 2026-11-26 | `?` 只认桥接表里的类与裸 `id` | 第 3、4 步审查指出：`?` 证明 Swift 类型不是那个类本身，按导入规则照单全收会把 `unowned` 属性的存储（也写 `?`、特性里没有 `W`）和表外的桥接类（`NSAffineTransform` → `AffineTransform`）打成错的类 |
 | 2026-11-26 | `weak` 与 `readonly` 同时出现时仍写 `weak var` | `weak let`（SE-0481）要 Swift 6.2，源码更常见的是 `weak private(set) var`；无从区分时取更常见的写法 |
+| 2026-11-26 | `applyTransformers(_: Transformer.ObjCConfiguration)` 与 Swift 一侧同名重载 | 调用点传的都是有类型的值（`transformer.objc`），不会歧义；只装 `cType`，`ivarOffset` 是 ObjC 头文件的 ivar 注释，Swift 一侧的偏移注释仍走 `fieldOffsetTransformer` |
 | 2026-11-26 | C 类型替换只换类型本身，替换名照原样打印 | 与假设一致；替换表的文档写明只收不带模块的名字。ObjC 一侧会递归替换指针里的类型，Swift 一侧不跟 |
-| 2026-11-26 | 加前提测试 | 第 1 步审查指出：ivar 名在即时编译夹具里曾观测为空（`ObjCImplementationClassFacts.InstanceVariable.name` 的注释），名字空了就对不上 ObjC 属性；先钉住剥过符号后的事实 |
