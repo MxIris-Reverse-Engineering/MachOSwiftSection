@@ -60,14 +60,16 @@ RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`__C._UISplitViewControllerAdapti
 
 | 文件 / 类型 | 动作 | 改什么 | 为什么 | 步骤 |
 |---|---|---|---|---|
-| `Sources/Analysis/SwiftObjCInterop/ObjCInstanceVariableSwiftType.swift` · `ObjCInstanceVariableSwiftType` | 新增 | 还原结果（`Type` 节点、来源、顶层 C 基本类型、ObjC 属性的 `readonly` / `weak`）与 `init?(instanceVariable:objcProperty:in:)` | interface 与 dump 共用一处判定 | 1–3 |
-| `Sources/Analysis/SwiftObjCInterop/ObjCImportedTypes.swift` · `ObjCImportedTypes` | 修改 | 新增 `triviallyRepresentedTypeNode(_:)` 与 `bridgedTypeNode(_:)`（还原不出时 `nil`），内部给 `bareTypeNode` / `objectNode` 加「是否桥接」 | 复用导入规则，只换三处差异 | 2–3 |
+| `Sources/Analysis/SwiftObjCInterop/ObjCInstanceVariableSwiftType.swift` · `ObjCInstanceVariableSwiftType` | 新增 | 还原结果（`Type` 节点、来源、读出类型的 `ObjCEncodedType`、ObjC 属性的 `readonly` / `weak`）与 `init?(instanceVariable:objcProperty:in:)` | interface 与 dump 共用一处判定 | 1–3 |
+| `Sources/Analysis/SwiftObjCInterop/ObjCImportedTypes.swift` · `ObjCImportedTypes` | 修改 | 新增 `triviallyRepresentedTypeNode(_:position:)` 与 `bridgedTypeNode(_:position:)`（还原不出时 `nil`）、`Position.weakStorage`（`T?`），内部给 `bareTypeNode` / `objectNode` 加 `Mapping`（导入 / 原样表示） | 复用导入规则，只换三处差异 | 2–3 |
 | `Sources/Output/SwiftPrinting/SwiftDeclarationPrintConfiguration.swift` | 修改 | 新增 `cTypeReplacements` | 调用方传 C 类型替换表 | 1 |
 | `Sources/Output/SwiftPrinting/SwiftDeclarationPrintConfiguration+Transformers.swift` | 修改 | 新增 `applyTransformers(_: Transformer.ObjCConfiguration)` | 与 Swift 一侧的 `applyTransformers` 对称 | 4 |
-| `Package.swift`（`SwiftPrinting` target） | 修改 | 依赖 `ObjCOutputTransformer` | `Transformer.CType.Pattern` 在那里 | 1 |
+| `Package.swift`（`SwiftPrinting` target） | 修改 | 依赖 `ObjCOutputTransformer` 与 `OutputTransformer` | `Transformer.CType.Pattern` 在前者，`Transformer` 命名空间在后者 | 1 |
 | `Sources/Output/SwiftPrinting/SwiftDeclarationPrinter+ObjCImplementation.swift` | 修改 | `renderUnrepresentedObjCImplementationInstanceVariables` 先试还原，还原不出才打注释 | 行为本身 | 2–4 |
 | `Sources/Output/SwiftDump/Dumper/ObjCImplementationClassDumper.swift` | 修改 | ivar 行用同一还原，注释写来源 | dump 与 interface 一致 | 5 |
-| `Sources/TestSupport/SwiftSectionTestingSupport/ObjCImplementationFixture.swift` | 修改 | 新增 `AdaptiveTransitionWidget`（照 `_UISplitViewControllerAdaptiveLayoutTransition`）：类、协议存在类型、`BOOL`、`CGFloat`、`NSRange`、`readonly` 的 `NSString`、`weak`、`NSArray<NSString *>`、`id`、纯 Swift 属性 | 覆盖每种 encoding | 1 |
+| `Sources/TestSupport/SwiftSectionTestingSupport/ObjCImplementationFixture.swift` | 修改 | 新增 ObjC 协议 `AdaptiveLayout`、遵循它的 Swift 类 `StandInAdaptiveLayout`（给协议属性一个初值）与 `AdaptiveTransitionWidget`（照 `_UISplitViewControllerAdaptiveLayoutTransition`）：`NSObject`、`NSMutableString`（不桥接的类）、协议存在类型、`BOOL`、`CGFloat`（夹具里导入成 `Double`）、`NSInteger`、`readonly NSInteger`、`NSRange`、`readonly NSString`、`weak`、`NSArray<NSString *>`、`id`、纯 Swift 属性 | 覆盖每种 encoding | 1 |
+| `Tests/SwiftInterfaceTests/ObjCImplementationInstanceVariableFactsTests.swift` | 新增 | 前提测试：剥过符号后新类的 ivar 名、encoding、ObjC 属性对应（含 `R` / `W`）与识别档位 | 后面几步失败时能分清是编译器写法变了还是还原错了 | 1 |
+| `Tests/SwiftObjCInteropTests/ObjCInstanceVariableSwiftTypeTests.swift` | 新增 | 逐个 encoding 检查还原结果，含夹具造不出的形状（`@"NSString"`、`@`、`@?`、`^{CGColor=}`） | `@objc @implementation` 的匹配规则不允许实现里把头文件的 `NSString *` 写成 `NSString` | 2–3 |
 | `Tests/SwiftInterfaceTests/ObjCImplementationClassRecognitionTests.swift` | 修改 | 类集合断言加新类；`count` 的断言改成还原后的声明；新增还原的测试 | 行为清单 | 1–4 |
 | `Tests/SwiftDumpTests/ObjCImplementationClassDumpTests.swift` | 修改 | dump 的还原断言 | 行为清单 | 5 |
 | `Documentations/Internal/Modules/SwiftObjCInterop.md` 等模块说明、`ProjectEvolutionLog.md` | 修改 | 记录还原规则 | 文档同批 | 5 |
@@ -129,8 +131,9 @@ package struct ObjCInstanceVariableSwiftType {
     /// for a `weak` property).
     package let typeNode: Node
     package let source: Source
-    /// The C primitive the type is, for a caller's replacement spelling.
-    package let primitiveType: ObjCPrimitiveType?
+    /// The Objective-C type the Swift type was read from, which tells a
+    /// printer when the type is a C primitive it may spell otherwise.
+    package let encodedType: ObjCEncodedType
     package let isReadOnly: Bool
     package let isWeak: Bool
 
@@ -138,9 +141,10 @@ package struct ObjCInstanceVariableSwiftType {
 }
 ```
 
-- `ObjCPrimitiveType` 是 `SwiftObjCInterop` 内的 13 种 C 基本类型（与 `Transformer.CType.Pattern` 同名同序，按 `rawValue` 对应），让 SwiftObjCInterop 不必依赖 `ObjCOutputTransformer`。
+- `encodedType` 存读出类型的 `ObjCEncodedType`（`package`，同一个包内可见），SwiftPrinting 自己把其中的 C 基本类型对到 `Transformer.CType.Pattern`，SwiftObjCInterop 不必依赖 `ObjCOutputTransformer`。
 - `typeNode` 由 `ObjCImportedTypes` 产出；可空判定沿用 `isNullable`（对象、block、`Class`、`char *`、指针）。
-- 打印：`cTypeReplacements[Pattern(rawValue: primitiveType.rawValue)]` 非空时打 `TypeName(kind: .other, replacement)`，否则 `printType(typeNode)`。
+- 「原样表示」判定（`determinesStoredPropertyType`）：`void`、block、位域、不认识的类型、无名结构体与联合、导入规则表示不了的数组，以及指向 `void` 和标量以外的指针（指向结构体的指针与 CF 类型 encoding 相同，指向对象或指针的，导入规则会给出自己的类型）都还原不出。
+- 打印：`cTypeReplacements` 对该基本类型有非空替换时打 `TypeName(kind: .other, replacement)`，否则 `printType(typeNode)`。
 - 打印用的节点是每次打印新建的 transient 节点，由局部常量持有到打印结束，满足「交给 interface printer 的节点必须活过这次打印」。
 
 ## 替代方案考量
@@ -175,14 +179,16 @@ package struct ObjCInstanceVariableSwiftType {
 
 ## 落地步骤
 
-1. **骨架**：`ObjCInstanceVariableSwiftType`（恒返回 `nil`）、`ObjCPrimitiveType`、`cTypeReplacements`、`SwiftPrinting` 依赖 `ObjCOutputTransformer`；夹具加 `AdaptiveTransitionWidget`，类集合断言跟上。
+1. **骨架**（已完成）：`ObjCInstanceVariableSwiftType`（恒返回 `nil`）、`cTypeReplacements`、`SwiftPrinting` 依赖 `ObjCOutputTransformer`；夹具加 `AdaptiveTransitionWidget`，类集合断言跟上；前提测试。
    - 行为：夹具的 `@objc @implementation` 类集合多出 `AdaptiveTransitionWidget`，其余输出不变。
+   - 行为：剥过符号后新类的 ivar 仍有名字与编译器写的 encoding，`@objc` 的都能对上 ObjC 属性。
 2. **完整 encoding 还原**：`triviallyRepresentedTypeNode`，interface 接入。
    - 行为：剥过符号的类类型 ivar 打成 `var x: Class!`。
    - 行为：协议存在类型打成 `var x: (any P)!`。
    - 行为：`B` / `d` / `q` 打成 `Bool` / `Double` / `Int`，结构体按结构体名。
    - 行为：`readonly` 的 ObjC 属性打 `let`，`weak` 的打 `weak var x: T?`。
-   - 行为：完整 encoding 的 `NSString` 不桥接成 `String`。
+   - 行为：完整 encoding 的 `NSString` 不桥接成 `String`、`@` 是 `AnyObject`（单元测试；夹具造不出，见改动地图）；夹具里不桥接的类用 `NSMutableString` 验。
+   - 行为：block、指向结构体的指针、位域、无名结构体还原不出。
    - 行为：空 encoding 仍是注释。
 3. **`?` 按 ObjC 属性还原**：`bridgedTypeNode`。
    - 行为：`?` 且有 `NSString` 属性的打成 `String!`，`NSArray` 的打成 `[Any]!`，`id` 的打成 `Any!`。
@@ -209,3 +215,6 @@ package struct ObjCInstanceVariableSwiftType {
 | 2026-11-26 | Created as Draft | 用户在 RuntimeViewer 里看到 UIKitCore 一个 `@objc @implementation` 类的存储属性大半只有注释，而 ObjC 一侧已显示出类型，要求能还原的都还原，类名经 type indexing 转 Swift 名 |
 | 2026-11-26 | 用户经 `implement-feature` 批准，提案由 agent 起草、用户事前未审阅 | 用户事先定了四点：对象类型写 `T!`；`d` 走 C 类型替换表；桥接集合也还原（`[Any]`）；方案照此开工 |
 | 2026-11-26 | 开始实现 | 在 `feature/objc-ivar-type-recovery` 上按落地步骤做 |
+| 2026-11-26 | 还原结果存 `ObjCEncodedType`，不另设 `ObjCPrimitiveType` | `ObjCEncodedType` 在同一个包内可见，打印器直接对到 `Transformer.CType.Pattern`，少一个只为转一手的类型 |
+| 2026-11-26 | 夹具的 `CGFloat` 属性在 Swift 一侧写 `Double` | 夹具只 `import Foundation`，头文件的 `CGFloat` 导入成 `Double`，写 `CGFloat` 时 `@implementation` 的类型匹配报错 |
+| 2026-11-26 | 加前提测试 | 第 1 步审查指出：ivar 名在即时编译夹具里曾观测为空（`ObjCImplementationClassFacts.InstanceVariable.name` 的注释），名字空了就对不上 ObjC 属性；先钉住剥过符号后的事实 |
