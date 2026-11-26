@@ -126,13 +126,68 @@ extension VersionAxisDumpTests {
     }
 }
 
+/// The images a dyld shared cache suite reads out of each cache, the
+/// primary image first. More than one makes every version a group of images
+/// (evolution proposal `image-group-evolution`): AppKit with the frameworks
+/// Apple moved its classes into, SwiftUI with SwiftUICore. Each other image
+/// joins its group where the cache has it with the metadata —
+/// CollectionViewCore is in the macOS caches from 13.0 on, SwiftUICore from
+/// 15.0 on.
+///
+/// A suite points at one of these; to look at another framework, add one and
+/// point the suite at it.
+struct CacheImagesConfiguration: Sendable {
+    let imageNames: [MachOImageName]
+
+    static var swiftUI: Self { Self(imageNames: [.SwiftUI]) }
+    static var swiftUICore: Self { Self(imageNames: [.SwiftUICore]) }
+    /// AppKit kept its Swift API in `libswiftAppKit.dylib` until macOS 14,
+    /// so its Swift axis starts at 14.0; its Objective-C metadata is in every
+    /// cache.
+    static var appKit: Self { Self(imageNames: [.AppKit]) }
+    static var swiftUIGroup: Self { Self(imageNames: [.SwiftUI, .SwiftUICore]) }
+    static var appKitGroup: Self { Self(imageNames: [.AppKit, .UIFoundation, .CollectionViewCore, .CoreAutoLayout]) }
+}
+
+/// The same file in two simulator runtimes, and the runtime versions that
+/// label them on the axis. A suite points at one of these; to look at
+/// another file, add one.
+struct SimulatorFilePairConfiguration: Sendable {
+    let oldFileName: MachOFileName
+    let newFileName: MachOFileName
+    let oldVersionLabel: String
+    let newVersionLabel: String
+
+    static var swiftUICore: Self {
+        Self(oldFileName: .iOS_18_5_Simulator_SwiftUICore, newFileName: .iOS_26_5_Simulator_SwiftUICore, oldVersionLabel: "18.5", newVersionLabel: "26.5")
+    }
+
+    static var swiftUI: Self {
+        Self(oldFileName: .iOS_18_5_Simulator_SwiftUI, newFileName: .iOS_26_5_Simulator_SwiftUI, oldVersionLabel: "18.5", newVersionLabel: "26.5")
+    }
+}
+
+/// A shared framework of two installed Xcode applications, picked by
+/// version — `/Applications/Xcode-<version>.app` — which also labels it on
+/// the axis. A suite points at one of these; to look at another framework or
+/// other Xcodes, add one.
+struct XcodeFrameworkPairConfiguration: Sendable {
+    let frameworkName: String
+    let oldXcodeVersion: String
+    let newXcodeVersion: String
+
+    static var dvtProductsUI: Self {
+        Self(frameworkName: "DVTProductsUI", oldXcodeVersion: "26.3.0", newXcodeVersion: "26.4.0")
+    }
+}
+
 /// Extracts the same images from an *ordered series* of dyld shared caches:
 /// N versions for an evolution, two for a diff. The caches are retained
 /// because the extracted `MachOFile`s resolve cross-image references through
 /// them while indexing.
 ///
 /// One instance serves every pipeline: it keeps, per cache, every image of
-/// `cacheImageNames` the cache holds, and each language's axis then keeps
+/// `configuration` the cache holds, and each language's axis then keeps
 /// the images carrying that language's metadata. A version whose primary
 /// image is missing, or lacks the metadata, is off that axis — there is
 /// nothing to index. A cache that cannot be opened still throws.
@@ -141,15 +196,8 @@ extension VersionAxisDumpTests {
 /// opens it, so the dumps match what the command line prints. Opened from
 /// its main file alone, every read into another sub-cache file mapped that
 /// file once more until MachOObjCSection 0.8.109, and an evolution over
-/// every archived macOS minor ran past 5 GB.
-///
-/// A suite comparing a group of images per version (evolution proposal
-/// `image-group-evolution`) lists them in `cacheImageNames`, the primary
-/// image first: AppKit with the frameworks Apple moved its classes into,
-/// SwiftUI with SwiftUICore. Each other image joins its group where the
-/// cache has it with the metadata — CollectionViewCore is in the macOS
-/// caches from 13.0 on, SwiftUICore from 15.0 on. A diff reads the primary
-/// image of each version only.
+/// every archived macOS minor ran past 5 GB. A diff reads the primary image
+/// of each version only.
 @TestActor
 class MultiVersionDyldCacheImageTests: Sendable {
     let caches: [FullDyldCache]
@@ -158,11 +206,8 @@ class MultiVersionDyldCacheImageTests: Sendable {
     /// Oldest first; each cache's `versionLabel` labels it on the axis.
     class var cachePaths: [DyldSharedCachePath] { defaultMacOSCachePaths }
 
-    class var cacheImageName: MachOImageName { .SwiftUI }
-
-    /// The images whose declarations make up one version, the primary
-    /// image first; by default the primary image alone.
-    class var cacheImageNames: [MachOImageName] { [cacheImageName] }
+    /// The images whose declarations make up one version.
+    class var configuration: CacheImagesConfiguration { .swiftUI }
 
     /// Set on an axis whose every label is a version number.
     class var availabilityPlatform: AvailabilityPlatform? { nil }
@@ -247,12 +292,13 @@ class MultiVersionDyldCacheImageTests: Sendable {
     }
 
     init() async throws {
-        let primaryImageName = Self.cacheImageNames.first?.name
+        let imageNames = Self.configuration.imageNames
+        let primaryImageName = imageNames.first?.name
         var caches: [FullDyldCache] = []
         var versions: [AxisVersion] = []
         for cachePath in Self.cachePaths {
             let cache = try FullDyldCache(path: cachePath)
-            let images = Self.cacheImageNames.compactMap { imageName -> AxisImage? in
+            let images = imageNames.compactMap { imageName -> AxisImage? in
                 guard let machOFile = cache.machOFile(named: imageName) else { return nil }
                 return AxisImage(imageName: imageName.name, machOFile: machOFile)
             }
@@ -265,7 +311,7 @@ class MultiVersionDyldCacheImageTests: Sendable {
         self.caches = caches
         self.axes = VersionAxes(
             versions: versions,
-            comparesImageGroups: Self.cacheImageNames.count > 1,
+            comparesImageGroups: imageNames.count > 1,
             availabilityPlatform: Self.availabilityPlatform
         )
     }
@@ -280,29 +326,25 @@ class MultiVersionDyldCacheImageTests: Sendable {
 
 /// The same file from two simulator runtimes, by fixture name — the
 /// two-version counterpart of `SwiftSectionTestingSupport.MachOFileTests`,
-/// which loads one.
+/// which loads one. `configuration` names the pair.
 @TestActor
 class CrossVersionMachOFileTests: Sendable {
     let oldMachOFile: MachOFile
     let newMachOFile: MachOFile
     private let axes: VersionAxes
 
-    class var oldFileName: MachOFileName { .iOS_18_5_Simulator_SwiftUICore }
-    class var newFileName: MachOFileName { .iOS_26_5_Simulator_SwiftUICore }
-
-    /// The runtime versions the two files come from, which label them on the axis.
-    class var oldVersionLabel: String { "18.5" }
-    class var newVersionLabel: String { "26.5" }
+    class var configuration: SimulatorFilePairConfiguration { .swiftUICore }
 
     init() async throws {
-        let oldMachOFile = try HostSlice.machOFile(in: loadFromFile(named: Self.oldFileName))
-        let newMachOFile = try HostSlice.machOFile(in: loadFromFile(named: Self.newFileName))
+        let configuration = Self.configuration
+        let oldMachOFile = try HostSlice.machOFile(in: loadFromFile(named: configuration.oldFileName))
+        let newMachOFile = try HostSlice.machOFile(in: loadFromFile(named: configuration.newFileName))
         self.oldMachOFile = oldMachOFile
         self.newMachOFile = newMachOFile
         self.axes = VersionAxes(
             versions: [
-                AxisVersion(label: Self.oldVersionLabel, images: [AxisImage(imageName: oldMachOFile.imagePath.lastPathComponent, machOFile: oldMachOFile)]),
-                AxisVersion(label: Self.newVersionLabel, images: [AxisImage(imageName: newMachOFile.imagePath.lastPathComponent, machOFile: newMachOFile)]),
+                AxisVersion(label: configuration.oldVersionLabel, images: [AxisImage(imageName: oldMachOFile.imagePath.lastPathComponent, machOFile: oldMachOFile)]),
+                AxisVersion(label: configuration.newVersionLabel, images: [AxisImage(imageName: newMachOFile.imagePath.lastPathComponent, machOFile: newMachOFile)]),
             ],
             comparesImageGroups: false,
             availabilityPlatform: nil
@@ -317,27 +359,26 @@ class CrossVersionMachOFileTests: Sendable {
 /// The same shared framework from two installed Xcode applications, picked
 /// by version: `/Applications/Xcode-<version>.app`. The shared
 /// `XcodeMachOFileName` fixture names a single Xcode, so this loads by path.
+/// `configuration` names the framework and the two versions.
 @TestActor
 class CrossVersionXcodeFrameworkTests: Sendable {
     let oldMachOFile: MachOFile
     let newMachOFile: MachOFile
     private let axes: VersionAxes
 
-    /// The two Xcode versions, which also label them on the axis.
-    class var oldXcodeVersion: String { "26.3.0" }
-    class var newXcodeVersion: String { "26.4.0" }
-    class var sharedFrameworkName: String { "DVTProductsUI" }
+    class var configuration: XcodeFrameworkPairConfiguration { .dvtProductsUI }
 
     init() async throws {
-        let oldMachOFile = try Self.loadSharedFramework(fromXcodeVersion: Self.oldXcodeVersion)
-        let newMachOFile = try Self.loadSharedFramework(fromXcodeVersion: Self.newXcodeVersion)
+        let configuration = Self.configuration
+        let frameworkName = configuration.frameworkName
+        let oldMachOFile = try Self.loadSharedFramework(named: frameworkName, fromXcodeVersion: configuration.oldXcodeVersion)
+        let newMachOFile = try Self.loadSharedFramework(named: frameworkName, fromXcodeVersion: configuration.newXcodeVersion)
         self.oldMachOFile = oldMachOFile
         self.newMachOFile = newMachOFile
-        let imageName = Self.sharedFrameworkName
         self.axes = VersionAxes(
             versions: [
-                AxisVersion(label: Self.oldXcodeVersion, images: [AxisImage(imageName: imageName, machOFile: oldMachOFile)]),
-                AxisVersion(label: Self.newXcodeVersion, images: [AxisImage(imageName: imageName, machOFile: newMachOFile)]),
+                AxisVersion(label: configuration.oldXcodeVersion, images: [AxisImage(imageName: frameworkName, machOFile: oldMachOFile)]),
+                AxisVersion(label: configuration.newXcodeVersion, images: [AxisImage(imageName: frameworkName, machOFile: newMachOFile)]),
             ],
             comparesImageGroups: false,
             availabilityPlatform: nil
@@ -348,8 +389,7 @@ class CrossVersionXcodeFrameworkTests: Sendable {
         axes.axis(for: language)
     }
 
-    private class func loadSharedFramework(fromXcodeVersion xcodeVersion: String) throws -> MachOFile {
-        let name = sharedFrameworkName
+    private static func loadSharedFramework(named name: String, fromXcodeVersion xcodeVersion: String) throws -> MachOFile {
         let binaryPath = "/Applications/Xcode-\(xcodeVersion).app/Contents/SharedFrameworks/\(name).framework/Versions/A/\(name)"
         return try HostSlice.machOFile(at: URL(fileURLWithPath: binaryPath))
     }
