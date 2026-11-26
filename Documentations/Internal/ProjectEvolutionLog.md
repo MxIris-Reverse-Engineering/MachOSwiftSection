@@ -3676,6 +3676,22 @@
 - **验证**：只编译、没运行（IntegrationTests 不让 agent 跑）：Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests`。
 - **对应版本**：未发布（只改测试目标）。
 
+## 160. 交叉引用召回补漏：按 Swift 类型查询、GOT 槽地址、selector 引用、ivar 读法与取函数地址
+
+- **时间段**：2026-11-26，四个仓库的 `feature/cross-reference-recall-gaps`（MachOKitExtensions、MachOObjCSection、本仓库、RuntimeViewer）。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上编译测试。提案 [0113](../Evolutions/0113-cross-reference-recall-gaps.md)，愿景《[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)》第 1 阶段的补漏。
+- **动机**：0097 落地时没有做全面核对。按 2026-11-18 的方法（Finder 26.5.2 与 ControlCenter 26.7，120 个目标，独立生成的标准答案）补测，`swift-section refs` 0.25.0 找到 527 条代码引用里的 476 条（90.3%），IDA 一次查询 97.0%。
+- **关键决策**：
+  - CLI 加 `refs --type <mangling>`（也收 `$s…Mn` / `$s…Ma` / `$s…N` 符号）与 `--type-image`，照 RuntimeViewer 按类型查引用的那条路；只收准确的 mangling，不收点分名字——mangling 会对重复的词做替换。
+  - 核心层：`adrp; add` 或 `adr` 算出的地址落在引用槽（GOT、classref、cache 共用 GOT 池）或会话观察的槽（ivar 偏移变量、superref、selref）上时，就在这条指令上记，寄存器带「已记过」的位，之后零位移的载入不重记。前者补上优化 Swift 代码交给元数据访问器的类 GOT 槽，后者补上两条路径各算一个 ivar 地址、在载入处汇合的情况。
+  - 取函数地址记成对函数的引用（`--function` 与调用层级因此穿过 block 与闭包）；会话协议加 `leaveFunction()`。
+  - ObjC 层：从 `__objc_selrefs` 载入、没用来发送的 selector 记成 `CodeReferenceTarget.selector`，归在 selector 的表键下；cache 里的镜像因构建器改写了 selref 载入而没有，记为后续项。
+  - `__objc_superrefs` 的载入仍不算类引用（0097 的理由不变），是剩下的 13 条漏报。
+  - 测量脚本收进 `Scripts/CrossReferenceRecall/`，从当次对话记录取回后按完整命名改写，复现核对通过。
+- **落地模块**：MachOKitExtensions 的 `MachOCodeReferences`（`ReferenceScanner`、`RegisterFile`、`CodeReferenceRecognition`）；MachOObjCSection 的 `ObjCCodeReferences`；本仓库的 `CrossReferenceAnalysis`（`CodeReferenceTarget.selector`、`ReferenceCollector`、`CodeReferenceIndex`、符号化）、`SwiftSectionKit`（`CrossReferenceSubject.swiftType`）、`swift-section refs`；RuntimeViewer 的 `CrossReferenceQuery`（三处 switch，暂不显示 selector 引用）。
+- **文档**：[Modules/CrossReferenceAnalysis.md](Modules/CrossReferenceAnalysis.md)（引用种类、类引用、吞吐、测试锚点）、MachOKitExtensions 的 `MachOCodeReferences.md`、MachOObjCSection 的 `ObjCCodeReferences.md`、CLI 的 skill 与 README、愿景的复测段；术语表登记「selector 引用」。不另写使用指南或实现说明。
+- **验证**：同一组样本 514/527（97.5%），多报 0；吞吐（release，与三个仓库的 `next` 交替）整表慢 1.9%，两条调用者查询慢 1.9% 与 2.4%；三个库的全量测试与 RuntimeViewer 交叉引用模块，失败的几条在 `next` 上同样失败；本仓库合并时带进了 0112，在合并结果上重跑全量测试（跳过 IntegrationTests）全部通过。
+- **对应版本**：未发布。下游远程构建（含 CI）要等 MachOKitExtensions 与 MachOObjCSection 发版、本仓库与 MachOObjCSection 抬依赖下限。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

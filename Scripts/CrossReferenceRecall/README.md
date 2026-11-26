@@ -1,6 +1,6 @@
 # Cross-reference recall benchmark
 
-Measures how many of the code references in two real Apple binaries `swift-section refs` finds, against a ground truth built without any of the tools measured, and puts the result next to IDA's on the same targets. It is the acceptance gate of evolution proposal [`cross-reference-recall-gaps`](../../Documentations/Evolutions/draft-cross-reference-recall-gaps.md), and the numbers are kept in the vision [Reverse engineering without IDA](../../Documentations/Visions/ReverseEngineeringWithoutIDA.md).
+Measures how many of the code references in two real Apple binaries `swift-section refs` finds, against a ground truth built without any of the tools measured, and puts the result next to IDA's on the same targets. It is the acceptance gate of evolution proposal [`cross-reference-recall-gaps`](../../Documentations/Evolutions/0113-cross-reference-recall-gaps.md), and the numbers are kept in the vision [Reverse engineering without IDA](../../Documentations/Visions/ReverseEngineeringWithoutIDA.md).
 
 ## Samples
 

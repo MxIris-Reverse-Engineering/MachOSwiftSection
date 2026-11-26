@@ -1,12 +1,12 @@
-# Draft - 交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法
+# 0113 - 交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-26
 - **最后更新**: 2026-11-26
 - **所属愿景**: [不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)（第 1 阶段的补漏）
 - **关联提案**: [0097-offline-cross-references-and-symbolication](0097-offline-cross-references-and-symbolication.md)（离线交叉引用与这次复测的对象）、[0098-move-cross-reference-layers](0098-move-cross-reference-layers.md)（三层的归属）、RuntimeViewer [0056-cross-references](https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md)（界面与查询层）
-- **实现分支 / PR**: `feature/cross-reference-recall-gaps`（MachOKitExtensions、MachOObjCSection、本库、RuntimeViewer 同名分支；worktree 为各仓库的 `.worktrees/<项目名>-CrossReferenceRecallGaps`）
+- **实现分支 / PR**: `feature/cross-reference-recall-gaps`（MachOKitExtensions、MachOObjCSection、本库、RuntimeViewer 同名分支），2026-11-26 合进四个仓库的 `next`（MachOKitExtensions 也合进 `main`）并推送；分支与 worktree 已删除
 - **配套文档**: 不另写——调用方契约在 CLI 的 skill（`AgentPlugins/swift-section/skills/swift-section-cli/references/cross-references.md`）与 README，实现细节在三份模块文档；测量办法在 `Scripts/CrossReferenceRecall/README.md`
 - **网页版**: 同目录同名的 `.html`
 
@@ -399,3 +399,4 @@ func recordFunctionAddressReference(toFunctionAt address: UInt64, at site: ScanS
 | 2026-11-26 | 测量脚本按完整命名改写后进仓库 | 从对话记录取回的脚本满是缩写，按仓库「标识符不缩写」的规定改写成 `Scripts/CrossReferenceRecall/`（标准答案合成一个 `ground_truth.py`，数据里的键也改成完整单词）。`verify_reproduction.py` 核对改写后仍复现 11 月 18 日的总数与目标列表，0.25.0 仍是 476/527 |
 | 2026-11-26 | 第 6 步验收 | 测量脚本对功能分支：514/527（97.5%），多报 0，剩下 13 条是 `__objc_superrefs`；selector 发送 97/97、ivar 32/32、访问器 104/104、类引用 74/87。吞吐（Ultra，release，与三个仓库的 `next` 交替各两轮取最好）：整表 2.419 → 2.464 秒（+1.9%，引用 1.296 亿 → 1.338 亿条），`init` 调用者扫描 1.516 → 1.545 秒（+1.9%），`makeKeyAndOrderFront:` 0.292 → 0.299 秒（+2.4%），都在 5% 以内；数字记进模块文档的吞吐一节 |
 | 2026-11-26 | 实现完成，待用户看过后收尾 | 第 0–6 步都已完成。验证都在 Ultra：MachOKitExtensions 全量测试通过；本库全量（跳过 IntegrationTests）通过；MachOObjCSection 全量有 `MachOObjCSectionTests.testCategories2InCacheFile`（读不到 cache 文件后崩溃）与 `ObjectiveCSymbolLanguageTests.cAndCPlusPlusStoreLeavesObjectiveCNamesOut` 两处失败，在三个仓库的 `next` 上同样失败，属基线；RuntimeViewer 交叉引用模块整模块并发跑时「分析器换新后重新读名字」两条失败、单跑这一组 18 条全过，与 0097 决策日志记的基线现象相同。文档判断：不另写使用指南或实现说明（见头部「配套文档」）；新术语「selector 引用」已登记进术语表。四个仓库的功能分支在本地合进各自的 `next` 检出，没有推送 |
+| 2026-11-26 | Implemented，取号 0113 | 用户看过后批准收尾。本库 `next` 合并时带进了 0112，落地前在合并结果上重跑了全量测试（跳过 IntegrationTests），全部通过；RuntimeViewer 的 `next` 只在 app 层多了两个提交，`RuntimeViewerCore` 与测过的相同，MachOKitExtensions 与 MachOObjCSection 的合并结果也与测过的相同，沿用实现完成时的结果；四个仓库按依赖顺序推送：MachOKitExtensions 的 `main` 与 `next`，MachOObjCSection、本库、RuntimeViewer 的 `next`；演进账本第 160 节。下游远程构建（含 CI）要等 MachOKitExtensions 与 MachOObjCSection 发版、本库与 MachOObjCSection 抬依赖下限：`ReferenceScanner(recordsFunctionAddressReferences:)`、`CodeReferenceRecording.recordFunctionAddressReference(to:at:)`、`leaveFunction()` 与 `MachOFixtureSupport` 都只在新版本里有。后续项：dyld cache 里的 selector 引用；RuntimeViewer 界面显示 selector 引用 |

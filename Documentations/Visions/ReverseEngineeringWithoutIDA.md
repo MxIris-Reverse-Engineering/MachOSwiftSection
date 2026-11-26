@@ -2,7 +2,7 @@
 
 - **状态**: Active
 - **最后更新**: 2026-11-26
-- **相关提案**: [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)、[draft-cross-reference-recall-gaps](../Evolutions/draft-cross-reference-recall-gaps.md)（召回补漏）
+- **相关提案**: [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)、[0113-cross-reference-recall-gaps](../Evolutions/0113-cross-reference-recall-gaps.md)（召回补漏）
 
 愿景**不做具体决定**，它划定一个方向的边界与取舍原则，让后续每个提案不必重新论证一遍。
 具体怎么做写在各自的提案里。
@@ -150,7 +150,7 @@
        原因待查。
      - 比 IDA 强的地方：页对齐的类对象、经 `ldr` 读 selref 的经典发送都一次查到。
      - 后四组缺口的修复是提案
-       [draft-cross-reference-recall-gaps](../Evolutions/draft-cross-reference-recall-gaps.md)，修完的目标是
+       [0113-cross-reference-recall-gaps](../Evolutions/0113-cross-reference-recall-gaps.md)，修完的目标是
        514/527（97.5%），剩下的就是 `super` 的那 13 条。测量脚本随那份提案进仓库（`Scripts/CrossReferenceRecall/`），
        以后改交叉引用就拿它验收。
      - **补漏后（2026-11-26，同一组样本，那份提案的功能分支）：514/527（97.5%），多报 0**，高于 IDA 一次查询的
@@ -218,7 +218,7 @@
 |------|------|------------------------|
 | [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md) | Implemented | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP；顺带把交叉引用按「我们选的方向」第 6 条拆成核心、ObjC、Swift 三层（真正迁出本库另写提案） |
 | [0098 move-cross-reference-layers](../Evolutions/0098-move-cross-reference-layers.md) | Accepted | 「我们选的方向」第 6 条：把 0097 拆出的核心层与地址解析、ARM64 解码搬进 MachOKitExtensions，ObjC 层搬进 MachOObjCSection，随本库 0.25.0 落地 |
-| [draft-cross-reference-recall-gaps](../Evolutions/draft-cross-reference-recall-gaps.md) | In Progress | 第 1 阶段的补漏：按「我们选的方向」第 1 条的复测（2026-11-26，90.3% 对 IDA 97.0%）补上四处缺口——CLI 按 Swift 类型查询、取 GOT 槽地址的类引用、selector 引用、一种 ivar 读法，并把取函数地址记成对函数的引用；测量脚本进仓库作为第 7 条「标准答案」的验收工具 |
+| [0113-cross-reference-recall-gaps](../Evolutions/0113-cross-reference-recall-gaps.md) | Implemented | 第 1 阶段的补漏：按「我们选的方向」第 1 条的复测（2026-11-26，90.3% 对 IDA 97.0%）补上四处缺口——CLI 按 Swift 类型查询、取 GOT 槽地址的类引用、selector 引用、一种 ivar 读法，并把取函数地址记成对函数的引用；测量脚本进仓库作为第 7 条「标准答案」的验收工具 |
 
 ---
 

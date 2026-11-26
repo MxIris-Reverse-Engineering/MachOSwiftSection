@@ -439,7 +439,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 代码从 `__objc_selrefs` 载入了一个 selector，却没有用它发送消息：交给 `respondsToSelector:` 或 `performSelector:`、作为返回值、设成控件的 action。与这个 selector 的发送归在同一个表键下，`refs --selector` 两者都列。发送自己载入的 selector（经典的 `objc_msgSend` 在 `x1` 里用的那个）不算；dyld cache 的构建器把 selref 载入改写成取字符串地址，所以 cache 里的镜像没有。
 
 - **主要出现在**：`CodeReferenceTarget.selector`、`ObjCCodeReferenceRecording.recordSelectorReference(selector:at:)`、`swift-section refs` 的 `selector <名字>` 行
-- **延伸阅读**：[draft-cross-reference-recall-gaps](Evolutions/draft-cross-reference-recall-gaps.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「引用种类与路线」
+- **延伸阅读**：[0113-cross-reference-recall-gaps](Evolutions/0113-cross-reference-recall-gaps.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「引用种类与路线」
 
 ### stand-in member symbol（替身成员符号）
 
