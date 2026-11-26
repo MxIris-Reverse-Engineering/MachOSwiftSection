@@ -304,8 +304,11 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     /// off the Objective-C side: an `@objc @implementation` stored property
     /// recovered from its ivar (evolution proposal `objc-ivar-type-recovery`).
     /// A replacement stands in for the whole type, as `Transformer.CType` does
-    /// in an Objective-C header; an empty spelling is no replacement. Empty by
-    /// default, which prints the type the importer gives (`Swift.Double`).
+    /// in an Objective-C header, but only for the property's type itself, not
+    /// for a pointee or an element; it prints as written, so give the name
+    /// Swift code writes (`CGFloat`), no module. An empty spelling is no
+    /// replacement. Empty by default, which prints the type the importer
+    /// gives (`Swift.Double`).
     public var cTypeReplacements: [Transformer.CType.Pattern: String] = [:]
 }
 

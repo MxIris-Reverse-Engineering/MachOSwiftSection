@@ -36,7 +36,7 @@ RuntimeViewer 看 Mac Catalyst 的 UIKitCore，`__C._UISplitViewControllerAdapti
 在 `SwiftObjCInterop` 加一个只依赖 ivar 事实与 ObjC 属性的还原函数，interface 与 dump 共用：
 
 1. **encoding 完整**（非空、非 `?`）：`ObjCTypeEncodingParser.type(from:)` 解析后按「原样表示」规则转成 `Type` 节点——与导入规则只差三处：桥接类保持类本身（`NSString` 还是 `NSString`），`id` 是 `AnyObject`，block / 位域 / 不认识的类型 / 无名结构体还原不出（返回 `nil`，保持注释）。
-2. **encoding 是 `?`**：找 ivar 对应的 ObjC 属性，按它的 `T` 特性走现有的导入规则（`NSString` → `String`、`NSArray` → `[Any]`、`id` → `Any`）；没有 ObjC 属性、或 `T` 是 block 等还原不出的类型，保持注释。`weak` 属性例外：`weak` 的存储不能原样表示成 ObjC 类型，编译器对类类型也写 `?`，而 `weak` 只能是类，所以按「原样表示」规则读它的 `T` 特性，不桥接。
+2. **encoding 是 `?`**：找 ivar 对应的 ObjC 属性，按它的 `T` 特性走现有的导入规则（`NSString` → `String`、`NSArray` → `[Any]`、`id` → `Any`）；只认桥接表里的类与裸 `id`——`?` 证明 Swift 类型不是 ObjC 的类本身，导入成类自己的（`unowned` 属性的存储也写 `?`）、表外的桥接类都不可信。没有 ObjC 属性、或 `T` 不是这几种，保持注释。`weak` 属性例外：`weak` 的存储不能原样表示成 ObjC 类型，编译器对类类型也写 `?`，而 `weak` 只能是类，所以按「原样表示」规则读它的 `T` 特性，不桥接。
 3. **空 encoding**：保持注释，二进制里没有任何类型信息。
 4. **可空性**：可空的类型写 `T!`（ClangImporter 对无可空性标注的声明的写法，Generated Interface 也这样写）；ObjC 属性是 `weak` 时写 `weak var x: T?`（`weak` 必为可选）。
 5. **`var` / `let`**：有 ObjC 属性且是 `readonly` 写 `let`，否则 `var`。
@@ -227,4 +227,7 @@ package struct ObjCInstanceVariableSwiftType {
 | 2026-11-26 | `weak` 属性挪到第 3 步，按 ObjC 属性读、不桥接 | 前提测试实测：`weak var observer: NSObject?` 的 ivar encoding 是 `?`，不是 `@"NSObject"` |
 | 2026-11-26 | 第 2 步的修正与第 3 步同一个提交 | 第 2 步的首个提交在 Ultra 上编不过（解析器名写错）、修好后又发现声明被 `Rows` 拆成两行，两处修正与第 3 步的改动落在同几个文件里 |
 | 2026-11-26 | 完整 encoding 的近似（枚举、`^v`、`#` 等）照打，写进假设 | 第 2 步审查指出；与 `CGFloat` / `Double` 同性质，ObjC 头文件一侧显示的也是同一个 C 类型 |
+| 2026-11-26 | `?` 只认桥接表里的类与裸 `id` | 第 3、4 步审查指出：`?` 证明 Swift 类型不是那个类本身，按导入规则照单全收会把 `unowned` 属性的存储（也写 `?`、特性里没有 `W`）和表外的桥接类（`NSAffineTransform` → `AffineTransform`）打成错的类 |
+| 2026-11-26 | `weak` 与 `readonly` 同时出现时仍写 `weak var` | `weak let`（SE-0481）要 Swift 6.2，源码更常见的是 `weak private(set) var`；无从区分时取更常见的写法 |
+| 2026-11-26 | C 类型替换只换类型本身，替换名照原样打印 | 与假设一致；替换表的文档写明只收不带模块的名字。ObjC 一侧会递归替换指针里的类型，Swift 一侧不跟 |
 | 2026-11-26 | 加前提测试 | 第 1 步审查指出：ivar 名在即时编译夹具里曾观测为空（`ObjCImplementationClassFacts.InstanceVariable.name` 的注释），名字空了就对不上 ObjC 属性；先钉住剥过符号后的事实 |

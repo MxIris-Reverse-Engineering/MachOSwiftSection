@@ -138,6 +138,7 @@ struct ObjCImplementationClassRecognitionTests {
         let interface = try await interface(of: variant, configure: configure)
         // The fully stripped variant's header carries the inferred evidence
         // between `@implementation` and `extension`.
+        #expect(variant == .strippedEverything || interface.contains("@objc @implementation extension __C.AdaptiveTransitionWidget {"))
         return try #require(block(named: "extension __C.AdaptiveTransitionWidget {", in: interface))
     }
 
@@ -200,11 +201,13 @@ struct ObjCImplementationClassRecognitionTests {
 
     @Test func cTypeReplacementsSpellARecoveredPrimitiveType() async throws {
         let widget = try await adaptiveTransitionWidget(of: .strippedLocals) { configuration in
-            configuration.cTypeReplacements = [.double: "CGFloat", .longLong: "NSInteger"]
+            configuration.cTypeReplacements = [.double: "CGFloat", .longLong: "NSInteger", .ulongLong: "NSUInteger"]
         }
         #expect(widget.contains("    var interactiveProgress: CGFloat\n"), "\(widget)")
         #expect(widget.contains("    var stepCount: NSInteger\n"), "\(widget)")
-        // Only a primitive type is replaced.
+        // Only the type itself is replaced: `NSRange`'s `QQ` fields are not.
+        let unreplaced = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(declaredType(of: "selectedRange", in: widget) == declaredType(of: "selectedRange", in: unreplaced), "\(widget)")
         #expect(widget.contains("    var isAnimated: Swift.Bool\n"), "\(widget)")
     }
 

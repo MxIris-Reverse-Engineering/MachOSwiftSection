@@ -92,6 +92,12 @@ struct ObjCInstanceVariableSwiftTypeTests {
 
     @Test func bridgedEncodingWithoutATypedObjCPropertyRecoversNothing() throws {
         #expect(try Self.recoveredType(encoding: "?") == nil)
+        // The `?` proves the type is no Objective-C class: a class imported as
+        // itself is an `unowned` property's storage or a bridging the table
+        // does not know, and says nothing reliable.
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@\"NSObject\",&,N,Vstorage") == nil)
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@\"<NSCopying>\",&,N,Vstorage") == nil)
+        #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "Tq,N,Vstorage") == nil)
         // A Swift closure bridges to a block, whose attribute has no signature.
         #expect(try Self.recoveredType(encoding: "?", propertyAttributes: "T@?,C,N,Vstorage") == nil)
     }

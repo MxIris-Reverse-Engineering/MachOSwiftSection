@@ -69,10 +69,15 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
     /// property synthesized on it (evolution proposal
     /// `objc-ivar-type-recovery`): the type the importer gives that
     /// Objective-C type, `NSString` as `String`, `NSArray` as `[Any]` (the
-    /// attribute names no element type), `id` as `Any`. `nil` for a type
-    /// that determines none, as for `triviallyRepresentedTypeNode(_:position:)`.
+    /// attribute names no element type), `id` as `Any`. The `?` proves the
+    /// Swift type is no class Objective-C has, so only a class the importer
+    /// bridges and a bare `id` qualify; anything else — a class imported as
+    /// itself, which an `unowned` property's storage also marks `?`, a
+    /// Foundation class bridged to a value type the table does not list —
+    /// returns `nil`.
     package func bridgedTypeNode(_ type: ObjCEncodedType, position: Position) -> Node? {
-        guard Self.determinesStoredPropertyType(type) else { return nil }
+        guard case .object(let className, let protocolNames) = type, protocolNames.isEmpty else { return nil }
+        if let className, !ObjCBridgedStructures.importsAsNonClassType(className) { return nil }
         return typeNode(type, position: position, mapping: .imported)
     }
 
