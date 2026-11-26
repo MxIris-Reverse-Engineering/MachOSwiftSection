@@ -4,6 +4,8 @@ import Demangling
 import Semantic
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
+import OutputTransformer
+import ObjCOutputTransformer
 
 // The interface-side rendering of an `@objc @implementation` class's stored
 // properties (evolution proposal `objc-implementation-class-recognition`).
@@ -168,7 +170,35 @@ extension SwiftDeclarationPrinter {
         MemberDeclaration(name)
         Standard(":")
         Space()
-        await printType(recoveredType.typeNode, isProtocol: false, level: level)
+        if let replacement = cTypeReplacement(for: recoveredType.encodedType) {
+            TypeName(kind: .other, replacement)
+        } else {
+            await printType(recoveredType.typeNode, isProtocol: false, level: level)
+        }
+    }
+
+    /// The configuration's spelling for `type` when it is a C primitive one
+    /// of its C type replacements names (`double` → `CGFloat`), as an
+    /// Objective-C header spells it with the same replacements.
+    private func cTypeReplacement(for type: ObjCEncodedType) -> String? {
+        let pattern: Transformer.CType.Pattern? = switch type {
+        case .character: .char
+        case .unsignedCharacter: .uchar
+        case .short: .short
+        case .unsignedShort: .ushort
+        case .int: .int
+        case .unsignedInt: .uint
+        case .long: .long
+        case .unsignedLong: .ulong
+        case .longLong: .longLong
+        case .unsignedLongLong: .ulongLong
+        case .float: .float
+        case .double: .double
+        case .longDouble: .longDouble
+        default: nil
+        }
+        guard let pattern, let replacement = configuration.cTypeReplacements[pattern], !replacement.isEmpty else { return nil }
+        return replacement
     }
 
     static func unrecoverableStoredPropertyComment(for instanceVariable: ObjCImplementationClassFacts.InstanceVariable) -> String {

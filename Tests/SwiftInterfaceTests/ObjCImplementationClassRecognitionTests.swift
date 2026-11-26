@@ -11,6 +11,8 @@ import Semantic
 @testable import SwiftSectionTestingSupport
 import SwiftPrinting
 import SwiftSectionFixtureSupport
+import OutputTransformer
+import ObjCOutputTransformer
 
 /// `@objc @implementation` recognition on the interface path (evolution
 /// proposal `objc-implementation-class-recognition`), over the on-the-fly
@@ -19,15 +21,16 @@ import SwiftSectionFixtureSupport
 /// adds to, and a plain Swift class with ObjC ancestry.
 @Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCImplementationClassRecognitionTests {
-    private func interface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool = false) async throws -> String {
-        try await printInterface(of: variant, printFieldOffset: printFieldOffset, marksCommentStructure: false).string
+    private func interface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool = false, configure: (inout SwiftDeclarationPrintConfiguration) -> Void = { _ in }) async throws -> String {
+        try await printInterface(of: variant, printFieldOffset: printFieldOffset, marksCommentStructure: false, configure: configure).string
     }
 
-    private func printInterface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool, marksCommentStructure: Bool) async throws -> SemanticString {
+    private func printInterface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool, marksCommentStructure: Bool, configure: (inout SwiftDeclarationPrintConfiguration) -> Void = { _ in }) async throws -> SemanticString {
         let machOFile = try ObjCImplementationFixture.machOFile(variant)
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.printConfiguration.printFieldOffset = printFieldOffset
         configuration.printConfiguration.marksCommentStructure = marksCommentStructure
+        configure(&configuration.printConfiguration)
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
         return try await builder.printRoot()
@@ -131,8 +134,8 @@ struct ObjCImplementationClassRecognitionTests {
     // members are internal, so `strip -x` leaves only its ivar list and
     // Objective-C properties.
 
-    private func adaptiveTransitionWidget(of variant: ObjCImplementationFixture.Variant) async throws -> String {
-        let interface = try await interface(of: variant)
+    private func adaptiveTransitionWidget(of variant: ObjCImplementationFixture.Variant, configure: (inout SwiftDeclarationPrintConfiguration) -> Void = { _ in }) async throws -> String {
+        let interface = try await interface(of: variant, configure: configure)
         // The fully stripped variant's header carries the inferred evidence
         // between `@implementation` and `extension`.
         return try #require(block(named: "extension __C.AdaptiveTransitionWidget {", in: interface))
@@ -193,6 +196,30 @@ struct ObjCImplementationClassRecognitionTests {
     @Test func weakObjCPropertyRecoversAsAWeakOptionalOfItsClass() async throws {
         let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
         #expect(widget.contains("    weak var observer: __C.NSObject?\n"), "\(widget)")
+    }
+
+    @Test func cTypeReplacementsSpellARecoveredPrimitiveType() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals) { configuration in
+            configuration.cTypeReplacements = [.double: "CGFloat", .longLong: "NSInteger"]
+        }
+        #expect(widget.contains("    var interactiveProgress: CGFloat\n"), "\(widget)")
+        #expect(widget.contains("    var stepCount: NSInteger\n"), "\(widget)")
+        // Only a primitive type is replaced.
+        #expect(widget.contains("    var isAnimated: Swift.Bool\n"), "\(widget)")
+    }
+
+    @Test func objcTransformersInstallTheirCTypeReplacementsOnlyWhenEnabled() async throws {
+        let enabled = try await adaptiveTransitionWidget(of: .strippedLocals) { configuration in
+            configuration.applyTransformers(Transformer.ObjCConfiguration(cType: .init(isEnabled: true, replacements: [.double: "CGFloat", .longLong: ""])))
+        }
+        #expect(enabled.contains("    var interactiveProgress: CGFloat\n"), "\(enabled)")
+        // An empty spelling replaces nothing.
+        #expect(enabled.contains("    var stepCount: Swift.Int\n"), "\(enabled)")
+        let disabled = try await adaptiveTransitionWidget(of: .strippedLocals) { configuration in
+            configuration.cTypeReplacements = [.double: "Float64"]
+            configuration.applyTransformers(Transformer.ObjCConfiguration(cType: .init(isEnabled: false, replacements: [.double: "CGFloat"])))
+        }
+        #expect(disabled.contains("    var interactiveProgress: Swift.Double\n"), "\(disabled)")
     }
 
     @Test func ivarWithNoEncodingStaysAComment() async throws {

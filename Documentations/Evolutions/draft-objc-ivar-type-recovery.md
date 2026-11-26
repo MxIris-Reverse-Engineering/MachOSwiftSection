@@ -197,7 +197,7 @@ package struct ObjCInstanceVariableSwiftType {
    - 行为：`?` 且有 `NSString` 属性的打成 `String!`，`NSArray` 的打成 `[Any]!`，`id` 的打成 `Any!`。
    - 行为：`?` 且没有 ObjC 属性的仍是注释。
    - 行为：`weak` 的 ObjC 属性打 `weak var x: T?`，类不桥接（`weak` 的存储让 ivar 写 `?`）。
-4. **C 类型替换**：`applyTransformers(_: Transformer.ObjCConfiguration)`，打印时替换。
+4. **C 类型替换**（已完成）：`applyTransformers(_: Transformer.ObjCConfiguration)`，打印时替换；`SwiftInterfaceTests` 为此依赖 `ObjCOutputTransformer` 与 `OutputTransformer`。
    - 行为：配置 `double → CGFloat` 时 `d` 打成 `CGFloat`。
    - 行为：没有配置或模块关闭时仍是 `Double`。
 5. **dump 与文档**：`ObjCImplementationClassDumper` 接入；模块说明与演进账本。
