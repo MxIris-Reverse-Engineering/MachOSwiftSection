@@ -8,6 +8,8 @@ import ObjCMetadataSource
 import ObjCIndexing
 import ObjCInterface
 import ObjCDiffing
+import FoundationToolbox
+import SwiftStdlibToolbox
 
 /// The platform a version axis spells availability for — what
 /// `evolution --interface --emit-available --platform` passes — each
