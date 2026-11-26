@@ -190,6 +190,8 @@ final class CrossReferenceTargetNaming {
             return .object(["objectiveCClass": .object(members)])
         case .objectiveCInstanceVariable(let className, let name):
             return .object(["instanceVariable": .object(["class": .string(className), "name": .string(name)])])
+        case .selector(let selector):
+            return .object(["selector": .string(selector)])
         case .cString(let characters):
             return .object(["cString": .string(characters)])
         case .constantString(let characters):
@@ -230,6 +232,8 @@ final class CrossReferenceTargetNaming {
             return "class \(name) (\(CrossReferenceFormatting.imageName(ofPath: imagePath(of: location))))"
         case .objectiveCInstanceVariable(let className, let name):
             return "ivar \(className).\(name)"
+        case .selector(let selector):
+            return "selector \(selector)"
         case .cString(let characters):
             return "C string \(CrossReferenceFormatting.quoted(characters))"
         case .constantString(let characters):

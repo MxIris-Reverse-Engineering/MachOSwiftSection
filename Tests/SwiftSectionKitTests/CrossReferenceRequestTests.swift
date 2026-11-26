@@ -13,9 +13,11 @@ struct CrossReferenceRequestTests {
     static let archivedCachePath = "/Volumes/DyldSharedCaches/macOS/27.2/dyld_shared_cache_arm64e"
     static let selector = "makeKeyAndOrderFront:"
 
-    private static func isSend(_ target: CodeReferenceTarget, of selector: String) -> Bool {
+    /// A send of `selector`, or another use of it — an argument, a returned
+    /// selector (evolution proposal `cross-reference-recall-gaps`).
+    private static func isUse(_ target: CodeReferenceTarget, of selector: String) -> Bool {
         switch target {
-        case .messageSend(selector, _), .superMessageSend(selector, _): true
+        case .messageSend(selector, _), .superMessageSend(selector, _), .selector(selector): true
         default: false
         }
     }
@@ -26,7 +28,7 @@ struct CrossReferenceRequestTests {
         let result = try await ReferencesRequest(input: .dyldSharedCache(path: Self.archivedCachePath), subject: .selector(Self.selector)).run(output: output)
         #expect(result.rows.count > 100)
         #expect(!result.isTruncated)
-        #expect(result.rows.allSatisfy { Self.isSend($0.reference.target, of: Self.selector) })
+        #expect(result.rows.allSatisfy { Self.isUse($0.reference.target, of: Self.selector) })
         #expect(result.rows.contains { $0.imagePath.hasSuffix("/AppKit.framework/Versions/C/AppKit") })
         let lines = output.printedProduct.split(separator: "\n")
         #expect(lines.count == result.rows.count)
@@ -54,10 +56,13 @@ struct CrossReferenceRequestTests {
             let function = try #require(reference["function"] as? [String: Any])
             #expect((function["address"] as? String)?.hasPrefix("0x") == true)
             #expect((reference["image"] as? String)?.hasSuffix("/AppKit") == true)
-            #expect(["call", "tailCall"].contains(reference["kind"] as? String))
+            #expect(["call", "tailCall", "reference"].contains(reference["kind"] as? String))
             let target = try #require(reference["target"] as? [String: Any])
-            let send = (target["messageSend"] ?? target["superMessageSend"]) as? [String: Any]
-            #expect(send?["selector"] as? String == Self.selector)
+            if let send = (target["messageSend"] ?? target["superMessageSend"]) as? [String: Any] {
+                #expect(send["selector"] as? String == Self.selector)
+            } else {
+                #expect(target["selector"] as? String == Self.selector)
+            }
         }
     }
 
@@ -141,7 +146,7 @@ struct CrossReferenceRequestTests {
         let result = try await ReferencesRequest(input: .files(paths: [path], architecture: .arm64e), subject: .selector("init")).run(output: RecordingOutput())
         #expect(!result.rows.isEmpty)
         #expect(result.scannedImageCount == 1)
-        #expect(result.rows.allSatisfy { $0.imagePath == path && Self.isSend($0.reference.target, of: "init") })
+        #expect(result.rows.allSatisfy { $0.imagePath == path && Self.isUse($0.reference.target, of: "init") })
         await #expect(performing: {
             try await ReferencesRequest(input: .files(paths: [path], architecture: nil), subject: .selector("init")).run(output: RecordingOutput())
         }, throws: { error in

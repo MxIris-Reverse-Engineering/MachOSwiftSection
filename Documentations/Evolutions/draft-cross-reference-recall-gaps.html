@@ -163,7 +163,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
   <h1><span class="proposal-number">Draft</span> 交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-26</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
     <div><dt>原文</dt><dd><code>draft-cross-reference-recall-gaps.md</code></dd></div>
@@ -198,8 +198,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout callout-note">
-    <p class="callout-title">没有待定的事</p>
-    <p>第 5 步已由用户决定并入；提案已批准，正在实现。</p>
+    <p class="callout-title">实现已完成，待你看过后收尾</p>
+    <p>验收：测量脚本对功能分支 514/527（97.5%），多报 0；吞吐慢 1.9%–2.4%，在 5% 以内。四个仓库的功能分支已在本地合进各自的 <code>next</code> 检出，没有推送。</p>
   </div>
 </section>
 
@@ -310,8 +310,8 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
   <table>
     <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
     <tbody>
-      <tr><td>本库 <code>Scripts/CrossReferenceRecall/</code>（<code>01_prepare.sh</code>、<code>02a</code>–<code>02e</code>、<code>03_query_swift_section.py</code>、<code>04_score.py</code>、<code>run_all.sh</code>、<code>README.md</code>）</td><td><span class="tag tag-added">新增</span></td><td>2026-11-26 的测量脚本；README 写样本路径、怎么跑、怎么读结果、基线数字</td><td>验收工具不能再丢</td><td class="numeric">0</td></tr>
-      <tr><td>本库 <code>Scripts/CrossReferenceRecall/03_query_swift_section.py</code></td><td><span class="tag tag-changed">修改</span></td><td>G 类访问器改用 <code>--type</code>；可选 <code>--swift-section</code> 参数指定被测的二进制</td><td>第 1 步之后 G 类该走类型查询</td><td class="numeric">1</td></tr>
+      <tr><td>本库 <code>Scripts/CrossReferenceRecall/</code>（<code>prepare.sh</code>、<code>ground_truth.py</code>、<code>verify_reproduction.py</code>、<code>query_swift_section.py</code>、<code>score.py</code>、<code>run_all.sh</code>、<code>ida-2026-11-18.txt</code>、<code>README.md</code>）</td><td><span class="tag tag-added">新增</span></td><td>2026-11-26 的测量脚本；README 写样本路径、怎么跑、怎么读结果、基线数字</td><td>验收工具不能再丢</td><td class="numeric">0</td></tr>
+      <tr><td>本库 <code>Scripts/CrossReferenceRecall/query_swift_section.py</code></td><td><span class="tag tag-added">新增</span></td><td>被测的二进制由 <code>SWIFT_SECTION</code> 指定；G 类仍用 <code>--function</code></td><td>验收</td><td class="numeric">0</td></tr>
       <tr><td>本库 <code>Sources/Commands/SwiftSectionKit/CrossReferences/ReferencesRequest.swift</code> · <code>CrossReferenceSubject</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>.swiftType(String, imageName: String?)</code>；<code>ResolvedQuery</code> 加按类型的查询分支；写法归一与定义镜像的查找</td><td><code>--type</code> 的库侧</td><td class="numeric">1</td></tr>
       <tr><td>本库 <code>ReferencesRequest.swift</code> · <code>CrossReferenceRequestError</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>swiftTypeNotFound(String)</code>、<code>swiftTypeNeedsImage(String)</code></td><td>找不到类型、缓存里的内部类型</td><td class="numeric">1</td></tr>
       <tr><td>本库 <code>Sources/Executables/swift-section/Commands/ReferencesCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--type</code>、<code>--type-image</code>；<code>validate()</code> 计入新主体；<code>--selector</code> 的帮助文字改成「发送与引用」</td><td>CLI 入口</td><td class="numeric">1、3</td></tr>
@@ -445,6 +445,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       <ul>
         <li>夹具：一个 ObjC 类，三个 ivar；一个方法用 <code>__asm__</code> 写出与 Finder <code>0x1002bba08</code> 同构的序列——前面几个分支 <code>b</code> 到同一个标签，标签处 <code>adrp x9, _OBJC_IVAR_$_…@PAGE; add x9, x9, _OBJC_IVAR_$_…@PAGEOFF; ldrsw x9, [x9]; str w8, [x0, x9]</code>。另写一个不经汇合点的对照方法。</li>
         <li>测试先红（经汇合点的那条找不到、对照那条找到），由此确认是汇合还是别的原因，再修。</li>
+        <li>结果：根因与修法见决策日志 2026-11-26「第 4 步定位到根因」。夹具改为两条路径各算一个偏移变量地址、在载入处汇合；对照方法的引用记在 <code>add</code> 上而不是 <code>ldrsw</code> 上。</li>
       </ul>
     </div>
   </details>
@@ -587,19 +588,19 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="steps">
   <h2>落地步骤</h2>
   <ol start="0">
-    <li><strong>测量脚本进仓库</strong>
+    <li><strong>测量脚本进仓库</strong>（已完成）
       <ul><li><code>run_all.sh</code> 对 0.25.0 复现 476/527（90.3%），IDA 列 97.0% / 99.4%，复现核对通过</li><li>README 记下基线数字与每类的漏报原因</li></ul></li>
-    <li><strong><code>--type</code></strong>
+    <li><strong><code>--type</code></strong>（已完成）
       <ul><li><code>typeSubjectFindsTheReferencesTheAnalyzersSwiftTypeQueryFinds</code></li><li><code>typeSubjectAcceptsTheManglingAndItsDescriptorAccessorAndMetadataSymbols</code></li><li><code>typeSubjectLooksForAnUnexportedTypeInEveryStandaloneFile</code></li><li><code>typeSubjectInACacheNeedsTheTypeImageForAnUnexportedType</code></li><li><code>typeImageWithoutTypeIsAUsageError</code></li><li>测量脚本 G 类 104/104</li></ul></li>
-    <li><strong>取到引用槽地址也算槽引用</strong>
+    <li><strong>取到引用槽地址也算槽引用</strong>（已完成）
       <ul><li><code>slotAddressHandedToAHelperIsAClassReference</code></li><li><code>slotAddressInAStandaloneFileIsAnImportedSymbolReference</code></li><li><code>aLoadThroughARecordedSlotAddressIsNotRecordedAgain</code></li><li><code>slotAddressesAddOnlySlotReferencesToTheWholeImageTable</code></li><li>测量脚本 B 类 74/87（剩下 13 条是 <code>super</code>）</li></ul></li>
-    <li><strong>selector 引用</strong>
+    <li><strong>selector 引用</strong>（已完成）
       <ul><li><code>respondsToSelectorArgumentIsASelectorReference</code></li><li><code>anActionSelectorHandedToSetActionIsASelectorReference</code></li><li><code>aClassicSendLeavesNoSelectorReferenceBehind</code></li><li><code>stubSendsLeaveNoSelectorReference</code></li><li><code>selectorQueriesReturnSendsAndSelectorReferences</code></li><li><code>selectorReferencesSurviveTheCompactIndex</code></li><li><code>symbolicationCallsASelectorReferenceSlotASelector</code></li><li>RuntimeViewer <code>selectorReferencesAreNotShownYet</code></li><li>测量脚本 A 类 97/97</li></ul></li>
-    <li><strong>ivar 读法</strong>
+    <li><strong>ivar 读法</strong>（已完成）
       <ul><li><code>instanceVariableLoadThroughAnAddedAddressAtAMergePoint</code>（修复前失败）</li><li><code>instanceVariableLoadThroughAnAddedAddressOutsideAMergePoint</code>（对照）</li><li>测量脚本 F 类 32/32</li></ul></li>
-    <li><strong>取函数地址</strong>
+    <li><strong>取函数地址</strong>（已完成）
       <ul><li><code>takingAFunctionsAddressIsAReferenceToIt</code></li><li><code>aSignedAccessorAddressIsBothAFunctionAndATypeReference</code></li><li><code>aStackBlockIsReferencedByTheFunctionThatBuildsIt</code></li><li><code>functionQueriesReturnCallsAndAddressTakingSites</code></li></ul></li>
-    <li><strong>验收与文档</strong>
+    <li><strong>验收与文档</strong>（已完成）
       <ul><li>测量脚本代码引用 ≥ 514/527（97.5%），多报为 0，或逐条核对为真引用</li><li><code>ScanThroughputBenchmarkTests</code> 各项比改前慢不超过 5%（超过就把数字和原因写进模块文档，由用户定）</li><li>愿景复测段补上修复后的数字</li></ul></li>
   </ol>
   <div class="callout callout-note">
@@ -614,7 +615,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>4 条，最近一条：Accepted</summary>
+    <summary>12 条，最近一条：实现完成，待用户看过后收尾</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -624,6 +625,14 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-26</td><td>第 5 步列为待定</td><td>「取函数地址」不在这次测量的类别里，但决定调用链能不能穿过 block 与闭包；是否并入本提案由用户定</td></tr>
           <tr><td class="numeric">2026-11-26</td><td>第 5 步并入</td><td>用户决定把「取函数地址记成对函数的引用」并入本提案，同批实现</td></tr>
           <tr><td class="numeric">2026-11-26</td><td>Accepted</td><td>用户批准，开始实现。四个仓库各开 <code>feature/cross-reference-recall-gaps</code>，按依赖顺序 MachOKitExtensions → MachOObjCSection → 本库 → RuntimeViewer 提交；构建与测试都在 Ultra 上跑（四个工程都在公司那台不编译的清单里），用 <code>/Volumes/DerivedData/Agents.noindex/claude/LocalDependencies/CrossReferenceRecallGaps/</code> 下按仓库名放的功能分支拷贝解析本地依赖</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>第 4 步定位到根因，修法推广到观察的槽</td><td>Finder 那个函数开头是跳转表，<code>0x1002bba68</code> 的 <code>b 0x1002bbb1c</code> 带着 <code>_middleResolution</code> 的偏移变量地址（<code>add x9, x9, #0x24</code>）直接跳到 <code>ldrsw</code>，与顺序落下、带着 <code>_rightResolution</code>（<code>#0x28</code>）的路径在载入处汇合，<code>x9</code> 两边不一致被作废——这条载入本来就读两个 ivar 之一，标准答案和 IDA 都把引用记在各自的 <code>add</code> 上。核心测试按这个形状写出后先红；修法与第 2 步同一套：算出的地址落在会话观察的槽上（<code>__objc_ivar</code>、<code>__objc_superrefs</code>、<code>__objc_selrefs</code>）时，在这条指令上通知会话、给寄存器打「已记过」的位，之后零位移的 32 位与 64 位载入不再重记。代价是 ObjC 会话总观察 <code>__objc_superrefs</code>，每个 <code>add</code> / <code>adr</code> 都要进 <code>noteAddress</code>，吞吐另量</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>核心层接口名</td><td>寄存器表用 <code>markRecordedSlotAddress(of:)</code> / <code>isRecordedSlotAddress(_:)</code> 与位掩码 <code>recordedSlotMask</code>（与设计相同）；取函数地址的记录方法定为 <code>recordFunctionAddressReference(to: CodeLocation, at:)</code>，传位置而不是裸地址：核心层知道镜像下标，门面不必再拼</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td><code>--type</code> 的写法归一不 demangle</td><td>只对 <code>$s</code>（可带 <code>_</code>）开头的符号去掉 <code>Mn</code> / <code>Ma</code> / <code>N</code> 后缀；不带 <code>$s</code> 的原样当 mangling。名义类型的 mangling 本身以种类字母结尾，不会撞上这些后缀，不必解开验证。测试发现 mangling 会对与模块名重复的词做替换（<code>HiddenTypeReferences</code> 里的 <code>Hidden</code> 类型不是 <code>6HiddenV</code>），这正是只收准确 mangling、不收点分名字的原因</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>验收时 G 类仍用 <code>--function</code></td><td>第 5 步让 <code>--function</code> 也列出取访问器地址处，正好覆盖那 27 条；<code>--type</code> 还会列出元数据地址、mangled name 等标准答案不算的类型引用，打分时会被算成多报。<code>--type</code> 由 <code>ReferencesRequestSwiftTypeTests</code> 单独验证，测量脚本不改 G 类</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>selector 引用在 cache 里认不出，记为后续项</td><td>dyld cache 的构建器把 selref 载入改写成 <code>adrp; add</code> selector 字符串的地址（<code>selectorInSelectorRegister</code> 里已有说明），所以只在独立文件与 cache 外的镜像里有 selector 引用；cache 里的要从「地址落在 selector 字符串上」去认，另提</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>测量脚本按完整命名改写后进仓库</td><td>从对话记录取回的脚本满是缩写，按仓库「标识符不缩写」的规定改写成 <code>Scripts/CrossReferenceRecall/</code>（标准答案合成一个 <code>ground_truth.py</code>，数据里的键也改成完整单词）。<code>verify_reproduction.py</code> 核对改写后仍复现 11 月 18 日的总数与目标列表，0.25.0 仍是 476/527</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>第 6 步验收</td><td>测量脚本对功能分支：514/527（97.5%），多报 0，剩下 13 条是 <code>__objc_superrefs</code>；selector 发送 97/97、ivar 32/32、访问器 104/104、类引用 74/87。吞吐（Ultra，release，与三个仓库的 <code>next</code> 交替各两轮取最好）：整表 2.419 → 2.464 秒（+1.9%，引用 1.296 亿 → 1.338 亿条），<code>init</code> 调用者扫描 1.516 → 1.545 秒（+1.9%），<code>makeKeyAndOrderFront:</code> 0.292 → 0.299 秒（+2.4%），都在 5% 以内；数字记进模块文档的吞吐一节</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>实现完成，待用户看过后收尾</td><td>第 0–6 步都已完成。验证都在 Ultra：MachOKitExtensions 全量测试通过；本库全量（跳过 IntegrationTests）通过；MachOObjCSection 全量有 <code>MachOObjCSectionTests.testCategories2InCacheFile</code>（读不到 cache 文件后崩溃）与 <code>ObjectiveCSymbolLanguageTests.cAndCPlusPlusStoreLeavesObjectiveCNamesOut</code> 两处失败，在三个仓库的 <code>next</code> 上同样失败，属基线；RuntimeViewer 交叉引用模块整模块并发跑时「分析器换新后重新读名字」两条失败、单跑这一组 18 条全过，与 0097 决策日志记的基线现象相同。文档判断：不另写使用指南或实现说明（见头部「配套文档」）；新术语「selector 引用」已登记进术语表。四个仓库的功能分支在本地合进各自的 <code>next</code> 检出，没有推送</td></tr>
         </tbody>
       </table>
       </div>

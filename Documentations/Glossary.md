@@ -346,7 +346,7 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 
 ### recognizer（识别器，`CodeReferenceRecognitionSession`）
 
-交叉引用扫描里认某一种语言的那一层。核心层只认与语言无关的东西（调用、桩、槽、寄存器跟踪、字符串），在五个时机问各语言层的识别会话：进入函数、遇到只有它认得的调用目标、调用点、算出一个地址、读一个槽。ObjC 层认发送、类与 ivar，Swift 层认类型元数据与 mangled name。核心不 import 任何语言层，新语言加识别器即可，不改核心。
+交叉引用扫描里认某一种语言的那一层。核心层只认与语言无关的东西（调用、桩、槽、寄存器跟踪、字符串），在五个时机问各语言层的识别会话：进入函数、遇到只有它认得的调用目标、调用点、算出一个地址、读一个槽，扫完函数时再告诉它一声。ObjC 层认发送、类与 ivar，Swift 层认类型元数据与 mangled name。核心不 import 任何语言层，新语言加识别器即可，不改核心。
 
 - **主要出现在**：MachOKitExtensions 的 `Sources/MachOCodeReferences/Recognition/`、MachOObjCSection 的 `ObjCCodeReferences`、`CrossReferenceAnalysis/Scanning/SwiftCodeReferenceRecognizer.swift`
 - **延伸阅读**：[0097-offline-cross-references-and-symbolication](Evolutions/0097-offline-cross-references-and-symbolication.md)、MachOKitExtensions 的 [MachOCodeReferences.md](https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions/blob/main/Documentations/Internal/MachOCodeReferences.md)
@@ -433,6 +433,13 @@ opaque 尖括号参数归属的第三条规则：协议无任何 anchor 命中�
 `SymbolTable` 的最小单位：每个唯一符号名一行，16 字节（canonical offset + `PackedNameReference`），行号（`UInt32`）是全部分类索引引用符号的方式。「一名一行」意味着按名字查询的语义是纯函数——同名必同行。
 
 - **主要出现在**：MachOKitExtensions `Sources/MachOSymbols/SymbolTable.swift`
+
+### selector reference（selector 引用，`CodeReferenceTarget.selector`）
+
+代码从 `__objc_selrefs` 载入了一个 selector，却没有用它发送消息：交给 `respondsToSelector:` 或 `performSelector:`、作为返回值、设成控件的 action。与这个 selector 的发送归在同一个表键下，`refs --selector` 两者都列。发送自己载入的 selector（经典的 `objc_msgSend` 在 `x1` 里用的那个）不算；dyld cache 的构建器把 selref 载入改写成取字符串地址，所以 cache 里的镜像没有。
+
+- **主要出现在**：`CodeReferenceTarget.selector`、`ObjCCodeReferenceRecording.recordSelectorReference(selector:at:)`、`swift-section refs` 的 `selector <名字>` 行
+- **延伸阅读**：[draft-cross-reference-recall-gaps](Evolutions/draft-cross-reference-recall-gaps.md)、[Modules/CrossReferenceAnalysis.md](Internal/Modules/CrossReferenceAnalysis.md)「引用种类与路线」
 
 ### stand-in member symbol（替身成员符号）
 

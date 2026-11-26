@@ -50,6 +50,8 @@ struct CrossReferenceCommandTests {
         (["--function", "4096", "--function-image", "Foo"], .function(address: 4096, imageName: "Foo")),
         (["--ivar", "NSWindow._frame"], .instanceVariable(className: "NSWindow", name: "_frame")),
         (["--string", "NSWindowDidBecomeKeyNotification"], .string("NSWindowDidBecomeKeyNotification")),
+        (["--type", "7SwiftUI4TextV"], .swiftType("7SwiftUI4TextV", imageName: nil)),
+        (["--type", "$s7SwiftUI4TextVMa", "--type-image", "SwiftUICore"], .swiftType("$s7SwiftUI4TextVMa", imageName: "SwiftUICore")),
     ])
     func refsMapsEachQuery(arguments: [String], subject: CrossReferenceSubject) throws {
         let request = try ReferencesCommand.parse(arguments + ["--uses-system-dyld-shared-cache"]).makeRequest()
@@ -70,6 +72,8 @@ struct CrossReferenceCommandTests {
         ["--ivar", "Trailing."],
         ["--function", "nowhere"],
         ["--selector", "init", "--limit", "0"],
+        ["--selector", "init", "--type-image", "Foo"],
+        ["--selector", "init", "--type", "7SwiftUI4TextV"],
     ])
     func refsRefusesIncompleteFlags(arguments: [String]) {
         #expect(throws: (any Error).self) { try ReferencesCommand.parse(arguments + ["--uses-system-dyld-shared-cache"]) }
@@ -103,5 +107,8 @@ struct CrossReferenceCommandTests {
         let ambiguous = CommandLineErrorTranslation.translated(CrossReferenceRequestError.ambiguousFunction(address: 0x10, imagePaths: ["/tmp/A", "/tmp/B"]))
         #expect((ambiguous as? ValidationError)?.message.contains("--function-image") == true)
         #expect(CommandLineErrorTranslation.translated(CrossReferenceRequestError.noFunction(address: 0x10)) is CrossReferenceRequestError)
+        let unexportedType = CommandLineErrorTranslation.translated(CrossReferenceRequestError.swiftTypeNeedsImage(mangling: "7SwiftUI13PinnedBarViewC"))
+        #expect((unexportedType as? ValidationError)?.message.contains("--type-image") == true)
+        #expect(CommandLineErrorTranslation.translated(CrossReferenceRequestError.swiftTypeNotFound(mangling: "3Foo3BarV")) is CrossReferenceRequestError)
     }
 }

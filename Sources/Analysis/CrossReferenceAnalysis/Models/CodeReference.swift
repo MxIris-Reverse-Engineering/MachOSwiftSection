@@ -41,6 +41,13 @@ public enum CodeReferenceTarget: Hashable, Sendable {
     /// (`_OBJC_IVAR_$_<class>.<variable>`): the class that declares it, by
     /// its runtime name, and the variable's name.
     case objectiveCInstanceVariable(className: String, name: String)
+    /// A selector the code loads but sends no message with: it hands the
+    /// selector on — to `respondsToSelector:` or `performSelector:`, as a
+    /// return value, as a control's action. Filed under the same table key as
+    /// the selector's sends. Found only where code loads the selector from
+    /// the image's `__objc_selrefs`: a dyld shared cache's builder rewrites
+    /// those loads into the selector string's address.
+    case selector(String)
     /// A C string literal whose address the code takes, by its characters.
     /// Recorded only when string references are: see
     /// ``CrossReferenceAnalyzer/recordsStringReferences``.

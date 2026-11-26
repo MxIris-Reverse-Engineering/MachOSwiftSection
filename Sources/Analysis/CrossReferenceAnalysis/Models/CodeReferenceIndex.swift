@@ -43,6 +43,7 @@ public struct CodeReferenceIndex: Sendable {
         case importedSymbol(name: String)
         case messageSend(selector: String)
         case superMessageSend(selector: String)
+        case selector(String)
         case objectiveCClass(name: String, location: CodeLocation)
         case swiftType(descriptor: CodeLocation)
         case swiftTypeName(SwiftTypeName)
@@ -161,6 +162,8 @@ public struct CodeReferenceIndex: Sendable {
             return .messageSend(selector: selector, receiver: receiver)
         case .superMessageSend(let selector):
             return .superMessageSend(selector: selector, className: className)
+        case .selector(let selector):
+            return .selector(selector)
         case .objectiveCClass(let name, let location):
             return .objectiveCClass(name: name, location: location)
         case .swiftType(let descriptor):
@@ -228,6 +231,8 @@ public struct CodeReferenceIndex: Sendable {
             case .superMessageSend(let selector, let superclassName):
                 target = .superMessageSend(selector: selector)
                 className = superclassName
+            case .selector(let selector):
+                target = .selector(selector)
             case .objectiveCClass(let name, let location):
                 target = .objectiveCClass(name: name, location: location)
             case .swiftType(let descriptor):
@@ -287,7 +292,7 @@ public struct CodeReferenceIndex: Sendable {
                     keyedTargets[.function(location), default: []].append(target)
                 case .importedSymbol(let name):
                     keyedTargets[.importedSymbol(name), default: []].append(target)
-                case .messageSend(let selector), .superMessageSend(let selector):
+                case .messageSend(let selector), .superMessageSend(let selector), .selector(let selector):
                     keyedTargets[.selector(selector), default: []].append(target)
                 case .objectiveCClass(let name, _):
                     keyedTargets[.objectiveCClass(name), default: []].append(target)
@@ -360,7 +365,7 @@ public struct CodeReferenceIndex: Sendable {
 
         private static func heapByteCount(of target: Target) -> Int {
             switch target {
-            case .importedSymbol(let name), .messageSend(let name), .superMessageSend(let name), .objectiveCClass(let name, _), .cString(let name), .constantString(let name):
+            case .importedSymbol(let name), .messageSend(let name), .superMessageSend(let name), .selector(let name), .objectiveCClass(let name, _), .cString(let name), .constantString(let name):
                 return heapByteCount(of: name)
             case .objectiveCInstanceVariable(let className, let name):
                 return heapByteCount(of: className) + heapByteCount(of: name)

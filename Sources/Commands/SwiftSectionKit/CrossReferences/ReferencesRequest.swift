@@ -22,6 +22,12 @@ public enum CrossReferenceSubject: Sendable, Hashable {
     case instanceVariable(className: String, name: String)
     /// A C string or constant `CFString` literal with these characters.
     case string(String)
+    /// A Swift struct, enum or class by its mangling — `7SwiftUI4TextV` — or
+    /// by a `$s…Mn`, `$s…Ma` or `$s…N` symbol of it (its descriptor, its
+    /// metadata accessor, its metadata), defined in the image `imageName`
+    /// names, or in whichever image exports its descriptor. A Swift class is
+    /// also referenced as the Objective-C class it is.
+    case swiftType(String, imageName: String?)
 }
 
 /// Which way `refs` follows a function.
@@ -40,8 +46,9 @@ public enum CrossReferenceOutputFormat: Sendable, Hashable {
 }
 
 /// `swift-section refs`: the code that references a selector, a symbol, a
-/// class, a function, an instance variable or a string — or, for a function,
-/// what it references — across a dyld shared cache or a set of files.
+/// class, a function, an instance variable, a string or a Swift type — or,
+/// for a function, what it references — across a dyld shared cache or a set
+/// of files.
 ///
 /// The images that can reference the subject are found first, from their
 /// symbol tables, selector references and linkage; only those are scanned,
@@ -90,6 +97,9 @@ public struct ReferencesRequest: Sendable, Equatable {
             scannedImageCount = 1
         case .callers(let keys, let candidates):
             references = await Self.references(to: keys, inImagesAt: candidates, analyzer: analyzer).filter(query.acceptsReference)
+            scannedImageCount = candidates.count
+        case .swiftTypes(let identities, let candidates):
+            references = await Self.references(toSwiftTypes: identities, inImagesAt: candidates, analyzer: analyzer)
             scannedImageCount = candidates.count
         }
         let referenceCount = references.count
@@ -145,6 +155,32 @@ public struct ReferencesRequest: Sendable, Equatable {
                 let results = ImageResults(count: candidates.count)
                 DispatchQueue.concurrentPerform(iterations: candidates.count) { position in
                     results.store(analyzer.references(to: keys, inImageAt: candidates[position]), at: position)
+                }
+                continuation.resume(returning: results.joined())
+            }
+        }
+    }
+
+    /// The references to any of `identities` in each candidate image,
+    /// concurrently, in candidate order. A type defined by two variants of a
+    /// framework has an identity each; a reference matching both is listed
+    /// once.
+    private static func references(toSwiftTypes identities: [SwiftTypeIdentity], inImagesAt candidates: [Int], analyzer: CrossReferenceAnalyzer) async -> [CodeReference] {
+        await withCheckedContinuation { continuation in
+            scanQueue.async {
+                let results = ImageResults(count: candidates.count)
+                DispatchQueue.concurrentPerform(iterations: candidates.count) { position in
+                    var seen = Set<CodeReference>()
+                    var references: [CodeReference] = []
+                    for identity in identities {
+                        for reference in analyzer.references(toSwiftType: identity, inImageAt: candidates[position]) where seen.insert(reference).inserted {
+                            references.append(reference)
+                        }
+                    }
+                    if identities.count > 1 {
+                        references.sort { ($0.instructionAddress, $0.function.address) < ($1.instructionAddress, $1.function.address) }
+                    }
+                    results.store(references, at: position)
                 }
                 continuation.resume(returning: results.joined())
             }
@@ -241,6 +277,10 @@ private struct ResolvedQuery {
     enum Search {
         case callers(keys: Set<CodeReferenceTable.Key>, candidates: [Int])
         case callees(CodeFunction)
+        /// A Swift type's references, matched by the analyzer's type query
+        /// rather than by table keys: they are filed by descriptor, and a
+        /// mangled name may spell the type.
+        case swiftTypes([SwiftTypeIdentity], candidates: [Int])
     }
 
     var search: Search
@@ -309,7 +349,59 @@ private struct ResolvedQuery {
             // Any image can hold the literal; none is ruled out.
             search = .callers(keys: [.cString(characters), .constantString(characters)], candidates: scope)
             jsonDescription = ["string": .string(characters)]
+        case .swiftType(let spelling, let imageName):
+            let mangling = Self.swiftTypeMangling(spelledAs: spelling)
+            let identities = try Self.swiftTypeIdentities(mangling: mangling, imageName: imageName, input: input, analyzer: analyzer)
+            var candidates = Set<Int>()
+            for identity in identities {
+                candidates.formUnion(analyzer.imageIndices(referencingSwiftType: identity, among: scope))
+            }
+            search = .swiftTypes(identities, candidates: candidates.sorted())
+            jsonDescription = ["swiftType": .string(mangling)]
         }
+    }
+
+    /// The nominal mangling `spelling` names: itself, or — for a symbol,
+    /// `$s` first and `_` before it optionally — the symbol without its
+    /// prefix and its descriptor (`Mn`), accessor (`Ma`) or metadata (`N`)
+    /// suffix. A mangling on its own ends with its kind (`V`, `C`, `O`, `a`
+    /// for a C type), never with one of those suffixes.
+    static func swiftTypeMangling(spelledAs spelling: String) -> String {
+        var mangling = Substring(spelling)
+        if mangling.hasPrefix("_") { mangling = mangling.dropFirst() }
+        guard mangling.hasPrefix("$s") else { return spelling }
+        mangling = mangling.dropFirst(2)
+        for suffix in ["Mn", "Ma", "N"] where mangling.hasSuffix(suffix) && mangling.count > suffix.count {
+            return String(mangling.dropLast(suffix.count))
+        }
+        return String(mangling)
+    }
+
+    /// The Swift types with `mangling`: in the image `imageName` names, or
+    /// wherever a `$s…Mn` symbol puts the descriptor, or — for a set of
+    /// files, which are few — in whichever file defines one.
+    private static func swiftTypeIdentities(mangling: String, imageName: String?, input: CrossReferenceInput, analyzer: CrossReferenceAnalyzer) throws -> [SwiftTypeIdentity] {
+        let allImages = 0 ..< analyzer.imageCount
+        let descriptors: [CodeLocation]
+        if let imageName {
+            descriptors = try analyzer.imageIndices(named: [imageName]).flatMap { analyzer.swiftTypeDescriptorLocations(withKey: mangling, inImageAt: $0) }
+        } else {
+            let exported = analyzer.locations(ofSymbolNamed: "_$s" + mangling + "Mn", among: allImages)
+            if !exported.isEmpty {
+                descriptors = exported
+            } else if case .files = input {
+                descriptors = allImages.flatMap { analyzer.swiftTypeDescriptorLocations(withKey: mangling, inImageAt: $0) }
+            } else {
+                throw CrossReferenceRequestError.swiftTypeNeedsImage(mangling: mangling)
+            }
+        }
+        var identities: [SwiftTypeIdentity] = []
+        for descriptor in descriptors {
+            guard let identity = analyzer.swiftTypeIdentity(ofDescriptorAt: descriptor), !identities.contains(identity) else { continue }
+            identities.append(identity)
+        }
+        guard !identities.isEmpty else { throw CrossReferenceRequestError.swiftTypeNotFound(mangling: mangling) }
+        return identities
     }
 
     private init(search: Search, acceptsReference: @escaping (CodeReference) -> Bool, jsonDescription: [String: CrossReferenceJSONValue]) {

@@ -71,6 +71,8 @@ struct StandaloneFileReferenceDumpTests {
             "class \(name) 0x\(String(location.address, radix: 16))"
         case .objectiveCInstanceVariable(let className, let name):
             "ivar \(className).\(name)"
+        case .selector(let selector):
+            "selector \(selector)"
         case .cString(let characters):
             "cString \(characters.debugDescription)"
         case .constantString(let characters):

@@ -129,7 +129,7 @@ extension CrossReferenceAnalyzer {
         case .address(let value)?:
             switch kind {
             case .selectorReference:
-                if let selector = cString(atRuntimeAddress: value) { return .messageSend(selector: selector, receiver: .unknown) }
+                if let selector = cString(atRuntimeAddress: value) { return .selector(selector) }
             case .protocolReference:
                 // `protocol_t`: `isa`, then the name.
                 if let nameAddress = memory.pointer(at: value &+ 8), let name = cString(atRuntimeAddress: nameAddress) { return .cString(name) }
