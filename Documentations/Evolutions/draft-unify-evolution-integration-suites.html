@@ -367,7 +367,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
       <tr><td>同上 · <code>EvolutionDumpKind</code> / <code>EvolutionDumpDestination</code> / <code>EvolutionDumpOutput</code></td><td><span class="tag tag-added">新增</span></td><td>四种输出、两种去处、一次输出的内容</td><td>测试体缩成一行</td><td class="numeric">1</td></tr>
       <tr><td><code>SwiftInterface/SwiftInterfaceTestSupport.swift</code> · <code>write(_:forImageGroup:suffix:fileExtension:)</code></td><td><span class="tag tag-changed">修改</span></td><td>第 1 步加一个收 <code>[EvolutionImage]</code> 的重载，第 2 步删掉收元组的旧重载</td><td>镜像组命名改用新值类型；分两步保证每步都能编</td><td class="numeric">1、2</td></tr>
       <tr><td><code>Evolution/EvolutionTests.swift</code> · <code>EvolutionTestSuite</code></td><td><span class="tag tag-added">新增</span></td><td>十个轴套件，43 个一行测试，沿用旧套件里仍成立的注释</td><td>合并后的套件</td><td class="numeric">2</td></tr>
-      <tr><td><code>SwiftDiffing/ABIEvolutionTests.swift</code></td><td><span class="tag tag-removed">删除</span></td><td>整个文件</td><td>被合并</td><td class="numeric">2</td></tr>
+      <tr><td><code>SwiftDiffing/ABIEvolutionTests.swift</code></td><td><span class="tag tag-removed">删除</span></td><td>整个文件（<code>SwiftDiffing/</code> 目录随之为空、删除）</td><td>被合并</td><td class="numeric">2</td></tr>
       <tr><td><code>SwiftInterface/SwiftEvolutionInterfaceBuilderTests.swift</code></td><td><span class="tag tag-removed">删除</span></td><td>整个文件</td><td>被合并</td><td class="numeric">2</td></tr>
       <tr><td><code>ObjCDiffing/ObjCAPIEvolutionTests.swift</code></td><td><span class="tag tag-removed">删除</span></td><td>整个文件（<code>ObjCDiffing/</code> 目录随之为空、删除）</td><td>被合并</td><td class="numeric">2</td></tr>
       <tr><td><code>Documentations/Internal/ABIEvolutionDesign.md:235-243</code></td><td><span class="tag tag-changed">修改</span></td><td>集成套件的路径与套件名改成新的</td><td>这段是现行说明，引用了被删的文件</td><td class="numeric">3</td></tr>
@@ -631,7 +631,7 @@ extension EvolutionDumpTests {
         <li><code>interfaceSpellsAvailabilityInItsOwnLanguagesSpelling</code></li>
       </ul>
     </li>
-    <li><strong>十个轴套件取代旧文件</strong>：<code>EvolutionTests.swift</code>；删三个旧文件与空的 <code>ObjCDiffing/</code>；删旧重载。
+    <li><strong>十个轴套件取代旧文件</strong>：<code>EvolutionTests.swift</code>；删三个旧文件与随之变空的 <code>SwiftDiffing/</code>、<code>ObjCDiffing/</code>；删旧重载。
       <ul>
         <li><code>everyAxisPipelinePairOfTheOldSuitesHasOneTestNow</code>（43 个）</li>
         <li><code>noSuiteReadsAnotherSuitesClassProperties</code></li>

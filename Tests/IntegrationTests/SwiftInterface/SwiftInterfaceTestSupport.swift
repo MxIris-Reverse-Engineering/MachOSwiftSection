@@ -54,27 +54,12 @@ extension SwiftInterfaceDumpTests {
         try string.write(to: rootDirectory.appending(path: fileName), atomically: true, encoding: .utf8)
     }
 
-    /// `write(_:for:suffix:fileExtension:)` for a version made up of a group
-    /// of images (evolution proposal `image-group-evolution`): named after
-    /// the primary image's build version and every image of the group,
-    /// joined by `+` (`…-SwiftUI+SwiftUICore-Evolution.txt`).
-    func write(
-        _ string: String,
-        forImageGroup images: [(imageName: MachOImageName, machO: MachOFile)],
-        suffix: String,
-        fileExtension: String = "swiftinterface"
-    ) throws {
-        guard let primaryImage = images.first else { return }
-        try rootDirectory.createDirectoryIfNeeded()
-        let imageGroupName = images.map { $0.machO.imagePath.lastPathComponent }.joined(separator: "+")
-        let fileName = "\(primaryImage.machO.loadCommands.buildVersionCommand!)-\(imageGroupName)-\(suffix).\(fileExtension)"
-        try string.write(to: rootDirectory.appending(path: fileName), atomically: true, encoding: .utf8)
-    }
-
     /// `write(_:for:suffix:fileExtension:)` for one version of an evolution
-    /// axis: named after the primary image's build version and every image
-    /// of the version, joined by `+` (`…-SwiftUI+SwiftUICore-Evolution.txt`).
-    /// A version of one image gets the name `write(_:for:…)` gives it.
+    /// axis, which may be a group of images (evolution proposal
+    /// `image-group-evolution`): named after the primary image's build
+    /// version and every image of the version, joined by `+`
+    /// (`…-SwiftUI+SwiftUICore-Evolution.txt`). A version of one image gets
+    /// the name `write(_:for:…)` gives it.
     func write(
         _ string: String,
         forImageGroup images: [EvolutionImage],
