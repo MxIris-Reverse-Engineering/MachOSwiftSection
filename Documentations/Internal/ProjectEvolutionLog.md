@@ -3658,7 +3658,7 @@
   - 读哪个框架交给具名配置：`CacheImagesConfiguration`（`.swiftUI`、`.swiftUICore`、`.appKit`、`.swiftUIGroup`、`.appKitGroup`；列多个镜像就是镜像组，不再单开套件）、`SimulatorFilePairConfiguration`（`.swiftUICore`、`.swiftUI`）、`XcodeFrameworkPairConfiguration`（`.dvtProductsUI`）。三个轴基类各读一个 `configuration` 类属性，原来的 `cacheImageName(s)`、`oldFileName` 一类属性删掉。接口套件的镜像本来就是基类的一个类属性，照旧。要看别的框架，加一份配置、把套件指过去。
   - 每个套件把这一类的输出各写一遍，Swift 与 ObjC 都写：接口 20 个、diff 24 个、演进 25 个测试；测试函数名与输出文件名不变。默认配置取覆盖面最广的：演进的两个 cache 套件读 SwiftUI 加 SwiftUICore，diff 与接口的 cache 套件读 AppKit。AppKit 的演进、SwiftUI 的模拟器 diff 不再默认跑，要看时改配置。
   - pack 门面那个测试改成取前三个版本、不足三个时打印一行说明；配置是镜像组时，它只印各版本的主镜像，不再与 `swiftInterfaceString` 逐字相同。
-- **落地模块**：`Tests/IntegrationTests/InspectionDumps/`（`VersionAxis.swift`、`InterfaceTests.swift`、`DiffTests.swift`、`EvolutionTests.swift`）。
+- **落地模块**：`Tests/IntegrationTests/InspectionDumps/`：`InterfaceTests.swift`、`DiffTests.swift`、`EvolutionTests.swift`；原来的 `VersionAxis.swift` 按职责拆成五个文件——`VersionAxis.swift`（轴的值类型）、`VersionAxisDumpTests.swift`（协议与共享的 ObjC 快照）、`MultiVersionDyldCacheImageTests.swift`、`CrossVersionMachOFileTests.swift`、`CrossVersionXcodeFrameworkTests.swift`（每个轴基类与它的配置类型一个文件）。
 - **文档**：[ABIEvolutionDesign.md](ABIEvolutionDesign.md) 的集成套件一段改用新的套件与配置名。没有新术语，不另写使用指南或实现说明；提案 0111 是落地时的快照，不改。
 - **验证**：只编译、没运行（IntegrationTests 不让 agent 跑）：Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests`。
 - **对应版本**：未发布（只改测试目标）。

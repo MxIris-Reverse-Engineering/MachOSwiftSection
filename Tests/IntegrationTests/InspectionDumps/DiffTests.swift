@@ -7,9 +7,10 @@ import SwiftSectionFixtureSupport
 
 /// Every diff the maintainer inspects, one suite per place the two versions
 /// come from. Each suite runs every diff output on one pair, which its
-/// `configuration` names — the version axis base classes the evolution
-/// suites read too (see `VersionAxis.swift`). To diff another framework, add
-/// a configuration and point the suite at it.
+/// `configuration` names; the pairs come from the version axis base classes
+/// the evolution suites read too (`MultiVersionDyldCacheImageTests`,
+/// `CrossVersionMachOFileTests`, `CrossVersionXcodeFrameworkTests`). To diff
+/// another framework, add a configuration and point the suite at it.
 enum Diff {
     /// The same file in two simulator runtimes (iOS 18.5 → 26.5).
     final class SimulatorFiles: CrossVersionMachOFileTests, nonisolated DiffDumpTests, @unchecked Sendable {
