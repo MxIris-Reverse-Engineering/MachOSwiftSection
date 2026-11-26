@@ -1,8 +1,8 @@
 # 愿景：不依赖 IDA 的逆向
 
 - **状态**: Active
-- **最后更新**: 2026-11-19
-- **相关提案**: [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)
+- **最后更新**: 2026-11-26
+- **相关提案**: [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md)、[draft-cross-reference-recall-gaps](../Evolutions/draft-cross-reference-recall-gaps.md)（召回补漏）
 
 愿景**不做具体决定**，它划定一个方向的边界与取舍原则，让后续每个提案不必重新论证一遍。
 具体怎么做写在各自的提案里。
@@ -135,6 +135,23 @@
        （建库时间未计）。
      - 没测到的：dyld shared cache 里的跨镜像引用。IDA 的弱点主要在这里（一个库只装得下几个镜像），而
        Binary Ninja 的 MCP 又没法加载 cache 镜像，这一场景要用户在界面里手动加载后才能比。
+   - **复测（2026-11-26）：本方向的工具在同一组样本上，代码引用召回 90.3%（476/527）；IDA 一次查询 97.0%、
+     两跳 99.4%。**
+     - 被测的是 `swift-section refs` 0.25.0（0097 之后交叉引用只有重构，行为与 `next` 相同），每个目标查一次。
+       标准答案与选目标的代码从 2026-11-18 那次的对话记录原样取回，复现出同一批 120 个目标；引用总数、目标列表与
+       当时逐项一致，IDA 一列按原规则重算仍是 97.0% / 99.4%，所以两次的数字可以直接比。
+     - 分类别：导入函数（91）、内部 `bl`（70）、字符串（46）全中，与 IDA 持平；selector 发送 95/97（IDA 一次
+       92）；ivar 31/32；ObjC 类引用 66/87（IDA 一次 76、两跳 84）；Swift 元数据访问器 77/104（IDA 104）。
+       49 条数据引用按 0097 的非目标不做，记 0。多报 1 条，核对后是真引用。单次查询 0.1–0.3 秒，不用建库。
+     - 漏掉的 51 条分五组：27 条是代码取了访问器的地址当函数指针用——分析器记成了 Swift 类型引用，但 CLI 没有
+       按类型查的入口；13 条是 `__objc_superrefs` 的载入，按设计不算类引用；8 条是 Swift 代码把 ObjC 类的 GOT
+       槽地址交给编译器生成的元数据辅助函数（ControlCenter 里有 554 处这种调用）；2 条是 selector 只当参数用
+       （`respondsToSelector:`、返回 selector 的函数）；1 条是 `adrp; add` 之后 `ldrsw [xN]` 读 ivar 偏移，
+       原因待查。
+     - 比 IDA 强的地方：页对齐的类对象、经 `ldr` 读 selref 的经典发送都一次查到。
+     - 后四组缺口的修复是提案
+       [draft-cross-reference-recall-gaps](../Evolutions/draft-cross-reference-recall-gaps.md)，修完的目标是
+       514/527（97.5%），剩下的就是 `super` 的那 13 条。测量脚本随那份提案进仓库，以后改交叉引用就拿它验收。
 2. **两个解码器分工。** 扫描整个 cache 的热路径用手写的 `ARM64InstructionDecoding`；给人和 agent 读的反汇编
    文本、需要完整操作数语义的地方（跳转表、寄存器追踪）用 swift-capstone。两者之间用对拍测试保持一致：
    同一批函数两边解码，结果逐条比。swift-capstone 因此要加大维护——拿 `otool -tV` 整镜像对拍正确性（重点是
@@ -197,6 +214,7 @@
 |------|------|------------------------|
 | [0097-offline-cross-references-and-symbolication](../Evolutions/0097-offline-cross-references-and-symbolication.md) | Implemented | 第 1 阶段：交叉引用与地址符号化扩展到磁盘文件和归档 cache，并接到 `swift-section` 与 RuntimeViewer 的 CLI / MCP；顺带把交叉引用按「我们选的方向」第 6 条拆成核心、ObjC、Swift 三层（真正迁出本库另写提案） |
 | [0098 move-cross-reference-layers](../Evolutions/0098-move-cross-reference-layers.md) | Accepted | 「我们选的方向」第 6 条：把 0097 拆出的核心层与地址解析、ARM64 解码搬进 MachOKitExtensions，ObjC 层搬进 MachOObjCSection，随本库 0.25.0 落地 |
+| [draft-cross-reference-recall-gaps](../Evolutions/draft-cross-reference-recall-gaps.md) | Accepted | 第 1 阶段的补漏：按「我们选的方向」第 1 条的复测（2026-11-26，90.3% 对 IDA 97.0%）补上四处缺口——CLI 按 Swift 类型查询、取 GOT 槽地址的类引用、selector 引用、一种 ivar 读法，并把取函数地址记成对函数的引用；测量脚本进仓库作为第 7 条「标准答案」的验收工具 |
 
 ---
 

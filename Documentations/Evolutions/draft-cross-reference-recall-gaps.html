@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - 交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> 交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-26</dd></div>
+    <div><dt>项目类型</dt><dd>库</dd></div>
+    <div><dt>原文</dt><dd><code>draft-cross-reference-recall-gaps.md</code></dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#decide">要你定</a></li>
+    <li><a href="#proposal">提议方案</a></li>
+    <li><a href="#architecture">架构图</a></li>
+    <li><a href="#map">改动地图</a></li>
+    <li><a href="#design">详细设计</a></li>
+    <li><a href="#research">调研</a></li>
+    <li><a href="#alternatives">替代方案</a></li>
+    <li><a href="#impact">影响</a></li>
+    <li><a href="#steps">落地步骤</a></li>
+    <li><a href="#log">决策日志</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p>2026-11-26 在 Finder 26.5.2 与 ControlCenter 26.7 上按 2026-11-18 的方法复测交叉引用的召回：<code>swift-section refs</code> 0.25.0 找到 527 条代码引用里的 476 条（90.3%），IDA 一次查询 97.0%、两跳 99.4%。漏掉的 51 条里，13 条是按设计不报的 <code>__objc_superrefs</code> 载入，其余 38 条来自四处缺口：CLI 没有按 Swift 类型查的入口（27 条）、Swift 代码把 ObjC 类的 GOT 槽地址交给编译器生成的元数据辅助函数时不认类引用（8 条）、selector 只被当作参数用时不报（2 条）、一种 ivar 偏移的读法漏记（1 条）。</p>
+  <p>本提案补齐这四处，改动跨 MachOKitExtensions（核心层）、MachOObjCSection（ObjC 层）、本库（Swift 层、门面与 CLI）和 RuntimeViewer（三处穷尽 switch），并把这次的测量脚本收进本库当验收工具：补完后同一组样本应到 514/527（97.5%），剩下的 13 条就是 <code>super</code> 的载入。第 5 步还把「取函数地址」记成对函数的引用——它不在这次测量的类别里，但决定了调用链能不能穿过 block 与闭包。</p>
+  <p>所属愿景：<a href="../Visions/ReverseEngineeringWithoutIDA.md">不依赖 IDA 的逆向</a>（第 1 阶段的补漏）。关联提案：<a href="0097-offline-cross-references-and-symbolication.md">0097</a>、<a href="0098-move-cross-reference-layers.md">0098</a>、RuntimeViewer <a href="https://github.com/MxIris-Reverse-Engineering/RuntimeViewer/blob/next/Documentations/Evolutions/0056-cross-references.md">0056</a>。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+  <div class="callout callout-note">
+    <p class="callout-title">没有待定的事</p>
+    <p>第 5 步已由用户决定并入；提案已批准，正在实现。</p>
+  </div>
+</section>
+
+<section id="proposal">
+  <h2>提议方案</h2>
+  <ol>
+    <li><strong>CLI 加 <code>--type</code>。</strong><code>swift-section refs --type &lt;mangling&gt;</code> 列出对一个 Swift 结构体、枚举或类的全部引用，写法与 RuntimeViewer 相同：类型的 mangling（<code>7SwiftUI4TextV</code>），也收它的描述符、访问器或元数据符号（<code>$s…Mn</code>、<code>$s…Ma</code>、<code>$s…N</code>，前面的 <code>_</code> 可有可无），去掉前后缀得到 mangling。定义它的镜像先按 <code>$s&lt;mangling&gt;Mn</code> 符号在全部镜像里找；找不到（缓存里的内部类型没有这个符号）时，独立文件逐个镜像按 key 找，dyld cache 要求用 <code>--type-image</code> 指定镜像，否则报错并提示。结果是这些身份在各候选镜像里的 <code>references(toSwiftType:inImageAt:)</code> 之并。</li>
+    <li><strong>取到引用槽地址也算一次槽引用（核心层）。</strong><code>adrp; add</code> 或 <code>adr</code> 算出的地址如果正好落在引用槽上（本镜像的 GOT 与会话报的引用节，或 cache 的共用 GOT 池），就在这条指令上按读槽处理：走 <code>noteSlotReference(fromSlot:at:)</code>，路线记 <code>.pointerSlot</code>，由会话认出类，或在独立文件里记成导入符号。寄存器记下「已作为槽引用记过」，之后经它做零位移载入时不再重记，免得 <code>adrp; add; ldr [x]</code> 在同一处用法上记两行；寄存器里的地址照常保留，后面的发送仍能认出类字面量接收者。与语言无关，不写任何运行时名字。</li>
+    <li><strong>selector 引用（ObjC 层）。</strong>查询里含 selector 键时，ObjC 会话也观察 <code>__objc_selrefs</code> 的载入：每次载入先记为待定；经典发送或 <code>super</code> 发送用 <code>x1</code> 里这个 selector 发送时，把它消掉；离开函数时，没被消掉的记成 selector 引用（新目标 <code>CodeReferenceTarget.selector(String)</code>，种类 <code>.reference</code>），归在已有的 <code>.selector</code> 表键下，<code>--selector</code> 因此同时返回发送与引用。libobjc 的发送入口（<code>objc_opt_respondsToSelector</code> 等）不消掉它，那里的 <code>x1</code> 是参数。核心层的会话协议加一个 <code>leaveFunction()</code>，默认什么都不做。经 <code>__objc_stubs</code> 的发送在代码里不载入 selref，不受影响。</li>
+    <li><strong>ivar 读法（核心层）。</strong>先用夹具编出这段指令写复现测试，确认修复前失败，再定位、修复。</li>
+    <li><strong>取函数地址记成对函数的引用（核心层）。</strong><code>adrp; add</code> 或 <code>adr</code> 算出的地址正好是本镜像函数表里的一个函数起点时，记一条 <code>.reference</code>，目标是 <code>.function(location)</code>，路线 <code>.addressMaterialization</code>；会话同时认领它（Swift 访问器）时两条都记。只在查询含函数键或建整表时找。<code>--function</code> 和 RuntimeViewer 的调用层级因此会列出取了它地址的代码：建栈上 block 的函数、把回调传给 <code>dispatch_async</code> / <code>CFRunLoop</code> 的函数、返回闭包的函数。这一步不在这次测量的类别里，用户决定并入。</li>
+    <li><strong>测量脚本进仓库，作为验收。</strong>收进 <code>Scripts/CrossReferenceRecall/</code>，<code>03_query_swift_section.py</code> 对 G 类改用 <code>--type</code>（mangling 取自访问器的符号名）；落地时重跑，结果写回愿景。</li>
+  </ol>
+  <details>
+    <summary>非目标（6 条）</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong><code>__objc_superrefs</code> 的载入不算类引用</strong>：0097 定下的理由不变（见「替代方案」）。这 13 条是验收目标与 100% 之间的差。</li>
+        <li><strong>数据引用</strong>（方法表的 IMP、vtable 与见证表里的函数、函数指针表、GOT 槽本身作为被引用者）：愿景第 3 阶段。</li>
+        <li><strong>按点分隔的 Swift 名字查类型</strong>（<code>ControlCenter.Foo</code>）：要知道每一层的种类（结构体、类、枚举）才能拼出 mangling，先只收 mangling 与符号。</li>
+        <li><strong>RuntimeViewer 显示 selector 引用</strong>：先在三处 switch 里补 case 并过滤掉，与 0097 处理新目标的做法一致；界面上怎么显示另提。第 5 步若并入，调用层级里取地址的行会和调用行一样显示，区分显示也另提。</li>
+        <li><strong>按辅助函数形状认 ObjC 类</strong>（见「替代方案」）。</li>
+        <li><strong>x86_64</strong>；<strong>Binary Ninja 一列不重测</strong>（2026-11-18 的结论是它经 MCP 只有 67.6%，不作参照）。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+    <li><i class="swatch swatch-kept"></i>不变</li>
+  </ul>
+  <h3>扫描一个函数时的分派</h3>
+  <div class="figure">
+  <svg viewBox="0 0 1000 516" role="img" aria-label="Scan dispatch changes">
+    <rect class="group" x="10" y="10" width="470" height="410" rx="10"/>
+    <text class="group-label" x="22" y="30">MachOCodeReferences · ReferenceScanner.scanFunction</text>
+    <rect class="box-changed" x="25" y="44" width="440" height="40" rx="6"/><text x="35" y="62">adrp / add / adr → noteAddress(address, destination)</text><text class="caption" x="35" y="78">takes the register it built into</text>
+    <rect class="box-added" x="45" y="92" width="420" height="40" rx="6"/><text x="55" y="110">+ address in a reference slot → noteSlotReference</text><text class="caption" x="55" y="126">own GOT, classrefs, cache GOT pool; mark the register</text>
+    <rect class="box-added" x="45" y="140" width="420" height="40" rx="6"/><text x="55" y="158">+ address == function start (step 5)</text><text class="caption" x="55" y="174">recordFunctionAddressReference</text>
+    <rect class="box-kept" x="45" y="188" width="420" height="30" rx="6"/><text x="55" y="208">other data → sessions.recordAddressReference</text>
+    <rect class="box-changed" x="25" y="228" width="440" height="40" rx="6"/><text x="35" y="246">ldr / ldrsw [base, #d] → noteLoad / noteWatchedLoad</text><text class="caption" x="35" y="262">+ skip when base is a recorded slot address and d == 0</text>
+    <rect class="box-added" x="25" y="276" width="440" height="40" rx="6"/><text x="35" y="294">RegisterFile + recordedSlotMask</text><text class="caption" x="35" y="310">cleared on overwrite, compared on meet; address kept</text>
+    <rect class="box-added" x="25" y="324" width="440" height="40" rx="6"/><text x="35" y="342">+ function scanned → session.leaveFunction()</text><text class="caption" x="35" y="358">CodeReferenceRecognitionSession, empty by default</text>
+    <rect class="box-changed" x="25" y="372" width="440" height="36" rx="6"/><text x="35" y="395">ivar load at a merge point (step 4 fixes a miss)</text>
+
+    <rect class="group" x="520" y="10" width="470" height="300" rx="10"/>
+    <text class="group-label" x="532" y="30">ObjCCodeReferences · session</text>
+    <rect class="box-changed" x="535" y="44" width="440" height="40" rx="6"/><text x="545" y="62">noteWatchedSlotLoad</text><text class="caption" x="545" y="78">__objc_ivar → ivar reference</text>
+    <rect class="box-added" x="555" y="92" width="420" height="40" rx="6"/><text x="565" y="110">+ __objc_selrefs → pending selector load</text><text class="caption" x="565" y="126">only when findsSelectorReferences</text>
+    <rect class="box-changed" x="535" y="140" width="440" height="40" rx="6"/><text x="545" y="158">recordCallStandIn</text><text class="caption" x="545" y="174">classic / super send + consumes the pending load behind x1</text>
+    <rect class="box-kept" x="555" y="188" width="420" height="30" rx="6"/><text x="565" y="208">entry point (objc_opt_respondsToSelector) keeps it</text>
+    <rect class="box-added" x="535" y="226" width="440" height="40" rx="6"/><text x="545" y="244">+ leaveFunction → recordSelectorReference</text><text class="caption" x="545" y="260">each pending load left over</text>
+    <rect class="box-kept" x="535" y="274" width="440" height="28" rx="6"/><text x="545" y="293">recordClassReference (now also from slot addresses)</text>
+
+    <rect class="group" x="520" y="326" width="470" height="150" rx="10"/>
+    <text class="group-label" x="532" y="346">CrossReferenceAnalysis</text>
+    <rect class="box-changed" x="535" y="358" width="440" height="30" rx="6"/><text x="545" y="378">CodeReferenceTarget + .selector(String)</text>
+    <rect class="box-changed" x="535" y="394" width="440" height="30" rx="6"/><text x="545" y="414">ReferenceCollector · Table · Index</text>
+    <rect class="box-changed" x="535" y="430" width="440" height="30" rx="6"/><text x="545" y="450">AddressSymbolication: selref slot → .selector</text>
+
+    <rect class="group" x="10" y="436" width="470" height="70" rx="10"/>
+    <text class="group-label" x="22" y="456">RuntimeViewer</text>
+    <rect class="box-changed" x="25" y="466" width="440" height="30" rx="6"/><text x="35" y="486">CrossReferenceQuery: three switches + .selector (hidden)</text>
+
+    <path class="arrow" d="M 465 112 L 535 290"/>
+    <path class="arrow" d="M 465 344 L 535 246"/>
+    <path class="arrow" d="M 465 248 L 535 64"/>
+    <path class="arrow" d="M 755 302 L 755 358"/>
+    <path class="arrow arrow-weak" d="M 535 374 L 465 481"/>
+  </svg>
+  </div>
+  <p class="figure-caption">核心层两处新增的地址判断与一个寄存器位；ObjC 会话多观察 <code>__objc_selrefs</code>，发送消掉、离开函数时冲刷；门面加一个目标；RuntimeViewer 只补 switch。</p>
+
+  <h3>CLI 的查询分支</h3>
+  <div class="figure">
+  <svg viewBox="0 0 1000 370" role="img" aria-label="refs query branches">
+    <rect class="box-changed" x="20" y="20" width="300" height="44" rx="6"/><text x="30" y="38">ReferencesCommand</text><text class="caption" x="30" y="55">+ --type, --type-image; --selector help</text>
+    <rect class="box-changed" x="20" y="90" width="300" height="44" rx="6"/><text x="30" y="108">ReferencesRequest</text><text class="caption" x="30" y="125">CrossReferenceSubject + .swiftType</text>
+    <rect class="box-kept" x="360" y="20" width="340" height="70" rx="6"/><text x="370" y="40">keys path (unchanged)</text><text class="caption" x="370" y="58">--selector: sends + selector refs (step 3)</text><text class="caption" x="370" y="74">--function: calls + address-taking (step 5)</text>
+    <rect class="box-added" x="360" y="110" width="340" height="70" rx="6"/><text x="370" y="130">+ swiftTypes path</text><text class="caption" x="370" y="148">normalize: strip _ / $s, Mn / Ma / N</text><text class="caption" x="370" y="164">defining images, else --type-image</text>
+    <rect class="box-kept" x="730" y="20" width="255" height="40" rx="6"/><text x="740" y="38">references</text><text class="caption" x="740" y="53">(to:inImageAt:)</text>
+    <path class="arrow" d="M 170 64 L 170 90"/>
+    <path class="arrow" d="M 320 104 L 360 55"/>
+    <path class="arrow" d="M 320 120 L 360 145"/>
+    <path class="arrow" d="M 700 50 L 730 40"/>
+    <rect class="box-kept" x="730" y="110" width="255" height="40" rx="6"/><text x="740" y="128">locations</text><text class="caption" x="740" y="143">(ofSymbolNamed:among:)</text>
+    <path class="arrow" d="M 700 130 L 730 130"/>
+    <rect class="box-kept" x="730" y="158" width="255" height="40" rx="6"/><text x="740" y="176">swiftTypeDescriptorLocations</text><text class="caption" x="740" y="191">(withKey:inImageAt:)</text>
+    <path class="arrow" d="M 700 138 L 730 178"/>
+    <rect class="box-kept" x="730" y="206" width="255" height="40" rx="6"/><text x="740" y="224">swiftTypeIdentity</text><text class="caption" x="740" y="239">(ofDescriptorAt:)</text>
+    <path class="arrow" d="M 700 146 L 730 226"/>
+    <rect class="box-kept" x="730" y="254" width="255" height="40" rx="6"/><text x="740" y="272">imageIndices</text><text class="caption" x="740" y="287">(referencingSwiftType:among:)</text>
+    <path class="arrow" d="M 700 154 L 730 274"/>
+    <rect class="box-kept" x="730" y="302" width="255" height="40" rx="6"/><text x="740" y="320">references</text><text class="caption" x="740" y="335">(toSwiftType:inImageAt:)</text>
+    <path class="arrow" d="M 700 162 L 730 322"/>
+  </svg>
+  </div>
+  <p class="figure-caption">新分支照搬 RuntimeViewer 按类型查引用的那条路：找定义镜像 → 描述符 → 身份 → 预筛 → 每个候选镜像查一次，取并集。</p>
+</section>
+
+<section id="map">
+  <h2>改动地图</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+    <tbody>
+      <tr><td>本库 <code>Scripts/CrossReferenceRecall/</code>（<code>01_prepare.sh</code>、<code>02a</code>–<code>02e</code>、<code>03_query_swift_section.py</code>、<code>04_score.py</code>、<code>run_all.sh</code>、<code>README.md</code>）</td><td><span class="tag tag-added">新增</span></td><td>2026-11-26 的测量脚本；README 写样本路径、怎么跑、怎么读结果、基线数字</td><td>验收工具不能再丢</td><td class="numeric">0</td></tr>
+      <tr><td>本库 <code>Scripts/CrossReferenceRecall/03_query_swift_section.py</code></td><td><span class="tag tag-changed">修改</span></td><td>G 类访问器改用 <code>--type</code>；可选 <code>--swift-section</code> 参数指定被测的二进制</td><td>第 1 步之后 G 类该走类型查询</td><td class="numeric">1</td></tr>
+      <tr><td>本库 <code>Sources/Commands/SwiftSectionKit/CrossReferences/ReferencesRequest.swift</code> · <code>CrossReferenceSubject</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>.swiftType(String, imageName: String?)</code>；<code>ResolvedQuery</code> 加按类型的查询分支；写法归一与定义镜像的查找</td><td><code>--type</code> 的库侧</td><td class="numeric">1</td></tr>
+      <tr><td>本库 <code>ReferencesRequest.swift</code> · <code>CrossReferenceRequestError</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>swiftTypeNotFound(String)</code>、<code>swiftTypeNeedsImage(String)</code></td><td>找不到类型、缓存里的内部类型</td><td class="numeric">1</td></tr>
+      <tr><td>本库 <code>Sources/Executables/swift-section/Commands/ReferencesCommand.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>--type</code>、<code>--type-image</code>；<code>validate()</code> 计入新主体；<code>--selector</code> 的帮助文字改成「发送与引用」</td><td>CLI 入口</td><td class="numeric">1、3</td></tr>
+      <tr><td>本库 <code>Sources/Executables/swift-section/…/CommandLineErrorTranslation</code></td><td><span class="tag tag-changed">修改</span></td><td>两个新错误的措辞</td><td>用法错误照旧是退出码 64</td><td class="numeric">1</td></tr>
+      <tr><td>本库 <code>Sources/Commands/SwiftSectionKit/CrossReferences/CrossReferenceFormatting.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.selector</code> 目标的文字（<code>selector &lt;名字&gt;</code>）与 JSON（<code>{"selector": …}</code>）</td><td>新目标的输出</td><td class="numeric">3</td></tr>
+      <tr><td>本库 <code>Sources/Analysis/CrossReferenceAnalysis/Models/CodeReference.swift</code> · <code>CodeReferenceTarget</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>case selector(String)</code></td><td>selector 引用的目标</td><td class="numeric">3</td></tr>
+      <tr><td>本库 <code>Models/CodeReferenceTable.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>.selector</code> 目标归 <code>.selector</code> 键</td><td><code>--selector</code> 与 RuntimeViewer 的 selector 查询都能取到</td><td class="numeric">3</td></tr>
+      <tr><td>本库 <code>Models/CodeReferenceIndex.swift</code> · <code>Target</code></td><td><span class="tag tag-changed">修改</span></td><td>常驻索引加 <code>.selector</code> 组</td><td>RuntimeViewer 常驻用的紧凑索引要能存</td><td class="numeric">3</td></tr>
+      <tr><td>本库 <code>CrossReferenceAnalyzer.swift</code> · <code>ReferenceCollector</code></td><td><span class="tag tag-changed">修改</span></td><td>实现 <code>recordSelectorReference</code>；<code>findsSelectorReferences</code>（键含 <code>.selector</code> 或建整表）传给 ObjC 会话；第 5 步实现 <code>recordFunctionAddressReference</code> 与开关</td><td>门面拼装</td><td class="numeric">3、5</td></tr>
+      <tr><td>本库 <code>Symbolication/AddressSymbolication.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>selref 槽的含义从 <code>.messageSend(selector:receiver: .unknown)</code> 改为 <code>.selector</code></td><td>0097 第 6 步留的说明「目标类型里没有单独的 selector」不再成立</td><td class="numeric">3</td></tr>
+      <tr><td>本库 <code>AgentPlugins/swift-section/skills/swift-section-cli/references/cross-references.md</code>（及 <code>SKILL.md</code> 里列到 <code>refs</code> 选项的地方）</td><td><span class="tag tag-changed">修改</span></td><td><code>--type</code>、<code>--type-image</code>、selector 引用、取槽地址的类引用；第 5 步的取地址行</td><td>项目规定：改 CLI 同批改 skill</td><td class="numeric">1、3、5</td></tr>
+      <tr><td>本库 <code>README.md</code> 的 <code>refs</code> 一节</td><td><span class="tag tag-changed">修改</span></td><td>加 <code>--type</code> 的例子</td><td>对外文档</td><td class="numeric">1</td></tr>
+      <tr><td>本库 <code>Tests/SwiftSectionKitTests/…</code>（<code>ReferencesRequestSwiftTypeTests.swift</code>）</td><td><span class="tag tag-added">新增</span></td><td><code>--type</code> 的解析、写法、错误</td><td>第 1 步行为</td><td class="numeric">1</td></tr>
+      <tr><td>本库 <code>Tests/CrossReferenceAnalysisTests/…</code>（<code>SelectorReferenceTests.swift</code>、<code>SlotAddressReferenceTests.swift</code>，第 5 步 <code>FunctionAddressReferenceTests.swift</code>）</td><td><span class="tag tag-added">新增</span></td><td>经门面的行为测试</td><td>各步行为</td><td class="numeric">2、3、5</td></tr>
+      <tr><td>本库 <code>Documentations/Internal/Modules/CrossReferenceAnalysis.md</code></td><td><span class="tag tag-changed">修改</span></td><td>引用种类、类引用、selector、<code>--type</code>、测试锚点；召回一节指向愿景</td><td>总说明</td><td class="numeric">1–5</td></tr>
+      <tr><td>本库 <code>Documentations/Visions/ReverseEngineeringWithoutIDA.md</code></td><td><span class="tag tag-changed">修改</span></td><td>复测段（本批已写）；落地后补上修复后的数字</td><td>愿景是活文档</td><td class="numeric">6</td></tr>
+      <tr><td>MachOKitExtensions <code>Sources/Analysis/MachOCodeReferences/Scanning/ReferenceScanner.swift</code> · <code>noteAddress</code></td><td><span class="tag tag-changed">修改</span></td><td>落在引用槽上的地址改走 <code>noteSlotReference</code>；需要知道目标寄存器，签名加 <code>destination</code></td><td>第 2 步</td><td class="numeric">2</td></tr>
+      <tr><td>MachOKitExtensions <code>ReferenceScanner.swift</code> · <code>scanFunction</code> 的载入分支</td><td><span class="tag tag-changed">修改</span></td><td>经已记过槽引用的寄存器做零位移载入时不重记</td><td>防重复</td><td class="numeric">2</td></tr>
+      <tr><td>MachOKitExtensions <code>ReferenceScanner.swift</code>（具体位置待第 4 步的测试定位）</td><td><span class="tag tag-changed">修改</span></td><td>修 ivar 漏记</td><td>第 4 步</td><td class="numeric">4</td></tr>
+      <tr><td>MachOKitExtensions <code>ReferenceScanner.swift</code> · <code>noteAddress</code></td><td><span class="tag tag-changed">修改</span></td><td>落在函数起点的地址记成对函数的引用</td><td>第 5 步</td><td class="numeric">5</td></tr>
+      <tr><td>MachOKitExtensions <code>Sources/Analysis/MachOCodeReferences/Scanning/RegisterFile.swift</code></td><td><span class="tag tag-changed">修改</span></td><td>加一个按寄存器的位 <code>recordedSlotMask</code>：这个地址已作为槽引用记过；改写寄存器时清掉，汇合时比较</td><td>防重复，且不丢地址（现成的 <code>setTag</code> 会把地址状态覆盖掉）</td><td class="numeric">2</td></tr>
+      <tr><td>MachOKitExtensions <code>Recognition/CodeReferenceRecognition.swift</code> · <code>CodeReferenceRecognitionSession</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>func leaveFunction()</code>，协议扩展给空实现；扫描器在每个函数扫完时调用</td><td>selector 待定载入的冲刷点</td><td class="numeric">3</td></tr>
+      <tr><td>MachOKitExtensions <code>CodeReferenceRecognition.swift</code> · <code>CodeReferenceRecording</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>recordFunctionAddressReference(toFunctionAt:at:)</code></td><td>第 5 步</td><td class="numeric">5</td></tr>
+      <tr><td>MachOKitExtensions <code>Tests/MachOCodeReferencesTests/…</code>（<code>SlotAddressScanTests.swift</code>、<code>InstanceVariableMergePointTests.swift</code>）</td><td><span class="tag tag-added">新增</span></td><td>用 <code>FixtureCompiler</code> 编带内联汇编的夹具，钉住指令序列</td><td>复现测试</td><td class="numeric">2、4</td></tr>
+      <tr><td>MachOKitExtensions <code>Documentations/Internal/MachOCodeReferences.md</code></td><td><span class="tag tag-changed">修改</span></td><td>新契约与测试</td><td>实现说明</td><td class="numeric">2、4、5</td></tr>
+      <tr><td>MachOObjCSection <code>Sources/ObjCCodeReferences/ObjCCodeReferenceRecognizer.swift</code> · <code>ObjCCodeReferenceRecording</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>recordSelectorReference(selector:at:)</code></td><td>第 3 步</td><td class="numeric">3</td></tr>
+      <tr><td>MachOObjCSection <code>ObjCCodeReferenceRecognizer.swift</code> · 会话</td><td><span class="tag tag-changed">修改</span></td><td><code>findsSelectorReferences</code> 开关；<code>watchedSlotRanges</code> 加 <code>selectorReferenceRange</code>；待定载入、发送消掉、<code>leaveFunction</code> 冲刷</td><td>第 3 步</td><td class="numeric">3</td></tr>
+      <tr><td>MachOObjCSection <code>Tests/ObjCCodeReferencesTests/…</code>（<code>SelectorReferenceRecognitionTests.swift</code>）</td><td><span class="tag tag-added">新增</span></td><td>ObjC 夹具：<code>respondsToSelector:</code>、<code>setAction:</code>、经典发送不重复</td><td>第 3 步</td><td class="numeric">3</td></tr>
+      <tr><td>MachOObjCSection <code>Documentations/Internal/ObjCCodeReferences.md</code></td><td><span class="tag tag-changed">修改</span></td><td>selector 引用的认法</td><td>实现说明</td><td class="numeric">3</td></tr>
+      <tr><td>RuntimeViewer <code>RuntimeViewerCore/Sources/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift</code></td><td><span class="tag tag-changed">修改</span></td><td><code>:92</code>、<code>:727</code>、<code>:949</code> 三处 switch 补 <code>.selector</code>（不显示）；selector 查询结果滤掉 <code>.selector</code> 目标</td><td>穷尽 switch 会编译失败；界面先不变</td><td class="numeric">3</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details>
+    <summary>第 1 步：<code>--type</code></summary>
+    <div class="details-body">
+<pre><code><span class="token-keyword">public enum</span> <span class="token-type">CrossReferenceSubject</span>: <span class="token-type">Sendable</span>, <span class="token-type">Hashable</span> {
+    <span class="token-comment">// … the six existing cases …</span>
+    <span class="token-comment">/// A Swift struct, enum or class by its mangling — `7SwiftUI4TextV` — or a</span>
+    <span class="token-comment">/// `$s…Mn`, `$s…Ma` or `$s…N` symbol of it, defined in the image</span>
+    <span class="token-comment">/// `imageName` names, or in whichever image exports its descriptor.</span>
+    <span class="token-keyword">case</span> swiftType(<span class="token-type">String</span>, imageName: <span class="token-type">String</span>?)
+}</code></pre>
+<pre><code><span class="token-comment">// ReferencesCommand</span>
+<span class="token-macro">@Option</span>(name: .customLong(<span class="token-string">"type"</span>), help: <span class="token-string">"Every reference to the Swift struct, enum or class with this mangling (7SwiftUI4TextV), or to the one a $s…Mn, $s…Ma or $s…N symbol names."</span>)
+<span class="token-keyword">var</span> swiftType: <span class="token-type">String</span>?
+
+<span class="token-macro">@Option</span>(name: .customLong(<span class="token-string">"type-image"</span>), help: <span class="token-string">"The image that defines --type's type, by path or file name: needed in a dyld shared cache for a type no image exports."</span>)
+<span class="token-keyword">var</span> swiftTypeImage: <span class="token-type">String</span>?</code></pre>
+      <ul>
+        <li><code>validate()</code>：<code>--type</code> 计入「恰好一个主体」；<code>--type-image</code> 只能和 <code>--type</code> 一起用（与 <code>--function-image</code> 同样的报错写法）。</li>
+        <li>写法归一：去掉前导 <code>_</code>，去掉前导 <code>$s</code>；末尾依次试 <code>Mn</code>、<code>Ma</code>、<code>N</code>，去掉后剩下的部分能 demangle 成一个名义类型才算数，否则当作原样的 mangling。名义类型的 mangling 以种类字母（<code>V</code>、<code>C</code>、<code>O</code>，<code>__C</code> 类型的 <code>a</code> 等）结尾，不会被误剥。</li>
+        <li>找定义镜像：<code>--type-image</code> 给了就只在它里面找；否则 <code>locations(ofSymbolNamed: "_$s" + key + "Mn", among: 全部镜像)</code>；仍然没有时，独立文件逐个镜像 <code>swiftTypeDescriptorLocations(withKey:inImageAt:)</code>，dyld cache 抛 <code>swiftTypeNeedsImage</code>（逐镜像算 key 要几分钟）。macOS 与 Mac Catalyst 两个变体都定义时，两个身份都查，结果取并集。</li>
+        <li>查询：<code>ResolvedQuery.Search</code> 加 <code>case swiftTypes([SwiftTypeIdentity], candidates: [Int])</code>；<code>run(output:)</code> 在候选镜像上并发调 <code>references(toSwiftType:inImageAt:)</code>，与 <code>.callers</code> 的并发写法相同（<code>ReferencesRequest.swift:142</code>）。<code>--in-image</code> 照旧限定扫描范围。</li>
+        <li>输出：目标照已有的 <code>swiftType</code> / <code>swiftTypeName</code> / <code>objectiveCClass</code>（Swift 类也比它的 ObjC 类对象位置）格式输出，不新增格式。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>第 2 步：取到引用槽地址</summary>
+    <div class="details-body">
+<pre><code><span class="token-comment">// ReferenceScanner (MachOCodeReferences)</span>
+<span class="token-keyword">private mutating func</span> noteAddress(<span class="token-keyword">_</span> address: <span class="token-type">UInt64</span>, builtInto destination: <span class="token-type">Int</span>, at site: <span class="token-type">ScanSite</span>, mayNameAString: <span class="token-type">Bool</span>) {
+    <span class="token-keyword">if</span> isReferenceSlot(address) {
+        noteSlotReference(fromSlot: address, at: site.reached(by: .pointerSlot))
+        registers.markRecordedSlotAddress(of: destination)
+        <span class="token-keyword">return</span>
+    }
+    <span class="token-comment">// … unchanged …</span>
+}
+
+<span class="token-comment">/// A slot of this image's GOT or of a session's reference sections, or one</span>
+<span class="token-comment">/// of the GOT pool the shared cache keeps outside every image.</span>
+<span class="token-keyword">private func</span> isReferenceSlot(<span class="token-keyword">_</span> address: <span class="token-type">UInt64</span>) -&gt; <span class="token-type">Bool</span></code></pre>
+      <ul>
+        <li><code>isReferenceSlot</code> 复用 <code>noteSlotReference</code> 开头的判断（<code>referenceSlotRanges</code> 与 <code>images.isSlotOutsideEveryImage</code>），两处共用一个私有函数，免得以后只改一处。</li>
+        <li>载入分支：<code>load.displacement == 0</code> 且 <code>registers.isRecordedSlotAddress(load.base)</code> 时不调 <code>noteLoad</code>，寄存器照常更新（目标寄存器仍是 <code>.loadedFromSlot</code>，类字面量接收者照认）。</li>
+        <li><code>RegisterFile</code> 的 <code>Contents</code> 加 <code>recordedSlotMask</code>，与 <code>constantMask</code> 同样处理：<code>overwrite</code> 清位，<code>Snapshot.agrees</code> 比较它，<code>meet</code> 不一致时清掉。不用现成的 <code>setTag</code>：它把寄存器改成 <code>.tagged</code> 状态，地址就没了（<code>RegisterFile.swift:83</code>）。</li>
+        <li>只在 <code>looksForAddressReferences</code> 为真时做，与现状一致：只查 selector 或函数时不付这份代价。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>第 3 步：selector 引用</summary>
+    <div class="details-body">
+<pre><code><span class="token-comment">// MachOObjCSection, ObjCCodeReferences</span>
+<span class="token-macro">@_spi</span>(Internals) <span class="token-keyword">public protocol</span> <span class="token-type">ObjCCodeReferenceRecording</span>: <span class="token-type">CodeReferenceRecording</span> {
+    <span class="token-comment">// … existing …</span>
+    <span class="token-comment">/// A load of the selector reference to `selector` that no send used:</span>
+    <span class="token-comment">/// the selector handed on as data — to `respondsToSelector:`,</span>
+    <span class="token-comment">/// `performSelector:`, a control's action.</span>
+    <span class="token-keyword">func</span> recordSelectorReference(selector: <span class="token-type">String</span>, at site: <span class="token-type">ScanSite</span>)
+}
+
+<span class="token-comment">// MachOKitExtensions, MachOCodeReferences</span>
+<span class="token-macro">@_spi</span>(Internals) <span class="token-keyword">public protocol</span> <span class="token-type">CodeReferenceRecognitionSession</span>: <span class="token-type">AnyObject</span> {
+    <span class="token-comment">// … existing …</span>
+    <span class="token-comment">/// The scan is done with the function it last entered.</span>
+    <span class="token-keyword">func</span> leaveFunction()
+}
+
+<span class="token-keyword">extension</span> <span class="token-type">CodeReferenceRecognitionSession</span> {
+    <span class="token-macro">@_spi</span>(Internals) <span class="token-keyword">public func</span> leaveFunction() {}
+}
+
+<span class="token-comment">// MachOSwiftSection, CrossReferenceAnalysis</span>
+<span class="token-keyword">public enum</span> <span class="token-type">CodeReferenceTarget</span>: <span class="token-type">Hashable</span>, <span class="token-type">Sendable</span> {
+    <span class="token-comment">// … existing …</span>
+    <span class="token-comment">/// A selector the code loads but sends no message with: it hands the</span>
+    <span class="token-comment">/// selector on — to `respondsToSelector:`, `performSelector:`, a</span>
+    <span class="token-comment">/// control's action.</span>
+    <span class="token-keyword">case</span> selector(<span class="token-type">String</span>)
+}</code></pre>
+      <ul>
+        <li>ObjC 会话：<code>findsSelectorReferences</code> 为真时 <code>watchedSlotRanges</code> 加上 <code>sections.selectorReferenceRange</code>（<code>ObjCImageSections</code> 已有这个字段）。<code>noteWatchedSlotLoad</code> 落在它上面时读出 selector 名，追加到 <code>pendingSelectorLoads: [(slot: UInt64, site: ScanSite)]</code>。</li>
+        <li>消掉：<code>recordCallStandIn</code> 的 <code>.classicSend</code> 与 <code>.superSend</code> 分支取 <code>registers.slotAddress(of: 1)</code>，从 <code>pendingSelectorLoads</code> 末尾往前删掉第一个同槽的条目。<code>.entryPoint</code> 与 <code>.selector</code>（<code>__objc_stubs</code>）不删。</li>
+        <li>冲刷：<code>leaveFunction()</code> 把剩下的逐条交给 <code>recordSelectorReference</code>，清空数组。<code>enterFunction</code> 也清一次，防扫描器提前返回时漏冲刷（<code>scanFunction</code> 的 <code>guard</code> 早退）。</li>
+        <li>顺序：冲刷发生在函数末尾，所以一个函数里 selector 引用排在该函数的其它引用之后；收集器按地址排序后输出，不影响结果顺序（实现时核对 <code>ReferenceCollector</code> 是否排序，若不排则在冲刷前按地址插入）。</li>
+        <li>门面：<code>ReferenceCollector.findsSelectorReferences</code> = 查询键含 <code>.selector</code>，或建整表。<code>recordSelectorReference</code> → <code>keep(.selector(selector), at: site)</code>；<code>CodeReferenceTable</code> 把它归在 <code>.selector(selector)</code> 键下。</li>
+        <li>符号化：selref 槽的含义改为 <code>.selector(name)</code>（<code>AddressSymbolication.swift</code>），<code>swift-section symbolicate</code> 对 selref 槽的输出从 <code>send &lt;名字&gt;</code> 变成 <code>selector &lt;名字&gt;</code>。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>第 4 步：ivar</summary>
+    <div class="details-body">
+      <ul>
+        <li>夹具：一个 ObjC 类，三个 ivar；一个方法用 <code>__asm__</code> 写出与 Finder <code>0x1002bba08</code> 同构的序列——前面几个分支 <code>b</code> 到同一个标签，标签处 <code>adrp x9, _OBJC_IVAR_$_…@PAGE; add x9, x9, _OBJC_IVAR_$_…@PAGEOFF; ldrsw x9, [x9]; str w8, [x0, x9]</code>。另写一个不经汇合点的对照方法。</li>
+        <li>测试先红（经汇合点的那条找不到、对照那条找到），由此确认是汇合还是别的原因，再修。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>第 5 步：取函数地址</summary>
+    <div class="details-body">
+<pre><code><span class="token-comment">// MachOKitExtensions, CodeReferenceRecording</span>
+<span class="token-comment">/// Code built the address of the function at the unslid `address` — to call</span>
+<span class="token-comment">/// it later, sign it and hand it on, or put it in a block.</span>
+<span class="token-keyword">func</span> recordFunctionAddressReference(toFunctionAt address: <span class="token-type">UInt64</span>, at site: <span class="token-type">ScanSite</span>)</code></pre>
+      <ul>
+        <li><code>noteAddress</code> 里 <code>isCode</code> 且这个地址是函数起点时记一条；会话随后照常被问（Swift 会话认领访问器，两条都记）。开关 <code>recordsFunctionAddressReferences</code> 由门面按查询键（含 <code>.function</code>）或建整表给出。</li>
+        <li>判断是不是函数起点：<code>ImageFunctionTable.functionIndex(containing:)</code>（<code>ImageFunctionTable.swift:249</code>）取到的函数起点等于这个地址。</li>
+        <li>门面把它记成 <code>kind == .reference</code>、目标 <code>.function(location)</code>，归 <code>.function</code> 键。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <details open>
+    <summary>分类别结果（两个镜像合计，代码引用）</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>类别</th><th>标准答案</th><th>IDA 一次</th><th>IDA 两跳</th><th>本库 0.25.0</th></tr></thead>
+        <tbody>
+          <tr><td>A selector 发送</td><td class="numeric">97</td><td class="numeric">92</td><td class="numeric">97</td><td class="numeric">95</td></tr>
+          <tr><td>B ObjC 类引用</td><td class="numeric">87</td><td class="numeric">76</td><td class="numeric">84</td><td class="numeric">66</td></tr>
+          <tr><td>C 导入函数</td><td class="numeric">91</td><td class="numeric">91</td><td class="numeric">91</td><td class="numeric">91</td></tr>
+          <tr><td>D 内部函数 <code>bl</code></td><td class="numeric">70</td><td class="numeric">70</td><td class="numeric">70</td><td class="numeric">70</td></tr>
+          <tr><td>E 字符串</td><td class="numeric">46</td><td class="numeric">46</td><td class="numeric">46</td><td class="numeric">46</td></tr>
+          <tr><td>F ivar（仅 Finder）</td><td class="numeric">32</td><td class="numeric">32</td><td class="numeric">32</td><td class="numeric">31</td></tr>
+          <tr><td>G Swift 元数据访问器（仅 ControlCenter）</td><td class="numeric">104</td><td class="numeric">104</td><td class="numeric">104</td><td class="numeric">77</td></tr>
+          <tr><td>合计</td><td class="numeric">527</td><td class="numeric">97.0%</td><td class="numeric">99.4%</td><td class="numeric">90.3%</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>另有 49 条数据引用（方法表的 IMP、只在 vtable / 见证表里出现的函数、GOT 槽本身等），IDA 全中，本库按 0097 的非目标不做，记 0。本库多报 1 条：<code>0x1005273f8 ldr x0, [x20]</code>，是先 <code>adrp; add x20, &lt;NSAppleEventDescriptor 的 GOT 槽&gt;</code> 再经 <code>x20</code> 载入，标准答案的线性跟踪把这条引用记在 <code>add</code> 上，核对后是真引用。</p>
+    </div>
+  </details>
+  <details>
+    <summary>测量方法与复现</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>样本</strong>：<code>/Volumes/RE/Finder/26.5.2/Finder</code>（ObjC 为主）与 <code>/Volumes/RE/ControlCenter/26.7/ControlCenter</code>（Swift 为主）的 arm64e 切片，UUID 分别是 <code>1E2E81F7-9B9D-317A-A102-F55ADAF6A0A0</code>、<code>5782ED6B-471B-3CAC-9258-93734B6009C3</code>，与卷上两个 <code>.i64</code> 相同。</li>
+        <li><strong>标准答案</strong>：不依赖任何一个被测工具，由 <code>otool -tV</code> 加独立的 <code>adrp</code> 寄存器跟踪、<code>dyld_info -fixups</code>、相对方法列表与 <code>__swift5_types</code> 解码生成。代码从 2026-11-18 那次对比的子 agent 对话记录（<code>~/.claude/projects/-Users-JH/4cad8a68-…/subagents/agent-a43f33e89a2f7bb07.jsonl</code> 的第 24、31、51、56 次工具调用）原样取回，只换了临时目录。</li>
+        <li><strong>复现核对</strong>：两份标准答案的引用总数（511,138 与 359,773）、<code>__objc_stubs</code> 数（8,809 与 1,363）、各类目标列表与 2026-11-18 的输出逐项一致；按原打分规则（第 69 次工具调用）重算 IDA 一列，仍是 97.0% / 99.4%。所以这次的数字可以直接与那次比。</li>
+        <li><strong>查询</strong>：每个目标调一次 <code>swift-section refs &lt;文件&gt; --json</code>（<code>--selector</code>、<code>--class</code>、<code>--symbol</code>、<code>--function</code>、<code>--string</code>、<code>--ivar</code>），共 128 次，零报错；Finder 单次中位 0.31 秒、ControlCenter 0.13 秒，都含建分析器的时间。外部类另加一次 <code>--symbol _OBJC_CLASS_$_&lt;类&gt;</code>，结果与只查 <code>--class</code> 相同，说明 <code>--class</code> 已经覆盖导入的类。</li>
+        <li><strong>脚本</strong>：在 <code>/tmp/claude-xref-2026-11-26/scripts/</code>（<code>run_all.sh</code> 一条命令跑完，约 30 秒）。<code>/tmp</code> 会被系统清理，所以落地步骤第 0 步先把它们收进本库；万一已被清掉，可从 2026-11-26 那次会话的对话记录里取回（脚本都是用 Write 工具写的）。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>51 条漏报的五组原因</summary>
+    <div class="details-body">
+      <ol>
+        <li><strong>取访问器地址当函数指针用（27 条，G 类）。</strong>形如 ControlCenter <code>0x1000cd564</code>：<code>adrp x16, …; add x16, x16, #0xd38</code>（访问器 <code>0x1003e3d38</code>）→ <code>mov x17, #0x882f; pacia x16, x17; mov x1, x16</code>，把签过名的访问器地址交给调用方。分析器其实记下了：<code>refs --function=0x1000cd568 --callees</code> 显示 <code>0x1000cd568 reference addressMaterialization swiftType</code>（Swift 会话把访问器地址认领为类型引用，见 <code>CrossReferenceAnalysis.md</code>「Swift 类型引用」第 2 种来源）。漏在 CLI：<code>--function</code> 只返回调用者，而 <code>ReferencesRequest</code>（<code>Sources/Commands/SwiftSectionKit/CrossReferences/ReferencesRequest.swift:262-310</code>）的六种主体里没有 Swift 类型。Swift 类型的引用表按描述符位置归档（<code>CodeReferenceTable.Key.swiftTypeDescriptor</code>），查询要经比对器 <code>references(toSwiftType:inImageAt:)</code>（<code>Sources/Analysis/CrossReferenceAnalysis/CrossReferenceAnalyzer+SwiftTypes.swift:57</code>），不能像其它主体那样换成表键。</li>
+        <li><strong><code>__objc_superrefs</code> 的载入（13 条，B 类，按设计）。</strong>Finder <code>0x1006604a0 ldr x8, [x8, #0x358]</code> 读的是 <code>__objc_superrefs</code> 的 <code>0x100b4b358</code>，随后 <code>stp x0, x8, [sp]</code> 拼出 <code>objc_super</code> 交给 <code>_objc_msgSendSuper2</code>。13 条全是这种。<code>CrossReferenceAnalysis.md</code>「类引用（第二批）」写明这一载入不算类引用（「报出来只会让每个调 <code>super</code> 的方法都『引用』了自己的类」），引用记成带类名的 <code>superMessageSend</code>。标准答案把 <code>__objc_superrefs</code> 算作类引用的槽（2026-11-18 的报告「经 <code>__objc_superrefs</code> 加载类对象，这类已并入 ground truth」）。</li>
+        <li><strong>GOT 槽地址交给元数据辅助函数（8 条，B 类）。</strong>ControlCenter <code>0x1006455c8</code>：<code>adrp x2, …; add x2, x2, #0x2a0</code>（<code>_OBJC_CLASS_$_OS_os_log</code> 的 GOT 槽 <code>0x10083a2a0</code>）→ <code>mov x0, #0; bl 0x10000b4a8</code>。<code>0x10000b4a8</code> 是编译器生成的共用辅助函数：<code>ldr x0, [x1]; cbnz …; ldr x0, [x2]; bl _objc_opt_self; bl _swift_getObjCClassMetadata; stlr x0, [x19]</code>——<code>x1</code> 是缓存变量，<code>x2</code> 是类的 GOT 槽。ControlCenter 里有 554 处调用它。核心层 <code>ReferenceScanner.noteAddress</code>（MachOKitExtensions <code>Sources/Analysis/MachOCodeReferences/Scanning/ReferenceScanner.swift:366</code>）把数据段里的地址交给会话的 <code>recordAddressReference</code>，ObjC 会话只认类对象本身（MachOObjCSection <code>Sources/ObjCCodeReferences/ObjCCodeReferenceRecognizer.swift:305</code>），GOT 槽的地址不是类对象，于是什么都不记。读槽的入口 <code>noteSlotReference(fromSlot:at:)</code>（<code>ReferenceScanner.swift:441</code>）已经能解本镜像的 GOT、classref、cache 的共用 GOT 池与独立文件的 bind，只是取槽地址的路径没有走到它。IDA 也要两跳（2026-11-18 报告的 IDA 漏报第 2 条，同一个 <code>0x1006455cc</code>）。</li>
+        <li><strong>selector 只当参数用（2 条，A 类）。</strong>Finder <code>0x1003ee048</code>：<code>adrp x8, …; ldr x1, [x8, #0x6d0]</code>（<code>coalescingNodeObserver:openSyncCompleted:</code> 的 selref）→ <code>mov x0, x19; bl _objc_opt_respondsToSelector</code>；ControlCenter <code>0x100674e00</code>：<code>adrp x8, …; ldr x0, [x8, #0x378]; ret</code>，一个返回 selector <code>name</code> 的函数。ObjC 会话只在发送时从 <code>x1</code> 的来源槽读出 selector（<code>selectorInSelectorRegister</code>），它观察的槽只有 <code>__objc_superrefs</code> 与 <code>__objc_ivar</code>（<code>ObjCCodeReferenceRecognizer.swift:209</code>），没被发送用掉的 selref 载入什么都不留。<code>objc_opt_respondsToSelector</code> 作为 libobjc 的发送入口记成一次 <code>respondsToSelector:</code> 发送（<code>recordCallStandIn</code> 的 <code>.entryPoint</code>），<code>x1</code> 里那个作参数的 selector 被丢掉。</li>
+        <li><strong><code>adrp; add</code> 之后 <code>ldrsw [xN]</code> 读 ivar 偏移（1 条，F 类，原因待查）。</strong>Finder <code>-[TTaskErrorOrConflictViewController setResolutionsForKind:]</code> 的 <code>0x1002bbb14</code>：<code>adrp x9, …; add x9, x9, #0x28; ldrsw x9, [x9]; str w8, [x0, x9]</code>（ivar <code>_rightResolution</code>）。同一个 ivar 在别的函数里的两处 <code>adrp; ldrsw [x8, #imm]</code> 都找到了，同一函数里别的 ivar 的 11 处也都找到了。读代码排除了几种可能：机器码 <code>d00047a9 9100a129 b9800129</code> 都在解码器覆盖内（<code>ARM64InstructionWord.wordLoad</code> 认 <code>0xB980_0000</code>，<code>addImmediate</code> 认 <code>0x9100_0000</code>）；函数起点表里 <code>0x1002bba08</code>–<code>0x1002bbb28</code> 是一个函数；<code>RegisterFile.add</code> 对 <code>.address</code> 状态的源寄存器给出 <code>.address</code>。<code>0x1002bbb14</code> 是三条 <code>b</code> 的共同目标、又从上一条顺序落下，是汇合点——推测问题与汇合处的寄存器状态有关，未证实。第 4 步先写复现测试再定位。</li>
+      </ol>
+    </div>
+  </details>
+  <details>
+    <summary>赢过 IDA 的地方、相关的现成能力</summary>
+    <div class="details-body">
+      <ul>
+        <li>Finder 的三个页对齐类对象（<code>adrp; add #0x0</code>，如 <code>0x100131f8c</code>）IDA 漏，本库一次查到。</li>
+        <li>经 <code>ldr</code> 读 selref 的经典发送，本库一次查到；IDA 要再查 selref 一跳（A 类 IDA 一次 92、本库 95）。</li>
+        <li>不需要先建 IDA 库；单次查询 0.1–0.3 秒。</li>
+        <li>RuntimeViewer 按类型查引用时用类型的 mangling（<code>RuntimeObject.name</code>，如 <code>7SwiftUI4TextV</code>）找描述符：<code>swiftTypeDescriptorLocations(withKey:inImageAt:)</code> → <code>swiftTypeIdentity(ofDescriptorAt:)</code> → 预筛 <code>imageIndices(referencingSwiftType:among:)</code> → 每个候选镜像 <code>references(toSwiftType:inImageAt:)</code>（RuntimeViewer <code>RuntimeViewerCore/Sources/RuntimeViewerCrossReferences/Analysis/CrossReferenceQuery.swift:300-380</code>）。CLI 照搬这条路即可，写法也与它一致。</li>
+        <li>按名字定位符号：<code>locations(ofSymbolNamed:among:)</code>（<code>CrossReferenceAnalyzer+Linkage.swift:11</code>），查 <code>$s…Mn</code> 比逐镜像算 key 快得多。</li>
+        <li>核心层的读槽、槽认领缓存（<code>slotClaims</code>）与导入名（<code>importedSlotNames</code>）都现成。寄存器表有按寄存器的标记（<code>RegisterFile.setTag</code> / <code>tag(of:)</code>，ObjC 会话用它标方法接收者），但打标记会把寄存器改成 <code>.tagged</code> 状态、丢掉地址（<code>RegisterFile.swift:83</code>），不能拿来标「已记过」；按寄存器的位掩码（<code>constantMask</code>、<code>blendedMask</code>）是现成的另一种写法。</li>
+        <li>下游穷尽 switch：RuntimeViewer <code>CrossReferenceQuery.swift</code> 的 <code>switch reference.target</code>（<code>:92</code>、<code>:727</code>）与 <code>switch target</code>（<code>:949</code>）。0097 加三种新目标时的做法是在 RuntimeViewer 里补 case、先不显示（0097「源码兼容性」一节与决策日志 2026-11-19「第 8 步完成」）。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>动机</summary>
+    <div class="details-body">
+      <p>完整动机见愿景《<a href="../Visions/ReverseEngineeringWithoutIDA.md">不依赖 IDA 的逆向</a>》。这一步特有的部分：</p>
+      <ul>
+        <li><strong>0097 落地时没有做全面核对。</strong>0097 决策日志 2026-11-19「第 4 步完成」一行只抽样了 ControlCenter 的 3 个函数，「全面核对没有重做」一段说明生成标准答案的脚本已经不在卷上。2026-11-26 从 2026-11-18 那次对比的对话记录里原样取回了标准答案与选目标的代码，复现出同一批 120 个目标，补做了这次核对，结论写进了愿景「我们选的方向」第 1 条的复测段。</li>
+        <li><strong>差距集中在几处可以修的地方，而不是扫描整体不行。</strong>导入函数、内部 <code>bl</code>、字符串三类与 IDA 一样全中；selector 发送（95/97）与类引用里的页对齐类对象还比 IDA 一次查询多中几条。漏报按原因归成五组，每组都有具体地址。</li>
+        <li><strong>影响面比样本里的条数大。</strong>GOT 槽地址那一组：ControlCenter 里有 554 处 <code>bl 0x10000b4a8</code>，每一处都把一个 ObjC 类的 GOT 槽地址放进 <code>x2</code>，这是 Swift 代码取 ObjC 类元数据的通用写法。Swift 类型那一组：经 CLI 工作的 agent 现在根本问不了「哪些代码用到了 Swift 类型 X」，只有 RuntimeViewer 的界面能问。selector 那一组：<code>respondsToSelector:</code> 的参数、返回 selector 的函数；<code>performSelector:</code>、target-action 的 <code>setAction:</code> 也是同一形态（推测，样本里没有抽到）。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <details>
+    <summary>六条，全部否决</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>只让 <code>--function</code> 查访问器时也返回类型引用，不加 <code>--type</code></strong>：能补上这 27 条，但只覆盖访问器；泛型实例的访问器、按 mangled name 实例化、元数据地址这几种类型引用仍然问不到，而 RuntimeViewer 早已按类型查。否。</li>
+        <li><strong>GOT 槽地址按辅助函数的形状认</strong>：在 Swift 层认出 <code>ldr x0, [x2]; bl objc_opt_self; bl swift_getObjCClassMetadata</code> 这种函数，在调用点从 <code>x2</code> 取类。更准，但只覆盖这一个辅助函数，还要 Swift 层认 libobjc 的名字；核心层按「地址落在引用槽」处理与语言无关，覆盖一切先取槽地址再用的写法。否。</li>
+        <li><strong>每次 selref 载入都记一条引用</strong>：实现最简单，但经典发送（不走 <code>__objc_stubs</code> 的二进制）每次发送都会多一条同位置的引用行。否。</li>
+        <li><strong>selector 引用另开一个表键</strong>：<code>--selector</code> 就要查两个键，RuntimeViewer 的 selector 查询也要改；归在同一键下、靠目标区分更省事，下游想只要发送时按目标过滤即可。否。</li>
+        <li><strong>把 <code>__objc_superrefs</code> 的载入报成类引用</strong>：召回能到 100%、与 IDA 对齐，但每个调 <code>super</code> 的方法都会「引用」自己的类，按类查引用的结果会被这些行淹没（Foundation 1,803 处、AppKit 8,336 处 super 发送，见 <code>CrossReferenceAnalysis.md</code>「类引用」）。0097 的理由仍然成立。否。</li>
+        <li><strong>测量脚本放在 <code>/Volumes/RE</code> 或个人目录</strong>：2026-11-18 那次就是这样丢的。进仓库、跟着交叉引用的代码走。否。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+  <details>
+    <summary>源码兼容性：有破坏（一个新 enum case）</summary>
+    <div class="details-body">
+      <ul>
+        <li><code>CodeReferenceTarget</code> 加 <code>case selector(String)</code>：下游对它的穷尽 switch 编译失败。已知调用点是 RuntimeViewer <code>CrossReferenceQuery.swift</code> 的 <code>:92</code>、<code>:727</code>、<code>:949</code>。改法是多一个 <code>case .selector: return nil</code>，先不显示。</li>
+        <li><code>CrossReferenceSubject</code>（SwiftSectionKit）加 <code>case swiftType</code>：本库以外没有使用方（RuntimeViewer 用自己的查询层）。</li>
+        <li>MachOKitExtensions 与 MachOObjCSection 的改动全在 <code>@_spi(Internals)</code> 接口上（<code>CodeReferenceRecognitionSession.leaveFunction</code> 有默认实现；<code>ObjCCodeReferenceRecording</code> 与 <code>CodeReferenceRecording</code> 各加一个要求，实现方只有本库的 <code>ReferenceCollector</code> 与 MachOKitExtensions 测试里的识别器）。SPI 不承诺稳定。</li>
+        <li>行为变化（不是编译错误）：<code>--selector</code> 与 RuntimeViewer 按 selector 的查询多出 <code>.selector</code> 目标的行（RuntimeViewer 先滤掉）；按类查引用多出取槽地址的行；<code>symbolicate</code> 对 selref 槽的说法变了；第 5 步若并入，<code>--function</code> 与调用层级多出取地址的行。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>ABI 兼容性、下游、文档、版本</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>ABI</strong>：不适用 —— 本库以 SPM 源码分发，使用方每次重新编译。</li>
+        <li><strong>本仓库</strong>：<code>CrossReferenceAnalysis</code>、<code>SwiftSectionKit</code>、<code>swift-section</code> 可执行文件，以及 <code>CrossReferenceAnalysisTests</code>、<code>SwiftSectionKitTests</code>。整表变大，<code>ScanThroughputBenchmarkTests</code> 要重量。</li>
+        <li><strong>MachOKitExtensions、MachOObjCSection</strong>：同批改、同批发版，依赖顺序 MachOKitExtensions → MachOObjCSection → 本库。</li>
+        <li><strong>RuntimeViewer</strong>：三处 switch；本库 <code>next</code> 一合进新 case，RuntimeViewer 的 <code>next</code> 要同批跟上。</li>
+        <li><strong>MachOKitUI、REAgent</strong>：不用交叉引用，不受影响。</li>
+        <li><strong>文档</strong>：<code>README.md</code> 的 <code>refs</code> 一节、CLI 的 skill、三份模块文档、愿景的复测段。</li>
+        <li><strong>版本</strong>：不废弃任何东西。本库 0.x 的下一个 minor；MachOKitExtensions 下一个 minor；MachOObjCSection 下一个 minor。</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+  <ol start="0">
+    <li><strong>测量脚本进仓库</strong>
+      <ul><li><code>run_all.sh</code> 对 0.25.0 复现 476/527（90.3%），IDA 列 97.0% / 99.4%，复现核对通过</li><li>README 记下基线数字与每类的漏报原因</li></ul></li>
+    <li><strong><code>--type</code></strong>
+      <ul><li><code>typeSubjectFindsTheReferencesTheAnalyzersSwiftTypeQueryFinds</code></li><li><code>typeSubjectAcceptsTheManglingAndItsDescriptorAccessorAndMetadataSymbols</code></li><li><code>typeSubjectLooksForAnUnexportedTypeInEveryStandaloneFile</code></li><li><code>typeSubjectInACacheNeedsTheTypeImageForAnUnexportedType</code></li><li><code>typeImageWithoutTypeIsAUsageError</code></li><li>测量脚本 G 类 104/104</li></ul></li>
+    <li><strong>取到引用槽地址也算槽引用</strong>
+      <ul><li><code>slotAddressHandedToAHelperIsAClassReference</code></li><li><code>slotAddressInAStandaloneFileIsAnImportedSymbolReference</code></li><li><code>aLoadThroughARecordedSlotAddressIsNotRecordedAgain</code></li><li><code>slotAddressesAddOnlySlotReferencesToTheWholeImageTable</code></li><li>测量脚本 B 类 74/87（剩下 13 条是 <code>super</code>）</li></ul></li>
+    <li><strong>selector 引用</strong>
+      <ul><li><code>respondsToSelectorArgumentIsASelectorReference</code></li><li><code>anActionSelectorHandedToSetActionIsASelectorReference</code></li><li><code>aClassicSendLeavesNoSelectorReferenceBehind</code></li><li><code>stubSendsLeaveNoSelectorReference</code></li><li><code>selectorQueriesReturnSendsAndSelectorReferences</code></li><li><code>selectorReferencesSurviveTheCompactIndex</code></li><li><code>symbolicationCallsASelectorReferenceSlotASelector</code></li><li>RuntimeViewer <code>selectorReferencesAreNotShownYet</code></li><li>测量脚本 A 类 97/97</li></ul></li>
+    <li><strong>ivar 读法</strong>
+      <ul><li><code>instanceVariableLoadThroughAnAddedAddressAtAMergePoint</code>（修复前失败）</li><li><code>instanceVariableLoadThroughAnAddedAddressOutsideAMergePoint</code>（对照）</li><li>测量脚本 F 类 32/32</li></ul></li>
+    <li><strong>取函数地址</strong>
+      <ul><li><code>takingAFunctionsAddressIsAReferenceToIt</code></li><li><code>aSignedAccessorAddressIsBothAFunctionAndATypeReference</code></li><li><code>aStackBlockIsReferencedByTheFunctionThatBuildsIt</code></li><li><code>functionQueriesReturnCallsAndAddressTakingSites</code></li></ul></li>
+    <li><strong>验收与文档</strong>
+      <ul><li>测量脚本代码引用 ≥ 514/527（97.5%），多报为 0，或逐条核对为真引用</li><li><code>ScanThroughputBenchmarkTests</code> 各项比改前慢不超过 5%（超过就把数字和原因写进模块文档，由用户定）</li><li>愿景复测段补上修复后的数字</li></ul></li>
+  </ol>
+  <div class="callout callout-note">
+    <p class="callout-title">收尾时要判断的两件事</p>
+    <ul>
+      <li>配套专题文章：预计不另写，契约写进 CLI 的 skill 与 README，实现细节写进三份模块文档。</li>
+      <li>新术语：「selector 引用」（selector 被载入但没有用来发送）可能要登记进 <code>Documentations/Glossary.md</code>，落地时判断。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>4 条，最近一条：Accepted</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-26</td><td>Created as Draft</td><td>按 2026-11-18 的方法补做 0097 落地时没做的全面核对：本库 90.3%、IDA 一次查询 97.0%。用户批准写一份提案修复测出的四处缺口，并把结果写进愿景</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>第 5 步列为待定</td><td>「取函数地址」不在这次测量的类别里，但决定调用链能不能穿过 block 与闭包；是否并入本提案由用户定</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>第 5 步并入</td><td>用户决定把「取函数地址记成对函数的引用」并入本提案，同批实现</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>Accepted</td><td>用户批准，开始实现。四个仓库各开 <code>feature/cross-reference-recall-gaps</code>，按依赖顺序 MachOKitExtensions → MachOObjCSection → 本库 → RuntimeViewer 提交；构建与测试都在 Ultra 上跑（四个工程都在公司那台不编译的清单里），用 <code>/Volumes/DerivedData/Agents.noindex/claude/LocalDependencies/CrossReferenceRecallGaps/</code> 下按仓库名放的功能分支拷贝解析本地依赖</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>
