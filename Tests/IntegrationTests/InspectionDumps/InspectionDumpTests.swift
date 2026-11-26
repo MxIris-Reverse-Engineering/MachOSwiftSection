@@ -75,15 +75,18 @@ extension InspectionDumpTests {
         .init(showCImportedTypes: false)
     }
 
-    /// Runs `prepare` and prints how long it took (unless running silently).
-    /// Callers pass the whole preparation step — for a diff that means
-    /// preparing *both* binaries — so the printed duration covers the real work.
-    func measuringPreparation(_ prepare: () async throws -> Void) async rethrows {
+    /// Runs `prepare`, prints how long it took (unless running silently) and
+    /// returns what it prepared. Callers pass the whole preparation step —
+    /// for a diff that means preparing *both* binaries — so the printed
+    /// duration covers the real work.
+    func measuringPreparation<Prepared>(_ prepare: () async throws -> Prepared) async rethrows -> Prepared {
         let clock = ContinuousClock()
-        let duration = try await clock.measure { try await prepare() }
+        let start = clock.now
+        let prepared = try await prepare()
         #if !SILENT_TEST
-        print(duration)
+        print(clock.now - start)
         #endif
+        return prepared
     }
 
     /// Prints a rendered dump to the console, unless running silently.

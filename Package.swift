@@ -1528,8 +1528,10 @@ extension Target {
             .target(.SwiftSectionFixtureSupport),
             .product(.MachOKit),
             .product(.MachOObjCSection),
-            // The ObjC API evolution dumps run the `swift-section objc
-            // evolution` pipeline on MachOObjCSection's own modules.
+            // The Objective-C inspection dumps run the `swift-section objc
+            // dump`, `objc diff` and `objc evolution` pipelines on
+            // MachOObjCSection's own modules.
+            .product(name: "ObjCDeclarationRendering", package: "MachOObjCSection"),
             .product(name: "ObjCDiffing", package: "MachOObjCSection"),
             .product(name: "ObjCIndexing", package: "MachOObjCSection"),
             .product(name: "ObjCInterface", package: "MachOObjCSection"),
