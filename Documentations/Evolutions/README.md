@@ -125,3 +125,4 @@
 | [0108](0108-private-cf-type-modules.md) | 私有 CF 类型按导出 `GetTypeID` 的镜像解析所属模块 | Implemented |
 | [0109](0109-consistent-c-imported-type-spelling.md) | C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写 | Implemented |
 | [0110](0110-unify-evolution-integration-suites.md) | IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴 | Implemented |
+| draft | [IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架](draft-unify-diff-and-interface-integration-suites.md) | Accepted |

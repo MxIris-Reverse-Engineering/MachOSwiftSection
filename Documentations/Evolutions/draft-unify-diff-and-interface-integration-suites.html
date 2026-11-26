@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Draft - IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架</title>
+<style>
+/* Evolution proposal page, shared style (style A, "Apple documentation").
+   Copy this whole <style> block verbatim. Page-specific rules, if any, go only
+   in the marked block at the end. Must render in WebKit (Safari, Xcode preview,
+   Quick Look): no JavaScript, no external resources. */
+:root {
+  --background: #ffffff; --foreground: #1d1d1f; --secondary: #6e6e73; --separator: #d2d2d7;
+  --panel: #f5f5f7; --code-background: #f2f2f4; --accent: #0071e3;
+  --added: #1f8a4c; --added-fill: #e3f5ea;
+  --changed: #b26a00; --changed-fill: #fdf0db;
+  --removed: #c62828; --removed-fill: #fbe4e4;
+  --moved: #0066cc; --moved-fill: #e5f0fc;
+  --kept: #6e6e73; --kept-fill: #ececef;
+  --token-keyword: #ad3da4; --token-type: #3900a0; --token-string: #c41a16; --token-number: #1c00cf;
+  --token-comment: #707f8c; --token-macro: #643820;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e; --foreground: #f2f2f7; --secondary: #a1a1a6; --separator: #3a3a3c;
+    --panel: #2c2c2e; --code-background: #2a2a2d; --accent: #4ea1ff;
+    --added: #4cd281; --added-fill: #183826;
+    --changed: #ffb340; --changed-fill: #3d2c10;
+    --removed: #ff6b6b; --removed-fill: #3d1a1a;
+    --moved: #5aa9ff; --moved-fill: #142b45;
+    --kept: #b0b0b5; --kept-fill: #333336;
+    --token-keyword: #fc5fa3; --token-type: #d0a8ff; --token-string: #fc6a5d; --token-number: #d0bf69;
+    --token-comment: #7f8c98; --token-macro: #fd8f3f;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--background); color: var(--foreground);
+  font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
+.svg-definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Header */
+.eyebrow { margin: 0 0 6px; font-size: 13px; color: var(--secondary); }
+.crumb + .crumb::before { content: " / "; }
+h1 { font-size: 28px; line-height: 1.3; letter-spacing: -0.01em; margin: 0 0 12px; }
+h1 code { font-size: 0.8em; }
+.proposal-number { color: var(--secondary); margin-right: 4px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; font-size: 13px; color: var(--secondary); }
+.meta div { display: flex; gap: 6px; align-items: baseline; }
+.meta dd { margin: 0; color: var(--foreground); }
+.meta dd code { font-size: 12px; }
+.status { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.status-accepted { color: var(--moved); background: var(--moved-fill); }
+.status-in-progress { color: var(--changed); background: var(--changed-fill); }
+.status-implemented { color: var(--added); background: var(--added-fill); }
+.status-rejected, .status-withdrawn { color: var(--removed); background: var(--removed-fill); }
+
+/* Table of contents */
+.toc { margin: 22px 0 8px; padding: 8px 10px; background: var(--panel); border-radius: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 4px; }
+.toc li { margin: 0; }
+.toc a { display: inline-block; padding: 3px 11px; border-radius: 999px; color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { background: var(--background); }
+
+/* Text */
+section { scroll-margin-top: 16px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--separator); }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+h4 { font-size: 15px; margin: 18px 0 6px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+blockquote { margin: 12px 0; padding: 2px 14px; border-left: 3px solid var(--separator); color: var(--secondary); }
+hr { border: none; border-top: 1px solid var(--separator); margin: 24px 0; }
+
+/* Code */
+code { font: 0.86em/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--code-background); padding: 1px 5px; border-radius: 5px; }
+pre { background: var(--code-background); border-radius: 10px; padding: 14px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; }
+.token-keyword { color: var(--token-keyword); font-weight: 600; }
+.token-type { color: var(--token-type); }
+.token-string { color: var(--token-string); }
+.token-number { color: var(--token-number); }
+.token-comment { color: var(--token-comment); }
+.token-macro { color: var(--token-macro); }
+
+/* Callouts */
+.callout { background: var(--panel); border-left: 4px solid var(--accent); border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+.callout-note { border-left-color: var(--secondary); }
+.callout-warning { border-left-color: var(--changed); }
+.callout-title { margin: 0 0 6px; font-weight: 600; }
+.callout > :last-child { margin-bottom: 0; }
+.callout ol, .callout ul { margin: 6px 0 0; }
+
+/* Diagrams */
+.legend { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--secondary); }
+.legend li { margin: 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; vertical-align: -2px; margin-right: 6px; }
+.swatch-added { background: var(--added-fill); border-color: var(--added); }
+.swatch-changed { background: var(--changed-fill); border-color: var(--changed); }
+.swatch-removed { background: var(--removed-fill); border-color: var(--removed); border-style: dashed; }
+.swatch-moved { background: var(--moved-fill); border-color: var(--moved); }
+.swatch-kept { background: var(--kept-fill); border-color: var(--kept); }
+.figure { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--separator); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.figure svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.figure-narrow svg { min-width: 0; max-width: 640px; margin: 0 auto; }
+.figure-caption { font-size: 13px; color: var(--secondary); margin-top: 8px; }
+svg text { font: 12px ui-monospace, "SF Mono", Menlo, monospace; fill: var(--foreground); }
+svg .group-label { font-size: 13px; font-weight: 700; }
+svg .caption { font-size: 10.5px; fill: var(--secondary); }
+svg .strike { text-decoration: line-through; }
+svg .group { fill: none; stroke: var(--separator); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg .box-added { fill: var(--added-fill); stroke: var(--added); stroke-width: 1.5; }
+svg .box-changed { fill: var(--changed-fill); stroke: var(--changed); stroke-width: 1.5; }
+svg .box-removed { fill: var(--removed-fill); stroke: var(--removed); stroke-width: 1.5; stroke-dasharray: 4 3; }
+svg .box-moved { fill: var(--moved-fill); stroke: var(--moved); stroke-width: 1.5; }
+svg .box-kept { fill: var(--kept-fill); stroke: var(--kept); stroke-width: 1.2; }
+svg .arrow { fill: none; stroke: var(--secondary); stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg .arrow-weak { stroke-dasharray: 4 3; }
+svg .arrow-removed { stroke: var(--removed); stroke-dasharray: 4 3; }
+svg .arrowhead { fill: var(--secondary); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { border: 1px solid var(--separator); padding: 7px 9px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+.numeric { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; white-space: nowrap; padding: 0 7px; border-radius: 5px; font-size: 12px; font-weight: 600; color: var(--kept); background: var(--kept-fill); }
+.tag-added { color: var(--added); background: var(--added-fill); }
+.tag-changed { color: var(--changed); background: var(--changed-fill); }
+.tag-removed { color: var(--removed); background: var(--removed-fill); }
+.tag-moved { color: var(--moved); background: var(--moved-fill); }
+
+/* Collapsible sections */
+details { border: 1px solid var(--separator); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+summary { cursor: pointer; list-style: none; padding: 11px 16px; font-weight: 600; background: var(--panel); }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "›"; display: inline-block; width: 1em; color: var(--secondary); -webkit-transition: -webkit-transform 0.15s; transition: transform 0.15s; }
+details[open] > summary::before { -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+details[open] > summary { border-bottom: 1px solid var(--separator); }
+.details-body { padding: 4px 16px 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 20px 16px 56px; }
+  h1 { font-size: 23px; }
+}
+
+/* ===== Page-specific styles (only for elements the shared style lacks, e.g. UI mockups) ===== */
+</style>
+</head>
+<body>
+<svg class="svg-definitions" aria-hidden="true" focusable="false">
+  <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>
+</svg>
+<div class="page">
+
+<header class="doc-header">
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
+  <h1><span class="proposal-number">Draft</span> IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架</h1>
+  <dl class="meta">
+    <div><dt>状态</dt><dd><span class="status status-accepted">Accepted</span></dd></div>
+    <div><dt>最后更新</dt><dd>2026-11-26</dd></div>
+    <div><dt>项目类型</dt><dd>库</dd></div>
+    <div><dt>原文</dt><dd><code>draft-unify-diff-and-interface-integration-suites.md</code></dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="目录">
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#decide">要你定</a></li>
+    <li><a href="#architecture">架构图</a></li>
+    <li><a href="#map">改动地图</a></li>
+    <li><a href="#proposal">提议方案</a></li>
+    <li><a href="#design">详细设计</a></li>
+    <li><a href="#motivation">动机</a></li>
+    <li><a href="#research">调研</a></li>
+    <li><a href="#alternatives">替代方案</a></li>
+    <li><a href="#impact">影响</a></li>
+    <li><a href="#steps">落地步骤</a></li>
+    <li><a href="#log">决策日志</a></li>
+  </ol>
+</nav>
+
+<main class="content">
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p><code>Tests/IntegrationTests/</code> 里维护者手检的输出有三类：单版本接口、两版本 diff、N 版本演进。演进一类在 0110 里已合并成「一个套件声明一次镜像、<code>dump(.kind, to: .file / .console)</code> 一行一个测试、Swift 与 ObjC 都出」；另两类还是各写各的：diff 自带三个「新旧两版」基类，读 cache 只开主文件，和演进套件、CLI 都不一样；接口套件为了多开一个选项把整份配置抄一遍；两类都只出 Swift。</p>
+  <p>本提案把三类放进同一个目录 <code>Tests/IntegrationTests/InspectionDumps/</code>，共用一套骨架：公共协议 <code>InspectionDumpTests</code>；diff 与演进共用版本轴（diff 就是只有两个版本的轴，cache 对改为整份打开）；每类一个「输出种类」枚举加一个 <code>dump</code> 入口；AppKit 的接口套件多出整镜像 ObjC 头文件，AppKit 的 diff 套件多出 ObjC 变更列表与 JSON，Swift diff 报告也多写一份 JSON。</p>
+  <p>测试从 20 个（接口 10、diff 10）变成 38 个（接口 14、diff 24），演进的 43 个不变。只动 IntegrationTests 与它在 <code>Package.swift</code> 里的依赖表，不碰库代码。</p>
+</section>
+
+<section id="decide">
+  <h2>要你定</h2>
+  <div class="callout">
+    <p class="callout-title">已批准。以下是没问用户就采用的假设：</p>
+    <ol>
+      <li>ObjC 输出只加在 AppKit 的四个套件上；别的套件要看 ObjC，加一对一行测试即可。</li>
+      <li>ObjC 头文件开满注释（ivar 偏移、属性特性、方法 IMP 地址、访问器地址），与 Swift 接口开满字段偏移、成员地址对齐。</li>
+      <li>Swift diff 报告多写 <code>-Diff.json</code>；变更列表照旧用两个 builder 的 <code>abiModule()</code>，不改成快照往返。</li>
+      <li>套件类名保留（<code>DyldCacheTests</code>、<code>MachOFileTests</code>……），只改外层枚举名与测试函数名；旧测试名不留别名。</li>
+      <li>Xcode 的 diff 对改为按版本号（<code>"26.3.0"</code> / <code>"26.4.0"</code>）取，版本号也当轴标签。</li>
+      <li>diff 轴不足两个版本时打印一行说明、不写文件。</li>
+    </ol>
+  </div>
+</section>
+
+<section id="architecture">
+  <h2>架构图</h2>
+  <ul class="legend">
+    <li><i class="swatch swatch-added"></i>新增</li>
+    <li><i class="swatch swatch-changed"></i>修改</li>
+    <li><i class="swatch swatch-moved"></i>移动</li>
+    <li><i class="swatch swatch-removed"></i>删除</li>
+    <li><i class="swatch swatch-kept"></i>不变</li>
+  </ul>
+
+  <h3>改了什么：文件与类型</h3>
+  <div class="figure">
+  <svg viewBox="0 0 1000 540" role="img" aria-label="Files and types before and after">
+    <rect class="group" x="10" y="10" width="470" height="520" rx="10"/>
+    <text class="group-label" x="22" y="32">Tests/IntegrationTests/ (before)</text>
+    <rect class="box-moved" x="25" y="45" width="440" height="75" rx="6"/>
+    <text x="35" y="65">SwiftInterface/SwiftInterfaceTestSupport.swift</text>
+    <text class="caption" x="35" y="85">protocol SwiftInterfaceDumpTests</text>
+    <text class="caption" x="35" y="103">rootDirectory · measuringPreparation · printResult · write</text>
+    <rect class="box-removed" x="25" y="135" width="440" height="95" rx="6"/>
+    <text class="strike" x="35" y="155">SwiftInterface/SwiftInterfaceBuilderTests.swift</text>
+    <text class="caption" x="35" y="175">protocol SwiftInterfaceBuilderTests — buildFile / buildString</text>
+    <text class="caption" x="35" y="193">enum SwiftInterfaceBuilderTestSuite — 5 suites, 10 tests</text>
+    <text class="caption" x="35" y="211">XcodeMachOFileTests restates the whole configuration</text>
+    <rect class="box-removed" x="25" y="245" width="440" height="120" rx="6"/>
+    <text class="strike" x="35" y="265">SwiftInterface/SwiftDiffableInterfaceBuilderTests.swift</text>
+    <text class="caption" x="35" y="285">protocol SwiftDiffableInterfaceBuilderTests — diffFile/String</text>
+    <text class="caption" x="35" y="303">CrossVersionMachOFileTests · CrossVersionXcodeFrameworkTests</text>
+    <text class="caption" x="35" y="321">CrossVersionDyldCacheImageTests — DyldCache, main file only</text>
+    <text class="caption" x="35" y="339">enum SwiftDiffableInterfaceBuilderTestSuite — 5 suites, 10 tests</text>
+    <rect class="box-moved" x="25" y="380" width="440" height="75" rx="6"/>
+    <text x="35" y="400">Evolution/ (3 files)</text>
+    <text class="caption" x="35" y="420">EvolutionAxis · EvolutionDumpTests · EvolutionTests</text>
+    <text class="caption" x="35" y="438">10 suites, 43 tests</text>
+    <rect class="box-kept" x="25" y="470" width="440" height="45" rx="6"/>
+    <text class="caption" x="35" y="497">SwiftInterfaceIndexerTests · RenderingVerificationTests</text>
+
+    <rect class="group" x="520" y="10" width="470" height="520" rx="10"/>
+    <text class="group-label" x="532" y="32">Tests/IntegrationTests/InspectionDumps/ (after)</text>
+    <rect class="box-changed" x="535" y="45" width="440" height="75" rx="6"/>
+    <text x="545" y="65">InspectionDumpTests.swift</text>
+    <text class="caption" x="545" y="85">protocol InspectionDumpTests (+ indexConfiguration, deliver)</text>
+    <text class="caption" x="545" y="103">MetadataLanguage · DumpDestination · DumpFile · DumpOutput</text>
+    <rect class="box-changed" x="535" y="135" width="440" height="110" rx="6"/>
+    <text x="545" y="155">VersionAxis.swift</text>
+    <text class="caption" x="545" y="175">AxisImage · AxisVersion · VersionAxis · VersionAxes</text>
+    <text class="caption" x="545" y="193">protocol VersionAxisDumpTests — versionAxis(for:)</text>
+    <text class="caption" x="545" y="211">MultiVersionDyldCacheImageTests (FullDyldCache)</text>
+    <text class="caption" x="545" y="229">CrossVersionMachOFileTests · CrossVersionXcodeFrameworkTests</text>
+    <rect class="box-added" x="535" y="260" width="440" height="75" rx="6"/>
+    <text x="545" y="280">InterfaceDumpTests.swift + InterfaceTests.swift</text>
+    <text class="caption" x="545" y="300">InterfaceDumpKind: swiftInterface | objcInterface</text>
+    <text class="caption" x="545" y="318">enum InterfaceTestSuite — 5 suites, 14 tests</text>
+    <rect class="box-added" x="535" y="350" width="440" height="75" rx="6"/>
+    <text x="545" y="370">DiffDumpTests.swift + DiffTests.swift</text>
+    <text class="caption" x="545" y="390">DiffDumpKind: swiftReport | swiftInterface | objcReport</text>
+    <text class="caption" x="545" y="408">enum DiffTestSuite — 5 suites, 24 tests</text>
+    <rect class="box-changed" x="535" y="440" width="440" height="75" rx="6"/>
+    <text x="545" y="460">EvolutionDumpTests.swift + EvolutionTests.swift</text>
+    <text class="caption" x="545" y="480">protocol EvolutionDumpTests: VersionAxisDumpTests</text>
+    <text class="caption" x="545" y="498">enum EvolutionTestSuite — 10 suites, 43 tests (unchanged)</text>
+
+    <path class="arrow" d="M 465 82 L 535 82"/>
+    <path class="arrow" d="M 465 182 L 535 292"/>
+    <path class="arrow" d="M 465 290 L 535 382"/>
+    <path class="arrow" d="M 465 310 L 535 215"/>
+    <path class="arrow" d="M 465 410 L 535 180"/>
+    <path class="arrow" d="M 465 428 L 535 478"/>
+  </svg>
+  </div>
+  <p class="figure-caption">两个旧套件文件拆成「管线 + 套件」两个新文件；diff 的两版基类并入版本轴文件；演进三文件随目录移动、换类型名。</p>
+
+  <h3>协议与基类</h3>
+  <div class="figure">
+  <svg viewBox="0 0 1000 470" role="img" aria-label="Protocols and base classes">
+    <rect class="box-changed" x="300" y="20" width="400" height="56" rx="6"/>
+    <text x="315" y="44">InspectionDumpTests</text>
+    <text class="caption" x="315" y="64">rootDirectory · indexConfiguration · write · deliver</text>
+
+    <rect class="box-added" x="60" y="125" width="320" height="56" rx="6"/>
+    <text x="75" y="149">InterfaceDumpTests</text>
+    <text class="caption" x="75" y="169">dump(_: InterfaceDumpKind, of: machO, to:)</text>
+
+    <rect class="box-added" x="620" y="125" width="320" height="56" rx="6"/>
+    <text x="635" y="149">VersionAxisDumpTests</text>
+    <text class="caption" x="635" y="169">versionAxis(for: MetadataLanguage)</text>
+
+    <rect class="box-kept" x="20" y="225" width="420" height="72" rx="6"/>
+    <text x="35" y="249">MachOTestingSupport base classes</text>
+    <text class="caption" x="35" y="269">DyldCacheTests · MachOFileTests</text>
+    <text class="caption" x="35" y="287">MachOImageTests · XcodeMachOFileTests</text>
+
+    <rect class="box-added" x="490" y="225" width="230" height="56" rx="6"/>
+    <text x="505" y="249">DiffDumpTests</text>
+    <text class="caption" x="505" y="269">first and last version</text>
+
+    <rect class="box-changed" x="740" y="225" width="240" height="56" rx="6"/>
+    <text x="755" y="249">EvolutionDumpTests</text>
+    <text class="caption" x="755" y="269">every version</text>
+
+    <rect class="group" x="480" y="320" width="510" height="135" rx="10"/>
+    <text class="group-label" x="492" y="342">axis providers — each stores VersionAxes</text>
+    <rect class="box-changed" x="495" y="352" width="480" height="28" rx="6"/>
+    <text class="caption" x="507" y="371">MultiVersionDyldCacheImageTests — cachePaths, opened whole</text>
+    <rect class="box-moved" x="495" y="385" width="480" height="28" rx="6"/>
+    <text class="caption" x="507" y="404">CrossVersionMachOFileTests — two simulator runtime files</text>
+    <rect class="box-moved" x="495" y="418" width="480" height="28" rx="6"/>
+    <text class="caption" x="507" y="437">CrossVersionXcodeFrameworkTests — two Xcode versions</text>
+
+    <path class="arrow" d="M 220 125 L 430 78"/>
+    <path class="arrow" d="M 780 125 L 570 78"/>
+    <path class="arrow" d="M 605 225 L 740 183"/>
+    <path class="arrow" d="M 860 225 L 840 183"/>
+    <path class="arrow arrow-weak" d="M 220 181 L 225 225"/>
+    <path class="arrow arrow-weak" d="M 605 281 L 640 320"/>
+    <path class="arrow arrow-weak" d="M 860 281 L 860 320"/>
+  </svg>
+  </div>
+  <p class="figure-caption">实线箭头指向父协议；虚线是「套件继承这些基类」与「从这些基类拿轴」。</p>
+
+  <h3>一个 diff 测试的调用链</h3>
+  <div class="figure figure-narrow">
+  <svg viewBox="0 0 640 330" role="img" aria-label="Call chain of one diff test">
+    <rect class="box-added" x="20" y="15" width="600" height="40" rx="6"/>
+    <text x="35" y="40">DiffTestSuite.DyldCacheTests.objcReportFile()</text>
+    <rect class="box-added" x="20" y="80" width="600" height="40" rx="6"/>
+    <text x="35" y="105">dump(.objcReport, to: .file) — DiffDumpTests</text>
+    <rect class="box-changed" x="20" y="145" width="600" height="40" rx="6"/>
+    <text x="35" y="170">versionAxis(for: .objc) → 26.5.1, 27.0 · AppKit</text>
+    <rect class="box-added" x="20" y="210" width="600" height="40" rx="6"/>
+    <text x="35" y="235">objcReport — objcSnapshotDocument ×2 → ObjCAPIDiffer</text>
+    <rect class="box-changed" x="20" y="275" width="600" height="40" rx="6"/>
+    <text x="35" y="300">deliver → write(forImageGroup: new.images) → -ObjCDiff.txt / .json</text>
+    <path class="arrow" d="M 320 55 L 320 80"/>
+    <path class="arrow" d="M 320 120 L 320 145"/>
+    <path class="arrow" d="M 320 185 L 320 210"/>
+    <path class="arrow" d="M 320 250 L 320 275"/>
+  </svg>
+  </div>
+</section>
+
+<section id="map">
+  <h2>改动地图</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>文件 / 类型</th><th>动作</th><th>改什么</th><th>为什么</th><th>步骤</th></tr></thead>
+    <tbody>
+      <tr><td><code>InspectionDumps/</code></td><td><span class="tag tag-added">新增</span></td><td>三类手检输出的目录</td><td>三类共用骨架，放一处</td><td class="numeric">1</td></tr>
+      <tr><td><code>InspectionDumps/InspectionDumpTests.swift</code>（自 <code>SwiftInterface/SwiftInterfaceTestSupport.swift</code>）</td><td><span class="tag tag-moved">移动</span> <span class="tag tag-changed">修改</span></td><td>协议改名；加 <code>indexConfiguration</code>、<code>MetadataLanguage</code>、<code>DumpDestination</code>、<code>DumpFile</code>、<code>DumpOutput</code>、<code>deliver(_:to:writingFile:)</code>、泛型 <code>preparedObjCIndexer(of:)</code>；<code>write(_:forImageGroup:)</code> 收 <code>[AxisImage]</code></td><td>三类共用的部分只写一次</td><td class="numeric">1</td></tr>
+      <tr><td><code>InspectionDumps/VersionAxis.swift</code>（自 <code>Evolution/EvolutionAxis.swift</code>）</td><td><span class="tag tag-moved">移动</span> <span class="tag tag-changed">修改</span></td><td>去掉 <code>Evolution</code> 前缀；新增 <code>VersionAxes</code> 与 <code>VersionAxisDumpTests</code>（含共享的 <code>objcSnapshotDocument</code>）；两个两版基类从 diff 文件搬来并给出轴</td><td>diff 与演进共用版本轴</td><td class="numeric">1</td></tr>
+      <tr><td><code>InspectionDumps/EvolutionDumpTests.swift</code>、<code>EvolutionTests.swift</code>（自 <code>Evolution/</code>）</td><td><span class="tag tag-moved">移动</span> <span class="tag tag-changed">修改</span></td><td>改继承 <code>VersionAxisDumpTests</code>、用 <code>DumpOutput</code>；<code>SwiftUICoreSimulatorTests</code> 删掉自己拼轴的那段</td><td>共用骨架</td><td class="numeric">1</td></tr>
+      <tr><td><code>SwiftInterface/SwiftInterfaceBuilderTests.swift</code></td><td><span class="tag tag-removed">删除</span></td><td>第 1 步只改协议名，第 2 步删除</td><td>分步可编</td><td class="numeric">1、2</td></tr>
+      <tr><td><code>SwiftInterface/SwiftDiffableInterfaceBuilderTests.swift</code></td><td><span class="tag tag-removed">删除</span></td><td>第 1 步只改协议名、删 <code>indexConfiguration</code>，第 3 步删除</td><td>分步可编</td><td class="numeric">1、3</td></tr>
+      <tr><td><code>InspectionDumps/InterfaceDumpTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>InterfaceDumpKind</code>；<code>InterfaceDumpTests</code>（<code>printsExportedDeclarationsOnly</code>）；<code>dump(_:of:to:)</code> 与两条管线</td><td>接口一类的管线</td><td class="numeric">2</td></tr>
+      <tr><td><code>InspectionDumps/InterfaceTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>enum InterfaceTestSuite</code>，5 个套件、14 个测试</td><td>取代旧接口套件</td><td class="numeric">2</td></tr>
+      <tr><td><code>Package.swift</code> · <code>IntegrationTests</code></td><td><span class="tag tag-changed">修改</span></td><td>加 <code>ObjCDeclarationRendering</code> product，改注释</td><td><code>ObjCGenerationOptions</code> 在这个 product 里</td><td class="numeric">2</td></tr>
+      <tr><td><code>InspectionDumps/DiffDumpTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>DiffDumpKind</code>；<code>DiffDumpTests: VersionAxisDumpTests</code>；<code>dump(_:to:)</code> 与三条管线</td><td>diff 一类的管线</td><td class="numeric">3</td></tr>
+      <tr><td><code>InspectionDumps/DiffTests.swift</code></td><td><span class="tag tag-added">新增</span></td><td><code>enum DiffTestSuite</code>，5 个套件、24 个测试</td><td>取代旧 diff 套件</td><td class="numeric">3</td></tr>
+      <tr><td><code>Documentations/Internal/ABIEvolutionDesign.md:235</code></td><td><span class="tag tag-changed">修改</span></td><td>目录改 <code>InspectionDumps/</code></td><td>路径变了</td><td class="numeric">4</td></tr>
+      <tr><td>账本、两个索引</td><td><span class="tag tag-changed">修改</span></td><td>追加一节；登记本提案</td><td>文档规则</td><td class="numeric">4</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>表中路径都在 <code>Tests/IntegrationTests/</code> 下（<code>Package.swift</code> 与文档除外）。</p>
+</section>
+
+<section id="proposal">
+  <h2>提议方案</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>类</th><th>协议</th><th>输入</th><th>输出种类（CLI 对应）</th></tr></thead>
+    <tbody>
+      <tr><td>接口</td><td><code>InterfaceDumpTests</code></td><td>一个镜像，任意读取器</td><td><code>swiftInterface</code>（<code>interface</code>）、<code>objcInterface</code>（<code>objc dump</code>）</td></tr>
+      <tr><td>diff</td><td><code>DiffDumpTests</code></td><td>版本轴的第一个与最后一个版本</td><td><code>swiftReport</code>（<code>diff</code> + <code>--json</code>）、<code>swiftInterface</code>（<code>diff --interface</code>）、<code>objcReport</code>（<code>objc diff</code> + <code>--json</code>）</td></tr>
+      <tr><td>演进</td><td><code>EvolutionDumpTests</code></td><td>整条版本轴</td><td>不变</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>套件</th><th>读什么</th><th>测试数</th></tr></thead>
+    <tbody>
+      <tr><td><code>InterfaceTestSuite.DyldCacheTests</code></td><td>本机 cache 的 AppKit · Swift + ObjC</td><td class="numeric">4</td></tr>
+      <tr><td><code>InterfaceTestSuite.ArchivedDyldCacheTests</code></td><td>归档 26.6 的 AppKit · Swift + ObjC</td><td class="numeric">4</td></tr>
+      <tr><td><code>InterfaceTestSuite.MachOFileTests</code></td><td>SymbolTestsCore · Swift</td><td class="numeric">2</td></tr>
+      <tr><td><code>InterfaceTestSuite.MachOImageTests</code></td><td>进程内 SwiftUICore · Swift</td><td class="numeric">2</td></tr>
+      <tr><td><code>InterfaceTestSuite.XcodeMachOFileTests</code></td><td>SourceEditor，只印导出声明 · Swift</td><td class="numeric">2</td></tr>
+      <tr><td><code>DiffTestSuite.SwiftUICoreTests</code></td><td>模拟器 18.5 → 26.5 的 SwiftUICore · Swift 报告与接口</td><td class="numeric">4</td></tr>
+      <tr><td><code>DiffTestSuite.SwiftUITests</code></td><td>模拟器 18.5 → 26.5 的 SwiftUI · Swift 报告与接口</td><td class="numeric">4</td></tr>
+      <tr><td><code>DiffTestSuite.DyldCacheTests</code></td><td>cache 26.5.1 → 27.0 的 AppKit · 加 ObjC 报告</td><td class="numeric">6</td></tr>
+      <tr><td><code>DiffTestSuite.ArchivedDyldCacheTests</code></td><td>归档 26.6 → 27.0 的 AppKit · 加 ObjC 报告</td><td class="numeric">6</td></tr>
+      <tr><td><code>DiffTestSuite.XcodeFrameworkTests</code></td><td>Xcode 26.3.0 → 26.4.0 的 DVTProductsUI · Swift 报告与接口</td><td class="numeric">4</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>采用的假设</h3>
+  <ul>
+    <li>diff 的 cache 对改为整份打开（用户在澄清时选定）；输出可能与现状有出入，以与 CLI 一致为准。</li>
+    <li>控制台只打印一份：diff 的 <code>swiftInterface</code> 写文件时出 inline 与 unified，打到控制台只出 inline，并只在写文件时渲染 unified。</li>
+    <li>维护者在公司那台 <code>next</code> 检出里未提交的接口套件实验不碰（用户在澄清时选定）；合回那个检出前由维护者自己收掉，否则合并会被挡住。实验里的「改读 AttributeGraph」在新结构里是给 <code>InterfaceTestSuite.DyldCacheTests</code> 改 <code>cacheImageName</code>。</li>
+    <li>其余假设见「要你定」。</li>
+  </ul>
+  <h3>非目标</h3>
+  <ul>
+    <li>不动 <code>SwiftDump/</code> 的 <code>DumpableTests</code> 一族、<code>RenderingVerificationTests</code>、<code>SwiftInterfaceIndexerTests</code>。</li>
+    <li>不给 diff 加镜像组：两个 differ 都没有镜像组入口。</li>
+    <li>不改库代码、不改 CLI；不运行 IntegrationTests。</li>
+  </ul>
+</section>
+
+<section id="design">
+  <h2>详细设计</h2>
+  <details>
+    <summary><code>InspectionDumpTests.swift</code> 与 <code>VersionAxis.swift</code></summary>
+    <div class="details-body">
+      <ul>
+        <li><code>DumpFile { suffix, fileExtension, text }</code>、<code>DumpOutput { consoleText, files }</code>；<code>deliver(_:to:writingFile:)</code> 打印 <code>consoleText</code> 或把每个文件交给调用方的命名函数（接口按 <code>write(_:for: machO…)</code>，diff 与演进按 <code>write(_:forImageGroup: newest.images…)</code>）。</li>
+        <li><code>preparedObjCIndexer(of:)</code> 改成对 <code>ObjCMetadataSource &amp; MachORepresentableWithCache</code> 泛型，进程内镜像也能用。</li>
+        <li><code>VersionAxes</code> 存两个 <code>let</code>（Swift 轴、ObjC 轴）加 <code>switch</code>；三个轴基类都 <code>@TestActor</code>、都在 <code>init</code> 里建好它、都实现 <code>nonisolated func versionAxis(for:)</code>。</li>
+        <li><code>MultiVersionDyldCacheImageTests</code> 的类属性与取镜像逻辑原样保留。<code>CrossVersionMachOFileTests</code> 加 <code>oldVersionLabel</code> / <code>newVersionLabel</code>（默认 <code>"18.5"</code> / <code>"26.5"</code>），镜像名取 <code>imagePath.lastPathComponent</code>。<code>CrossVersionXcodeFrameworkTests</code> 用 <code>oldXcodeVersion</code> / <code>newXcodeVersion</code> 拼 <code>/Applications/Xcode-&lt;版本&gt;.app/…</code>。</li>
+        <li><code>objcSnapshotDocument(of:label:)</code> 从演进管线搬到 <code>VersionAxisDumpTests</code> 的扩展里，diff 的 ObjC 报告也用它。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary><code>InterfaceDumpTests.swift</code></summary>
+    <div class="details-body">
+      <ul>
+        <li><code>dump&lt;MachO: MachOFieldLayoutRenderable &amp; ObjCMetadataSource&gt;(_ kind:, of machO:, to:)</code>。</li>
+        <li>后缀按 <code>machO.asMachOImage != nil</code> 取 <code>ImageDump</code> 或 <code>FileDump</code>，ObjC 前加 <code>ObjC</code>、扩展名 <code>h</code>。</li>
+        <li><code>swiftInterface</code>：与现状逐字相同的配置，只把 <code>printExportedDeclarationsOnly</code> 换成协议属性。</li>
+        <li><code>objcInterface</code>：<code>ObjCInterfaceBuilder(indexer:machO:)</code>，按 classes、protocols、categories、structs、unions 的顺序、名字排序逐个取接口，每段后接空行，与 <code>objc dump --file</code> 一致。</li>
+        <li>在 <code>@MainActor</code> 的基类上改 <code>printsExportedDeclarationsOnly</code> 要写 <code>nonisolated var</code>；<code>XcodeMachOFileTests</code> 的基类不隔离。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary><code>DiffDumpTests.swift</code></summary>
+    <div class="details-body">
+      <ul>
+        <li>取 <code>versionAxis(for: kind.language)</code> 的第一个与最后一个版本；不足两个时打印 <code>No diff: … version(s) carry … metadata</code> 后返回。</li>
+        <li><code>swiftReport</code>：两个 <code>SwiftDiffableInterfaceBuilder</code> 在一个 <code>measuringPreparation</code> 里准备；<code>ABIDiffer</code> + <code>ABIDiffReporter</code> + 结论行；JSON 用 <code>ABIJSON.encoder()</code>。</li>
+        <li><code>swiftInterface</code>：<code>SwiftDiffableInterfaceRenderer(old:new:).printAnnotatedInterface(format:)</code>，inline 必出，unified（<code>.unified()</code>）只在写文件时渲染。</li>
+        <li><code>objcReport</code>：两边 <code>objcSnapshotDocument</code>，<code>ObjCAPIDiffer</code> + <code>ObjCAPIDiffReporter</code> + <code>API-breaking: … · backward-compatible: …</code>；JSON 用 <code>ObjCAPIJSON.encoder()</code>。</li>
+      </ul>
+    </div>
+  </details>
+  <details>
+    <summary>与现状的行为差异</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>方面</th><th>现状</th><th>之后</th></tr></thead>
+        <tbody>
+          <tr><td>diff 的 cache 对</td><td><code>DyldCache(path:)</code> 只开主文件</td><td><code>FullDyldCache(path:)</code> 整份打开，与演进、CLI 一致</td></tr>
+          <tr><td>diff 的输出</td><td><code>diffFile</code> 写三个文件；<code>diffString</code> 印变更列表与 inline</td><td><code>swiftReport</code> 写 <code>.txt</code> 与新增的 <code>.json</code>；<code>swiftInterface</code> 写 inline 与 unified，印 inline</td></tr>
+          <tr><td>新增 ObjC 输出</td><td>无</td><td>AppKit 接口：<code>-ObjCFileDump.h</code>；AppKit diff：<code>-ObjCDiff.txt</code> / <code>.json</code></td></tr>
+          <tr><td>接口文件名</td><td>按 <code>is MachOImage</code></td><td>不变，改按 <code>asMachOImage</code></td></tr>
+          <tr><td>测试标识</td><td><code>SwiftInterfaceBuilderTestSuite.*/buildFile()</code>、<code>SwiftDiffableInterfaceBuilderTestSuite.*/diffFile()</code></td><td><code>InterfaceTestSuite.*/swiftInterfaceFile()</code>、<code>DiffTestSuite.*/swiftReportFile()</code> 等；演进不变</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+<section id="motivation">
+  <h2>动机</h2>
+  <ol>
+    <li>diff 自带三个「新旧两版」基类，和演进的版本轴是同一件事的两种写法；演进的模拟器套件还得借 diff 的基类、自己拼轴。</li>
+    <li>diff 读 cache 只开主文件，演进与 CLI 整份打开：同一个 AppKit 经两条读路径。</li>
+    <li>diff 的 <code>DyldCacheTests</code> 注释写 SwiftUI、15.5 → current，实际读 AppKit、26.5.1 → 27.0。</li>
+    <li>接口的 <code>XcodeMachOFileTests</code> 为开一个选项抄了整份配置。</li>
+    <li>接口套件用 <code>machO is MachOImage</code> 判读取器，项目规则要求问 <code>asMachOImage</code>。</li>
+    <li>只有演进出 ObjC；AppKit 的 ObjC 部分远大于 Swift。</li>
+    <li><code>indexConfiguration</code> 在三处各写一份。</li>
+  </ol>
+</section>
+
+<section id="research">
+  <h2>调研</h2>
+  <ul>
+    <li>CLI 管线：<code>objc dump</code> 按五种声明、名字排序拼接（<code>ObjCDumpRequest.swift</code>、<code>ObjCInterfaceSession.swift</code>）；<code>diff</code> / <code>--json</code> / <code>--interface</code>（<code>ABIDiffRequest.swift:67-150</code>）；<code>objc diff</code> 只有变更列表与 JSON，没有带标注的头文件（<code>ObjCAPIRequests.swift:56-108</code>）。</li>
+    <li>锁定的 MachOObjCSection 0.8.209 上，用到的 ObjC 接口都在，<code>MachOImage</code> 与 <code>MachOFile</code> 都遵循 <code>ObjCMetadataSource</code>；<code>ObjCGenerationOptions</code> 在 <code>ObjCDeclarationRendering</code>，需要加依赖；<code>Tuist/Package.swift</code> 不用改。</li>
+    <li>单镜像时 <code>write(_:for:)</code> 与 <code>write(_:forImageGroup:)</code> 文件名逐字相同，diff 改用轴后文件名不变。</li>
+    <li>IntegrationTests 外只有 <code>ABIEvolutionDesign.md:235</code> 写着现行路径；别处的旧套件名是历史记录。</li>
+  </ul>
+</section>
+
+<section id="alternatives">
+  <h2>替代方案</h2>
+  <ul>
+    <li><strong>单版本接口也走版本轴</strong>：放弃。接口要读进程内 <code>MachOImage</code>，轴与演进构建器只收 <code>MachOFile</code>。</li>
+    <li><strong>三类合成一个枚举、一个协议</strong>：放弃。三类输入形状不同，分开后编译期就排除了「对单个镜像跑 diff」。</li>
+    <li><strong>diff 保留自己的基类</strong>、<strong>只改结构不加 ObjC</strong>：用户在澄清时否掉。</li>
+    <li><strong>ObjC 加在每个套件上</strong>：暂不，需要时加一对一行测试即可。</li>
+    <li><strong>套件按镜像改名</strong>：放弃。接口与 diff 套件是维护者临时指向别的镜像的探针，按镜像命名容易名不副实。</li>
+  </ul>
+</section>
+
+<section id="impact">
+  <h2>影响</h2>
+  <ul>
+    <li>纯测试改动，没有公开 API 变化；IntegrationTests 不是 product。</li>
+    <li><code>Package.swift</code> 只为 IntegrationTests 多列一个已有的 MachOObjCSection product；下游仓库无影响。</li>
+    <li>维护者手动运行时用的测试名会变。</li>
+  </ul>
+</section>
+
+<section id="steps">
+  <h2>落地步骤</h2>
+  <p>验证在 Ultra 上做：<code>queued-build swift build --build-tests</code>，默认 Xcode 与 Xcode 26.6 各编一遍；不运行 IntegrationTests。</p>
+  <ol>
+    <li><strong>公共骨架与版本轴</strong>：新目录，四个文件移入并改名；两个旧文件只做机械改名以保持能编。</li>
+    <li><strong>接口一类</strong>：<code>InterfaceDumpTests.swift</code>、<code>InterfaceTests.swift</code>；删旧接口文件；<code>Package.swift</code> 加依赖。</li>
+    <li><strong>diff 一类</strong>：<code>DiffDumpTests.swift</code>、<code>DiffTests.swift</code>；删旧 diff 文件。</li>
+    <li><strong>文档</strong>：<code>ABIEvolutionDesign.md</code>、账本、索引；维护者可选地挑几个 file 测试前后比对。</li>
+  </ol>
+  <p>收尾判断：预计不需要配套专题文章；不新增术语。</p>
+</section>
+
+<section id="log">
+  <h2>决策日志</h2>
+  <details>
+    <summary>2 条，最近一条：Accepted</summary>
+    <div class="details-body">
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td class="numeric">2026-11-26</td><td>Created as Draft</td><td>0110 合并演进套件后，用户要求把 diff 与单版本接口两类手检套件也按同样的结构统一。澄清一轮：两类都加上 ObjC 输出；diff 改用演进套件的版本轴（cache 对因此整份打开，与 CLI 一致）；维护者未提交的接口套件实验不碰，照提交版重构，由维护者自己收掉。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>Accepted</td><td>用户看过简报后批准，开始实现。</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </details>
+</section>
+
+</main>
+</div>
+</body>
+</html>
