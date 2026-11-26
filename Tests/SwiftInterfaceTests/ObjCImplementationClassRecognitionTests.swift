@@ -11,6 +11,8 @@ import Semantic
 @testable import SwiftSectionTestingSupport
 import SwiftPrinting
 import SwiftSectionFixtureSupport
+import OutputTransformer
+import ObjCOutputTransformer
 
 /// `@objc @implementation` recognition on the interface path (evolution
 /// proposal `objc-implementation-class-recognition`), over the on-the-fly
@@ -19,15 +21,16 @@ import SwiftSectionFixtureSupport
 /// adds to, and a plain Swift class with ObjC ancestry.
 @Suite(.serialized, ExclusiveImageAccess(ObjCImplementationFixture.moduleName))
 struct ObjCImplementationClassRecognitionTests {
-    private func interface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool = false) async throws -> String {
-        try await printInterface(of: variant, printFieldOffset: printFieldOffset, marksCommentStructure: false).string
+    private func interface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool = false, configure: (inout SwiftDeclarationPrintConfiguration) -> Void = { _ in }) async throws -> String {
+        try await printInterface(of: variant, printFieldOffset: printFieldOffset, marksCommentStructure: false, configure: configure).string
     }
 
-    private func printInterface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool, marksCommentStructure: Bool) async throws -> SemanticString {
+    private func printInterface(of variant: ObjCImplementationFixture.Variant, printFieldOffset: Bool, marksCommentStructure: Bool, configure: (inout SwiftDeclarationPrintConfiguration) -> Void = { _ in }) async throws -> SemanticString {
         let machOFile = try ObjCImplementationFixture.machOFile(variant)
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.printConfiguration.printFieldOffset = printFieldOffset
         configuration.printConfiguration.marksCommentStructure = marksCommentStructure
+        configure(&configuration.printConfiguration)
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: machOFile)
         try await builder.prepare()
         return try await builder.printRoot()
@@ -111,13 +114,127 @@ struct ObjCImplementationClassRecognitionTests {
         let interface = try await interface(of: .strippedLocals)
         let widget = try #require(block(named: "@objc @implementation extension __C.Widget {", in: interface))
         #expect(!widget.contains("inferred from ObjC class data"))
-        // No field-offset symbol survived, so the ivars render as honest
-        // comments — ObjC facts, no fabricated Swift type.
-        #expect(widget.contains("// stored property title: Swift type not recoverable (ObjC ivar, offset 0x8, size 16, encoding \"?\")"))
-        #expect(widget.contains("// stored property count: Swift type not recoverable (ObjC ivar, offset 0x18, size 8, encoding \"q\")"))
+        // No field-offset symbol survived. The Objective-C side still gives
+        // the types of the `@objc` ones (evolution proposal
+        // `objc-ivar-type-recovery`): a complete encoding is the type itself,
+        // a `?` one the bridged form of its Objective-C property. The others
+        // render as honest comments — ObjC facts, no fabricated Swift type.
+        #expect(widget.contains("    var title: Swift.String!\n"))
+        #expect(!widget.contains("stored property title"))
+        #expect(widget.contains("    var count: Swift.Int\n"))
+        #expect(!widget.contains("stored property count"))
         #expect(widget.contains("// stored property swiftOnlyCache: Swift type not recoverable (ObjC ivar, offset 0x20, size 8, encoding \"\")"))
         #expect(widget.contains("// stored property hiddenTally: Swift type not recoverable (ObjC ivar, offset 0x28, size 8, encoding \"\")"))
         #expect(widget.contains("// stored property $__lazy_storage_$_summary: Swift type not recoverable (ObjC ivar, offset 0x30, size 16, encoding \"\")"))
+    }
+
+    // MARK: - Stored property types the Objective-C side gives
+
+    // Evolution proposal `objc-ivar-type-recovery`: `AdaptiveTransitionWidget`'s
+    // members are internal, so `strip -x` leaves only its ivar list and
+    // Objective-C properties.
+
+    private func adaptiveTransitionWidget(of variant: ObjCImplementationFixture.Variant, configure: (inout SwiftDeclarationPrintConfiguration) -> Void = { _ in }) async throws -> String {
+        let interface = try await interface(of: variant, configure: configure)
+        // The fully stripped variant's header carries the inferred evidence
+        // between `@implementation` and `extension`.
+        #expect(variant == .strippedEverything || interface.contains("@objc @implementation extension __C.AdaptiveTransitionWidget {"))
+        return try #require(block(named: "extension __C.AdaptiveTransitionWidget {", in: interface))
+    }
+
+    /// What follows `var <name>: ` or `let <name>: ` on its line in `block`.
+    private func declaredType(of propertyName: String, in block: String) -> String? {
+        for line in block.split(separator: "\n") {
+            for introducer in ["var ", "let "] {
+                guard let range = line.range(of: "\(introducer)\(propertyName): ") else { continue }
+                return String(line[range.upperBound...])
+            }
+        }
+        return nil
+    }
+
+    @Test func strippedClassTypedIvarsRecoverTheClassImplicitlyUnwrapped() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(widget.contains("    var containerView: __C.NSObject!\n"), "\(widget)")
+        // `NSMutableString` is no class Swift bridges.
+        #expect(widget.contains("    var buffer: __C.NSMutableString!\n"), "\(widget)")
+        #expect(!widget.contains("stored property containerView"))
+    }
+
+    @Test func strippedProtocolTypedIvarRecoversTheExistentialImplicitlyUnwrapped() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(widget.contains("    var previousLayout: (any __C.AdaptiveLayout)!\n"), "\(widget)")
+    }
+
+    @Test func strippedScalarIvarsRecoverTheTypesTheirEncodingsName() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(widget.contains("    var isAnimated: Swift.Bool\n"), "\(widget)")
+        // `CGFloat` and `Double` encode alike; with no C type replacement the
+        // encoding's own type prints.
+        #expect(widget.contains("    var interactiveProgress: Swift.Double\n"), "\(widget)")
+        #expect(widget.contains("    var stepCount: Swift.Int\n"), "\(widget)")
+        // A structure prints as the field-offset symbol spells it.
+        let full = try await adaptiveTransitionWidget(of: .full)
+        let structureType = try #require(declaredType(of: "selectedRange", in: full))
+        #expect(declaredType(of: "selectedRange", in: widget) == structureType, "\(widget)")
+    }
+
+    @Test func readOnlyObjCPropertyRecoversAsALet() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(widget.contains("    let revision: Swift.Int\n"), "\(widget)")
+    }
+
+    @Test func bridgedIvarsRecoverTheImportedTypeOfTheirObjCProperty() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        // `readonly` over stored storage: a `let`.
+        #expect(widget.contains("    let identifier: Swift.String!\n"), "\(widget)")
+        // The `T` attribute names no element type.
+        #expect(widget.contains("    var names: [Any]!\n"), "\(widget)")
+        #expect(widget.contains("    var payload: Any!\n"), "\(widget)")
+        #expect(!widget.contains("stored property identifier"))
+    }
+
+    @Test func weakObjCPropertyRecoversAsAWeakOptionalOfItsClass() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(widget.contains("    weak var observer: __C.NSObject?\n"), "\(widget)")
+    }
+
+    @Test func cTypeReplacementsSpellARecoveredPrimitiveType() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals) { configuration in
+            configuration.cTypeReplacements = [.double: "CGFloat", .longLong: "NSInteger", .ulongLong: "NSUInteger"]
+        }
+        #expect(widget.contains("    var interactiveProgress: CGFloat\n"), "\(widget)")
+        #expect(widget.contains("    var stepCount: NSInteger\n"), "\(widget)")
+        // Only the type itself is replaced: `NSRange`'s `QQ` fields are not.
+        let unreplaced = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(declaredType(of: "selectedRange", in: widget) == declaredType(of: "selectedRange", in: unreplaced), "\(widget)")
+        #expect(widget.contains("    var isAnimated: Swift.Bool\n"), "\(widget)")
+    }
+
+    @Test func objcTransformersInstallTheirCTypeReplacementsOnlyWhenEnabled() async throws {
+        let enabled = try await adaptiveTransitionWidget(of: .strippedLocals) { configuration in
+            configuration.applyTransformers(Transformer.ObjCConfiguration(cType: .init(isEnabled: true, replacements: [.double: "CGFloat", .longLong: ""])))
+        }
+        #expect(enabled.contains("    var interactiveProgress: CGFloat\n"), "\(enabled)")
+        // An empty spelling replaces nothing.
+        #expect(enabled.contains("    var stepCount: Swift.Int\n"), "\(enabled)")
+        let disabled = try await adaptiveTransitionWidget(of: .strippedLocals) { configuration in
+            configuration.cTypeReplacements = [.double: "Float64"]
+            configuration.applyTransformers(Transformer.ObjCConfiguration(cType: .init(isEnabled: false, replacements: [.double: "CGFloat"])))
+        }
+        #expect(disabled.contains("    var interactiveProgress: Swift.Double\n"), "\(disabled)")
+    }
+
+    @Test func ivarWithNoEncodingStaysAComment() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedLocals)
+        #expect(widget.contains("// stored property transitionAnimations: Swift type not recoverable (ObjC ivar, offset 0x"), "\(widget)")
+        #expect(!widget.contains("var transitionAnimations"))
+    }
+
+    @Test func recoveredTypesHoldWithEveryObjCImplementationSymbolGone() async throws {
+        let widget = try await adaptiveTransitionWidget(of: .strippedEverything)
+        #expect(widget.contains("    var containerView: __C.NSObject!\n"), "\(widget)")
+        #expect(widget.contains("    var isAnimated: Swift.Bool\n"), "\(widget)")
     }
 
     // MARK: - Inferred tier: no Swift symbol at all
@@ -127,7 +244,7 @@ struct ObjCImplementationClassRecognitionTests {
         // The class has no member symbol left, so the extension is synthesized
         // from the ObjC side alone — and labelled as an inference.
         let widget = try #require(block(named: "@objc @implementation /* inferred from ObjC class data: 4 ivars carry Swift-style type encodings */ extension __C.Widget {", in: interface))
-        #expect(widget.contains("// stored property title: Swift type not recoverable"))
+        #expect(widget.contains("    var title: Swift.String!\n"))
         #expect(widget.contains("// stored property swiftOnlyCache: Swift type not recoverable"))
         // The clang class has complete encodings and no Swift symbols: silent
         // (it still appears as the SUPERCLASS of the fixture's Swift subclasses).
@@ -182,10 +299,11 @@ struct ObjCImplementationClassRecognitionTests {
         #expect(facts.properties.map(\.name).sorted() == ["count", "title"])
 
         #expect(ObjCImplementationClasses.facts(forClassNamed: "ClangWidget", in: machOFile) == nil)
-        // Three `@implementation` bodies: `Widget`, the override-recovery
-        // fixture's `DerivedImplementationWidget` and the imported
-        // declarations' `ScenePresentationWidget`.
-        #expect(Set(ObjCImplementationClasses.all(in: machOFile).map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget"])
+        // Four `@implementation` bodies: `Widget`, the override-recovery
+        // fixture's `DerivedImplementationWidget`, the imported
+        // declarations' `ScenePresentationWidget` and the ivar type
+        // recovery's `AdaptiveTransitionWidget`.
+        #expect(Set(ObjCImplementationClasses.all(in: machOFile).map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget", "AdaptiveTransitionWidget"])
     }
 
     /// An imported ObjC class has `PublicNonUnique` linkage, so any module
@@ -222,7 +340,7 @@ struct ObjCImplementationClassRecognitionTests {
             guard case .objcImplementationClassRecognized(let context) = event else { return nil }
             return context
         }
-        #expect(Set(recognized.map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget"])
+        #expect(Set(recognized.map(\.className)) == ["Widget", "DerivedImplementationWidget", "ScenePresentationWidget", "AdaptiveTransitionWidget"])
         let widget = try #require(recognized.first { $0.className == "Widget" })
         #expect(widget.isInferred == false)
         #expect(widget.instanceVariableCount == 5)

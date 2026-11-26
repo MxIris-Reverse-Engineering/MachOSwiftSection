@@ -4,6 +4,8 @@ import Demangling
 import Semantic
 @_spi(Internals) import SwiftInspection
 import SwiftObjCInterop
+import OutputTransformer
+import ObjCOutputTransformer
 
 // The interface-side rendering of an `@objc @implementation` class's stored
 // properties (evolution proposal `objc-implementation-class-recognition`).
@@ -88,6 +90,12 @@ extension SwiftDeclarationPrinter {
     /// without renders as an honest comment naming what the binary does say
     /// (ObjC name, offset, size, encoding) rather than a fabricated type.
     ///
+    /// Before falling back to the comment, the Objective-C side is asked for
+    /// the Swift type: a complete ivar encoding is the Swift type itself, and
+    /// a `?` one the bridged form of the Objective-C property synthesized on
+    /// the ivar (`ObjCInstanceVariableSwiftType`, evolution proposal
+    /// `objc-ivar-type-recovery`).
+    ///
     /// `standIns` replace that comment with a declaration the Objective-C side
     /// gives, keyed by the ivar's identity: the Generated Interface prints the
     /// Objective-C property synthesized on the ivar as Swift imports it,
@@ -126,6 +134,9 @@ extension SwiftDeclarationPrinter {
                                 Space()
                             }
                             await printType(typeNode.materialize(), isProtocol: false, level: level)
+                        } else if let recoveredType = recoveredSwiftType(of: instanceVariable, in: extensionDefinition) {
+                            // One row: `Rows` puts each component on a line of its own.
+                            await recoveredStoredPropertyDeclaration(named: instanceVariable.name, type: recoveredType, level: level)
                         } else {
                             comment(.note(Self.unrecoverableStoredPropertyComment(for: instanceVariable)), as: .note)
                         }
@@ -133,6 +144,61 @@ extension SwiftDeclarationPrinter {
                 }
             }
         }
+    }
+
+    /// The Swift type the Objective-C side gives `instanceVariable`, or `nil`
+    /// when it gives none. An unnamed ivar names no property to declare.
+    private func recoveredSwiftType(of instanceVariable: ObjCImplementationClassFacts.InstanceVariable, in extensionDefinition: ExtensionDefinition) -> ObjCInstanceVariableSwiftType? {
+        guard !instanceVariable.name.isEmpty, let facts = extensionDefinition.objcImplementation else { return nil }
+        let objcProperty = facts.objcProperty(storedIn: instanceVariable, swiftPropertyName: instanceVariable.swiftPropertyName ?? instanceVariable.name)
+        return ObjCInstanceVariableSwiftType(instanceVariable: instanceVariable, objcProperty: objcProperty, in: machO)
+    }
+
+    /// `[weak] var|let name: Type` for a stored property whose type the
+    /// Objective-C side gave. With an Objective-C property, `readonly` makes
+    /// it a `let`; with none, nothing says it cannot be set.
+    @SemanticStringBuilder
+    private func recoveredStoredPropertyDeclaration(named name: String, type recoveredType: ObjCInstanceVariableSwiftType, level: Int) async -> SemanticString {
+        if recoveredType.isWeak {
+            Keyword(.weak)
+            Space()
+            Keyword(.var)
+        } else {
+            Keyword(recoveredType.isReadOnly ? .let : .var)
+        }
+        Space()
+        MemberDeclaration(name)
+        Standard(":")
+        Space()
+        if let replacement = cTypeReplacement(for: recoveredType.encodedType) {
+            TypeName(kind: .other, replacement)
+        } else {
+            await printType(recoveredType.typeNode, isProtocol: false, level: level)
+        }
+    }
+
+    /// The configuration's spelling for `type` when it is a C primitive one
+    /// of its C type replacements names (`double` → `CGFloat`), as an
+    /// Objective-C header spells it with the same replacements.
+    private func cTypeReplacement(for type: ObjCEncodedType) -> String? {
+        let pattern: Transformer.CType.Pattern? = switch type {
+        case .character: .char
+        case .unsignedCharacter: .uchar
+        case .short: .short
+        case .unsignedShort: .ushort
+        case .int: .int
+        case .unsignedInt: .uint
+        case .long: .long
+        case .unsignedLong: .ulong
+        case .longLong: .longLong
+        case .unsignedLongLong: .ulongLong
+        case .float: .float
+        case .double: .double
+        case .longDouble: .longDouble
+        default: nil
+        }
+        guard let pattern, let replacement = configuration.cTypeReplacements[pattern], !replacement.isEmpty else { return nil }
+        return replacement
     }
 
     static func unrecoverableStoredPropertyComment(for instanceVariable: ObjCImplementationClassFacts.InstanceVariable) -> String {

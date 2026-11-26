@@ -38,7 +38,7 @@
 
 ### 2：`@objc @implementation` 类
 
-SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没有 Swift 的 nominal type descriptor 与 field descriptor。`ObjCImplementationClassIndex` 联合 `__objc_classlist` 与符号表认出它们，给出 `ObjCImplementationClassFacts`：证据分 definitive 与 inferred 两档，ivar 按偏移值与 `Wvd` 符号配对，还有方法表。见 [ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)。
+SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没有 Swift 的 nominal type descriptor 与 field descriptor。`ObjCImplementationClassIndex` 联合 `__objc_classlist` 与符号表认出它们，给出 `ObjCImplementationClassFacts`：证据分 definitive 与 inferred 两档，ivar 按偏移值与 `Wvd` 符号配对，还有方法表。`Wvd` 被剥掉的存储属性由 `ObjCInstanceVariableSwiftType` 从 ivar 的 encoding 或 ObjC 属性还原 Swift 类型（提案 `objc-ivar-type-recovery`）。见 [ObjCImplementationClassRecognition.md](../ObjCImplementationClassRecognition.md)。
 
 ### 3：ObjC 协议
 
@@ -73,7 +73,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 - `ObjCImportedMemberNodes`：方法、属性、subscript 的 demangle 树，0079 的协议要求也经它建。
 - `ObjCSwiftTypeCompatibility`：按名字把 ObjC 成员配给 Swift 成员时的类型核对（提案 [0096](../../Evolutions/0096-swift-first-imported-declarations.md)）。只认明显对不上的两种：对象（`@`）对实现它的模块自己定义的 struct / enum，标量对类或 existential；别的模块的值类型可能桥接（`String`、`Data`、`UTType`），不判。它也是「同名的 Swift 属性是另一个声明」的证据——头文件标了 `NS_REFINED_FOR_SWIFT` 的属性，Swift 里叫 `__name`，原名留给一个纯 Swift 的属性。`ObjCMemberShape.removingRefinedForSwiftPrefix` 去掉这个 `__`（属性名、方法基名、初始化器第一个标签）再比 selector。
 - `ObjCImplementationClassFacts.objcProperty(storedIn:swiftPropertyName:)`：存储属性对应的 ObjC 属性（`V<ivar 名>`）。`-O` 下 setter 常被内联进 thunk、不留符号，可写与否、是否 `weak` 要看它的特性串，interface 不再把这样的属性打成 `let`。
-- `ObjCImportedTypes`：编码里的类型换成 Swift 的类型树（对象是 `T!`，`NSString` 这类桥接成值类型；`r*` 即 `const char *` 是 `UnsafePointer<Int8>`，`*` 是 `UnsafeMutablePointer<Int8>`；C 数组照 ClangImporter 导入成元组，单元素的是元素本身，超过 4,096 个元素的导入不了、指针指向它时是 `OpaquePointer`，嵌套数组展开超过 65,536 个元素也按导入不了处理）；`ObjCBridgedStructures` 记哪些类导入成值类型，`@NSCopying` 据此判断。
+- `ObjCImportedTypes`：编码里的类型换成 Swift 的类型树（对象是 `T!`，`NSString` 这类桥接成值类型；另有两个入口给 `@objc @implementation` 的存储属性用——`triviallyRepresentedTypeNode` 按「原样表示」读完整的 ivar encoding，不桥接、`id` 是 `AnyObject`，`bridgedTypeNode` 按导入规则读 `?` 的 ivar 对应的 ObjC 属性类型，两者对 block、指向结构体的指针、位域等给不出确定类型的返回 `nil`；`r*` 即 `const char *` 是 `UnsafePointer<Int8>`，`*` 是 `UnsafeMutablePointer<Int8>`；C 数组照 ClangImporter 导入成元组，单元素的是元素本身，超过 4,096 个元素的导入不了、指针指向它时是 `OpaquePointer`，嵌套数组展开超过 65,536 个元素也按导入不了处理）；`ObjCBridgedStructures` 记哪些类导入成值类型，`@NSCopying` 据此判断。
 
 ## 关键契约
 

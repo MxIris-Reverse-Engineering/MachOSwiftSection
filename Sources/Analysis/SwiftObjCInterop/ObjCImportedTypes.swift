@@ -20,6 +20,20 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
         case closureComponent
         /// A result the error convention proves non-nil.
         case nonOptional
+        /// A `weak` property: `T?`, as `weak` requires an optional.
+        case weakStorage
+    }
+
+    /// How an Objective-C type maps to a Swift one.
+    private enum Mapping {
+        /// As the importer imports a declaration: Foundation's bridged
+        /// classes become their Swift value types and `id` is `Any`.
+        case imported
+        /// As the Swift type behind an `@objc @implementation` ivar's complete
+        /// encoding, which the compiler only writes for a type Objective-C
+        /// represents as it is (evolution proposal `objc-ivar-type-recovery`):
+        /// no class is bridged and `id` is `AnyObject`.
+        case triviallyRepresented
     }
 
     /// The image the names are resolved in: a Swift class or protocol is
@@ -32,12 +46,69 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
 
     /// A `Type` node for `type` in `position`.
     package func typeNode(_ type: ObjCEncodedType, position: Position) -> Node {
-        let base = Self.type(bareTypeNode(type))
+        typeNode(type, position: position, mapping: .imported)
+    }
+
+    /// The Swift type of an `@objc @implementation` stored property whose
+    /// ivar carries the complete encoding `type` (evolution proposal
+    /// `objc-ivar-type-recovery`): the compiler writes one only for a type
+    /// Objective-C represents as it is, so `NSString` stays `NSString` and
+    /// `id` is `AnyObject`. `nil` for a type the encoding does not
+    /// determine: a block, whose signature no ivar encoding carries, a
+    /// pointer to a structure (a CF type reads the same), a bit field, an
+    /// unnamed structure, an array the importer cannot represent, or one the
+    /// reader does not know.
+    package func triviallyRepresentedTypeNode(_ type: ObjCEncodedType, position: Position) -> Node? {
+        guard Self.determinesStoredPropertyType(type) else { return nil }
+        return typeNode(type, position: position, mapping: .triviallyRepresented)
+    }
+
+    /// The Swift type of an `@objc @implementation` stored property whose
+    /// ivar the compiler marked `?` — a type bridged to a separate
+    /// Objective-C one — read off the `T` attribute of the Objective-C
+    /// property synthesized on it (evolution proposal
+    /// `objc-ivar-type-recovery`): the type the importer gives that
+    /// Objective-C type, `NSString` as `String`, `NSArray` as `[Any]` (the
+    /// attribute names no element type), `id` as `Any`. The `?` proves the
+    /// Swift type is no class Objective-C has, so only a class the importer
+    /// bridges and a bare `id` qualify; anything else — a class imported as
+    /// itself, which an `unowned` property's storage also marks `?`, a
+    /// Foundation class bridged to a value type the table does not list —
+    /// returns `nil`.
+    package func bridgedTypeNode(_ type: ObjCEncodedType, position: Position) -> Node? {
+        guard case .object(let className, let protocolNames) = type, protocolNames.isEmpty else { return nil }
+        if let className, !ObjCBridgedStructures.importsAsNonClassType(className) { return nil }
+        return typeNode(type, position: position, mapping: .imported)
+    }
+
+    private func typeNode(_ type: ObjCEncodedType, position: Position, mapping: Mapping) -> Node {
+        let base = Self.type(bareTypeNode(type, mapping: mapping))
         guard Self.isNullable(type) else { return base }
         switch position {
         case .topLevel: return Self.implicitlyUnwrapped(base)
-        case .closureComponent: return Self.optional(base)
+        case .closureComponent, .weakStorage: return Self.optional(base)
         case .nonOptional: return base
+        }
+    }
+
+    /// Whether `type` names one Swift type a stored property can have. A
+    /// pointer does only to `void` or a scalar: the importer gives a pointer
+    /// to an object, a pointer or a structure a type of its own
+    /// (`AutoreleasingUnsafeMutablePointer`, an optional pointee, a CF class).
+    private static func determinesStoredPropertyType(_ type: ObjCEncodedType) -> Bool {
+        switch type {
+        case .void, .block, .bitField, .unknown: false
+        case .structure(let name), .union(let name): name != nil
+        case .array(_, let element): flattenedElementCount(of: type) != nil && determinesStoredPropertyType(element)
+        case .pointer(let pointee, _): pointee == .void || isScalar(pointee)
+        default: true
+        }
+    }
+
+    private static func isScalar(_ type: ObjCEncodedType) -> Bool {
+        switch type {
+        case .bool, .character, .unsignedCharacter, .short, .unsignedShort, .int, .unsignedInt, .long, .unsignedLong, .longLong, .unsignedLongLong, .float, .double, .longDouble: true
+        default: false
         }
     }
 
@@ -59,7 +130,7 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
     }
 
     /// The type itself, unwrapped: what a `Type` node holds.
-    private func bareTypeNode(_ type: ObjCEncodedType) -> Node {
+    private func bareTypeNode(_ type: ObjCEncodedType, mapping: Mapping = .imported) -> Node {
         switch type {
         case .void: return Node.createTransient(kind: .tuple)
         case .bool: return Self.swiftStructure("Bool")
@@ -76,7 +147,7 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
         case .characterString(let isConst): return Self.boundGenericStructure(Self.swiftStructure(isConst ? "UnsafePointer" : "UnsafeMutablePointer"), arguments: [Self.swiftStructure("Int8")])
         case .selector: return Self.structure(module: "ObjectiveC", name: "Selector")
         case .objectClass: return Node.createTransient(kind: .typeAlias, children: [Self.module("Swift"), Node.createTransient(kind: .identifier, text: "AnyClass")])
-        case .object(let className, let protocolNames): return objectNode(className: className, protocolNames: protocolNames)
+        case .object(let className, let protocolNames): return objectNode(className: className, protocolNames: protocolNames, mapping: mapping)
         case .block(let signature):
             guard let signature else { return Self.anyNode }
             return Node.createTransient(kind: .functionType, children: [
@@ -92,7 +163,7 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
             // ClangImporter imports a pointer to what it cannot represent as
             // `OpaquePointer`.
             case .array where Self.flattenedElementCount(of: pointee) == nil: return Self.swiftStructure("OpaquePointer")
-            default: return Self.boundGenericStructure(Self.swiftStructure(isConst ? "UnsafePointer" : "UnsafeMutablePointer"), arguments: [bareTypeNode(pointee)])
+            default: return Self.boundGenericStructure(Self.swiftStructure(isConst ? "UnsafePointer" : "UnsafeMutablePointer"), arguments: [bareTypeNode(pointee, mapping: mapping)])
             }
         case .structure(let name), .union(let name):
             guard let name else { return Self.swiftStructure("OpaquePointer") }
@@ -101,9 +172,9 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
             // A C array imports as a tuple of its elements, a single element
             // as the element itself; one it cannot represent, as nothing.
             guard Self.flattenedElementCount(of: type) != nil else { return Self.anyNode }
-            if count == 1 { return bareTypeNode(element) }
+            if count == 1 { return bareTypeNode(element, mapping: mapping) }
             return Node.createTransient(kind: .tuple, children: (0 ..< count).map { _ in
-                Node.createTransient(kind: .tupleElement, child: Self.type(bareTypeNode(element)))
+                Node.createTransient(kind: .tupleElement, child: Self.type(bareTypeNode(element, mapping: mapping)))
             })
         case .bitField, .unknown:
             return Self.anyNode
@@ -132,9 +203,14 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
         return flattenedCount
     }
 
-    private func objectNode(className: String?, protocolNames: [String]) -> Node {
+    private func objectNode(className: String?, protocolNames: [String], mapping: Mapping) -> Node {
         let protocols = protocolNames.map { Self.type(ObjCRuntimeNames.protocolNode(forRuntimeName: $0, in: machO)) }
         guard let className else {
+            // A bare `id` a Swift type represents as it is is `AnyObject`;
+            // the importer gives `Any`.
+            if mapping == .triviallyRepresented, protocols.isEmpty {
+                return Node.createTransient(kind: .protocolListWithAnyObject, child: Node.createTransient(kind: .protocolList, child: Node.createTransient(kind: .typeList)))
+            }
             // `id`, `id<P>`, `id<P, Q>`.
             return Node.createTransient(kind: .protocolList, child: Node.createTransient(kind: .typeList, children: protocols))
         }
@@ -144,6 +220,10 @@ package struct ObjCImportedTypes<MachO: MachOSwiftSectionRepresentableWithCache>
                 Node.createTransient(kind: .protocolList, child: Node.createTransient(kind: .typeList, children: protocols)),
                 Self.type(ObjCRuntimeNames.classNode(forRuntimeName: className, in: machO)),
             ])
+        }
+        // A class a Swift type represents as it is is that class.
+        if mapping == .triviallyRepresented {
+            return ObjCRuntimeNames.classNode(forRuntimeName: className, in: machO)
         }
         if let bridged = ObjCBridgedStructures.structuresByClassName[className] {
             return Self.structure(module: bridged.module, name: bridged.name)

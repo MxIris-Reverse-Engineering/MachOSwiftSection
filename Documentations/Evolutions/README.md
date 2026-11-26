@@ -127,3 +127,4 @@
 | [0110](0110-unify-evolution-integration-suites.md) | IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴 | Implemented |
 | [0111](0111-unify-diff-and-interface-integration-suites.md) | IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架 | Implemented |
 | draft | [交叉引用补漏：按 Swift 类型查询、GOT 槽地址、selector 引用与 ivar 读法](draft-cross-reference-recall-gaps.md)（所属愿景：[不依赖 IDA 的逆向](../Visions/ReverseEngineeringWithoutIDA.md)） | Accepted |
+| draft | [`@objc @implementation` 只剩 ivar 的存储属性按 ObjC 类型还原 Swift 类型](draft-objc-ivar-type-recovery.md) | In Progress |

@@ -846,6 +846,10 @@ extension Target {
             .target(.SwiftDeclarationRendering),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
+            // `Transformer.CType.Pattern`, the keys of
+            // `SwiftDeclarationPrintConfiguration.cTypeReplacements`.
+            .product(.OutputTransformer),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
         ],
         path: "Sources/Output/SwiftPrinting",
     )
@@ -1277,6 +1281,10 @@ extension Target {
             .target(.SwiftInterface),
             // The nested-definition contract with source-file comments on.
             .target(.SwiftPrivateDiscriminators),
+            // `Transformer.CType`, the C type replacements of a recovered
+            // `@objc @implementation` stored property's type.
+            .product(.OutputTransformer),
+            .product(name: "ObjCOutputTransformer", package: "MachOObjCSection"),
             .product(.MachOKitExtensions),
             .target(.SwiftSectionTestingSupport),
             .target(.SwiftSectionFixtureSupport),

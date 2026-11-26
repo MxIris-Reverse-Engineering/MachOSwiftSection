@@ -3,6 +3,8 @@ import MemberwiseInit
 import Semantic
 import SwiftDeclarationRendering
 import MachOSwiftSection
+import OutputTransformer
+import ObjCOutputTransformer
 
 public enum SwiftDeclarationMemberSortOrder: Hashable, Codable, Sendable, CaseIterable {
     /// Group members by category: allocators, variables, functions, subscripts, then static members.
@@ -296,6 +298,18 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
+
+    /// Spellings for the C primitive types an Objective-C type encoding names
+    /// (`.double: "CGFloat"`), used where the interface prints a type it read
+    /// off the Objective-C side: an `@objc @implementation` stored property
+    /// recovered from its ivar (evolution proposal `objc-ivar-type-recovery`).
+    /// A replacement stands in for the whole type, as `Transformer.CType` does
+    /// in an Objective-C header, but only for the property's type itself, not
+    /// for a pointee or an element; it prints as written, so give the name
+    /// Swift code writes (`CGFloat`), no module. An empty spelling is no
+    /// replacement. Empty by default, which prints the type the importer
+    /// gives (`Swift.Double`).
+    public var cTypeReplacements: [Transformer.CType.Pattern: String] = [:]
 }
 
 // MARK: - Visibility Options
