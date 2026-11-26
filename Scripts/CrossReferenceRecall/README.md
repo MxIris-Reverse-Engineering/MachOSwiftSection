@@ -40,5 +40,6 @@ A selector sends · B Objective-C class references · C imported functions throu
 | 2026-11-18 | IDA, one query / two hops | 97.0% / 99.4% |
 | 2026-11-18 | Binary Ninja 6 through its MCP server | 67.6% |
 | 2026-11-26 | `swift-section` 0.25.0 | 90.3% (476) |
+| 2026-11-26 | `swift-section` with proposal `cross-reference-recall-gaps` | 97.5% (514), no extras |
 
-0.25.0's 51 misses: 27 Swift metadata accessors whose address is taken rather than called, 13 loads from `__objc_superrefs` (not class references by design), 8 class GOT slots whose address Swift code hands to the metadata helper, 2 selectors used as arguments, 1 instance variable offset whose address two paths build differently before one load. The proposal fixes all but the 13.
+0.25.0's 51 misses: 27 Swift metadata accessors whose address is taken rather than called, 13 loads from `__objc_superrefs` (not class references by design), 8 class GOT slots whose address Swift code hands to the metadata helper, 2 selectors used as arguments, 1 instance variable offset whose address two paths build differently before one load. The proposal fixes all but the 13; with it the 13 are the only misses.
