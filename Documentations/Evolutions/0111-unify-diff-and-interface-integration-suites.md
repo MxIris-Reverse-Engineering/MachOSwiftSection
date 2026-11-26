@@ -1,13 +1,13 @@
-# Draft - IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架
+# 0111 - IntegrationTests 的 diff 与接口套件合并：三类手检输出共用一套骨架
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-26
 - **最后更新**: 2026-11-26
 - **所属愿景**: 无
 - **关联提案**: [0110-unify-evolution-integration-suites](0110-unify-evolution-integration-suites.md)（演进套件的合并；本提案把同样的结构推到 diff 与单版本接口，并让 diff 与演进共用它的版本轴）；[0061-dyld-shared-cache-path-versions](0061-dyld-shared-cache-path-versions.md)（按版本号取归档 cache、`versionLabel`）
 - **实现分支 / PR**: `feature/unify-diff-and-interface-integration-suites`（worktree `.worktrees/MachOSwiftSection-UnifyDiffAndInterfaceIntegrationSuites`）
-- **配套文档**: 无
+- **配套文档**: 无（见决策日志「收尾判断」）
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -440,4 +440,6 @@ enum InterfaceTestSuite {
 | 2026-11-26 | 第 2、3 步完成 | `measuringPreparation` 改成泛型、返回准备好的值（详细设计原写不变）：ObjC 头文件要在计时的一步里拿回索引器，ObjC diff 要拿回两份快照文档。diff 的文件名按新版本的主镜像起（`[newVersion.primaryImage]`），不按整组镜像：diff 只读主镜像，单镜像时文件名与原来相同。带标注的接口两种格式各建一个渲染器，与现状一致。 |
 | 2026-11-26 | 第 4 步完成 | `ABIEvolutionDesign.md` 的集成套件一段改成新目录并链接本提案；账本追加一节（节号落地时取）。只编译、没运行 IntegrationTests。 |
 | 2026-11-26 | 收尾判断 | 不配使用指南或实现说明：这是维护者手检目标的内部整理，用法写在新文件的文档注释里。没有新术语：「版本轴」0110 已判断不登记。 |
-| 2026-11-26 | 实现完成，待用户看过后收尾 | 功能分支已推送，待在本地合进 `.worktrees/MachOSwiftSection` 的 `next`（不推送）。 |
+| 2026-11-26 | 实现完成，待用户看过后收尾 | 功能分支已推送。合进 `.worktrees/MachOSwiftSection` 的 `next` 时被维护者在 `SwiftInterfaceBuilderTests.swift` 里未提交的实验挡住，没有合并。 |
+| 2026-11-26 | 维护者的实验先提交，合并按新结构处理 | 用户要求先提交工作区的改动再合并收尾：实验（接口套件读 AttributeGraph、显示 C 导入类型、只印导出声明、注册 `SwiftInterfaceBuilderTypeNameProvider`）与 Xcode 自动改写的两个工作区设置各成一个提交进 `next`。合并时功能分支删掉的 `SwiftInterfaceBuilderTests.swift` 与实验的修改冲突，按澄清时的选择取删除：实验不搬进新套件，只留在历史里。合并后的代码与 Ultra 上编过的功能分支逐字相同（只多两个 Xcode 设置文件），没有重新验证。 |
+| 2026-11-26 | Implemented，取号 0111 | 用户要求收尾，以 `--no-ff` 合进 `next` 并推送。没有收到改前改后的输出比对结果。 |
