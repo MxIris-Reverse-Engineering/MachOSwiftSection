@@ -1,6 +1,6 @@
-# Draft - C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写
+# 0109 - C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-25
 - **最后更新**: 2026-11-26
@@ -359,3 +359,4 @@ private func renderNestedFieldOffsetTree(_ nodes: [NestedFieldOffset], ancestors
 | 2026-11-26 | 全量验证 | JHs-Mac-Studio-Ultra，Xcode 26.6，`swift test --skip IntegrationTests`：2997 个测试只有 `BoundedConcurrentMapTests.cancellationStopsSubmittingPendingElements` 超时（全量时线程池满载的已知偶发），单独重跑该套件 9 个全过。第一次全量在 `DumpRequest` 里复制 `DeclarationRenderConfiguration` 时 SIGSEGV：给这个结构体加了存储属性后增量构建链接了旧目标文件，`swift package clean` 后重编即消失 |
 | 2026-11-26 | 收尾判断 | 不另写使用指南或实现说明：拼写规则写在术语表「C-imported type name spelling」，两份类型名的契约写在 SwiftLayout 模块文档，渲染入口写在 `FieldLayoutRendererReaderSpecialization.md`。没有新术语，更新了既有词条 |
 | 2026-11-26 | 实现完成，待用户看过后收尾 | 三步与文档都已提交到功能分支；在本地合进 `next` 的常驻检出，不推送 |
+| 2026-11-26 | Implemented，取号 0109 | 用户验收后与 IntegrationTests 的演进套件合并一起落地、推送 `next`；它先进入 `next`，取 0109。 |

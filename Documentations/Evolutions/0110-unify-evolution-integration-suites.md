@@ -1,13 +1,13 @@
-# Draft - IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴
+# 0110 - IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴
 
-- **状态**: In Progress
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-26
 - **最后更新**: 2026-11-26
 - **所属愿景**: 无
 - **关联提案**: [0082-image-group-evolution](0082-image-group-evolution.md)（镜像组的演进，本提案合并它在集成测试里加的四组镜像组套件）；[0080-objc-evolution-interface](0080-objc-evolution-interface.md)（ObjC 带标注头文件的那组套件）；[0061-dyld-shared-cache-path-versions](0061-dyld-shared-cache-path-versions.md)（版本轴按 `versionLabel` 命名、跳过没有元数据的版本）
 - **实现分支 / PR**: `feature/unify-evolution-integration-suites`（worktree `.worktrees/MachOSwiftSection-UnifyEvolutionIntegrationSuites`）
-- **配套文档**: 待定 —— 落地时判断
+- **配套文档**: 无（见决策日志「收尾判断」）
 - **网页版**: 同目录同名的 `.html`
 
 ## 摘要
@@ -466,7 +466,7 @@ enum EvolutionTestSuite {
    - 行为：`noSuiteReadsAnotherSuitesClassProperties`
    - 行为：`archivedAxesTakeTheCacheListFromTheBaseClass`
    - 两个 Xcode 版本各编一遍。
-3. **文档**（已完成；维护者比对待做）—— `ABIEvolutionDesign.md`、账本一节、两个索引；提案状态与决策日志随代码同批提交。
+3. **文档**（已完成；落地前没有收到改前改后的输出比对结果）—— `ABIEvolutionDesign.md`、账本一节、两个索引；提案状态与决策日志随代码同批提交。
    - 维护者比对：挑 `SwiftUIImageGroupDyldCacheTests`（四种输出都有、只开三份 cache）前后各跑一次 file 测试，`diff` 两次的输出（JSON 忽略 `createdAt`）。结果记进决策日志。
 
 **收尾时必须判断两件事**（判断结果写进决策日志，不允许沉默跳过）：
@@ -484,3 +484,4 @@ enum EvolutionTestSuite {
 | 2026-11-26 | 第 2、3 步完成 | 十个轴套件取代旧的三个文件；`SwiftDiffing/` 也随之变空、删除（改动地图原先只写了 `ObjCDiffing/`）。`ABIEvolutionDesign.md` 的集成套件一段改成新路径与套件名，账本追加一节。只编译、没运行 IntegrationTests。 |
 | 2026-11-26 | 收尾判断 | 不配使用指南或实现说明：这是维护者手检目标的内部整理，用法写在新文件的文档注释里。没有新术语：「版本轴」是描述性说法，已在多份提案里直接使用，不登记术语表。 |
 | 2026-11-26 | 实现完成，待用户看过后收尾 | 功能分支已推送，并在本地以 `--no-ff` 合进 `.worktrees/MachOSwiftSection` 的 `next`（不推送）。改前改后的输出比对由维护者做。 |
+| 2026-11-26 | Implemented，取号 0110 | 用户要求收尾，与 0109（C 导入类型拼写，先进入 `next`）一起落地、推送 `next`。落地前没有收到改前改后的输出比对结果。 |

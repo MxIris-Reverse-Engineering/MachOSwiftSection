@@ -3607,7 +3607,7 @@
 - **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2978 个测试全过；两条回归测试（去重、foreign 描述符闸门）都先红后绿。macOS 27.2 系统镜像前后对照：SwiftUICore 300 行、AppKit 16 行、RealityIO 976 行变化，全是私有 CF 类型带上了模块，耗时测不出变化。
 - **对应版本**：未发布。RuntimeViewer 发版后接入（把 `ObjCDeclaredTypeNames` 换成 `ImageDeclaredTypeNames`）。
 
-## 2026-11-25 C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写
+## 155. C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写
 
 - **时间段**：2026-11-25，本仓库的 `feature/consistent-c-imported-type-spelling`，在 JHs-Mac-Studio-Ultra 上写、编译与测试。
 - **动机**：打 macOS 27.2 的 AttributeGraph（显示 C 导入类型、模块选择器、展开字段偏移）时，同一个类型写法混用：`struct AGDescriptionOption {` 的扩展头是 `extension __C::AGDescriptionOption`；`var base: AnyWeakAttribute` 下面的注释写 `identifier (__C.AGAttribute)`，也不带 `::`。
@@ -3616,12 +3616,12 @@
   - 本镜像没有描述符的类型（只在签名里出现、没人要它的 metadata）照旧写 `__C::`。查别的镜像的描述符（`AGSubgraphRef` 在 SwiftUICore 里记作 `Subgraph`）另开提案。改了名但不可信的（`AGTreeValue` → `TreeValue`）不动。
   - 展开字段偏移树的行存类型节点，interface 打印器经自己的 `typeDemangleResolver` 印它，与字段声明同拼写（C 名开关、模块选择器、`any`、语法糖、私有类型不带判别符）；dump 不打开开关，照旧 `.default`。离线与进程内两条后端一起改，进程内的全进程缓存行也带节点，渲染时不再 demangle。
 - **落地模块**：`Sources/Output/SwiftPrinting/`（`CImportedTypeSwiftNameTable.knownSwiftName(ofDescriptorNamed:importInfo:isDirectlyInImportedModule:)`、`SwiftDeclarationPrinter+Headers` 打开开关）、`Sources/Output/SwiftDeclarationRendering/`（`DeclarationRenderConfiguration.fieldLayoutTypeName(printedName:typeNode:)`、两条后端改成异步渲染、`NestedFieldOffsetLevel` 带节点）、`Sources/Analysis/SwiftLayout/NestedFieldOffsetTree.swift`（`NestedFieldOffset.typeNode`）、`swift-section interface --c-imported-type-name-spelling` 的帮助文字。
-- **文档**：提案 [draft-consistent-c-imported-type-spelling](../Evolutions/draft-consistent-c-imported-type-spelling.md)；术语表「C-imported type name spelling」；插件 skill 第 8 节；SwiftLayout 模块文档的关键契约、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md)。
+- **文档**：提案 [0109-consistent-c-imported-type-spelling](../Evolutions/0109-consistent-c-imported-type-spelling.md)；术语表「C-imported type name spelling」；插件 skill 第 8 节；SwiftLayout 模块文档的关键契约、[FieldLayoutRendererReaderSpecialization.md](FieldLayoutRendererReaderSpecialization.md)。
 - **顺带发现**：符号索引的建索引死锁（同一镜像 15 个以上并发建索引时占满大栈线程池），`next` 上就有，记在提案后续项，没在本分支修。
 - **验证**：Ultra（Xcode 26.6）全量 `swift test --skip IntegrationTests` 2997 个测试，只有已知的负载偶发 `BoundedConcurrentMapTests` 一条超时，单独重跑全过；每步的行为测试先红后绿。macOS 27.2 的 AttributeGraph 前后对照 `__C` 从 73 处降到 60 处；SwiftUICore 打开展开字段偏移的 interface 慢 4%（7.10 → 7.39 秒），进程内缓存多占约 2.1 MB（[ReviewAdjudications](ReviewAdjudications.md) A91）。
 - **对应版本**：未发布。
 
-## 2026-11-26 IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴
+## 156. IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴
 
 - **时间段**：2026-11-26，本仓库的 `feature/unify-evolution-integration-suites`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上编译。
 - **动机**：IntegrationTests 的四套演进手检套件（Swift 报告、Swift 联合接口、ObjC 报告、ObjC 联合头文件）各自把同几条版本轴再定义一遍：SwiftUI 加 SwiftUICore 的两条轴各写了四次，51 份归档 cache 的清单挂在 Swift 接口套件上、别的套件去借它的类属性，ObjC 侧为了把 `__swift5_*` 换成 `__objc_*` 多出一层基类；四条管线又各把单镜像与镜像组写两遍。两个 Swift 侧 `DyldCacheTests` 的注释写着读 AppKit，实际读的是 SwiftUI。
@@ -3631,7 +3631,7 @@
   - 每种输出保留一对显式的一行测试，不用参数化测试：51 版归档轴一点就跑全部管线要几个小时。
   - 默认三版本轴上 Swift 一侧沿用实际读的 SwiftUI、ObjC 一侧沿用 AppKit，拆成两个套件，改正过时的注释。原有 43 个「轴 × 输出」组合与输出文件名不变，只改测试名。
 - **落地模块**：`Tests/IntegrationTests/Evolution/`（`EvolutionAxis.swift`、`EvolutionDumpTests.swift`、`EvolutionTests.swift`）与 `SwiftInterfaceTestSupport.swift` 的 `write(_:forImageGroup:)`；删去 `SwiftDiffing/ABIEvolutionTests.swift`、`SwiftInterface/SwiftEvolutionInterfaceBuilderTests.swift`、`ObjCDiffing/ObjCAPIEvolutionTests.swift`。
-- **文档**：提案 [draft-unify-evolution-integration-suites](../Evolutions/draft-unify-evolution-integration-suites.md)；[ABIEvolutionDesign.md](ABIEvolutionDesign.md) 的集成套件一段。没有新术语，不另写使用指南或实现说明。
+- **文档**：提案 [0110-unify-evolution-integration-suites](../Evolutions/0110-unify-evolution-integration-suites.md)；[ABIEvolutionDesign.md](ABIEvolutionDesign.md) 的集成套件一段。没有新术语，不另写使用指南或实现说明。
 - **验证**：只编译、没运行（IntegrationTests 不让 agent 跑）：Ultra 上 Xcode 26.6 与 27.2 的 `swift build --build-tests` 都通过。改前改后的输出是否逐字一致，待维护者挑一条轴比对。
 - **对应版本**：未发布（只改测试目标）。
 

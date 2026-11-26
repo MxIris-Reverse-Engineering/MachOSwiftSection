@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴</title>
+<title>0110 - IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -160,13 +160,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0110</span></p>
+  <h1><span class="proposal-number">0110</span> IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-26</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
-    <div><dt>原文</dt><dd><code>draft-unify-evolution-integration-suites.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0110-unify-evolution-integration-suites.md</code></dd></div>
   </dl>
 </header>
 
@@ -198,7 +198,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="decide">
   <h2>要你定</h2>
   <div class="callout">
-    <p class="callout-title">批准后开工。以下是没问你就采用的假设，可以推翻：</p>
+    <p class="callout-title">已批准并落地。以下是没问用户就采用的假设：</p>
     <ol>
       <li>默认三版本轴上 Swift 一侧沿用实际读的 SwiftUI、ObjC 一侧沿用 AppKit，拆成两个轴套件，不借合并之机统一成 AppKit；过时的「AppKit」注释改正。</li>
       <li>只保留现有的「轴 × 输出」组合，不顺手给轴补别的管线；要补时只是在套件里加一对一行测试。</li>
@@ -621,7 +621,7 @@ extension EvolutionDumpTests {
     <p>验证一律在 Ultra 上做：<code>queued-build swift build --build-tests</code>，默认 Xcode 编一遍，再用 Xcode 26.6（CI 的版本）编一遍。不运行 IntegrationTests。</p>
   </div>
   <ol>
-    <li><strong>新骨架与四条管线</strong>：<code>EvolutionAxis.swift</code>、<code>EvolutionDumpTests.swift</code>、<code>write(_:forImageGroup:)</code> 的新重载；旧文件还在，与新代码并存。
+    <li><strong>新骨架与四条管线</strong>（已完成，Ultra 上 Xcode 26.6 与 27.2 都编过）：<code>EvolutionAxis.swift</code>、<code>EvolutionDumpTests.swift</code>、<code>write(_:forImageGroup:)</code> 的新重载；旧文件还在，与新代码并存。
       <ul>
         <li><code>evolutionAxisForSwiftDropsVersionsWhosePrimaryImageHasNoSwiftSection</code></li>
         <li><code>evolutionAxisForObjCKeepsEveryCacheHoldingAppKit</code></li>
@@ -631,14 +631,14 @@ extension EvolutionDumpTests {
         <li><code>interfaceSpellsAvailabilityInItsOwnLanguagesSpelling</code></li>
       </ul>
     </li>
-    <li><strong>十个轴套件取代旧文件</strong>：<code>EvolutionTests.swift</code>；删三个旧文件与随之变空的 <code>SwiftDiffing/</code>、<code>ObjCDiffing/</code>；删旧重载。
+    <li><strong>十个轴套件取代旧文件</strong>（已完成，两个 Xcode 版本都编过，新文件没有警告）：<code>EvolutionTests.swift</code>；删三个旧文件与随之变空的 <code>SwiftDiffing/</code>、<code>ObjCDiffing/</code>；删旧重载。
       <ul>
         <li><code>everyAxisPipelinePairOfTheOldSuitesHasOneTestNow</code>（43 个）</li>
         <li><code>noSuiteReadsAnotherSuitesClassProperties</code></li>
         <li><code>archivedAxesTakeTheCacheListFromTheBaseClass</code></li>
       </ul>
     </li>
-    <li><strong>文档</strong>：<code>ABIEvolutionDesign.md</code>、账本一节、两个索引；提案状态与决策日志随代码同批提交。维护者挑 <code>SwiftUIImageGroupDyldCacheTests</code> 前后各跑一次 file 测试，<code>diff</code> 两次的输出（JSON 忽略 <code>createdAt</code>），结果记进决策日志。</li>
+    <li><strong>文档</strong>（已完成；落地前没有收到输出比对结果）：<code>ABIEvolutionDesign.md</code>、账本一节、两个索引；提案状态与决策日志随代码同批提交。维护者挑 <code>SwiftUIImageGroupDyldCacheTests</code> 前后各跑一次 file 测试，<code>diff</code> 两次的输出（JSON 忽略 <code>createdAt</code>），结果记进决策日志。</li>
   </ol>
   <p>收尾判断：预计不需要配套专题文章（用法写在新文件的文档注释里）；「版本轴」落地时查术语表再定是否登记。</p>
 </section>
@@ -646,13 +646,19 @@ extension EvolutionDumpTests {
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>1 条，最近一条：Created as Draft</summary>
+    <summary>7 条，最近一条：Implemented，取号 0110</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
         <thead><tr><th>日期</th><th>变更</th><th>说明</th></tr></thead>
         <tbody>
           <tr><td class="numeric">2026-11-26</td><td>Created as Draft</td><td>用户要求把 IntegrationTests 里重复的演进测试抽出来，Swift 与 ObjC 各有一套套件，统一成一套。澄清一轮：范围只做演进（不顺带合并 diff 基类与 MachOSymbols 的重复）；每种输出保留一对显式测试，不用参数化测试；按规则写轻量档提案。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>Accepted</td><td>用户看过简报后批准，开始实现。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>In Progress：第 1 步开工</td><td>功能分支从本地 <code>next</code> 切出；那上面还有一次未推送的合并（C 导入类型拼写），推送功能分支时作为祖先一并上了远端功能分支。两条轴用两个 <code>let</code> 加 <code>switch</code> 存，不用字典加强制解包。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>第 2、3 步完成</td><td>十个轴套件取代旧的三个文件；<code>SwiftDiffing/</code> 也随之变空、删除。<code>ABIEvolutionDesign.md</code> 与账本更新。只编译、没运行 IntegrationTests。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>收尾判断</td><td>不配使用指南或实现说明；「版本轴」是描述性说法，不登记术语表。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>实现完成，待用户看过后收尾</td><td>功能分支已推送，并在本地以 <code>--no-ff</code> 合进 <code>next</code>（不推送）。</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>Implemented，取号 0110</td><td>与 0109（C 导入类型拼写，先进入 <code>next</code>）一起落地、推送 <code>next</code>。落地前没有收到输出比对结果。</td></tr>
         </tbody>
       </table>
       </div>

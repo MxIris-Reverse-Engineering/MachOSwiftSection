@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Draft - C 导入类型的拼写补齐：同名类型去掉 __C，布局注释跟着打印器的拼写</title>
+<title>0109 - C 导入类型的拼写补齐：同名类型去掉 __C，布局注释跟着打印器的拼写</title>
 <style>
 /* Evolution proposal page, shared style (style A, "Apple documentation").
    Copy this whole <style> block verbatim. Page-specific rules, if any, go only
@@ -160,13 +160,13 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <div class="page">
 
 <header class="doc-header">
-  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">Draft</span></p>
-  <h1><span class="proposal-number">Draft</span> C 导入类型的拼写补齐：同名类型去掉 <code>__C</code>，布局注释跟着打印器的拼写</h1>
+  <p class="eyebrow"><span class="crumb">MachOSwiftSection</span><span class="crumb">Evolutions</span><span class="crumb">0109</span></p>
+  <h1><span class="proposal-number">0109</span> C 导入类型的拼写补齐：同名类型去掉 <code>__C</code>，布局注释跟着打印器的拼写</h1>
   <dl class="meta">
-    <div><dt>状态</dt><dd><span class="status status-in-progress">In Progress</span></dd></div>
+    <div><dt>状态</dt><dd><span class="status status-implemented">Implemented</span></dd></div>
     <div><dt>最后更新</dt><dd>2026-11-26</dd></div>
     <div><dt>项目类型</dt><dd>库</dd></div>
-    <div><dt>原文</dt><dd><code>draft-consistent-c-imported-type-spelling.md</code></dd></div>
+    <div><dt>原文</dt><dd><code>0109-consistent-c-imported-type-spelling.md</code></dd></div>
   </dl>
 </header>
 
@@ -386,7 +386,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
 <section id="log">
   <h2>决策日志</h2>
   <details>
-    <summary>16 条，最近一条：实现完成，待用户看过后收尾</summary>
+    <summary>17 条，最近一条：Implemented，取号 0109</summary>
     <div class="details-body">
       <div class="table-wrap">
       <table>
@@ -408,6 +408,7 @@ details[open] > summary { border-bottom: 1px solid var(--separator); }
           <tr><td class="numeric">2026-11-26</td><td>全量验证</td><td>2997 个测试只有一条已知的负载超时，单独重跑全过；第一次的 SIGSEGV 是加存储属性后的旧目标文件，clean 后消失</td></tr>
           <tr><td class="numeric">2026-11-26</td><td>收尾判断</td><td>不另写使用指南或实现说明；没有新术语，更新了既有词条</td></tr>
           <tr><td class="numeric">2026-11-26</td><td>实现完成，待用户看过后收尾</td><td>在本地合进 <code>next</code> 的常驻检出，不推送</td></tr>
+          <tr><td class="numeric">2026-11-26</td><td>Implemented，取号 0109</td><td>用户验收后与 IntegrationTests 的演进套件合并一起落地、推送 <code>next</code>；它先进入 <code>next</code>，取 0109</td></tr>
         </tbody>
       </table>
       </div>
