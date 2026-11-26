@@ -1,6 +1,6 @@
 # Draft - IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴
 
-- **状态**: Accepted
+- **状态**: In Progress
 - **作者**: JH
 - **创建日期**: 2026-11-26
 - **最后更新**: 2026-11-26
@@ -480,3 +480,4 @@ enum EvolutionTestSuite {
 |------|------|------|
 | 2026-11-26 | Created as Draft | 用户要求把 IntegrationTests 里重复的演进测试抽出来，Swift 与 ObjC 各有一套套件，统一成一套。澄清一轮：范围只做演进（不顺带合并 diff 基类与 MachOSymbols 的重复）；每种输出保留一对显式测试，不用参数化测试；按规则写轻量档提案。 |
 | 2026-11-26 | Accepted | 用户看过简报后批准，开始实现。 |
+| 2026-11-26 | In Progress：第 1 步开工 | 功能分支从本地 `next` 切出，按 `create-worktree` 的基线规则。本地 `next` 上还有一次未推送、待用户验收的合并（C 导入类型拼写），因此推送功能分支时它作为祖先一并上了远端功能分支，`next` 本身未推送。`MultiVersionDyldCacheImageTests` 用两个 `let`（`swiftAxis`、`objcAxis`）加 `switch` 存两条轴，不用字典加强制解包（详细设计里留的退路）。 |

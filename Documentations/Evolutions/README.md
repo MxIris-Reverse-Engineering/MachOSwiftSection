@@ -124,4 +124,4 @@
 | [0107](0107-moved-swift-type-modules.md) | 被 SDK 搬过家的 Swift 类型，按现在声明它的模块打印（跨仓库唯一提案，swift-type-indexing 参与） | Implemented |
 | [0108](0108-private-cf-type-modules.md) | 私有 CF 类型按导出 `GetTypeID` 的镜像解析所属模块 | Implemented |
 | draft | [C 导入类型的拼写补齐：同名类型去掉 `__C`，布局注释跟着打印器的拼写](draft-consistent-c-imported-type-spelling.md) | In Progress |
-| draft | [IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴](draft-unify-evolution-integration-suites.md) | Accepted |
+| draft | [IntegrationTests 的演进套件合并：Swift 与 ObjC 共用一套版本轴](draft-unify-evolution-integration-suites.md) | In Progress |

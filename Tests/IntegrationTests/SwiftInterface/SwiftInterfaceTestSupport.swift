@@ -70,6 +70,23 @@ extension SwiftInterfaceDumpTests {
         let fileName = "\(primaryImage.machO.loadCommands.buildVersionCommand!)-\(imageGroupName)-\(suffix).\(fileExtension)"
         try string.write(to: rootDirectory.appending(path: fileName), atomically: true, encoding: .utf8)
     }
+
+    /// `write(_:for:suffix:fileExtension:)` for one version of an evolution
+    /// axis: named after the primary image's build version and every image
+    /// of the version, joined by `+` (`…-SwiftUI+SwiftUICore-Evolution.txt`).
+    /// A version of one image gets the name `write(_:for:…)` gives it.
+    func write(
+        _ string: String,
+        forImageGroup images: [EvolutionImage],
+        suffix: String,
+        fileExtension: String = "swiftinterface"
+    ) throws {
+        guard let primaryImage = images.first else { return }
+        try rootDirectory.createDirectoryIfNeeded()
+        let imageGroupName = images.map { $0.machOFile.imagePath.lastPathComponent }.joined(separator: "+")
+        let fileName = "\(primaryImage.machOFile.loadCommands.buildVersionCommand!)-\(imageGroupName)-\(suffix).\(fileExtension)"
+        try string.write(to: rootDirectory.appending(path: fileName), atomically: true, encoding: .utf8)
+    }
 }
 
 extension BuildVersionCommand: @retroactive CustomStringConvertible {
