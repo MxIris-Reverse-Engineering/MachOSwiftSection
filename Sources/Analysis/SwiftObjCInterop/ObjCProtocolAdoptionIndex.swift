@@ -55,6 +55,13 @@ package struct ObjCCategoryProtocolAdoption: Sendable, Hashable {
 /// ancestry targets the class's stub, whose name the reader cannot read,
 /// and is missed.
 ///
+/// An image no Swift code went into lists no category: its categories are
+/// all Objective-C code's. An image Swift went into lists every category
+/// that names a protocol, Objective-C code's among them — the linker merges
+/// the categories of one class into one, named after the first, with the
+/// protocols of all, so neither the name nor the list says whose a protocol
+/// is.
+///
 /// Built once per image, lazily, and evicted with the other ObjC-side
 /// per-image state.
 package final class ObjCProtocolAdoptionIndex: @unchecked Sendable {
@@ -166,8 +173,12 @@ package final class ObjCProtocolAdoptionIndex: @unchecked Sendable {
             qualifiedNamesByClass[swiftClass.name] = swiftClass.qualifiedName
         }
 
+        // Only an image Swift code went into can hold an extension of
+        // Swift's: OS X 10.9's AppKit, all Objective-C, printed four of its
+        // categories as conformance extensions. An image without
+        // `__objc_imageinfo` says nothing either way and keeps them all.
         var categories: [(offset: Int, classRuntimeName: String, protocolRuntimeNames: [String])] = []
-        for category in machO.objcCategories() ?? [] {
+        for category in machO.containsSwift() == false ? [] : machO.objcCategories() ?? [] {
             guard let targetClassName = machO.targetClassName(of: category), !targetClassName.isEmpty else { continue }
             let protocolNames = machO.protocolNames(of: category)
             if !protocolNames.isEmpty {

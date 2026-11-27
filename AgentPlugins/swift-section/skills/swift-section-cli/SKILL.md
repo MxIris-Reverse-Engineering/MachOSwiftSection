@@ -469,7 +469,12 @@ the class's or protocol's `NS_SWIFT_NAME(...)` / `NS_REFINED_FOR_SWIFT` on a lin
   protocol has no Swift conformance record. An extension in the class's own module is folded
   into the class there, so its conformances show in the header too, while
   `extension __C.NSView: M.P {}` is an extension of another module's class (its category).
-  Neither shows in `diff`, `evolution` or a snapshot.
+  Neither shows in `diff`, `evolution` or a snapshot. An image no Swift code went into (its
+  `objc_image_info` carries no Swift version, as in every framework from before Swift) prints
+  no such extension. In an image with Swift, the categories its Objective-C code declares
+  print the same way: the linker merges the categories of one class, so
+  `extension __C.NSString: __C.NSPasteboardWriting, …` from AppKit can list protocols the
+  Objective-C headers adopt. Check a header before reading one as Swift's.
 - **`@objc(Name)` above a class** is the name the Objective-C runtime knows it by, and matters
   even when it equals the Swift name (`@objc(NSScrollPocket) class NSScrollPocket`): without it
   the runtime name would be the `_TtC…` mangling. That is also the class name `objc` headers

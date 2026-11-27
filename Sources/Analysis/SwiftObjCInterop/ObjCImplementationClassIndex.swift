@@ -408,6 +408,10 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     /// image it lives in; `nil` when the pointer is a bind this reader cannot
     /// follow.
     func targetClass(of category: ObjCCategory64) -> (any ObjCImplementationClassReading, ObjCClass64)?
+    /// Whether Swift code went into the image, as its `objc_image_info`
+    /// says (``ObjCImageInfo/containsSwift``); `nil` when the image has no
+    /// `__objc_imageinfo`.
+    func containsSwift() -> Bool?
     func instanceMethods(of category: ObjCCategory64) -> [RawObjCMethod]
     func classMethods(of category: ObjCCategory64) -> [RawObjCMethod]
     func protocolSelectors(of category: ObjCCategory64) -> RawObjCProtocolSelectors
@@ -426,6 +430,15 @@ protocol ObjCImplementationClassReading: MachORepresentableWithCache, Readable {
     func importedProtocolNames(of readOnlyData: ObjCClassROData64) -> [String]
     /// `__objc_protolist`, every record read in full (`ObjCProtocolRecord.swift`).
     func objcProtocolRecords() -> [ObjCProtocolRecord]
+}
+
+extension ObjCImageInfo {
+    /// objc4's `objc_image_info::containsSwift()`: the Swift compiler records
+    /// its ABI version in bits 8–15 of the flags of the image info it emits,
+    /// the linker keeps it in the image's, and clang leaves those bits clear.
+    var containsSwift: Bool {
+        layout.flags & 0xff00 != 0
+    }
 }
 
 extension MachOFile: ObjCImplementationClassReading {
@@ -524,6 +537,10 @@ extension MachOFile: ObjCImplementationClassReading {
 
     func objcCategories() -> [ObjCCategory64]? {
         objc.categories64
+    }
+
+    func containsSwift() -> Bool? {
+        objc.imageInfo.map(\.containsSwift)
     }
 
     /// The reader names a class bound in from another image for chained
@@ -684,6 +701,10 @@ extension MachOImage: ObjCImplementationClassReading {
 
     func objcCategories() -> [ObjCCategory64]? {
         objc.categories64
+    }
+
+    func containsSwift() -> Bool? {
+        objc.imageInfo.map(\.containsSwift)
     }
 
     func targetClassName(of category: ObjCCategory64) -> String? {
