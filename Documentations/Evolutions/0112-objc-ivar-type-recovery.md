@@ -3,7 +3,7 @@
 - **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-11-26
-- **最后更新**: 2026-11-26
+- **最后更新**: 2026-11-27
 - **所属愿景**: 无
 - **关联提案**: [0046 objc-implementation-class-recognition](0046-objc-implementation-class-recognition.md)、[0096 swift-first-imported-declarations](0096-swift-first-imported-declarations.md)、[0090 objc-imported-declarations](0090-objc-imported-declarations.md)、[0106 c-imported-type-name-spelling](0106-c-imported-type-name-spelling.md)
 - **实现分支 / PR**: `feature/objc-ivar-type-recovery`
@@ -212,7 +212,7 @@ package struct ObjCInstanceVariableSwiftType {
 
 - 已有问题（基线上就有）：`renderUnrepresentedObjCImplementationInstanceVariables` 里「只有 `Wvd` 符号」那条分支把 `var name: ` 与类型放成 `Rows` 的两个子项，打出来分成两行。本提案的新分支踩过同一个坑，改成了一个子项；那条旧分支要配一个「`Wvd` 在、accessor 已剥」的夹具才能复现，留到之后。
 
-- RuntimeViewer：`RuntimeSwiftSection` 把 `transformer.objc.cType` 交给 Swift 打印配置（`applyTransformers(_: Transformer.ObjCConfiguration)`），C Type Replacement 改动时让 Swift 输出重印；随 MachOSwiftSection 依赖版本一起抬。
+- ~~RuntimeViewer：`RuntimeSwiftSection` 把 `transformer.objc.cType` 交给 Swift 打印配置（`applyTransformers(_: Transformer.ObjCConfiguration)`），C Type Replacement 改动时让 Swift 输出重印；随 MachOSwiftSection 依赖版本一起抬。~~ 2026-11-27 已完成：内容区与 Find 语料两个打印器都拿到 `transformer.objc`，设置不变时不重配打印器；RuntimeViewer 的五个锁文件抬到本仓库 `next` 的 `edbf2966`（分支 `feature/swift-c-type-replacements`）。
 - `swift-section interface` 的 `--c-type-replacement`。
 - Generated Interface 的 stand-in 对完整 encoding 的 ivar 是否改用本提案的 Swift 类型（`NSString` 不桥接）。
 
@@ -237,3 +237,4 @@ package struct ObjCInstanceVariableSwiftType {
 | 2026-11-26 | Implemented，取号 0112 | 用户看过后收尾。合进 `next`；落地时演进账本记为第 158 节。没做的：RuntimeViewer 一侧的接入（把 `transformer.objc.cType` 交给 Swift 打印、抬依赖版本）、`swift-section interface --c-type-replacement`、只有 `Wvd` 那条旧分支分两行的问题，都在后续项 |
 | 2026-11-26 | 文档判断 | 不另写使用指南：调用方的契约只有 `cTypeReplacements` 一个属性，文档注释已写清。实现说明更新了已有的 `ObjCImplementationClassRecognition.md`，模块说明更新了 `SwiftObjCInterop.md`。没有新术语：「原样表示」对应编译器自己的 `isTriviallyRepresentableIn`，不是本项目造的词 |
 | 2026-11-26 | 验证 | Ultra 上五个相关套件全过（界面 33、单元 9、前提 3 条，另含 dump 与 Generated Interface 套件）。整套测试（跳过 IntegrationTests）红约 800 处，全部是构建槽位的检出里没有 `SymbolTestsCore` fixture（「Fixture binary not found」「cannot load the SymbolTestsCore fixture」），其余原因的失败为零；完整结果要先把 fixture 编进那个检出 |
+| 2026-11-27 | 后续项：RuntimeViewer 一侧接入完成 | RuntimeViewer 的 Swift section 把 ObjC 一侧的 C Type Replacement 设置交给内容区与 Find 语料的打印器，锁文件随之抬到 `edbf2966`；用户看过后收尾。远端解析依赖的构建要等 MachOKitExtensions 发 3.3.0 之后的版本 |
