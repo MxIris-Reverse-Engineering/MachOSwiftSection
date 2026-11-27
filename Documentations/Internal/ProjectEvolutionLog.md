@@ -3692,6 +3692,20 @@
 - **验证**：同一组样本 514/527（97.5%），多报 0；吞吐（release，与三个仓库的 `next` 交替）整表慢 1.9%，两条调用者查询慢 1.9% 与 2.4%；三个库的全量测试与 RuntimeViewer 交叉引用模块，失败的几条在 `next` 上同样失败；本仓库合并时带进了 0112，在合并结果上重跑全量测试（跳过 IntegrationTests）全部通过。
 - **对应版本**：未发布。下游远程构建（含 CI）要等 MachOKitExtensions 与 MachOObjCSection 发版、本仓库与 MachOObjCSection 抬依赖下限。
 
+## 2026-11-27 没有 Swift 的镜像不再把 category 打成遵循
+
+- **时间段**：2026-11-27，`fix/objc-written-category-conformances`。在 JHs-Mac-Studio 上写，在 JHs-Mac-Studio-Ultra 上编译测试。
+- **动机**：RuntimeViewer 打开 OS X 10.9.5 的 AppKit（磁盘上的文件，没有任何 Swift），Swift 一栏列出 `__C.NSAttributedString`、`__C.NSFileVersion`、`__C.NSString`、`__C.NSURL` 四个 conformance。来源是 0079：`ObjCProtocolAdoptionIndex` 收下镜像里每个带协议的 category，当成 extension 别的模块的类时生成的，没区分 ObjC 代码写的。`dump` 的 `protocolConformances` 段、`interface` 的 `extension X: P {}` 与 RuntimeViewer 读的是同一份。
+- **关键决策**：
+  - 看 `objc_image_info`：flags 第 8–15 位为 0（objc4 的 `containsSwift()` 为假）就一个 category 都不收。两个读取器各加 `containsSwift()`；没有 `__objc_imageinfo` 时照旧全收。
+  - 先试过按 category 名过滤（Swift 默认取模块名，同一个类第二个起加序号），没有采用：链接器把同一个类的 category 合成一个，名字取第一个、协议取并集，AppKit 27.2 的 `NSString (AppKit)` 带着 ObjC 头文件声明的 `NSPasteboardWriting`、`NSPasteboardReading`，SwiftUICore 的 `NSObject (CoreAX)` 名字是 ObjC 的却含 Swift 成员；描述符里的模块名又是 ABI 名（SwiftUICore 的是 `SwiftUI`），category 用的是真实名。用户定了先只修没有 Swift 的镜像，有 Swift 的镜像维持原样。
+  - 同类排查：另外两处遍历 category 的（`ObjCClassMethodIndex` 的方法表、`ObjCImportedContainerIndex` 的 ObjC 导入声明）本来就该看全部 category，不动。
+- **落地模块**：SwiftObjCInterop（`ObjCImplementationClassReading.containsSwift()`、`ObjCImageInfo.containsSwift`、`ObjCProtocolAdoptionIndex`），SwiftSectionTestingSupport（`ObjCWrittenCategoriesFixture`）。
+- **文档**：[SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)（数据来源、已知局限、验证）、[Modules/SwiftObjCInterop.md](Modules/SwiftObjCInterop.md)、CLI skill 的输出说明。
+- **验证**（JHs-Mac-Studio-Ultra，macOS 27.2.1，Xcode 27.2，本地依赖）：`ObjCWrittenCategoryConformanceTests` 修复前没有 Swift 的镜像两条红（文件与进程内）、混编镜像两条绿，修复后四条全绿。全量 `swift test --skip IntegrationTests` 没有进程崩溃，1258 处失败全部是构建槽位里没有 SymbolTestsCore / SymbolTestsHelper 夹具（已知环境缺口）；现编夹具的 ObjC 相关套件（`ObjCProtocolDefinitionIndexingTests`、`SwiftDeclaredObjCProtocol*`、`CustomObjCClassName*`、`ClassesWithoutClassObjects*`、`ObjCMemberDumpTests`）都通过。`interface` 修复前后对比（同机系统缓存，基线是只含测试提交的同一分支）：BaseBoard、ViewBridge、FuseBoard、RunningBoardServices、FrontBoardServices 的 9、7、4、3、2 个空 `extension __C.X: P {}` 全部消失，别无差异；AppKit 与 SwiftUICore 输出逐字节相同。
+- **后续**：有 Swift 的镜像里分开 ObjC 代码写的 category 遵循，要逐个协议看实现其要求的方法是不是 Swift 的（符号或 thunk）。
+- **对应版本**：未发布。
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -43,7 +43,7 @@ SE-0436 的 `@objc @implementation` 类编出来是纯 ObjC class object，没�
 ### 3：ObjC 协议
 
 - **Swift 里声明的 `@objc` 协议没有协议描述符**：只有一条 kind 为 `ObjCProtocol` 的 `__swift5_fieldmd` 记录和一个 ObjC `protocol_t`，两者按名字配对。记录上的 IsSwift 标志不是证据：Swift 给它引用的别的协议也发带这个标志的副本。`SwiftDeclaredObjCProtocolIndex` 做配对；`ObjCProtocolRecord` 读 `protocol_t`，方法表、属性表与扩展类型编码按下标读整张表（MachOObjCSection 的 `extendedMethodTypes(in:)` 只返回第一条）；`ObjCProtocolRequirements` 把读到的记录变成 requirement。扩展类型编码按方法在四张表里的位置一一对应，读不出的表会让后面每个方法错配到别的方法的编码上，所以 `ObjCProtocolRecord.make` 逐个核对：擦掉类名、协议名与 block 签名后要与方法表的编码相同，有一个对不上就整组不用（体检第 8 条）。
-- **类对 ObjC 协议的遵循没有 conformance record**：`class_ro_t` 列出它（同一模块里 extension 声明的遵循也折进这里），只有给别的模块的类写的 category 才另外列出。`ObjCProtocolAdoptionIndex` 读这两处。
+- **类对 ObjC 协议的遵循没有 conformance record**：`class_ro_t` 列出它（同一模块里 extension 声明的遵循也折进这里），只有给别的模块的类写的 category 才另外列出。`ObjCProtocolAdoptionIndex` 读这两处。没有 Swift 代码进入的镜像（`objc_image_info` 的 flags 第 8–15 位为 0，即 objc4 的 `containsSwift()` 为假）一个 category 都不收：它的 category 全是 ObjC 代码写的。有 Swift 的镜像照旧收下每个带协议的 category，ObjC 代码写的也在内——链接器把同一个类的 category 合成一个，名字取第一个、协议取并集，按名字或协议表都分不出是谁写的。
 - 只剩 selector 的 requirement 由 `ObjCImporterNaming` 起名，再用 `@objc(selector)` 钉住 selector。
 
 见 [SwiftDeclaredObjCProtocols.md](../SwiftDeclaredObjCProtocols.md)。

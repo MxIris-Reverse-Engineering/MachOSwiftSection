@@ -44,7 +44,7 @@ Swift 源码声明的 `@objc` 协议没有 protocol descriptor，类对任何 Ob
 
 ## 类对 ObjC 协议的遵循（`ObjCProtocolAdoptionIndex`）
 
-- **数据从哪来**：编译器把一个声明写的 ObjC 协议遵循记进它那份类数据的协议表（`GenClass.cpp` 的 `visitConformances`）。**同一模块里的 extension 并进类自己的数据**，它写的遵循也记在类的 `class_ro_t` 里，探针里这种镜像根本没有 `__objc_catlist`。只有 extension 别的模块的类（ObjC 类，或别的模块的 Swift 类），并且有 `@objc` 成员时，才生成 category。索引读本镜像每个 Swift 类的 `class_ro_t`（没有 class object 的类经 [ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md) 的索引）与每个 category 的协议表。
+- **数据从哪来**：编译器把一个声明写的 ObjC 协议遵循记进它那份类数据的协议表（`GenClass.cpp` 的 `visitConformances`）。**同一模块里的 extension 并进类自己的数据**，它写的遵循也记在类的 `class_ro_t` 里，探针里这种镜像根本没有 `__objc_catlist`。只有 extension 别的模块的类（ObjC 类，或别的模块的 Swift 类），并且有 `@objc` 成员时，才生成 category。索引读本镜像每个 Swift 类的 `class_ro_t`（没有 class object 的类经 [ClassesWithoutClassObjects.md](ClassesWithoutClassObjects.md) 的索引）与每个 category 的协议表。**没有 Swift 代码进入的镜像不读 category**：Swift 编译器在它产出的 `objc_image_info` 的 flags 第 8–15 位记下 ABI 版本，链接器带进镜像，clang 不置这几位（objc4 的 `containsSwift()`）；这几位为 0 的镜像，category 全是 ObjC 代码写的。原先不看这一点，OS X 10.9 的 AppKit（还没有 Swift）把 `NSString`、`NSURL`、`NSAttributedString`、`NSFileVersion` 四个 category 打成了 `extension X: P {}`。
 - **隐含的协议**：类遵循一个继承了 ObjC 协议的 Swift 协议时，编译器把那个 ObjC 协议也记进表里（`getObjCProtocols` 的递归）。索引走一遍本镜像的遵循记录：协议是本镜像的 Swift 协议、它的 requirement signature 里 `Self` 的协议要求（递归经本镜像的其它 Swift 协议）出现了 ObjC 协议，这些 ObjC 协议就记作这个类隐含的。类按描述符的限定名对，category 的目标若是 ObjC 类，按遵循记录里的 ObjC 类名（`directObjCClassName`、`indirectObjCClass` 的 `_OBJC_CLASS_$_` 符号）对。先判协议有没有这种祖先、再给类型起名，绝大多数遵循在第一步就跳过了。
 - **为什么是新索引**：找实现者要「谁采纳了协议 P」，打印要「类 X 采纳了哪些」，两种查法在一次构建里建好；`ObjCClassMethodIndex` 与 RuntimeViewer 用的 provider 接缝不动，下游不用跟着改。
 
@@ -75,11 +75,13 @@ Swift 源码声明的 `@objc` 协议没有 protocol descriptor，类对任何 Ob
 - 隐含的协议只认本镜像的 Swift 协议：遵循的是别的镜像的 Swift 协议时，它继承的 ObjC 协议照样打出来。
 - 同一模块里 extension 写的遵循与类声明写的分不出来，都在类头部；链接器做 category merging 时 category 里的也一样。
 - 别的模块的 Swift 类在本镜像里的 category，目标类名取运行时名；改过名的别的模块的 Swift 类按 ObjC 名写成 `__C.<名字>`。
+- 有 Swift 的镜像里，ObjC 代码写的 category 遵循照样打成 `extension X: P {}`。链接器（2026-11 实测 ld-27106）把同一个类的 category 合成一个，名字取第一个、协议取并集：AppKit 27.2 的 `NSString (AppKit)` 带着 `NSPasteboard.h` 里 ObjC 声明的 `NSPasteboardWriting`、`NSPasteboardReading`，SwiftUICore 的 `NSObject (CoreAX)` 名字是 ObjC 的，里面却有 Swift 实现的成员。所以按 category 名（Swift 默认取模块名，见 `GenClass.cpp` 的 `buildCategoryName`）过滤会多列也会漏列，没有采用。要分开只能逐个协议看实现它要求的方法是不是 Swift 的（符号或 thunk），尚未做。
 - 实现者只在本镜像里找，不到别的镜像里找。
 
 ## 验证
 
 - `SwiftDeclaredObjCProtocolsFixture`（SwiftSectionTestingSupport）测试时现编两个镜像。kit 声明三个 `@objc` 协议（没改名、改成自身名字、改成别的名字）；客户端声明六种形状的协议（编译器推导 selector、改成自身名字、改成别的名字、继承另一个、internal、嵌套在类型里）、在类声明与同模块 extension 里采纳它们的类、采纳 kit 协议的类、遵循继承 `NSCopying` 的 Swift 协议的类、extension `DateFormatter` 采纳协议（category），以及装着改名协议与嵌套协议存在类型的结构体；`.full`、关掉反射元数据、`strip -x` 三个变体。
+- `ObjCWrittenCategoriesFixture`（SwiftSectionTestingSupport）与 `ObjCWrittenCategoryConformanceTests`（SwiftIndexingTests）：同一段 ObjC 代码（`NSString`、`NSDateFormatter` 的 category 采纳一个 ObjC 协议）单独编成一个镜像，以及和两个 extension `DateFormatter` 的 Swift 文件编进一个镜像。前者从文件与进程内读都不出 category 遵循；后者两个 Swift 协议都留着。
 - `SwiftDeclaredObjCProtocolIndexTests`、`ObjCImporterNamingTests`、`ObjCProtocolRequirementBuilderTests`（SwiftObjCInteropTests）：配对、退回路径、没认领的记录；命名规则对照真实 ClangImporter 的输出（含 DVTFoundation 的 selector）；要求的种类、访问器、类成员与 optional。
 - `ObjCProtocolDefinitionIndexingTests`（SwiftIndexingTests）：文件、进程内、strip 后的文件三条路径的模型——要求的来源（selector 或实现者）、strip 后经 thunk 代码联结、继承的协议、默认实现、类与 category 的协议、跨镜像找回的改名协议、隐含协议的剔除。
 - `SwiftDeclaredObjCProtocolInterfaceTests`（SwiftInterfaceTests）、`SwiftDeclaredObjCProtocolDumpTests`（SwiftDumpTests）、`SwiftDeclaredObjCProtocolRequestTests`（SwiftSectionKitTests）：两种输出、两种 dump 排序、进程内与文件的 interface 一致。
