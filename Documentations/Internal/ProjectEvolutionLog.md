@@ -3702,6 +3702,7 @@
   - 同类排查：另外两处遍历 category 的（`ObjCClassMethodIndex` 的方法表、`ObjCImportedContainerIndex` 的 ObjC 导入声明）本来就该看全部 category，不动。
 - **落地模块**：SwiftObjCInterop（`ObjCImplementationClassReading.containsSwift()`、`ObjCImageInfo.containsSwift`、`ObjCProtocolAdoptionIndex`），SwiftSectionTestingSupport（`ObjCWrittenCategoriesFixture`）。
 - **文档**：[SwiftDeclaredObjCProtocols.md](SwiftDeclaredObjCProtocols.md)（数据来源、已知局限、验证）、[Modules/SwiftObjCInterop.md](Modules/SwiftObjCInterop.md)、CLI skill 的输出说明。
+- **验证**（JHs-Mac-Studio-Ultra，macOS 27.2.1，Xcode 27.2，本地依赖）：`ObjCWrittenCategoryConformanceTests` 修复前没有 Swift 的镜像两条红（文件与进程内）、混编镜像两条绿，修复后四条全绿。全量 `swift test --skip IntegrationTests` 没有进程崩溃，1258 处失败全部是构建槽位里没有 SymbolTestsCore / SymbolTestsHelper 夹具（已知环境缺口）；现编夹具的 ObjC 相关套件（`ObjCProtocolDefinitionIndexingTests`、`SwiftDeclaredObjCProtocol*`、`CustomObjCClassName*`、`ClassesWithoutClassObjects*`、`ObjCMemberDumpTests`）都通过。`interface` 修复前后对比（同机系统缓存，基线是只含测试提交的同一分支）：BaseBoard、ViewBridge、FuseBoard、RunningBoardServices、FrontBoardServices 的 9、7、4、3、2 个空 `extension __C.X: P {}` 全部消失，别无差异；AppKit 与 SwiftUICore 输出逐字节相同。
 - **后续**：有 Swift 的镜像里分开 ObjC 代码写的 category 遵循，要逐个协议看实现其要求的方法是不是 Swift 的（符号或 thunk）。
 - **对应版本**：未发布。
 
