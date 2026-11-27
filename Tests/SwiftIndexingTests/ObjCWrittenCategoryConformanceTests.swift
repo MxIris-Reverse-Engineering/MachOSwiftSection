@@ -8,11 +8,12 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftObjCInterop
 @testable import SwiftSectionTestingSupport
 
-/// A category is an extension of Swift's only when the Swift compiler
-/// emitted it — named after one of the image's Swift modules — so the
-/// categories Objective-C code declares give no conformance extension: not
-/// in an image of Objective-C code alone (OS X 10.9's AppKit printed four),
-/// and not beside a Swift module's own categories in one image.
+/// An image no Swift code went into has no extension of Swift's, so none of
+/// its categories gives a conformance extension — OS X 10.9's AppKit, all
+/// Objective-C, printed four. An image Swift went into keeps its categories,
+/// Objective-C code's among them: the linker merges the categories of one
+/// class, so the Swift extensions' protocols and the Objective-C category's
+/// arrive in one list.
 ///
 /// Holds `ExclusiveImageAccess` because the adoption index is per-image
 /// state the indexer and the queries below share.
@@ -26,28 +27,35 @@ struct ObjCWrittenCategoryConformanceTests {
         return indexer
     }
 
-    @Test func objectiveCOnlyImageHasNoCategoryConformances() async throws {
-        let machO = try ObjCWrittenCategoriesFixture.machOFile(.objectiveCOnly)
+    private static func expectNoCategoryConformances(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         #expect(ObjCProtocolAdoptionIndex.shared.categoryAdoptions(in: machO).map(\.classRuntimeName) == [])
         let indexer = try await Self.indexer(for: machO)
         #expect(indexer.objcCategoryConformances.map(\.extendedTypeName.name) == [])
     }
 
-    /// The two extensions of `DateFormatter`, named `ObjCWrittenCategoriesFixture`
-    /// and `ObjCWrittenCategoriesFixture1`; the Objective-C categories on
-    /// `NSString` and `NSDateFormatter` give nothing.
-    private static func expectSwiftCategoriesOnly(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
-        #expect(ObjCProtocolAdoptionIndex.shared.categoryAdoptions(in: machO).map(\.classRuntimeName) == ["NSDateFormatter", "NSDateFormatter"])
+    @Test func objectiveCOnlyImageFromTheFile() async throws {
+        try await Self.expectNoCategoryConformances(in: ObjCWrittenCategoriesFixture.machOFile(.objectiveCOnly))
+    }
+
+    @Test func objectiveCOnlyImageFromTheLoadedImage() async throws {
+        try await Self.expectNoCategoryConformances(in: ObjCWrittenCategoriesFixture.loadedImage(.objectiveCOnly))
+    }
+
+    /// The two extensions of `DateFormatter` adopt one protocol each; both
+    /// reach the conformance extension of `NSDateFormatter`.
+    private static func expectSwiftProtocolsKept(in machO: some MachOSwiftSectionRepresentableWithCache) async throws {
         let indexer = try await Self.indexer(for: machO)
-        #expect(indexer.objcCategoryConformances.map(\.extendedTypeName.name) == ["__C.NSDateFormatter", "__C.NSDateFormatter"])
-        #expect(indexer.objcCategoryConformances.map { $0.protocolNames.map(\.name) } == [["\(moduleName).SwiftDeclaredAdoption"], ["\(moduleName).SecondSwiftDeclaredAdoption"]])
+        let dateFormatterProtocolNames = indexer.objcCategoryConformances
+            .filter { $0.extendedTypeName.name == "__C.NSDateFormatter" }
+            .flatMap { $0.protocolNames.map(\.name) }
+        #expect(Set(dateFormatterProtocolNames).isSuperset(of: ["\(moduleName).SwiftDeclaredAdoption", "\(moduleName).SecondSwiftDeclaredAdoption"]))
     }
 
     @Test func mixedImageFromTheFile() async throws {
-        try await Self.expectSwiftCategoriesOnly(in: ObjCWrittenCategoriesFixture.machOFile(.mixed))
+        try await Self.expectSwiftProtocolsKept(in: ObjCWrittenCategoriesFixture.machOFile(.mixed))
     }
 
     @Test func mixedImageFromTheLoadedImage() async throws {
-        try await Self.expectSwiftCategoriesOnly(in: ObjCWrittenCategoriesFixture.loadedImage())
+        try await Self.expectSwiftProtocolsKept(in: ObjCWrittenCategoriesFixture.loadedImage(.mixed))
     }
 }

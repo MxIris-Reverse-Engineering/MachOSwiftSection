@@ -4,11 +4,9 @@ import MachOKit
 import Testing
 
 /// An on-the-fly fixture for the categories Objective-C code declares in an
-/// image: a category that adopts a protocol is not an extension of Swift's
-/// unless the Swift compiler emitted it, and the only mark it leaves is the
-/// category's name — the name of the module the extension is declared in,
-/// with a count from the second extension of one class on (`GenClass.cpp`'s
-/// `buildCategoryName`).
+/// image: a category that adopts a protocol is an extension of Swift's only
+/// when the Swift compiler emitted it, and only an image Swift code went into
+/// — its `objc_image_info` records a Swift version — can hold one.
 ///
 /// Two variants of one library:
 /// - `.objectiveCOnly`: Objective-C code alone, as every OS framework from
@@ -18,8 +16,9 @@ import Testing
 /// - `.mixed`: the same Objective-C code linked into a Swift module whose two
 ///   extensions of `DateFormatter` adopt `@objc` protocols, as a framework
 ///   carrying both languages does (AppKit since its overlay merged into it).
-///   The Objective-C categories extend `NSString` and `NSDateFormatter`, so
-///   a class with a Swift category has an Objective-C one beside it.
+///   The linker merges the categories of one class: the image holds one
+///   `NSDateFormatter` category, named after the first, listing the
+///   Objective-C protocol and both Swift ones, and one `NSString` category.
 package enum ObjCWrittenCategoriesFixture {
     package enum Variant: String, CaseIterable, Sendable {
         case objectiveCOnly
@@ -55,11 +54,6 @@ package enum ObjCWrittenCategoriesFixture {
     package static let swiftSource = """
     import Foundation
 
-    // A type: the image's Swift modules are named by the module contexts at
-    // the root of its type and protocol descriptors, and neither an `@objc`
-    // protocol nor an extension adopting one emits a descriptor.
-    public class Anchor: NSObject {}
-
     @objc public protocol SwiftDeclaredAdoption {
         func swiftDeclaredPoke()
     }
@@ -69,7 +63,7 @@ package enum ObjCWrittenCategoriesFixture {
     }
 
     // Two extensions of one class of another module: two categories, named
-    // `\(moduleName)` and `\(moduleName)1`.
+    // `\(moduleName)` and `\(moduleName)1`, before the linker merges them.
     extension DateFormatter: SwiftDeclaredAdoption {
         public func swiftDeclaredPoke() {}
     }
@@ -161,10 +155,11 @@ package enum ObjCWrittenCategoriesFixture {
         try HostSlice.machOFile(at: libraryURL(variant))
     }
 
-    /// The `.mixed` library loaded into the test process — only that
-    /// variant: both declare the same Objective-C protocol and categories.
-    package static func loadedImage() throws -> MachOImage {
-        let libraryURL = try libraryURL(.mixed)
+    /// A variant loaded into the test process. Both may be: they declare the
+    /// same Objective-C protocol and categories, but no class, so the runtime
+    /// keeps both images' records without a conflict.
+    package static func loadedImage(_ variant: Variant) throws -> MachOImage {
+        let libraryURL = try libraryURL(variant)
         _ = libraryURL.path.withCString { dlopen($0, RTLD_NOW) }
         let imageName = libraryURL.deletingPathExtension().lastPathComponent
         return try #require(MachOImage(name: imageName), "the fixture dylib did not load in-process")
